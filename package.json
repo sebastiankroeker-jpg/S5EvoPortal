@@ -1,5 +1,5 @@
 {
-  "name": "authentik-nextjs-demo",
+  "name": "s5evo-portal",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "next": "16.2.1",
+    "next-auth": "^4.24.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

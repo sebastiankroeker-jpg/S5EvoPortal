@@ -1,6 +1,24 @@
 {
   "compilerOptions": {
     "target": "ES2017",
+<<<<<<< HEAD
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "incremental": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+=======
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -13,11 +31,27 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+>>>>>>> 637a14a (initial commit: Next.js Demo + Authentik README)
     "plugins": [
       {
         "name": "next"
       }
     ],
+<<<<<<< HEAD
+    "strictNullChecks": true
+  },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+=======
     "paths": {
       "@/*": ["./*"]
     }
@@ -31,4 +65,5 @@
     "**/*.mts"
   ],
   "exclude": ["node_modules"]
+>>>>>>> 637a14a (initial commit: Next.js Demo + Authentik README)
 }

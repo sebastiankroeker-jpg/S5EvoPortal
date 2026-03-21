@@ -1,66 +1,124 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useSession, signIn, signOut } from "next-auth/react";
+import { useState, useEffect } from "react";
+
+type Theme = "light" | "dark" | "psychedelic";
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const [theme, setTheme] = useState<Theme>("light");
+  const [teamName, setTeamName] = useState("");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="container">
+      <div className="theme-switcher">
+        <button
+          className={`theme-btn ${theme === "light" ? "active" : ""}`}
+          onClick={() => setTheme("light")}
+        >
+          ☀️ Light
+        </button>
+        <button
+          className={`theme-btn ${theme === "dark" ? "active" : ""}`}
+          onClick={() => setTheme("dark")}
+        >
+          🌙 Dark
+        </button>
+        <button
+          className={`theme-btn ${theme === "psychedelic" ? "active" : ""}`}
+          onClick={() => setTheme("psychedelic")}
+        >
+          🍄 Psychedelic
+        </button>
+      </div>
+
+      <h1>🏅 S5Evo Portal</h1>
+      <p className="subtitle">Mannschaftsfünfkampf – Anmeldung</p>
+
+      {status === "loading" && (
+        <div className="card">
+          <p>Lade...</p>
+        </div>
+      )}
+
+      {status === "unauthenticated" && (
+        <div className="card">
+          <h2>Willkommen!</h2>
+          <p style={{ margin: "1rem 0" }}>
+            Bitte melde dich an, um deine Mannschaft zu registrieren.
           </p>
+          <button className="btn btn-primary" onClick={() => signIn("authentik")}>
+            🔐 Mit Authentik anmelden
+          </button>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
+
+      {status === "authenticated" && session?.user && (
+        <>
+          <div className="card">
+            <div className="user-info">
+              {session.user.image && (
+                <img src={session.user.image} alt="Avatar" />
+              )}
+              <div>
+                <strong>{session.user.name}</strong>
+                <br />
+                <small>{session.user.email}</small>
+              </div>
+            </div>
+            <button className="btn btn-danger" onClick={() => signOut()}>
+              Abmelden
+            </button>
+          </div>
+
+          <div className="card">
+            <h2>Mannschaft anmelden</h2>
+            <div className="field">
+              <label>Teamchef (aus Authentik)</label>
+              <span>{session.user.name}</span>
+            </div>
+            <div className="field">
+              <label>E-Mail (aus Authentik)</label>
+              <span>{session.user.email}</span>
+            </div>
+            <div className="field">
+              <label htmlFor="teamName">Mannschaftsname</label>
+              <input
+                id="teamName"
+                type="text"
+                placeholder="z.B. Die Bergziegen"
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="category">Kategorie</label>
+              <select id="category">
+                <option value="">Bitte wählen...</option>
+                <option value="herren">Herren</option>
+                <option value="damen">Damen</option>
+                <option value="mixed">Mixed</option>
+                <option value="senioren">Senioren</option>
+                <option value="jugend">Jugend</option>
+              </select>
+            </div>
+            <div className="actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => alert(`Mannschaft "${teamName}" angemeldet! 🎉`)}
+                disabled={!teamName}
+              >
+                Mannschaft anmelden
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
