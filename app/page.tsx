@@ -11,6 +11,7 @@ import ThemeSwitcher from "./components/theme-switcher";
 import TeamRegistration from "./components/team-registration";
 import SysAdminView from "./components/sysadmin-view";
 import ESVHero from "./components/esv-hero";
+import Dashboard from "./components/dashboard";
 
 type Theme = "light" | "dark" | "psychedelic" | "sysadmin" | "esv";
 
@@ -82,13 +83,23 @@ export default function Home() {
                     <p className="text-muted-foreground">
                       Melde dich an, um deine Mannschaft zu registrieren.
                     </p>
-                    <Button
-                      size="lg"
-                      onClick={() => signIn("authentik")}
-                      className={`w-full ${theme === "psychedelic" ? "psychedelic-btn" : ""}`}
-                    >
-                      🔐 Mit Authentik anmelden
-                    </Button>
+                    <div className="space-y-3">
+                      <Button
+                        size="lg"
+                        onClick={() => signIn("authentik")}
+                        className={`w-full ${theme === "psychedelic" ? "psychedelic-btn" : ""}`}
+                      >
+                        🔐 Mit Authentik anmelden
+                      </Button>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        onClick={() => window.location.href = '/register'}
+                        className="w-full"
+                      >
+                        📝 Neuen Account erstellen
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -121,30 +132,7 @@ export default function Home() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                   >
-                    <Card className={theme === "psychedelic" ? "psychedelic-card" : ""}>
-                      <CardHeader>
-                        <CardTitle>📊 Dashboard</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-muted-foreground">
-                          Hier siehst du bald deine angemeldeten Mannschaften, Teilnehmer und den Wettbewerbsstatus.
-                        </p>
-                        <div className="grid grid-cols-3 gap-4 mt-6">
-                          <div className="text-center p-4 bg-muted rounded-lg">
-                            <p className="text-3xl font-bold">0</p>
-                            <p className="text-xs text-muted-foreground mt-1">Teams</p>
-                          </div>
-                          <div className="text-center p-4 bg-muted rounded-lg">
-                            <p className="text-3xl font-bold">0</p>
-                            <p className="text-xs text-muted-foreground mt-1">Teilnehmer</p>
-                          </div>
-                          <div className="text-center p-4 bg-muted rounded-lg">
-                            <p className="text-3xl font-bold">5</p>
-                            <p className="text-xs text-muted-foreground mt-1">Disziplinen</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <Dashboard />
                   </motion.div>
                 </TabsContent>
               </Tabs>
