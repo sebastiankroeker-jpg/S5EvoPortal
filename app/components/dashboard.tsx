@@ -23,34 +23,68 @@ interface Participant {
   birthDate: string;
 }
 
-const generateTestData = (): Team[] => {
-  const categories = ["herren", "damen", "mixed", "senioren", "jugend"];
-  const teamNames = [
-    "Die Bergziegen", "Alm-Stürmer", "Gipfelkraxler", "Tal-Helden", "Ausseer Adler",
-    "Bayerische Löwen", "Werdenfelser", "Karwendel-Kämpfer", "Isar-Indianer", "Ammergau-Asse"
-  ];
-  const firstNames = [
-    "Max", "Lisa", "Stefan", "Anna", "Michael", "Sarah", "Thomas", "Julia",
-    "Andreas", "Petra", "Markus", "Sandra", "Christian", "Nicole", "Daniel"
-  ];
-  const lastNames = [
-    "Müller", "Huber", "Wagner", "Bauer", "Mayer", "Weber", "Schmid", "Lehner",
-    "Gruber", "Steiner", "Berger", "Hofmann", "Wimmer", "Brunner", "Egger"
-  ];
+const generateTestDataForCategory = (category: string, count: number = 2): Team[] => {
+  const teamNamesByCategory: { [key: string]: string[] } = {
+    "schueler-a": ["Kleine Helden", "Mini Warriors", "Young Stars"],
+    "schueler-b": ["Nachwuchs Power", "Junior Force", "School Champions"],
+    "jugend": ["Jugend Elite", "Young Eagles", "Future Stars"],
+    "jungsters": ["Speed Demons", "Lightning Bolts", "Quick Silver"],
+    "herren": ["Die Bergziegen", "Alm-Stürmer", "Karwendel-Kämpfer"],
+    "masters": ["Old School", "Vintage Power", "Golden Eagles"],
+    "damen-a": ["Lady Power", "Frauen Force", "Girl Gang"],
+    "damen-b": ["Experienced Ladies", "Mature Angels", "Senior Women"]
+  };
 
-  return teamNames.slice(0, 8).map((name, index) => ({
-    id: `test-${index}`,
-    name,
-    category: categories[index % categories.length],
-    contactName: `${firstNames[index]} ${lastNames[index]}`,
-    contactEmail: `${firstNames[index].toLowerCase()}@${name.toLowerCase().replace(/[^a-z]/g, '')}.de`,
-    participants: Array.from({ length: 5 }, (_, i) => ({
-      firstName: firstNames[(index * 5 + i) % firstNames.length],
-      lastName: lastNames[(index * 5 + i) % lastNames.length],
-      gender: Math.random() > 0.5 ? "M" : "W",
-      birthDate: `19${85 + Math.floor(Math.random() * 25)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
-    }))
+  const firstNamesByGender = {
+    M: ["Max", "Stefan", "Michael", "Thomas", "Andreas", "Markus", "Christian", "Daniel"],
+    W: ["Lisa", "Anna", "Sarah", "Julia", "Petra", "Sandra", "Nicole", "Stefanie"]
+  };
+
+  const lastNames = ["Müller", "Huber", "Wagner", "Bauer", "Mayer", "Weber", "Schmid"];
+
+  const getBirthDateForCategory = (cat: string): string => {
+    switch (cat) {
+      case "schueler-a": return `${2016 + Math.floor(Math.random() * 3)}-06-15`;
+      case "schueler-b": return `${2013 + Math.floor(Math.random() * 3)}-06-15`;
+      case "jugend": return `${2009 + Math.floor(Math.random() * 4)}-06-15`;
+      case "jungsters": return `${2001 + Math.floor(Math.random() * 4)}-06-15`; // ~20-25 Jahre
+      case "herren": return `${1990 + Math.floor(Math.random() * 10)}-06-15`; // ~25-35 Jahre
+      case "masters": return `${1970 + Math.floor(Math.random() * 10)}-06-15`; // ~45-55 Jahre
+      case "damen-a": return `${1995 + Math.floor(Math.random() * 10)}-06-15`; // ~25-30 Jahre
+      case "damen-b": return `${1975 + Math.floor(Math.random() * 10)}-06-15`; // ~40-50 Jahre
+      default: return "1990-06-15";
+    }
+  };
+
+  const getGenderForCategory = (cat: string): "M" | "W" => {
+    if (cat.startsWith("damen")) return "W";
+    return Math.random() > 0.3 ? "M" : "W"; // Überwiegend männlich für andere Kategorien
+  };
+
+  const teamNames = teamNamesByCategory[category] || ["Test Team"];
+  
+  return Array.from({ length: count }, (_, index) => ({
+    id: `test-${category}-${index}`,
+    name: `${teamNames[index % teamNames.length]} ${index + 1}`,
+    category,
+    contactName: `${firstNamesByGender["M"][index % 8]} ${lastNames[index % 7]}`,
+    contactEmail: `contact${index}@${category}.de`,
+    participants: Array.from({ length: 5 }, (_, i) => {
+      const gender = getGenderForCategory(category);
+      const names = firstNamesByGender[gender];
+      return {
+        firstName: names[(index * 5 + i) % names.length],
+        lastName: lastNames[(index * 5 + i) % lastNames.length],
+        gender,
+        birthDate: getBirthDateForCategory(category)
+      };
+    })
   }));
+};
+
+const generateTestData = (): Team[] => {
+  const categories = ["schueler-a", "jugend", "jungsters", "herren", "masters", "damen-a"];
+  return categories.flatMap(cat => generateTestDataForCategory(cat, 1));
 };
 
 export default function Dashboard() {
@@ -110,11 +144,14 @@ export default function Dashboard() {
   }));
 
   const categoryEmojis: { [key: string]: string } = {
+    "schueler-a": "🧒",
+    "schueler-b": "👦",
+    jugend: "🌟", 
+    jungsters: "⚡",
     herren: "🏋️",
-    damen: "🏋️‍♀️",
-    mixed: "👫",
-    senioren: "🎖️",
-    jugend: "🌟"
+    masters: "🎖️",
+    "damen-a": "🏋️‍♀️",
+    "damen-b": "👩‍🦳"
   };
 
   if (loading) {
