@@ -13,7 +13,10 @@ export default function ESVHero({ onLogin }: ESVHeroProps) {
     <div className="relative min-h-[600px] bg-gradient-to-br from-[#1a5f1a] via-[#2d4a2d] to-[#1a3d1a] overflow-hidden">
       {/* Background Pattern / Luftbild-Simulation */}
       <div className="absolute inset-0 opacity-20">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.1"><circle cx="30" cy="30" r="2"/></g></g></svg>')] bg-repeat"></div>
+        <div className="absolute inset-0" style={{
+          backgroundImage: `url("data:image/svg+xml,<svg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'><g fill='none' fill-rule='evenodd'><g fill='%23ffffff' fill-opacity='0.1'><circle cx='30' cy='30' r='2'/></g></g></svg>")`,
+          backgroundRepeat: 'repeat'
+        }}></div>
       </div>
       
       {/* Main Content */}
