@@ -22,10 +22,10 @@ import { Button } from "@/components/ui/button";
 
 const testParticipants = [
   { firstName: "Max", lastName: "Mustermann", birthDate: "1995-03-15", gender: "M", email: "", phone: "", discipline: "RUN" },
-  { firstName: "Lisa", lastName: "Schmidt", birthDate: "1997-07-22", gender: "W", email: "", phone: "", discipline: "SWIM" },
-  { firstName: "Stefan", lastName: "Weber", birthDate: "1992-11-08", gender: "M", email: "", phone: "", discipline: "SHOOT" },
-  { firstName: "Anna", lastName: "Müller", birthDate: "1999-01-14", gender: "W", email: "", phone: "", discipline: "FENCE" },
-  { firstName: "Michael", lastName: "Bauer", birthDate: "1994-09-03", gender: "M", email: "", phone: "", discipline: "RIDE" },
+  { firstName: "Lisa", lastName: "Schmidt", birthDate: "1997-07-22", gender: "W", email: "", phone: "", discipline: "BENCH" },
+  { firstName: "Stefan", lastName: "Weber", birthDate: "1992-11-08", gender: "M", email: "", phone: "", discipline: "STOCK" },
+  { firstName: "Anna", lastName: "Müller", birthDate: "1999-01-14", gender: "W", email: "", phone: "", discipline: "ROAD" },
+  { firstName: "Michael", lastName: "Bauer", birthDate: "1994-09-03", gender: "M", email: "", phone: "", discipline: "MTB" },
 ] as const;
 
 export default function TeamRegistration() {
@@ -289,8 +289,26 @@ export default function TeamRegistration() {
                           <input
                             type="hidden"
                             value={participants[index]?.discipline}
+                            readOnly
                             {...register(`participants.${index}.discipline` as const)}
                           />
+                          <label className="col-span-2 text-xs text-muted-foreground">Disziplin</label>
+                          <select
+                            className="px-2 py-1 bg-background border border-input rounded text-sm col-span-2"
+                            value={participants[index]?.discipline}
+                            onChange={(event) =>
+                              setValue(`participants.${index}.discipline` as const, event.target.value as DisciplineId, {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                              })
+                            }
+                          >
+                            {DISCIPLINES.map((discipline) => (
+                              <option key={discipline.id} value={discipline.id}>
+                                {discipline.icon} {discipline.label}
+                              </option>
+                            ))}
+                          </select>
                           <input
                             placeholder="Vorname"
                             className="px-2 py-1 bg-background border border-input rounded text-sm"
