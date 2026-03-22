@@ -54,7 +54,9 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    const userEmail = session?.user?.email;
+
+    if (!userEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest) {
       const teams = await prisma.team.findMany({
         where: {
           owner: {
-            email: session.user.email
+            email: userEmail
           },
           deletedAt: null
         },
@@ -77,7 +79,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ teams });
     } catch (dbError) {
       // Fallback to temp storage
-      const userTeams = global.tempTeams?.filter(t => t.ownerId === session.user.email) || [];
+      const userEmail = session.user?.email;
+      const userTeams = userEmail
+        ? global.tempTeams?.filter(t => t.ownerId === userEmail) || []
+        : [];
       return NextResponse.json({ 
         teams: userTeams,
         message: userTeams.length === 0 ? 'No teams registered yet' : undefined
@@ -95,7 +100,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    const userEmail = session?.user?.email;
+    const userName = session?.user?.name;
+    const userImage = session?.user?.image;
+
+    if (!userEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -120,15 +129,15 @@ export async function POST(request: NextRequest) {
     try {
       // Check if user exists, create if not
       let user = await prisma.user.findUnique({
-        where: { email: session.user.email }
+        where: { email: userEmail }
       });
 
       if (!user) {
         user = await prisma.user.create({
           data: {
-            email: session.user.email,
-            name: session.user.name || null,
-            image: session.user.image || null
+            email: userEmail,
+            name: userName || null,
+            image: userImage || null
           }
         });
       }
@@ -138,8 +147,8 @@ export async function POST(request: NextRequest) {
         data: {
           name: teamData.teamName,
           category: autoCategory,
-          contactName: session.user.name || "",
-          contactEmail: session.user.email,
+          contactName: userName || "",
+          contactEmail: userEmail,
           ownerId: user.id,
           participants: {
             create: teamData.participants
@@ -174,15 +183,15 @@ export async function POST(request: NextRequest) {
         id: `temp-${Date.now()}`,
         name: teamData.teamName,
         category: autoCategory,
-        contactName: session.user.name || "",
-        contactEmail: session.user.email,
+        contactName: userName || "",
+        contactEmail: userEmail,
         participants: teamData.participants
           .filter(p => p.firstName && p.lastName)
           .map(p => ({
             ...p,
             birthDate: p.birthDate
           })),
-        ownerId: session.user.email,
+        ownerId: userEmail,
         createdAt: new Date().toISOString()
       };
 

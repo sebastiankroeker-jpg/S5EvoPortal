@@ -28,6 +28,8 @@ const testParticipants = [
 
 export default function TeamRegistration() {
   const { data: session } = useSession();
+  const userName = session?.user?.name ?? "";
+  const userEmail = session?.user?.email ?? "";
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState("");
@@ -80,8 +82,8 @@ export default function TeamRegistration() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
-          contactName: session.user.name,
-          contactEmail: session.user.email,
+          contactName: userName,
+          contactEmail: userEmail,
         }),
       });
 
@@ -138,11 +140,11 @@ export default function TeamRegistration() {
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Teamchef (aus Authentik)</label>
-                    <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{session.user.name}</div>
+                    <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{userName || "Unbekannt"}</div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">E-Mail (aus Authentik)</label>
-                    <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{session.user.email}</div>
+                    <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{userEmail || "Nicht verfügbar"}</div>
                   </div>
                   <div>
                     <label htmlFor="teamName" className="text-sm font-medium">
@@ -262,7 +264,7 @@ export default function TeamRegistration() {
                     </div>
                     <div className="flex justify-between">
                       <span>Kontakt:</span>
-                      <span className="font-medium">{session.user.name}</span>
+                      <span className="font-medium">{userName}</span>
                     </div>
                     <div>
                       <span className="font-medium">Disziplin-Status</span>

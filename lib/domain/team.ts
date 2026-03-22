@@ -24,9 +24,7 @@ export const ParticipantSchema = z.object({
   firstName: z.string().min(2, "Vorname zu kurz"),
   lastName: z.string().min(2, "Nachname zu kurz"),
   birthDate: z.string().min(1, "Geburtsdatum fehlt"),
-  gender: z.enum(["M", "W", "D"], {
-    required_error: "Geschlecht wählen",
-  }),
+  gender: z.enum(["M", "W", "D"]),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   discipline: disciplineEnum,
