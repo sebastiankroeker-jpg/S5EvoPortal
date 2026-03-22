@@ -5,10 +5,8 @@ import { Button } from "@/components/ui/button";
 
 export default function RegisterPage() {
   const handleRegisterRedirect = () => {
-    // Redirect to Authentik registration flow with correct client_id
-    const clientId = "aG3hurJM1wq7y0XYMe2St1f7bZrSRvXNhDtJDwZO";
-    const redirectUri = encodeURIComponent(window.location.origin + "/api/auth/callback/authentik");
-    window.location.href = `https://auth.s5evo.de/application/o/authorize/?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=openid%20profile%20email`;
+    // For now, redirect to main login - we'll set up registration flow later
+    window.location.href = "/api/auth/signin";
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -38,37 +36,15 @@ export default function RegisterPage() {
               className="w-full"
               size="lg"
             >
-              📧 Mit E-Mail registrieren
+              🔐 Anmelden / Registrieren
             </Button>
             
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Oder mit Social Login
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Button 
-                onClick={() => handleSocialLogin('google')}
-                variant="outline"
-                className="w-full"
-                size="lg"
-              >
-                🔍 Mit Google
-              </Button>
-              <Button 
-                onClick={() => handleSocialLogin('github')}
-                variant="outline"
-                className="w-full"
-                size="lg"
-              >
-                🐙 Mit GitHub
-              </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              Neue Benutzer werden automatisch registriert
+            </p>
+            
+            <div className="text-center text-xs text-muted-foreground">
+              <p>Social Login wird bald verfügbar sein</p>
             </div>
 
             <div className="text-center text-sm text-muted-foreground">
