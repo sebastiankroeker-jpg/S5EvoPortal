@@ -81,7 +81,7 @@ export default function Home() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <p className="text-muted-foreground">
-                      Melde dich an, um deine Mannschaft zu registrieren.
+                      Melde dich an oder erstelle einen neuen Account für die Mannschaftsanmeldung.
                     </p>
                     <div className="space-y-3">
                       <Button
@@ -89,7 +89,7 @@ export default function Home() {
                         onClick={() => signIn("authentik")}
                         className={`w-full ${theme === "psychedelic" ? "psychedelic-btn" : ""}`}
                       >
-                        🔐 Mit Authentik anmelden
+                        🔐 Anmelden (vorhandener Account)
                       </Button>
                       <Button
                         size="lg"
@@ -99,6 +99,9 @@ export default function Home() {
                       >
                         📝 Neuen Account erstellen
                       </Button>
+                      <div className="text-xs text-center text-muted-foreground">
+                        <p>Direkt zu <a href="https://auth.s5evo.de" className="text-primary hover:underline">auth.s5evo.de</a> für Login</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
