@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       return 25; // default
     });
     
-    const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
+    const avgAge = ages.reduce((a: number, b: number) => a + b, 0) / ages.length;
     const autoCategory = avgAge <= 16 ? "jugend" : 
                         avgAge >= 50 ? "senioren" :
                         participants.every((p: any) => p.gender === "M") ? "herren" :
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       message: 'Team registered successfully!',
-      team: { id: `temp-${Date.now()}`, name: teamName, category }
+      team: { id: `temp-${Date.now()}`, name: teamName, category: autoCategory }
     });
 
   } catch (error) {
