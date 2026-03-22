@@ -43,7 +43,6 @@ export default function TeamRegistration() {
         },
         body: JSON.stringify({
           teamName,
-          category,
           contactName: session?.user?.name || "",
           contactEmail: session?.user?.email || "",
           contactPhone: "",
@@ -59,7 +58,7 @@ export default function TeamRegistration() {
           setSubmitted(false);
           setStep(1);
           setTeamName("");
-          setCategory("");
+
           setParticipants([
             { firstName: "", lastName: "", birthDate: "", gender: "M", email: "", phone: "" },
             { firstName: "", lastName: "", birthDate: "", gender: "M", email: "", phone: "" },
@@ -173,7 +172,7 @@ export default function TeamRegistration() {
                 </motion.div>
               )}
 
-              {/* Step 2: Category */}
+              {/* Step 2: Info about auto-classification */}
               {step === 2 && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
@@ -181,32 +180,29 @@ export default function TeamRegistration() {
                   className="space-y-4"
                 >
                   <div className="text-center space-y-2">
-                    <h3 className="text-lg font-medium">Kategorie wählen</h3>
+                    <h3 className="text-lg font-medium">Automatische Klassifizierung</h3>
                     <p className="text-muted-foreground">
-                      In welcher Kategorie tritt euer Team an?
+                      Die Wettkampfklasse wird automatisch anhand der Teilnehmer-Daten erkannt
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {categories.map((cat) => (
-                      <button
-                        key={cat.value}
-                        onClick={() => setCategory(cat.value)}
-                        className={`p-4 text-center rounded-lg border-2 transition-all hover:scale-105 ${
-                          category === cat.value
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                      >
-                        <span className="text-xl block mb-1">{cat.icon}</span>
-                        {cat.label}
-                      </button>
-                    ))}
+                  <div className="bg-muted rounded-lg p-4 space-y-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                      {categories.map((cat) => (
+                        <div key={cat.value} className="flex items-center gap-2">
+                          <span>{cat.icon}</span>
+                          <span>{cat.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Klassifizierung erfolgt nach Alter und Geschlecht der Teilnehmer
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← Zurück
                     </Button>
-                    <Button onClick={() => setStep(3)} disabled={!category} className="flex-1">
+                    <Button onClick={() => setStep(3)} className="flex-1">
                       Weiter →
                     </Button>
                   </div>
@@ -225,6 +221,27 @@ export default function TeamRegistration() {
                     <p className="text-muted-foreground">
                       Erfasse deine 5 Sportler für die Mannschaft
                     </p>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-sm text-muted-foreground">5 Sportler erfassen</span>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        const testParticipants = [
+                          { firstName: "Max", lastName: "Mustermann", birthDate: "1995-03-15", gender: "M", email: "", phone: "" },
+                          { firstName: "Lisa", lastName: "Schmidt", birthDate: "1997-07-22", gender: "W", email: "", phone: "" },
+                          { firstName: "Stefan", lastName: "Weber", birthDate: "1992-11-08", gender: "M", email: "", phone: "" },
+                          { firstName: "Anna", lastName: "Müller", birthDate: "1999-01-14", gender: "W", email: "", phone: "" },
+                          { firstName: "Michael", lastName: "Bauer", birthDate: "1994-09-03", gender: "M", email: "", phone: "" }
+                        ];
+                        setParticipants(testParticipants);
+                      }}
+                    >
+                      🎲 Testdaten
+                    </Button>
                   </div>
                   
                   <div className="space-y-3">
@@ -310,10 +327,8 @@ export default function TeamRegistration() {
                       <span className="font-medium">{teamName}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Kategorie:</span>
-                      <span className="font-medium">
-                        {categories.find(c => c.value === category)?.label}
-                      </span>
+                      <span>Klasse:</span>
+                      <span className="font-medium">Wird automatisch erkannt</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Teilnehmer:</span>

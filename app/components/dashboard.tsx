@@ -143,12 +143,6 @@ export default function Dashboard() {
         <Button onClick={fetchTeams} variant="outline">
           🔄 Aktualisieren
         </Button>
-        <Button 
-          onClick={handleGenerateTestData}
-          disabled={generating}
-        >
-          {generating ? "Generiere..." : "🎲 Testdaten generieren"}
-        </Button>
       </div>
 
       {/* Categories */}
