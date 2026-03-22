@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, type TeamRegistrationInput } from '@/lib/domain/team';
+import { TeamRegistrationSchema, type TeamRegistrationInput, generateTeamName } from '@/lib/domain/team';
 import { prisma } from '@/lib/prisma';
 
 // Global temp storage (until DB ready)
@@ -161,6 +161,10 @@ export async function POST(request: NextRequest) {
 
     const teamData = validation.data;
     const autoCategory = classifyTeam(teamData.participants);
+    const normalizedTeamName = teamData.teamName?.trim();
+    const finalTeamName = normalizedTeamName && normalizedTeamName.length >= 3
+      ? normalizedTeamName
+      : generateTeamName(autoCategory);
 
     // Try Prisma first
     try {
@@ -182,7 +186,7 @@ export async function POST(request: NextRequest) {
       // Create team with participants
       const team = await prisma.team.create({
         data: {
-          name: teamData.teamName,
+          name: finalTeamName,
           category: autoCategory,
           contactName: userName || "",
           contactEmail: userEmail,
@@ -208,7 +212,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ 
         success: true,
-        message: `Team "${teamData.teamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
+        message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
         team: serializeTeam(team)
       });
 
@@ -218,7 +222,7 @@ export async function POST(request: NextRequest) {
       // Fallback: Store in temp storage
       const newTeam = {
         id: `temp-${Date.now()}`,
-        name: teamData.teamName,
+        name: finalTeamName,
         category: autoCategory,
         contactName: userName || "",
         contactEmail: userEmail,
@@ -239,7 +243,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ 
         success: true,
-        message: `Team "${teamData.teamName}" erfolgreich angemeldet! Klasse: ${autoCategory} (Temporär gespeichert)`,
+        message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory} (Temporär gespeichert)`,
         team: serializeTeam(newTeam)
       });
     }

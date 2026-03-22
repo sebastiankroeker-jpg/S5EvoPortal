@@ -15,6 +15,7 @@ import {
   TeamRegistrationSchema,
   type DisciplineId,
   type ParticipantInput,
+  generateTeamName,
 } from "@/lib/domain/team";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +105,12 @@ export default function TeamRegistration() {
   );
 
   const disciplineSummary = useMemo(() => summarizeDisciplines(participants), [participants]);
+
+  useEffect(() => {
+    if (!teamName) {
+      setValue("teamName", generateTeamName(), { shouldDirty: false, shouldTouch: false });
+    }
+  }, [teamName, setValue]);
 
   const previousTeamLeadDiscipline = useRef<DisciplineId>(DISCIPLINES[0].id);
 
@@ -213,9 +220,17 @@ export default function TeamRegistration() {
     previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
 
     const generatedName = `${classLabel} ${Math.floor(Math.random() * 900 + 100)}`;
-    setValue("teamName", generatedName, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    if (!teamName?.trim()) {
+      setValue("teamName", generatedName, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    }
 
     DISCIPLINES.forEach((discipline, index) => {
+      const current = getValues(`participants.${index}` as const);
+      const alreadyFilled = current?.firstName?.trim() || current?.lastName?.trim();
+      if (alreadyFilled) {
+        return;
+      }
+
       const participantGender =
         config.gender === "mixed"
           ? (index + randomOffset) % 2 === 0
@@ -281,7 +296,7 @@ export default function TeamRegistration() {
                   </div>
                   <div>
                     <label htmlFor="teamName" className="text-sm font-medium">
-                      Mannschaftsname *
+                      Mannschaftsname (optional)
                     </label>
                     <input
                       id="teamName"
@@ -334,6 +349,10 @@ export default function TeamRegistration() {
                   <div className="text-center space-y-2">
                     <h3 className="text-lg font-medium">Teilnehmer</h3>
                     <p className="text-muted-foreground">Erfasse deine 5 Sportler inkl. Disziplin</p>
+                  </div>
+
+                  <div className="bg-muted/40 border rounded-lg p-3 text-sm">
+                    Aktueller Teamname: <span className="font-semibold">{teamName || "wird automatisch vergeben"}</span>
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -466,16 +485,24 @@ export default function TeamRegistration() {
                     <div>
                       <span className="font-medium">Disziplin-Status</span>
                       <ul className="mt-2 space-y-1">
-                        {DISCIPLINES.map((discipline) => (
-                          <li key={discipline.id} className="flex justify-between">
-                            <span>
-                              {discipline.icon} {discipline.label}
-                            </span>
-                            <span className="font-mono">
-                              {disciplineSummary[discipline.id] ?? 0}
-                            </span>
-                          </li>
-                        ))}
+                        {DISCIPLINES.map((discipline) => {
+                          const assigned = participants.find(
+                            (participant) => participant.discipline === discipline.id && participant.firstName && participant.lastName
+                          );
+                          return (
+                            <li key={discipline.id} className="flex items-center justify-between">
+                              <div>
+                                <span>
+                                  {discipline.icon} {discipline.label}
+                                </span>
+                                <p className="text-xs text-muted-foreground">
+                                  {assigned ? `${assigned.firstName} ${assigned.lastName}` : "TBD"}
+                                </p>
+                              </div>
+                              <span className="font-mono">{assigned ? 1 : 0}</span>
+                            </li>
+                          );
+                        })}
                         <li className="flex justify-between text-muted-foreground text-xs">
                           <span>📝 TBD</span>
                           <span className="font-mono">{disciplineSummary[DISCIPLINE_PLACEHOLDER] ?? 0}</span>

@@ -31,7 +31,7 @@ export const ParticipantSchema = z.object({
 });
 
 export const TeamRegistrationSchema = z.object({
-  teamName: z.string().min(3, "Teamname zu kurz"),
+  teamName: z.string().optional().or(z.literal("")),
   participants: z
     .array(ParticipantSchema)
     .length(5, "Es müssen genau 5 Teilnehmer erfasst werden"),
@@ -70,4 +70,30 @@ export function summarizeDisciplines(participants: ParticipantInput[]) {
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, Object.create(null));
+}
+
+
+const TEAM_NAME_POOLS: Record<string, string[]> = {
+  default: [
+    "Bergziegen",
+    "Karwendel-Kämpfer",
+    "Isar Renner",
+    "Soier Speedsters",
+    "Lightning Goats",
+  ],
+  "schueler-a": ["Mini Warriors", "Young Stars", "Soier Minis"],
+  "schueler-b": ["Junior Force", "Nachwuchs Crew"],
+  jugend: ["Future Stars", "Jugend Elite"],
+  jungsters: ["Quick Silver", "Turbo Soier"],
+  herren: ["Powerhouse", "Gipfelstürmer"],
+  masters: ["Golden Eagles", "Vintage Force"],
+  "damen-a": ["Lady Power", "Girls on Fire"],
+  "damen-b": ["Senior Queens", "Experience United"],
+};
+
+export function generateTeamName(category?: string) {
+  const pool = (category && TEAM_NAME_POOLS[category]) || TEAM_NAME_POOLS.default;
+  const label = pool[Math.floor(Math.random() * pool.length)] ?? "Team";
+  const suffix = Math.floor(Math.random() * 900 + 100);
+  return `${label} ${suffix}`;
 }
