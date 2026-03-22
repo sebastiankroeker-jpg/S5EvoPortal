@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 
 export default function RegisterPage() {
   const handleRegisterRedirect = () => {
-    // For now, redirect to main login - we'll set up registration flow later
-    window.location.href = "/api/auth/signin";
+    // Redirect to Authentik registration flow
+    window.location.href = "https://auth.s5evo.de/if/flow/s5-evo-registration/";
   };
 
   const handleSocialLogin = (provider: string) => {
