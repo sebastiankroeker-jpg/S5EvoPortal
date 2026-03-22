@@ -13,6 +13,9 @@ interface Team {
   category: string;
   contactName: string;
   contactEmail: string;
+  ownerEmail?: string;
+  ownerName?: string;
+  createdAt?: string;
   participants?: Participant[];
 }
 
@@ -69,6 +72,9 @@ const generateTestDataForCategory = (category: string, count: number = 2): Team[
     category,
     contactName: `${firstNamesByGender["M"][index % 8]} ${lastNames[index % 7]}`,
     contactEmail: `contact${index}@${category}.de`,
+    ownerEmail: `contact${index}@${category}.de`,
+    ownerName: `${firstNamesByGender["M"][index % 8]} ${lastNames[index % 7]}`,
+    createdAt: new Date().toISOString(),
     participants: Array.from({ length: 5 }, (_, i) => {
       const gender = getGenderForCategory(category);
       const names = firstNamesByGender[gender];
@@ -93,6 +99,7 @@ export default function Dashboard() {
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [ownerFilter, setOwnerFilter] = useState<string>("all");
 
   const fetchTeams = async () => {
     try {
@@ -146,6 +153,7 @@ export default function Dashboard() {
     return teams.filter(team => {
       // Category filter
       const matchesCategory = categoryFilter === "all" || team.category === categoryFilter;
+      const matchesOwner = ownerFilter === "all" || team.ownerEmail === ownerFilter;
       
       // Search filter (team name, contact name, participant names)
       const matchesSearch = searchQuery === "" || 
@@ -155,11 +163,12 @@ export default function Dashboard() {
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
-      return matchesCategory && matchesSearch;
+      return matchesCategory && matchesOwner && matchesSearch;
     });
   }, [teams, categoryFilter, searchQuery]);
 
   const categories = [...new Set(teams.map(t => t.category))];
+  const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
   const categoryStats = categories.map(cat => ({
     category: cat,
     count: teams.filter(t => t.category === cat).length
@@ -233,7 +242,7 @@ export default function Dashboard() {
             className="max-w-md"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Alle Klassen" />
@@ -243,6 +252,19 @@ export default function Dashboard() {
               {categories.map((cat) => (
                 <SelectItem key={cat} value={cat}>
                   {categoryEmojis[cat] || "🏆"} {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Anleger" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Anleger</SelectItem>
+              {ownerOptions.map((owner) => (
+                <SelectItem key={owner} value={owner}>
+                  {owner}
                 </SelectItem>
               ))}
             </SelectContent>

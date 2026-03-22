@@ -13,6 +13,40 @@ if (!global.tempTeams) {
   global.tempTeams = [];
 }
 
+function serializeParticipant(participant: any) {
+  if (!participant) return null;
+  return {
+    firstName: participant.firstName,
+    lastName: participant.lastName,
+    gender: participant.gender,
+    birthDate:
+      typeof participant.birthDate === "string"
+        ? participant.birthDate
+        : participant.birthDate?.toISOString?.() ?? "",
+    email: participant.email ?? "",
+    phone: participant.phone ?? "",
+    discipline: participant.discipline,
+  };
+}
+
+function serializeTeam(team: any) {
+  if (!team) return null;
+  return {
+    id: team.id,
+    name: team.name,
+    category: team.category,
+    contactName: team.contactName,
+    contactEmail: team.contactEmail,
+    contactPhone: team.contactPhone ?? "",
+    ownerEmail: team.owner?.email ?? team.ownerEmail ?? team.contactEmail,
+    ownerName: team.owner?.name ?? team.ownerName ?? team.contactName,
+    createdAt: team.createdAt?.toISOString?.() ?? team.createdAt ?? new Date().toISOString(),
+    participants: Array.isArray(team.participants)
+      ? team.participants.map(serializeParticipant).filter(Boolean)
+      : [],
+  };
+}
+
 // 2026 Classification Logic
 function classifyTeam(participants: TeamRegistrationInput['participants']): string {
   const participantsWithData = participants.filter(p => p.firstName && p.lastName && p.birthDate);
@@ -72,19 +106,22 @@ export async function GET(request: NextRequest) {
         include: {
           participants: {
             where: { deletedAt: null }
+          },
+          owner: {
+            select: { email: true, name: true }
           }
         }
       });
 
-      return NextResponse.json({ teams });
+      return NextResponse.json({ teams: teams.map(serializeTeam) });
     } catch (dbError) {
       // Fallback to temp storage
-      const userEmail = session.user?.email;
-      const userTeams = userEmail
-        ? global.tempTeams?.filter(t => t.ownerId === userEmail) || []
+      const userEmailFallback = session.user?.email;
+      const userTeams = userEmailFallback
+        ? global.tempTeams?.filter(t => t.ownerEmail === userEmailFallback || t.ownerId === userEmailFallback) || []
         : [];
       return NextResponse.json({ 
-        teams: userTeams,
+        teams: userTeams.map(serializeTeam),
         message: userTeams.length === 0 ? 'No teams registered yet' : undefined
       });
     }
@@ -172,7 +209,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true,
         message: `Team "${teamData.teamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
-        team
+        team: serializeTeam(team)
       });
 
     } catch (dbError) {
@@ -185,13 +222,15 @@ export async function POST(request: NextRequest) {
         category: autoCategory,
         contactName: userName || "",
         contactEmail: userEmail,
+        contactPhone: "",
         participants: teamData.participants
           .filter(p => p.firstName && p.lastName)
           .map(p => ({
             ...p,
             birthDate: p.birthDate
           })),
-        ownerId: userEmail,
+        ownerEmail: userEmail,
+        ownerName: userName || "Teamchef",
         createdAt: new Date().toISOString()
       };
 
@@ -201,7 +240,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true,
         message: `Team "${teamData.teamName}" erfolgreich angemeldet! Klasse: ${autoCategory} (Temporär gespeichert)`,
-        team: newTeam
+        team: serializeTeam(newTeam)
       });
     }
 
