@@ -24,7 +24,7 @@ export default function NavBar() {
               target="_blank"
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
-                "hidden sm:inline-flex"
+                "inline-flex"
               )}
             >
               Referenzarchitektur
