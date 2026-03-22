@@ -1,0 +1,18 @@
+/* globals.css – Global styles for S5Evo, inkl. ESV Mode Variablen */
+:root {
+  --color-primary: #005bbb;
+  --color-accent: #ffd700;
+  --color-background: #ffffff;
+  --color-text: #1a1a1a;
+  /* ESV Farben */
+  --esv-primary: #e30613;
+  --esv-background: #fff0f0;
+  --esv-hero-gradient: linear-gradient(120deg, #e30613 60%, #ffd700 100%);
+}
+[data-theme="esv"] {
+  --color-primary: var(--esv-primary);
+  --color-background: var(--esv-background);
+  --color-accent: #ffd700;
+  --color-hero-gradient: var(--esv-hero-gradient);
+  --color-text: #1a1a1a;
+}
