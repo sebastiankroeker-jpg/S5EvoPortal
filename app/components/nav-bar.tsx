@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export default function NavBar() {
   const { data: session, status } = useSession();
@@ -17,6 +19,16 @@ export default function NavBar() {
       <div className="flex items-center gap-3">
         {status === "authenticated" && session?.user && (
           <>
+            <Link
+              href="/architecture"
+              target="_blank"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "hidden sm:inline-flex"
+              )}
+            >
+              Referenzarchitektur
+            </Link>
             <span className="text-sm text-muted-foreground hidden sm:inline">
               {session.user.name}
             </span>
