@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-
-// Temporary fallback until Vercel Postgres is fully configured
-const isDBConfigured = process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
+import { TeamRegistrationSchema, type TeamRegistrationInput } from '@/lib/domain/team';
+import { prisma } from '@/lib/prisma';
 
 // Global temp storage (until DB ready)
 declare global {
@@ -14,6 +13,44 @@ if (!global.tempTeams) {
   global.tempTeams = [];
 }
 
+// 2026 Classification Logic
+function classifyTeam(participants: TeamRegistrationInput['participants']): string {
+  const participantsWithData = participants.filter(p => p.firstName && p.lastName && p.birthDate);
+  
+  if (participantsWithData.length === 0) {
+    return "unclassified";
+  }
+
+  const ages = participantsWithData.map(p => 2026 - new Date(p.birthDate).getFullYear());
+  const birthYears = participantsWithData.map(p => new Date(p.birthDate).getFullYear());
+  const totalAge = ages.reduce((sum, age) => sum + age, 0);
+  const isMaleOnly = participantsWithData.every(p => p.gender === "M");
+  const isFemaleOnly = participantsWithData.every(p => p.gender === "W");
+  
+  // Jahrgänge-basierte Klassen
+  if (birthYears.every(year => year >= 2016 && year <= 2018)) {
+    return "schueler-a";
+  } else if (birthYears.every(year => year >= 2013 && year <= 2015)) {
+    return "schueler-b";
+  } else if (birthYears.every(year => year >= 2009 && year <= 2012)) {
+    return "jugend";
+  }
+  // Altersklassen (Gesamtalter)
+  else if (totalAge <= 125) {
+    return "jungsters";
+  } else if (totalAge >= 226) {
+    return "masters";
+  } else if (isFemaleOnly && totalAge <= 150) {
+    return "damen-a";
+  } else if (isFemaleOnly && totalAge > 150) {
+    return "damen-b";
+  } else if (isMaleOnly) {
+    return "herren";
+  } else {
+    return "herren"; // Default fallback
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,18 +58,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Return stored teams from session/memory (temporary until DB is ready)
-    const storedTeams = global.tempTeams || [];
-    
-    if (!isDBConfigured) {
+    // Try Prisma first, fallback to temp storage
+    try {
+      const teams = await prisma.team.findMany({
+        where: {
+          owner: {
+            email: session.user.email
+          },
+          deletedAt: null
+        },
+        include: {
+          participants: {
+            where: { deletedAt: null }
+          }
+        }
+      });
+
+      return NextResponse.json({ teams });
+    } catch (dbError) {
+      // Fallback to temp storage
+      const userTeams = global.tempTeams?.filter(t => t.ownerId === session.user.email) || [];
       return NextResponse.json({ 
-        teams: storedTeams,
-        message: storedTeams.length === 0 ? 'No teams registered yet' : undefined
+        teams: userTeams,
+        message: userTeams.length === 0 ? 'No teams registered yet' : undefined
       });
     }
-
-    // TODO: Real DB query when Prisma is ready
-    return NextResponse.json({ teams: [] });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
@@ -50,96 +100,101 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { teamName, contactName, contactEmail, contactPhone, participants } = body;
-
-    // Validate required fields
-    if (!teamName || !contactName || !contactEmail) {
+    
+    // Validate with Zod schema
+    const validation = TeamRegistrationSchema.safeParse(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { 
+          error: 'Validation failed', 
+          details: validation.error.issues 
+        },
         { status: 400 }
       );
     }
 
-    // Validate participants (should be exactly 5)
-    if (!participants || participants.length !== 5) {
-      return NextResponse.json(
-        { error: 'Team must have exactly 5 participants' },
-        { status: 400 }
-      );
-    }
+    const teamData = validation.data;
+    const autoCategory = classifyTeam(teamData.participants);
 
-    // Auto-detect class based on participants (2026 rules)
-    const participantsWithData = participants.filter((p: any) => p.firstName && p.lastName && p.birthDate);
-    
-    if (participantsWithData.length === 0) {
-      return NextResponse.json(
-        { error: 'Team needs at least one complete participant' },
-        { status: 400 }
-      );
-    }
+    // Try Prisma first
+    try {
+      // Check if user exists, create if not
+      let user = await prisma.user.findUnique({
+        where: { email: session.user.email }
+      });
 
-    const ages = participantsWithData.map((p: any) => 2026 - new Date(p.birthDate).getFullYear());
-    const birthYears = participantsWithData.map((p: any) => new Date(p.birthDate).getFullYear());
-    const totalAge = ages.reduce((sum: number, age: number) => sum + age, 0);
-    const isMaleOnly = participantsWithData.every((p: any) => p.gender === "M");
-    const isFemaleOnly = participantsWithData.every((p: any) => p.gender === "W");
-    
-    let autoCategory = "herren"; // default
-    
-    // Jahrgänge-basierte Klassen (Schüler/Jugend)
-    if (birthYears.every(year => year >= 2016 && year <= 2018)) {
-      autoCategory = "schueler-a";
-    } else if (birthYears.every(year => year >= 2013 && year <= 2015)) {
-      autoCategory = "schueler-b";
-    } else if (birthYears.every(year => year >= 2009 && year <= 2012)) {
-      autoCategory = "jugend";
-    }
-    // Altersklassen (Gesamtalter der Teams)
-    else if (totalAge <= 125) {
-      autoCategory = "jungsters";
-    } else if (totalAge >= 226) {
-      autoCategory = "masters";
-    } else if (isFemaleOnly && totalAge <= 150) {
-      autoCategory = "damen-a";
-    } else if (isFemaleOnly && totalAge > 150) {
-      autoCategory = "damen-b";
-    } else if (isMaleOnly) {
-      autoCategory = "herren";
-    }
-    // Fallback für Mixed (eigentlich nicht mehr erlaubt)
-    else {
-      autoCategory = "herren"; // Default wenn Gender gemischt
-    }
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            email: session.user.email,
+            name: session.user.name || null,
+            image: session.user.image || null
+          }
+        });
+      }
 
-    const newTeam = {
-      id: `temp-${Date.now()}`,
-      name: teamName,
-      category: autoCategory,
-      contactName,
-      contactEmail,
-      contactPhone: contactPhone || null,
-      participants: participants.filter((p: any) => p.firstName && p.lastName),
-      ownerId: session.user.email
-    };
+      // Create team with participants
+      const team = await prisma.team.create({
+        data: {
+          name: teamData.teamName,
+          category: autoCategory,
+          contactName: session.user.name || "",
+          contactEmail: session.user.email,
+          ownerId: user.id,
+          participants: {
+            create: teamData.participants
+              .filter(p => p.firstName && p.lastName)
+              .map(p => ({
+                firstName: p.firstName,
+                lastName: p.lastName,
+                birthDate: new Date(p.birthDate),
+                gender: p.gender,
+                email: p.email || null,
+                phone: p.phone || null,
+                discipline: p.discipline
+              }))
+          }
+        },
+        include: {
+          participants: true
+        }
+      });
 
-    // Store in global temp storage
-    global.tempTeams = global.tempTeams || [];
-    global.tempTeams.push(newTeam);
-
-    if (!isDBConfigured) {
       return NextResponse.json({ 
         success: true,
-        message: `Team "${teamName}" registered successfully! Klasse: ${autoCategory}`,
+        message: `Team "${teamData.teamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
+        team
+      });
+
+    } catch (dbError) {
+      console.warn('Database not available, using temp storage:', dbError);
+      
+      // Fallback: Store in temp storage
+      const newTeam = {
+        id: `temp-${Date.now()}`,
+        name: teamData.teamName,
+        category: autoCategory,
+        contactName: session.user.name || "",
+        contactEmail: session.user.email,
+        participants: teamData.participants
+          .filter(p => p.firstName && p.lastName)
+          .map(p => ({
+            ...p,
+            birthDate: p.birthDate
+          })),
+        ownerId: session.user.email,
+        createdAt: new Date().toISOString()
+      };
+
+      global.tempTeams = global.tempTeams || [];
+      global.tempTeams.push(newTeam);
+
+      return NextResponse.json({ 
+        success: true,
+        message: `Team "${teamData.teamName}" erfolgreich angemeldet! Klasse: ${autoCategory} (Temporär gespeichert)`,
         team: newTeam
       });
     }
-
-    // TODO: Real DB insert when Prisma is ready
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Team registered successfully!',
-      team: { id: `temp-${Date.now()}`, name: teamName, category: autoCategory }
-    });
 
   } catch (error) {
     console.error('API error:', error);
