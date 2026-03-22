@@ -94,7 +94,7 @@ export default function Home() {
                       <Button
                         size="lg"
                         variant="outline"
-                        onClick={() => window.location.href = '/register'}
+                        onClick={() => window.location.href = 'https://auth.s5evo.de/if/flow/s5-evo-registration/'}
                         className="w-full"
                       >
                         📝 Neuen Account erstellen
