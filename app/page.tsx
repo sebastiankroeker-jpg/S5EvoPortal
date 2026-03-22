@@ -10,8 +10,9 @@ import NavBar from "./components/nav-bar";
 import ThemeSwitcher from "./components/theme-switcher";
 import TeamRegistration from "./components/team-registration";
 import SysAdminView from "./components/sysadmin-view";
+import ESVHero from "./components/esv-hero";
 
-type Theme = "light" | "dark" | "psychedelic" | "sysadmin";
+type Theme = "light" | "dark" | "psychedelic" | "sysadmin" | "esv";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -30,7 +31,8 @@ export default function Home() {
   return (
     <div className={`min-h-screen transition-all duration-500 ${
       theme === "psychedelic" ? "psychedelic-bg" :
-      theme === "sysadmin" ? "sysadmin-bg" : ""
+      theme === "sysadmin" ? "sysadmin-bg" :
+      theme === "esv" ? "esv-bg" : ""
     }`}>
       <NavBar />
 
@@ -62,6 +64,8 @@ export default function Home() {
         {/* Sys-Admin Mode */}
         {theme === "sysadmin" ? (
           <SysAdminView />
+        ) : theme === "esv" && status === "unauthenticated" ? (
+          <ESVHero />
         ) : (
           <>
             {/* Login Card */}
