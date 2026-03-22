@@ -20,13 +20,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-const testParticipants = [
-  { firstName: "Max", lastName: "Mustermann", birthDate: "1995-03-15", gender: "M", email: "", phone: "", discipline: "RUN" },
-  { firstName: "Lisa", lastName: "Schmidt", birthDate: "1997-07-22", gender: "W", email: "", phone: "", discipline: "BENCH" },
-  { firstName: "Stefan", lastName: "Weber", birthDate: "1992-11-08", gender: "M", email: "", phone: "", discipline: "STOCK" },
-  { firstName: "Anna", lastName: "Müller", birthDate: "1999-01-14", gender: "W", email: "", phone: "", discipline: "ROAD" },
-  { firstName: "Michael", lastName: "Bauer", birthDate: "1994-09-03", gender: "M", email: "", phone: "", discipline: "MTB" },
-] as const;
+type TeamClassId =
+  | "schueler-a"
+  | "schueler-b"
+  | "jugend"
+  | "jungsters"
+  | "herren"
+  | "masters"
+  | "damen-a"
+  | "damen-b";
+
+const TEAM_CLASSES: { id: TeamClassId; label: string }[] = [
+  { id: "schueler-a", label: "Schüler A" },
+  { id: "schueler-b", label: "Schüler B" },
+  { id: "jugend", label: "Jugend" },
+  { id: "jungsters", label: "Jungsters" },
+  { id: "herren", label: "Herren" },
+  { id: "masters", label: "Masters" },
+  { id: "damen-a", label: "Damen A" },
+  { id: "damen-b", label: "Damen B" },
+];
+
+const CLASS_CONFIG: Record<TeamClassId, { minYear: number; maxYear: number; gender: "M" | "W" | "mixed" }> = {
+  "schueler-a": { minYear: 2016, maxYear: 2018, gender: "mixed" },
+  "schueler-b": { minYear: 2013, maxYear: 2015, gender: "mixed" },
+  jugend: { minYear: 2009, maxYear: 2012, gender: "mixed" },
+  jungsters: { minYear: 2001, maxYear: 2004, gender: "mixed" },
+  herren: { minYear: 1985, maxYear: 1995, gender: "M" },
+  masters: { minYear: 1965, maxYear: 1975, gender: "M" },
+  "damen-a": { minYear: 1995, maxYear: 2001, gender: "W" },
+  "damen-b": { minYear: 1975, maxYear: 1985, gender: "W" },
+};
+
+const MALE_NAMES = ["Max", "Stefan", "Michael", "Thomas", "Andreas", "Markus", "Christian", "Daniel", "Sebastian", "Jonas", "Tobias", "Lukas"];
+const FEMALE_NAMES = ["Lisa", "Anna", "Sarah", "Julia", "Petra", "Sandra", "Nicole", "Stefanie", "Laura", "Mia", "Nina", "Franziska"];
+const LAST_NAMES = ["Müller", "Huber", "Wagner", "Bauer", "Mayer", "Weber", "Schmid", "Lehner", "Berger", "Schneider", "Wolf", "Brandt"];
 
 export default function TeamRegistration() {
   const { data: session } = useSession();
@@ -61,6 +89,7 @@ export default function TeamRegistration() {
 
   const [teamLeadParticipates, setTeamLeadParticipates] = useState(false);
   const [teamLeadDiscipline, setTeamLeadDiscipline] = useState<DisciplineId>(DISCIPLINES[0].id);
+  const [testDataClass, setTestDataClass] = useState<TeamClassId>("schueler-a");
 
   const [teamLeadFirstName, teamLeadLastName] = useMemo(() => {
     if (!userName) return ["", ""];
@@ -167,9 +196,47 @@ export default function TeamRegistration() {
     }
   });
 
-  const applyTestData = () => {
-    testParticipants.forEach((participant, index) => {
-      setValue(`participants.${index}` as const, participant, {
+  const randomBirthDate = (minYear: number, maxYear: number) => {
+    const year = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
+    const month = Math.floor(Math.random() * 12) + 1;
+    const day = Math.floor(Math.random() * 28) + 1;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
+  const applyTestData = (selectedClass: TeamClassId) => {
+    const config = CLASS_CONFIG[selectedClass];
+    const classLabel = TEAM_CLASSES.find((entry) => entry.id === selectedClass)?.label || "Team";
+    const randomOffset = Math.floor(Math.random() * 5);
+
+    setTeamLeadParticipates(false);
+    setTeamLeadDiscipline(DISCIPLINES[0].id);
+    previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
+
+    const generatedName = `${classLabel} ${Math.floor(Math.random() * 900 + 100)}`;
+    setValue("teamName", generatedName, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+
+    DISCIPLINES.forEach((discipline, index) => {
+      const participantGender =
+        config.gender === "mixed"
+          ? (index + randomOffset) % 2 === 0
+            ? "M"
+            : "W"
+          : config.gender;
+      const namePool = participantGender === "W" ? FEMALE_NAMES : MALE_NAMES;
+      const firstName = namePool[(index + randomOffset) % namePool.length];
+      const lastName = LAST_NAMES[(index + randomOffset) % LAST_NAMES.length];
+
+      const payload: ParticipantInput = {
+        firstName,
+        lastName,
+        birthDate: randomBirthDate(config.minYear, config.maxYear),
+        gender: participantGender,
+        email: "",
+        phone: "",
+        discipline: discipline.id,
+      };
+
+      setValue(`participants.${index}` as const, payload, {
         shouldDirty: true,
         shouldTouch: true,
         shouldValidate: true,
@@ -269,9 +336,27 @@ export default function TeamRegistration() {
                     <p className="text-muted-foreground">Erfasse deine 5 Sportler inkl. Disziplin</p>
                   </div>
 
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-sm text-muted-foreground">5 Sportler erfassen</span>
-                    <Button type="button" variant="outline" size="sm" onClick={applyTestData}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium">Test-Klasse</label>
+                      <select
+                        className="px-3 py-1.5 bg-background border border-input rounded-md text-sm"
+                        value={testDataClass}
+                        onChange={(event) => setTestDataClass(event.target.value as TeamClassId)}
+                      >
+                        {TEAM_CLASSES.map((entry) => (
+                          <option key={entry.id} value={entry.id}>
+                            {entry.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => applyTestData(testDataClass)}
+                    >
                       🎲 Testdaten
                     </Button>
                   </div>

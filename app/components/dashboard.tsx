@@ -99,6 +99,9 @@ export default function Dashboard() {
       const response = await fetch('/api/teams');
       const data = await response.json();
       setTeams(data.teams || []);
+      if (typeof window !== "undefined" && data?.teams) {
+        window.localStorage.setItem("s5evo-teams", JSON.stringify(data.teams));
+      }
     } catch (error) {
       console.error('Failed to fetch teams:', error);
     } finally {
@@ -110,12 +113,31 @@ export default function Dashboard() {
     setGenerating(true);
     setTimeout(() => {
       const testTeams = generateTestData();
-      setTeams(prev => [...prev, ...testTeams]);
+      setTeams(prev => {
+        const updated = [...prev, ...testTeams];
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("s5evo-teams", JSON.stringify(updated));
+        }
+        return updated;
+      });
       setGenerating(false);
     }, 1000);
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const cached = window.localStorage.getItem("s5evo-teams");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length) {
+            setTeams(parsed);
+          }
+        } catch (error) {
+          console.warn("Failed to parse cached teams", error);
+        }
+      }
+    }
     fetchTeams();
   }, []);
 
