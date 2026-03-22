@@ -5,13 +5,17 @@ import { Button } from "@/components/ui/button";
 
 export default function RegisterPage() {
   const handleRegisterRedirect = () => {
-    // Redirect to Authentik registration flow
-    window.location.href = "https://auth.s5evo.de/if/flow/default-registration-flow/";
+    // Redirect to Authentik registration flow with correct client_id
+    const clientId = "aG3hurJM1wq7y0XYMe2St1f7bZrSRvXNhDtJDwZO";
+    const redirectUri = encodeURIComponent(window.location.origin + "/api/auth/callback/authentik");
+    window.location.href = `https://auth.s5evo.de/application/o/authorize/?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=openid%20profile%20email`;
   };
 
   const handleSocialLogin = (provider: string) => {
-    // Redirect to Authentik social login
-    window.location.href = `https://auth.s5evo.de/application/o/authorize/?response_type=code&client_id=s5-evo-portal&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/callback/authentik')}&scope=openid%20profile%20email&provider=${provider}`;
+    // Redirect to Authentik social login with correct client_id
+    const clientId = "aG3hurJM1wq7y0XYMe2St1f7bZrSRvXNhDtJDwZO";
+    const redirectUri = encodeURIComponent(window.location.origin + '/api/auth/callback/authentik');
+    window.location.href = `https://auth.s5evo.de/application/o/authorize/?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=openid%20profile%20email`;
   };
 
   return (
