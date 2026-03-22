@@ -127,3 +127,76 @@
     @apply font-sans;
     }
 }
+
+/* Psychedelic Mode */
+.psychedelic-bg {
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a0033 25%, #0d001a 50%, #1a0033 75%, #0a0a0a 100%);
+  animation: psychBg 10s ease infinite;
+}
+
+@keyframes psychBg {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(60deg); }
+}
+
+.psychedelic-text {
+  background: linear-gradient(135deg, #ff00ff, #00ffff, #39ff14, #ff00ff);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: psychText 4s ease infinite;
+}
+
+@keyframes psychText {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.psychedelic-card {
+  border: 2px solid #ff00ff !important;
+  box-shadow: 0 0 20px rgba(255, 0, 255, 0.3), 0 0 40px rgba(0, 255, 255, 0.1);
+  animation: psychGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes psychGlow {
+  from { box-shadow: 0 0 20px rgba(255, 0, 255, 0.3), 0 0 40px rgba(0, 255, 255, 0.1); }
+  to { box-shadow: 0 0 30px rgba(0, 255, 255, 0.5), 0 0 60px rgba(255, 0, 255, 0.3); }
+}
+
+.psychedelic-btn {
+  background: linear-gradient(135deg, #ff00ff, #00ffff) !important;
+  color: #000 !important;
+  animation: psychBtn 2s ease-in-out infinite alternate;
+}
+
+@keyframes psychBtn {
+  from { filter: hue-rotate(0deg) brightness(1); }
+  to { filter: hue-rotate(90deg) brightness(1.2); }
+}
+
+/* Sys-Admin Mode */
+.sysadmin-bg {
+  background: #0a0a0f;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(0, 255, 136, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(0, 212, 255, 0.03) 0%, transparent 50%);
+}
+
+/* Scanline overlay for sysadmin */
+[data-theme="sysadmin"]::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 136, 0.015) 2px,
+    rgba(0, 255, 136, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
