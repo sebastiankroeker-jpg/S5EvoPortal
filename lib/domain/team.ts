@@ -4,10 +4,10 @@ export const DISCIPLINE_PLACEHOLDER = "TBD" as const;
 
 export const DISCIPLINES = [
   { id: "RUN", label: "Laufen", icon: "🏃" },
-  { id: "BENCH", label: "Bankdrücken", icon: "🏋️" },
-  { id: "STOCK", label: "Stockschießen", icon: "🎯" },
-  { id: "ROAD", label: "Rennrad", icon: "🚴" },
-  { id: "MTB", label: "Mountainbike", icon: "🚵" },
+  { id: "SWIM", label: "Schwimmen", icon: "🏊" },
+  { id: "SHOOT", label: "Schießen", icon: "🎯" },
+  { id: "FENCE", label: "Fechten", icon: "🤺" },
+  { id: "RIDE", label: "Reiten", icon: "🐎" },
 ] as const;
 
 export const DISCIPLINE_IDS = DISCIPLINES.map((d) => d.id);
@@ -53,9 +53,14 @@ export function createEmptyParticipant(): ParticipantInput {
 }
 
 export function createDefaultTeamForm(): TeamRegistrationInput {
+  const baseParticipants = DISCIPLINES.map((discipline) => ({
+    ...createEmptyParticipant(),
+    discipline: discipline.id,
+  }));
+
   return {
     teamName: "",
-    participants: Array.from({ length: 5 }, () => createEmptyParticipant()),
+    participants: baseParticipants,
   };
 }
 

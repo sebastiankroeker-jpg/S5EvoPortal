@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -13,6 +13,8 @@ import {
   summarizeDisciplines,
   TeamRegistrationInput,
   TeamRegistrationSchema,
+  type DisciplineId,
+  type ParticipantInput,
 } from "@/lib/domain/team";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +22,10 @@ import { Button } from "@/components/ui/button";
 
 const testParticipants = [
   { firstName: "Max", lastName: "Mustermann", birthDate: "1995-03-15", gender: "M", email: "", phone: "", discipline: "RUN" },
-  { firstName: "Lisa", lastName: "Schmidt", birthDate: "1997-07-22", gender: "W", email: "", phone: "", discipline: "BENCH" },
-  { firstName: "Stefan", lastName: "Weber", birthDate: "1992-11-08", gender: "M", email: "", phone: "", discipline: "STOCK" },
-  { firstName: "Anna", lastName: "Müller", birthDate: "1999-01-14", gender: "W", email: "", phone: "", discipline: "ROAD" },
-  { firstName: "Michael", lastName: "Bauer", birthDate: "1994-09-03", gender: "M", email: "", phone: "", discipline: "MTB" },
+  { firstName: "Lisa", lastName: "Schmidt", birthDate: "1997-07-22", gender: "W", email: "", phone: "", discipline: "SWIM" },
+  { firstName: "Stefan", lastName: "Weber", birthDate: "1992-11-08", gender: "M", email: "", phone: "", discipline: "SHOOT" },
+  { firstName: "Anna", lastName: "Müller", birthDate: "1999-01-14", gender: "W", email: "", phone: "", discipline: "FENCE" },
+  { firstName: "Michael", lastName: "Bauer", birthDate: "1994-09-03", gender: "M", email: "", phone: "", discipline: "RIDE" },
 ] as const;
 
 export default function TeamRegistration() {
@@ -49,6 +51,7 @@ export default function TeamRegistration() {
     watch,
     trigger,
     setValue,
+    getValues,
   } = form;
 
   const { fields } = useFieldArray({ control, name: "participants" });
@@ -56,7 +59,67 @@ export default function TeamRegistration() {
   const participants = watch("participants");
   const teamName = watch("teamName");
 
+  const [teamLeadParticipates, setTeamLeadParticipates] = useState(false);
+  const [teamLeadDiscipline, setTeamLeadDiscipline] = useState<DisciplineId>(DISCIPLINES[0].id);
+
+  const [teamLeadFirstName, teamLeadLastName] = useMemo(() => {
+    if (!userName) return ["", ""];
+    const parts = userName.trim().split(" ");
+    if (parts.length === 1) return [parts[0], ""];
+    return [parts[0], parts.slice(1).join(" ")];
+  }, [userName]);
+
+  const disciplineMap = useMemo(
+    () => Object.fromEntries(DISCIPLINES.map((discipline) => [discipline.id, discipline])),
+    []
+  );
+
   const disciplineSummary = useMemo(() => summarizeDisciplines(participants), [participants]);
+
+  const previousTeamLeadDiscipline = useRef<DisciplineId>(DISCIPLINES[0].id);
+
+  const updateParticipantFields = (discipline: DisciplineId, partial: Partial<ParticipantInput>) => {
+    const current = getValues("participants");
+    const index = current.findIndex((p) => p.discipline === discipline);
+    if (index === -1) return;
+
+    Object.entries(partial).forEach(([key, value]) => {
+      setValue(`participants.${index}.${key as keyof ParticipantInput}` as const, value as any, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: false,
+      });
+    });
+  };
+
+  const clearTeamLeadSlot = (discipline: DisciplineId) => {
+    updateParticipantFields(discipline, {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+    });
+  };
+
+  const fillTeamLeadSlot = (discipline: DisciplineId) => {
+    updateParticipantFields(discipline, {
+      firstName: teamLeadFirstName || userName || "Teamchef",
+      lastName: teamLeadLastName || (!teamLeadFirstName && userName ? userName : ""),
+      email: userEmail,
+    });
+  };
+
+  useEffect(() => {
+    if (teamLeadParticipates) {
+      if (previousTeamLeadDiscipline.current !== teamLeadDiscipline) {
+        clearTeamLeadSlot(previousTeamLeadDiscipline.current);
+      }
+      fillTeamLeadSlot(teamLeadDiscipline);
+      previousTeamLeadDiscipline.current = teamLeadDiscipline;
+    } else {
+      clearTeamLeadSlot(previousTeamLeadDiscipline.current);
+    }
+  }, [teamLeadParticipates, teamLeadDiscipline, teamLeadFirstName, teamLeadLastName, userEmail]);
 
   if (!session?.user) return null;
 
@@ -94,6 +157,9 @@ export default function TeamRegistration() {
 
       setSubmitted(true);
       reset(createDefaultTeamForm());
+      setTeamLeadParticipates(false);
+      setTeamLeadDiscipline(DISCIPLINES[0].id);
+      previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
       setStep(1);
       setTimeout(() => setSubmitted(false), 3500);
     } catch (err) {
@@ -161,6 +227,35 @@ export default function TeamRegistration() {
                       <p className="text-xs text-red-500 mt-1">{formState.errors.teamName.message}</p>
                     )}
                   </div>
+
+                  <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={teamLeadParticipates}
+                        onChange={(event) => setTeamLeadParticipates(event.target.checked)}
+                      />
+                      Ich starte selbst in einer Disziplin
+                    </label>
+                    {teamLeadParticipates && (
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Gewünschte Disziplin</label>
+                        <select
+                          className="px-3 py-2 bg-background border border-input rounded-md text-sm"
+                          value={teamLeadDiscipline}
+                          onChange={(event) => setTeamLeadDiscipline(event.target.value as DisciplineId)}
+                        >
+                          {DISCIPLINES.map((discipline) => (
+                            <option key={discipline.id} value={discipline.id}>
+                              {discipline.icon} {discipline.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">Du wirst automatisch als Teilnehmer dieser Disziplin übernommen.</p>
+                      </div>
+                    )}
+                  </div>
                   <Button onClick={handleNextFromTeam} disabled={!teamName} className="w-full">
                     Zu Teilnehmern →
                   </Button>
@@ -183,9 +278,19 @@ export default function TeamRegistration() {
 
                   <div className="space-y-3">
                     {fields.map((field, index) => (
-                      <Card key={field.id} className="p-3">
-                        <div className="text-sm font-medium mb-2">Teilnehmer {index + 1}</div>
+                      <Card key={field.id} className="p-3 space-y-2">
+                        <div className="flex items-center justify-between text-sm font-medium">
+                          <span>Teilnehmer {disciplineMap[participants[index]?.discipline as DisciplineId]?.label ?? index + 1}</span>
+                          {teamLeadParticipates && participants[index]?.discipline === teamLeadDiscipline && (
+                            <Badge variant="secondary" className="text-[0.65rem]">Teamchef</Badge>
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="hidden"
+                            value={participants[index]?.discipline}
+                            {...register(`participants.${index}.discipline` as const)}
+                          />
                           <input
                             placeholder="Vorname"
                             className="px-2 py-1 bg-background border border-input rounded text-sm"
@@ -219,17 +324,6 @@ export default function TeamRegistration() {
                             className="px-2 py-1 bg-background border border-input rounded text-sm"
                             {...register(`participants.${index}.phone` as const)}
                           />
-                          <select
-                            className="px-2 py-1 bg-background border border-input rounded text-sm"
-                            {...register(`participants.${index}.discipline` as const)}
-                          >
-                            <option value={DISCIPLINE_PLACEHOLDER}>TBD</option>
-                            {DISCIPLINES.map((discipline) => (
-                              <option key={discipline.id} value={discipline.id}>
-                                {discipline.icon} {discipline.label}
-                              </option>
-                            ))}
-                          </select>
                         </div>
                       </Card>
                     ))}
