@@ -5,6 +5,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { APP_VERSION } from "@/lib/version";
 
 export default function NavBar() {
   const { data: session, status } = useSession();
@@ -14,7 +15,7 @@ export default function NavBar() {
       <div className="flex items-center gap-3">
         <span className="text-2xl">🏅</span>
         <span className="font-bold text-lg tracking-tight">S5Evo Portal</span>
-        <Badge variant="secondary" className="text-xs">v0.1</Badge>
+        <Badge variant="secondary" className="text-xs">{APP_VERSION}</Badge>
       </div>
       <div className="flex items-center gap-3">
         {status === "authenticated" && session?.user && (
