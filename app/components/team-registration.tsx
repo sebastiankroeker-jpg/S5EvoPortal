@@ -89,7 +89,7 @@ export default function TeamRegistration() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             📋 Mannschaft anmelden
-            <Badge variant="outline">Schritt {step}/4</Badge>
+            <Badge variant="outline">Schritt {step}/3</Badge>
           </CardTitle>
           <CardDescription>
             Registriere deine Mannschaft für den Fünfkampf
@@ -98,7 +98,7 @@ export default function TeamRegistration() {
         <CardContent>
           {/* Step Indicator */}
           <div className="flex gap-2 mb-6">
-            {[1, 2, 3, 4].map((s) => (
+            {[1, 2, 3].map((s) => (
               <div
                 key={s}
                 className={`flex-1 h-2 rounded-full transition-colors ${
@@ -167,50 +167,15 @@ export default function TeamRegistration() {
                     disabled={!teamName}
                     className="w-full"
                   >
-                    Weiter →
+                    Zu Teilnehmern →
                   </Button>
                 </motion.div>
               )}
 
-              {/* Step 2: Info about auto-classification */}
-              {step === 2 && (
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="space-y-4"
-                >
-                  <div className="text-center space-y-2">
-                    <h3 className="text-lg font-medium">Automatische Klassifizierung</h3>
-                    <p className="text-muted-foreground">
-                      Die Wettkampfklasse wird automatisch anhand der Teilnehmer-Daten erkannt
-                    </p>
-                  </div>
-                  <div className="bg-muted rounded-lg p-4 space-y-2">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                      {categories.map((cat) => (
-                        <div key={cat.value} className="flex items-center gap-2">
-                          <span>{cat.icon}</span>
-                          <span>{cat.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Klassifizierung erfolgt nach Alter und Geschlecht der Teilnehmer
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
-                      ← Zurück
-                    </Button>
-                    <Button onClick={() => setStep(3)} className="flex-1">
-                      Weiter →
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
 
-              {/* Step 3: Participants */}
-              {step === 3 && (
+
+              {/* Step 2: Participants */}
+              {step === 2 && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -298,18 +263,18 @@ export default function TeamRegistration() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
+                    <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← Zurück
                     </Button>
-                    <Button onClick={() => setStep(4)} className="flex-1">
-                      Weiter →
+                    <Button onClick={() => setStep(3)} className="flex-1">
+                      Zur Bestätigung →
                     </Button>
                   </div>
                 </motion.div>
               )}
 
-              {/* Step 4: Confirmation */}
-              {step === 4 && (
+              {/* Step 3: Confirmation */}
+              {step === 3 && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -345,7 +310,7 @@ export default function TeamRegistration() {
                   )}
                   
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setStep(3)} className="flex-1" disabled={loading}>
+                    <Button variant="outline" onClick={() => setStep(2)} className="flex-1" disabled={loading}>
                       ← Zurück
                     </Button>
                     <Button onClick={handleSubmit} className="flex-1" disabled={loading}>
