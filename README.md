@@ -30,3 +30,4 @@ Environment Variables im Vercel Dashboard setzen.
 - Provider: OAuth2/OpenID
 - Redirect URI: `https://s5-evo-portal.vercel.app/api/auth/callback/authentik`
 - Scopes: openid, profile, email
+# Force redeploy Sun Mar 22 08:28:25 AM UTC 2026
