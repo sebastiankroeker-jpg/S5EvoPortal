@@ -15,7 +15,9 @@ export default function NavBar() {
       <div className="flex items-center gap-3">
         <span className="text-2xl">🏅</span>
         <span className="font-bold text-lg tracking-tight">S5Evo Portal</span>
-        <Badge variant="secondary" className="text-xs">{APP_VERSION}</Badge>
+        <Link href="/changelog">
+          <Badge variant="secondary" className="text-xs hover:bg-primary/20 cursor-pointer transition-colors">{APP_VERSION}</Badge>
+        </Link>
       </div>
       <div className="flex items-center gap-3">
         {status === "authenticated" && session?.user && (

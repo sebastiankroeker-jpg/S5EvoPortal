@@ -6,6 +6,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "v0.3.0",
+    date: "2026-03-23",
+    items: [
+      "Admin-Seite für Tenant- und Wettkampf-Parameter (/admin)",
+      "Eigene Changelog-Seite (/changelog) mit Versionshistorie",
+      "Versionsnummer konsistent in Navbar und Footer (aus lib/version.ts)",
+      "Version als Link zur Changelog-Seite",
+      "Prisma Migration auf Prisma Postgres (DB-Persistenz aktiv)",
+    ],
+  },
+  {
     version: "v0.2.0",
     date: "2026-03-22",
     items: [

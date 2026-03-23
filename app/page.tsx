@@ -12,7 +12,7 @@ import TeamRegistration from "./components/team-registration";
 import SysAdminView from "./components/sysadmin-view";
 import ESVHero from "./components/esv-hero";
 import Dashboard from "./components/dashboard";
-import { CHANGELOG } from "@/lib/data/changelog";
+import { APP_VERSION } from "@/lib/version";
 
 type Theme = "light" | "dark" | "psychedelic" | "sysadmin" | "esv";
 
@@ -144,34 +144,6 @@ export default function Home() {
           </>
         )}
 
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Changelog</CardTitle>
-              <CardDescription>Neueste Änderungen auf einen Blick</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {CHANGELOG.map((entry) => (
-                <div key={entry.version} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm font-medium">
-                    <span>{entry.version}</span>
-                    <span className="text-muted-foreground">{entry.date}</span>
-                  </div>
-                  <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                    {entry.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </motion.section>
-
         {/* Footer */}
         <motion.footer
           initial={{ opacity: 0 }}
@@ -180,9 +152,9 @@ export default function Home() {
           className="text-center py-8 text-xs text-muted-foreground"
         >
           {theme === "sysadmin" ? (
-            <span className="font-mono">S5EVO INFRA v0.1 • {new Date().toISOString()}</span>
+            <span className="font-mono">S5EVO INFRA {APP_VERSION} • {new Date().toISOString()}</span>
           ) : (
-            <span>S5Evo Portal v0.1 • Mannschaftsfünfkampf • Built with ❤️</span>
+            <span>S5Evo Portal <a href="/changelog" className="hover:underline text-primary">{APP_VERSION}</a> • Mannschaftsfünfkampf • Built with ❤️</span>
           )}
         </motion.footer>
       </main>
