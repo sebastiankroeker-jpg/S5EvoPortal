@@ -10,10 +10,10 @@ import { ChevronDown, X, Microscope } from "lucide-react";
 
 const ROLE_LABELS = {
   ADMIN: "Admin",
-  MODERATOR: "Moderator",
-  TEAMCHEF: "Teamchef",
-  TEILNEHMER: "Teilnehmer",
-  ZUSCHAUER: "Zuschauer",
+  MODERATOR: "Moderator:in",
+  TEAMCHEF: "Teamchef:in",
+  TEILNEHMER: "Teilnehmer:in",
+  ZUSCHAUER: "Zuschauer:in",
 };
 
 const ROLE_COLORS = {

@@ -84,15 +84,15 @@ export function can(roles: Role[], permission: Permission): boolean {
   return hasPermission(roles, permission);
 }
 
-// Rollen die eine Rolle simulieren kann
+// Rollen die eine Rolle simulieren kann (inkl. eigene Rolle)
 export function getSimulatableRoles(role: Role): Role[] {
   switch (role) {
     case "ADMIN":
-      return ["MODERATOR", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
+      return ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
     case "MODERATOR":
-      return ["TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
+      return ["MODERATOR", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
     case "TEAMCHEF":
-      return ["TEILNEHMER", "ZUSCHAUER"];
+      return ["TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
     default:
       return [];
   }

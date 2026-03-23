@@ -139,7 +139,7 @@ export default function TeamRegistration() {
 
   const fillTeamLeadSlot = (discipline: DisciplineId) => {
     updateParticipantFields(discipline, {
-      firstName: teamLeadFirstName || userName || "Teamchef",
+      firstName: teamLeadFirstName || userName || "Teamchef:in",
       lastName: teamLeadLastName || (!teamLeadFirstName && userName ? userName : ""),
       email: userEmail,
     });

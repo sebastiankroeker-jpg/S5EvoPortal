@@ -23,9 +23,12 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const { data: session } = useSession();
   const [simulatedRole, setSimulatedRole] = useState<Role | null>(null);
   
-  // TODO: Später aus DB laden über API
-  // Für jetzt: Default Rollen für eingeloggte User
-  const roles: Role[] = session?.user ? ["TEAMCHEF"] : ["ZUSCHAUER"];
+  // TODO: Später aus DB laden über API (TenantRole)
+  // Für jetzt: Eingeloggte User = ZUSCHAUER (Default)
+  // TEAMCHEF wird automatisch wenn man ein Team anmeldet
+  // ADMIN nur für Authentik-User in der Admin-Gruppe (später aus DB)
+  // Zum Testen: Default ADMIN damit Role-Switcher funktioniert
+  const roles: Role[] = session?.user ? ["ADMIN"] : ["ZUSCHAUER"];
   
   const activeRole = simulatedRole || getHighestRole(roles);
   const isSimulating = simulatedRole !== null;
