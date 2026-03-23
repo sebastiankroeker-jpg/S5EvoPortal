@@ -1,68 +1,345 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// S5Evo — Relationales Datenmodell v2
+// Prisma + PostgreSQL (Prisma Postgres)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+// ==================== ENUMS ====================
+
+enum Role {
+  ADMIN
+  MODERATOR
+  TEAMCHEF
+  TEILNEHMER
+}
+
+enum CompetitionStatus {
+  DRAFT
+  OPEN
+  RUNNING
+  CLOSED
+}
+
+enum DisciplineCode {
+  RUN
+  BENCH
+  STOCK
+  ROAD
+  MTB
+}
+
+enum DisciplineAssignment {
+  RUN
+  BENCH
+  STOCK
+  ROAD
+  MTB
+  TBD
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+enum DisciplineType {
+  SIMPLE
+  SHOTS
+}
+
+enum ClassificationType {
+  AGE_INDIVIDUAL
+  AGE_TEAM
+  COMBINED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum GenderRestriction {
+  FEMALE_ONLY
+}
+
+enum BenchPressMode {
+  GROSS
+  NETTO
+}
+
+enum ApprovalStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ==================== TENANT ====================
+
+model Tenant {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  primaryColor     String   @default("#dc2626")
+  logoUrl          String?
+  heroImageUrl     String?
+  contactEmail     String?
+  website          String?
+  privacyText      String?
+  defaultTheme     String   @default("DARK")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Relations
-  teams Team[]
+  competitions Competition[]
+  tenantRoles  TenantRole[]
+
+  @@map("tenants")
+}
+
+// ==================== USER ====================
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  image        String?
+  authentikSub String?   @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  // Relations
+  tenantRoles     TenantRole[]
+  ownedTeams      Team[]          @relation("TeamOwner")
+  chiefOfTeams    Team[]          @relation("TeamChief")
+  requestedChanges PendingChange[] @relation("ChangeRequester")
+  reviewedChanges  PendingChange[] @relation("ChangeReviewer")
 
   @@map("users")
 }
 
-model Team {
-  id          String   @id @default(cuid())
-  name        String
-  category    String   // herren, damen, mixed, senioren, jugend
-  contactName String
-  contactEmail String
-  contactPhone String?
-  clubName    String?
-  notes       String?
-  approved    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+// ==================== TENANT ROLE ====================
+
+model TenantRole {
+  id        String   @id @default(cuid())
+  role      Role
+  createdAt DateTime @default(now())
 
   // Relations
-  ownerId      String
-  owner        User          @relation(fields: [ownerId], references: [id])
-  participants Participant[]
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId, role])
+  @@map("tenant_roles")
+}
+
+// ==================== COMPETITION ====================
+
+model Competition {
+  id                    String            @id @default(cuid())
+  name                  String
+  year                  Int
+  date                  DateTime?
+  registrationDeadline  DateTime?
+  status                CompetitionStatus @default(DRAFT)
+  maxTeams              Int?
+  teamSize              Int               @default(5)
+  ageReferenceDate      DateTime?
+  benchPressTara        Float             @default(20.0)
+  benchPressMode        BenchPressMode    @default(GROSS)
+  stockShotsCount       Int               @default(11)
+  stockStrikeoutCount   Int               @default(1)
+  location              String?
+  publicResults         Boolean           @default(true)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  // Relations
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  teams           Team[]
+  disciplines     Discipline[]
+  classifications Classification[]
+
+  @@map("competitions")
+}
+
+// ==================== TEAM ====================
+
+model Team {
+  id                 String   @id @default(cuid())
+  name               String
+  contactName        String?
+  contactEmail       String?
+  contactPhone       String?
+  clubName           String?
+  notes              String?
+  approved           Boolean  @default(false)
+  totalAge           Int?
+  classificationCode String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deletedAt          DateTime?
+
+  // Relations
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  ownerId       String
+  owner         User        @relation("TeamOwner", fields: [ownerId], references: [id])
+  teamChiefId   String?
+  teamChief     User?       @relation("TeamChief", fields: [teamChiefId], references: [id])
+  participants  Participant[]
+  rankings      CompetitionRanking[]
 
   @@map("teams")
 }
 
+// ==================== PARTICIPANT ====================
+
 model Participant {
-  id        String   @id @default(cuid())
-  firstName String
-  lastName  String
-  birthDate DateTime
-  gender    String   // M, W, D
-  email     String?
-  phone     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+  id              String               @id @default(cuid())
+  firstName       String
+  lastName        String
+  birthYear       Int
+  gender          Gender
+  disciplineCode  DisciplineAssignment @default(TBD)
+  consentGiven    Boolean              @default(false)
+  email           String?
+  phone           String?
+  overallRank     Int?
+  overallPoints   Int?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  deletedAt       DateTime?
 
   // Relations
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId         String
+  team           Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  results        DisciplineResult[]
+  pendingChanges PendingChange[]
 
   @@map("participants")
+}
+
+// ==================== DISCIPLINE ====================
+
+model Discipline {
+  id        String         @id @default(cuid())
+  code      DisciplineCode
+  name      String
+  unit      String
+  sortOrder SortOrder
+  type      DisciplineType
+
+  // Relations
+  competitionId String
+  competition   Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  results       DisciplineResult[]
+
+  @@unique([competitionId, code])
+  @@map("disciplines")
+}
+
+// ==================== DISCIPLINE RESULT ====================
+
+model DisciplineResult {
+  id        String   @id @default(cuid())
+  rawValue  Float?
+  rank      Int?
+  points    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  disciplineId  String
+  discipline    Discipline  @relation(fields: [disciplineId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  shots         Shot[]
+
+  @@unique([disciplineId, participantId])
+  @@map("discipline_results")
+}
+
+// ==================== SHOT (Stockschießen) ====================
+
+model Shot {
+  id         String  @id @default(cuid())
+  shotNumber Int
+  value      Int
+  isStrikeout Boolean @default(false)
+
+  // Relations
+  resultId String
+  result   DisciplineResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  @@unique([resultId, shotNumber])
+  @@map("shots")
+}
+
+// ==================== CLASSIFICATION ====================
+
+model Classification {
+  id                String             @id @default(cuid())
+  code              String
+  name              String
+  type              ClassificationType
+  minAge            Int?
+  maxAge            Int?
+  genderRestriction GenderRestriction?
+  sourceClassCodes  String[]
+
+  // Relations
+  competitionId String
+  competition   Competition          @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  rankings      CompetitionRanking[]
+
+  @@unique([competitionId, code])
+  @@map("classifications")
+}
+
+// ==================== COMPETITION RANKING ====================
+
+model CompetitionRanking {
+  id          String @id @default(cuid())
+  totalPoints Int    @default(0)
+  rank        Int    @default(0)
+
+  // Relations
+  classificationId String
+  classification   Classification @relation(fields: [classificationId], references: [id], onDelete: Cascade)
+  teamId           String
+  team             Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([classificationId, teamId])
+  @@map("competition_rankings")
+}
+
+// ==================== PENDING CHANGE (Approval-Workflow) ====================
+
+model PendingChange {
+  id         String         @id @default(cuid())
+  changeData String
+  status     ApprovalStatus @default(DRAFT)
+  createdAt  DateTime       @default(now())
+  reviewedAt DateTime?
+
+  // Relations
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User        @relation("ChangeRequester", fields: [requestedById], references: [id])
+  reviewedById  String?
+  reviewedBy    User?       @relation("ChangeReviewer", fields: [reviewedById], references: [id])
+
+  @@map("pending_changes")
 }
