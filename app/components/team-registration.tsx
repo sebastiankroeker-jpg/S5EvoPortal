@@ -452,22 +452,6 @@ export default function TeamRegistration() {
                               readOnly
                               {...register(`participants.${index}.discipline` as const)}
                             />
-                            <select
-                              className="px-2 py-1 bg-background border border-input rounded text-sm col-span-2"
-                              value={participants[index]?.discipline}
-                              onChange={(event) =>
-                                setValue(`participants.${index}.discipline` as const, event.target.value as DisciplineId, {
-                                  shouldDirty: true,
-                                  shouldTouch: true,
-                                })
-                              }
-                            >
-                              {DISCIPLINES.map((discipline) => (
-                                <option key={discipline.id} value={discipline.id}>
-                                  {discipline.icon} {discipline.label}
-                                </option>
-                              ))}
-                            </select>
                             <input
                               placeholder="Vorname"
                               className="px-2 py-1 bg-background border border-input rounded text-sm"

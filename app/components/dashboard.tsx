@@ -20,6 +20,7 @@ import {
 import { DISCIPLINES } from "@/lib/domain/team";
 import { usePermissions } from "@/lib/permissions-context";
 import { useSession } from "next-auth/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Team {
   id: string;
@@ -51,6 +52,7 @@ export default function Dashboard() {
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   const canEditAll = can("team.edit.all");
   const canViewAll = can("team.view.all");
@@ -171,43 +173,35 @@ export default function Dashboard() {
     );
   }
 
+  const totalParticipants = filteredTeams.reduce((sum, team) => sum + (team.participants?.length || 0), 0);
+  const incompleteTeams = teams.filter(t => !t.participants || t.participants.some(p => !p.firstName || !p.lastName)).length;
+
   return (
     <div className="space-y-6">
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-primary">{filteredTeams.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Teams {searchQuery || categoryFilter !== "all" ? "gefunden" : "angemeldet"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-primary">
-              {filteredTeams.reduce((sum, team) => sum + (team.participants?.length || 0), 0)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">Teilnehmer</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-primary">{categories.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">Klassen aktiv</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-primary">
-              {teams.filter(t => !t.participants || t.participants.some(p => !p.firstName || !p.lastName)).length}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">Teams unvollständig</p>
-          </CardContent>
-        </Card>
+      {/* Kompakte Stats-Leiste */}
+      <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-2">
+        <span><span className="font-semibold text-primary">{filteredTeams.length}</span> Teams</span>
+        <span>·</span>
+        <span><span className="font-semibold text-primary">{totalParticipants}</span> Teilnehmer:innen</span>
+        <span>·</span>
+        <span><span className="font-semibold text-primary">{categories.length}</span> Klassen</span>
+        <span>·</span>
+        <span><span className="font-semibold text-primary">{incompleteTeams}</span> unvollständig</span>
       </div>
 
-      {/* Search and Filter */}
+      {/* Kategorien-Badges (flache Zeile) */}
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {categoryStats.map((cat) => (
+            <Badge key={cat.category} variant="outline" className="flex items-center gap-1">
+              <span>{categoryEmojis[cat.category] || "🏆"}</span>
+              {cat.category} ({cat.count})
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Suche & Filter */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <Input
@@ -259,26 +253,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Categories */}
-      {categories.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Kategorien</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {categoryStats.map((cat) => (
-                <Badge key={cat.category} variant="outline" className="flex items-center gap-1">
-                  <span>{categoryEmojis[cat.category] || "🏆"}</span>
-                  {cat.category} ({cat.count})
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Teams List */}
+      {/* Team-Kacheln (kompakt) */}
       {filteredTeams.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -290,91 +265,148 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTeams.map((team) => (
-            <Card key={team.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-base">
-                  {team.name}
-                  <Badge variant="outline" className="ml-2">
-                    {categoryEmojis[team.category] || "🏆"} {team.category}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-sm">
-                  <div className="font-medium">Teamchef:</div>
-                  <div className="text-muted-foreground">{team.contactName}</div>
-                  <div className="text-muted-foreground text-xs">{team.contactEmail}</div>
-                </div>
-                
-                {team.participants && team.participants.length > 0 && (
-                  <div className="text-sm">
-                    <div className="font-medium mb-1">Teilnehmer ({team.participants.length}/5):</div>
-                    <div className="space-y-1">
-                      {team.participants.map((p, i) => {
-                        const disciplineDisplay = getDisciplineDisplay(p.discipline);
-                        return (
-                          <div key={i} className="text-xs text-muted-foreground flex justify-between">
-                            <span>{p.firstName} {p.lastName}</span>
-                            <div className="flex items-center gap-2">
-                              <span title={disciplineDisplay.label}>
-                                {disciplineDisplay.icon}
-                              </span>
-                              <span>{p.gender === "M" ? "♂" : "♀"}</span>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredTeams.map((team) => (
+              <div key={team.id} className="space-y-2">
+                {/* Kompakte Kachel */}
+                <Card 
+                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${expandedTeam === team.id ? "ring-2 ring-primary" : ""}`}
+                  onClick={() => setExpandedTeam(expandedTeam === team.id ? null : team.id)}
+                >
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-sm truncate">{team.name}</h3>
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {categoryEmojis[team.category] || "🏆"} {team.category}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>⭐ {team.contactName}</span>
+                      <span>{team.participants?.length || 0}/5</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Expandierte Detail-View */}
+                <AnimatePresence>
+                  {expandedTeam === team.id && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="border-l-4 border-l-primary">
+                        <CardContent className="p-4 space-y-4">
+                          {/* Team Details */}
+                          <div className="space-y-2">
+                            <h3 className="font-semibold flex items-center gap-2">
+                              {team.name}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedTeam(null);
+                                }}
+                                className="h-6 w-6 p-0"
+                              >
+                                ✕
+                              </Button>
+                            </h3>
+                            <div className="text-sm space-y-1">
+                              <div><strong>Teamchef:in:</strong> ⭐ {team.contactName}</div>
+                              <div><strong>E-Mail:</strong> {team.contactEmail}</div>
+                              <div><strong>Klasse:</strong> {categoryEmojis[team.category] || "🏆"} {team.category}</div>
+                              {team.createdAt && (
+                                <div><strong>Erstellt:</strong> {new Date(team.createdAt).toLocaleDateString('de-DE')}</div>
+                              )}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
-                {/* Team Actions */}
-                {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own"))) && (
-                  <div className="flex gap-2 pt-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setEditingTeam(team)}
-                      className="flex-1"
-                    >
-                      ✏️ Bearbeiten
-                    </Button>
-                    
-                    <AlertDialog>
-                      <AlertDialogTrigger>
-                        <button 
-                          className="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-8 px-3 py-1"
-                          disabled={deleting === team.id}
-                        >
-                          {deleting === team.id ? "..." : "🗑️ Löschen"}
-                        </button>
-                      </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Team löschen?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Möchtest du das Team "{team.name}" wirklich löschen? 
-                          Diese Aktion kann nicht rückgängig gemacht werden.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => handleDeleteTeam(team.id, team.name)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Löschen
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
-              </CardContent>
-            </Card>
-          ))}
+                          {/* Participants */}
+                          {team.participants && team.participants.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-sm">Teilnehmer ({team.participants.length}/5):</h4>
+                              <div className="space-y-2">
+                                {team.participants.map((p, i) => {
+                                  const disciplineDisplay = getDisciplineDisplay(p.discipline);
+                                  const birthYear = p.birthDate ? new Date(p.birthDate).getFullYear() : null;
+                                  return (
+                                    <div key={i} className="text-sm border rounded p-2 space-y-1">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium">{p.firstName} {p.lastName}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
+                                          <span>{p.gender === "M" ? "♂" : p.gender === "W" ? "♀" : "⚥"}</span>
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground flex justify-between">
+                                        <span>{disciplineDisplay.label}</span>
+                                        {birthYear && <span>Jg. {birthYear}</span>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own"))) && (
+                            <div className="flex gap-2 pt-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTeam(team);
+                                }}
+                                className="flex-1"
+                              >
+                                ✏️ Bearbeiten
+                              </Button>
+                              
+                              <AlertDialog>
+                                <AlertDialogTrigger>
+                                  <button 
+                                    className="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-8 px-3 py-1"
+                                    disabled={deleting === team.id}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {deleting === team.id ? "..." : "🗑️ Löschen"}
+                                  </button>
+                                </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Team löschen?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Möchtest du das Team "{team.name}" wirklich löschen? 
+                                    Diese Aktion kann nicht rückgängig gemacht werden.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteTeam(team.id, team.name)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Löschen
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
