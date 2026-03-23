@@ -53,9 +53,25 @@ const CLASS_CONFIG: Record<TeamClassId, { minYear: number; maxYear: number; gend
   "damen-b": { minYear: 1975, maxYear: 1985, gender: "W" },
 };
 
-const MALE_NAMES = ["Max", "Stefan", "Michael", "Thomas", "Andreas", "Markus", "Christian", "Daniel", "Sebastian", "Jonas", "Tobias", "Lukas"];
-const FEMALE_NAMES = ["Lisa", "Anna", "Sarah", "Julia", "Petra", "Sandra", "Nicole", "Stefanie", "Laura", "Mia", "Nina", "Franziska"];
-const LAST_NAMES = ["Müller", "Huber", "Wagner", "Bauer", "Mayer", "Weber", "Schmid", "Lehner", "Berger", "Schneider", "Wolf", "Brandt"];
+const MALE_NAMES = [
+  "Max", "Stefan", "Michael", "Thomas", "Andreas", "Markus", "Christian", "Daniel", "Sebastian", "Jonas",
+  "Tobias", "Lukas", "Felix", "Florian", "Alexander", "Moritz", "David", "Simon", "Patrick", "Matthias",
+  "Dominik", "Benjamin", "Jan", "Philipp", "Fabian", "Kevin", "Marcel", "Nico", "Leon", "Paul",
+  "Tim", "Martin", "Robert", "Peter", "Klaus", "Rainer", "Georg", "Werner", "Helmut", "Franz",
+];
+const FEMALE_NAMES = [
+  "Lisa", "Anna", "Sarah", "Julia", "Petra", "Sandra", "Nicole", "Stefanie", "Laura", "Mia",
+  "Nina", "Franziska", "Katharina", "Maria", "Lena", "Sophie", "Hannah", "Lea", "Johanna", "Christina",
+  "Sabine", "Monika", "Claudia", "Martina", "Birgit", "Heike", "Kerstin", "Andrea", "Simone", "Melanie",
+  "Verena", "Theresa", "Magdalena", "Eva", "Elisabeth", "Anja", "Tanja", "Sonja", "Cornelia", "Manuela",
+];
+const LAST_NAMES = [
+  "Müller", "Huber", "Wagner", "Bauer", "Mayer", "Weber", "Schmid", "Lehner", "Berger", "Schneider",
+  "Wolf", "Brandt", "Fischer", "Koch", "Gruber", "Steiner", "Wimmer", "Hofer", "Pichler", "Brunner",
+  "Eder", "Schwarz", "Reiter", "Fuchs", "Haas", "Lang", "Maier", "Baumann", "Kraus", "Seidl",
+  "Riedl", "Winkler", "Moser", "Frank", "Schuster", "Hartl", "Brandl", "Leitner", "Aigner", "Koller",
+  "Strasser", "Ziegler", "Ortner", "Kirchner", "Graf", "Hofmann", "Keller", "Richter", "Vogt", "Auer",
+];
 
 export default function TeamRegistration() {
   const { data: session } = useSession();
@@ -210,44 +226,62 @@ export default function TeamRegistration() {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   };
 
+  // Shuffle array helper for high variance
+  const shuffled = <T,>(arr: T[]): T[] => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
   const applyTestData = (selectedClass: TeamClassId) => {
     const config = CLASS_CONFIG[selectedClass];
     const classLabel = TEAM_CLASSES.find((entry) => entry.id === selectedClass)?.label || "Team";
-    const randomOffset = Math.floor(Math.random() * 5);
 
-    setTeamLeadParticipates(false);
-    setTeamLeadDiscipline(DISCIPLINES[0].id);
-    previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
+    // Don't reset teamlead state — preserve if already set
 
     const generatedName = `${classLabel} ${Math.floor(Math.random() * 900 + 100)}`;
     if (!teamName?.trim()) {
       setValue("teamName", generatedName, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
     }
 
+    // Shuffled name pools for maximum variance + no duplicate last names
+    const malePool = shuffled(MALE_NAMES);
+    const femalePool = shuffled(FEMALE_NAMES);
+    const lastPool = shuffled(LAST_NAMES);
+    let maleIdx = 0;
+    let femaleIdx = 0;
+    let lastIdx = 0;
+
     DISCIPLINES.forEach((discipline, index) => {
       const current = getValues(`participants.${index}` as const);
-      const alreadyFilled = current?.firstName?.trim() || current?.lastName?.trim();
-      if (alreadyFilled) {
+      const hasFirstName = current?.firstName?.trim();
+      const hasLastName = current?.lastName?.trim();
+      const hasBirthDate = current?.birthDate?.trim();
+
+      // Skip entirely if both first and last name are already filled
+      if (hasFirstName && hasLastName) {
         return;
       }
 
       const participantGender =
         config.gender === "mixed"
-          ? (index + randomOffset) % 2 === 0
-            ? "M"
-            : "W"
+          ? Math.random() > 0.5 ? "M" : "W"
           : config.gender;
-      const namePool = participantGender === "W" ? FEMALE_NAMES : MALE_NAMES;
-      const firstName = namePool[(index + randomOffset) % namePool.length];
-      const lastName = LAST_NAMES[(index + randomOffset) % LAST_NAMES.length];
+      const firstName = participantGender === "W"
+        ? femalePool[femaleIdx++ % femalePool.length]
+        : malePool[maleIdx++ % malePool.length];
+      const lastName = lastPool[lastIdx++ % lastPool.length];
 
       const payload: ParticipantInput = {
-        firstName,
-        lastName,
-        birthDate: randomBirthDate(config.minYear, config.maxYear),
+        firstName: hasFirstName ? current.firstName : firstName,
+        lastName: hasLastName ? current.lastName : lastName,
+        birthDate: hasBirthDate ? current.birthDate : randomBirthDate(config.minYear, config.maxYear),
         gender: participantGender,
-        email: "",
-        phone: "",
+        email: current?.email || "",
+        phone: current?.phone || "",
         discipline: discipline.id,
       };
 
@@ -351,16 +385,8 @@ export default function TeamRegistration() {
 
               {step === 2 && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                  <div className="text-center space-y-2">
-                    <h3 className="text-lg font-medium">Teilnehmer</h3>
-                    <p className="text-muted-foreground">Erfasse deine 5 Sportler inkl. Disziplin</p>
-                  </div>
-
-                  <div className="bg-muted/40 border rounded-lg p-3 text-sm">
-                    Aktueller Teamname: <span className="font-semibold">{teamName || "wird automatisch vergeben"}</span>
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+                  {/* Testdaten-Generierung OBEN */}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium">Test-Klasse</label>
                       <select
@@ -374,92 +400,18 @@ export default function TeamRegistration() {
                           </option>
                         ))}
                       </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyTestData(testDataClass)}
+                      >
+                        🎲 Testdaten
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => applyTestData(testDataClass)}
-                    >
-                      🎲 Testdaten
-                    </Button>
                   </div>
 
-                  <div className="space-y-3">
-                    {fields.map((field, index) => (
-                      <Card key={field.id} className="p-3 space-y-2">
-                        <div className="flex items-center justify-between text-sm font-medium">
-                          <span>Teilnehmer {disciplineMap[participants[index]?.discipline as DisciplineId]?.label ?? index + 1}</span>
-                          {teamLeadParticipates && participants[index]?.discipline === teamLeadDiscipline && (
-                            <Badge variant="secondary" className="text-[0.65rem]">Teamchef</Badge>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="hidden"
-                            value={participants[index]?.discipline}
-                            readOnly
-                            {...register(`participants.${index}.discipline` as const)}
-                          />
-                          <label className="col-span-2 text-xs text-muted-foreground">Disziplin</label>
-                          <select
-                            className="px-2 py-1 bg-background border border-input rounded text-sm col-span-2"
-                            value={participants[index]?.discipline}
-                            onChange={(event) =>
-                              setValue(`participants.${index}.discipline` as const, event.target.value as DisciplineId, {
-                                shouldDirty: true,
-                                shouldTouch: true,
-                              })
-                            }
-                          >
-                            {DISCIPLINES.map((discipline) => (
-                              <option key={discipline.id} value={discipline.id}>
-                                {discipline.icon} {discipline.label}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            placeholder="Vorname"
-                            className="px-2 py-1 bg-background border border-input rounded text-sm"
-                            {...register(`participants.${index}.firstName` as const)}
-                          />
-                          <input
-                            placeholder="Nachname"
-                            className="px-2 py-1 bg-background border border-input rounded text-sm"
-                            {...register(`participants.${index}.lastName` as const)}
-                          />
-                          <input
-                            type="date"
-                            className="px-2 py-1 bg-background border border-input rounded text-sm"
-                            {...register(`participants.${index}.birthDate` as const)}
-                          />
-                          <select
-                            className="px-2 py-1 bg-background border border-input rounded text-sm"
-                            {...register(`participants.${index}.gender` as const)}
-                          >
-                            <option value="M">Männlich</option>
-                            <option value="W">Weiblich</option>
-                            <option value="D">Divers</option>
-                          </select>
-                          <input
-                            placeholder="E-Mail (optional)"
-                            className="px-2 py-1 bg-background border border-input rounded text-sm"
-                            {...register(`participants.${index}.email` as const)}
-                          />
-                          <input
-                            placeholder="Telefon (optional)"
-                            className="px-2 py-1 bg-background border border-input rounded text-sm"
-                            {...register(`participants.${index}.phone` as const)}
-                          />
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {formState.errors.participants && (
-                    <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
-                  )}
-
+                  {/* Navigation Buttons OBEN */}
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← Zurück
@@ -468,6 +420,96 @@ export default function TeamRegistration() {
                       Zur Bestätigung →
                     </Button>
                   </div>
+
+                  {/* Mannschafts-Box mit Teamname + alle Teilnehmer */}
+                  <Card className="p-4 space-y-4">
+                    {/* Editierbarer Mannschaftsname */}
+                    <div>
+                      <label htmlFor="teamName2" className="text-sm font-medium">Mannschaftsname</label>
+                      <input
+                        id="teamName2"
+                        type="text"
+                        {...register("teamName")}
+                        className="mt-1 w-full px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="z.B. Die Bergziegen"
+                      />
+                    </div>
+
+                    {/* Teilnehmer */}
+                    <div className="space-y-3">
+                      {fields.map((field, index) => (
+                        <div key={field.id} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                          <div className="flex items-center justify-between text-sm font-medium">
+                            <span>{disciplineMap[participants[index]?.discipline as DisciplineId]?.icon} {disciplineMap[participants[index]?.discipline as DisciplineId]?.label ?? `Teilnehmer:in ${index + 1}`}</span>
+                            {teamLeadParticipates && participants[index]?.discipline === teamLeadDiscipline && (
+                              <Badge variant="secondary" className="text-[0.65rem]">Teamchef:in</Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="hidden"
+                              value={participants[index]?.discipline}
+                              readOnly
+                              {...register(`participants.${index}.discipline` as const)}
+                            />
+                            <select
+                              className="px-2 py-1 bg-background border border-input rounded text-sm col-span-2"
+                              value={participants[index]?.discipline}
+                              onChange={(event) =>
+                                setValue(`participants.${index}.discipline` as const, event.target.value as DisciplineId, {
+                                  shouldDirty: true,
+                                  shouldTouch: true,
+                                })
+                              }
+                            >
+                              {DISCIPLINES.map((discipline) => (
+                                <option key={discipline.id} value={discipline.id}>
+                                  {discipline.icon} {discipline.label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              placeholder="Vorname"
+                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              {...register(`participants.${index}.firstName` as const)}
+                            />
+                            <input
+                              placeholder="Nachname"
+                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              {...register(`participants.${index}.lastName` as const)}
+                            />
+                            <input
+                              type="date"
+                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              {...register(`participants.${index}.birthDate` as const)}
+                            />
+                            <select
+                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              {...register(`participants.${index}.gender` as const)}
+                            >
+                              <option value="M">Männlich</option>
+                              <option value="W">Weiblich</option>
+                              <option value="D">Divers</option>
+                            </select>
+                            <input
+                              placeholder="E-Mail (optional)"
+                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              {...register(`participants.${index}.email` as const)}
+                            />
+                            <input
+                              placeholder="Telefon (optional)"
+                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              {...register(`participants.${index}.phone` as const)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  {formState.errors.participants && (
+                    <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
+                  )}
                 </motion.div>
               )}
 
