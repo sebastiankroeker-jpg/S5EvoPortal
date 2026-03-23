@@ -203,10 +203,8 @@ export default function ProfilePage() {
                   <p className="text-xs text-muted-foreground">Alle deine Daten und Teams werden unwiderruflich gelöscht</p>
                 </div>
                 <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" disabled={deleting}>
-                      {deleting ? "Lösche..." : "Konto löschen"}
-                    </Button>
+                  <AlertDialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 h-8 px-3 transition-colors">
+                    {deleting ? "Lösche..." : "Konto löschen"}
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
