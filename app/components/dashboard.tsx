@@ -6,6 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { DISCIPLINES } from "@/lib/domain/team";
 
 interface Team {
   id: string;
@@ -24,91 +36,23 @@ interface Participant {
   lastName: string;
   gender: string;
   birthDate: string;
+  discipline?: string;
 }
-
-const generateTestDataForCategory = (category: string, count: number = 2): Team[] => {
-  const teamNamesByCategory: { [key: string]: string[] } = {
-    "schueler-a": ["Kleine Helden", "Mini Warriors", "Young Stars"],
-    "schueler-b": ["Nachwuchs Power", "Junior Force", "School Champions"],
-    "jugend": ["Jugend Elite", "Young Eagles", "Future Stars"],
-    "jungsters": ["Speed Demons", "Lightning Bolts", "Quick Silver"],
-    "herren": ["Die Bergziegen", "Alm-Stürmer", "Karwendel-Kämpfer"],
-    "masters": ["Old School", "Vintage Power", "Golden Eagles"],
-    "damen-a": ["Lady Power", "Frauen Force", "Girl Gang"],
-    "damen-b": ["Experienced Ladies", "Mature Angels", "Senior Women"]
-  };
-
-  const firstNamesByGender = {
-    M: ["Max", "Stefan", "Michael", "Thomas", "Andreas", "Markus", "Christian", "Daniel"],
-    W: ["Lisa", "Anna", "Sarah", "Julia", "Petra", "Sandra", "Nicole", "Stefanie"]
-  };
-
-  const lastNames = ["Müller", "Huber", "Wagner", "Bauer", "Mayer", "Weber", "Schmid"];
-
-  const getBirthDateForCategory = (cat: string): string => {
-    switch (cat) {
-      case "schueler-a": return `${2016 + Math.floor(Math.random() * 3)}-06-15`;
-      case "schueler-b": return `${2013 + Math.floor(Math.random() * 3)}-06-15`;
-      case "jugend": return `${2009 + Math.floor(Math.random() * 4)}-06-15`;
-      case "jungsters": return `${2001 + Math.floor(Math.random() * 4)}-06-15`; // ~20-25 Jahre
-      case "herren": return `${1990 + Math.floor(Math.random() * 10)}-06-15`; // ~25-35 Jahre
-      case "masters": return `${1970 + Math.floor(Math.random() * 10)}-06-15`; // ~45-55 Jahre
-      case "damen-a": return `${1995 + Math.floor(Math.random() * 10)}-06-15`; // ~25-30 Jahre
-      case "damen-b": return `${1975 + Math.floor(Math.random() * 10)}-06-15`; // ~40-50 Jahre
-      default: return "1990-06-15";
-    }
-  };
-
-  const getGenderForCategory = (cat: string): "M" | "W" => {
-    if (cat.startsWith("damen")) return "W";
-    return Math.random() > 0.3 ? "M" : "W"; // Überwiegend männlich für andere Kategorien
-  };
-
-  const teamNames = teamNamesByCategory[category] || ["Test Team"];
-  
-  return Array.from({ length: count }, (_, index) => ({
-    id: `test-${category}-${index}`,
-    name: `${teamNames[index % teamNames.length]} ${index + 1}`,
-    category,
-    contactName: `${firstNamesByGender["M"][index % 8]} ${lastNames[index % 7]}`,
-    contactEmail: `contact${index}@${category}.de`,
-    ownerEmail: `contact${index}@${category}.de`,
-    ownerName: `${firstNamesByGender["M"][index % 8]} ${lastNames[index % 7]}`,
-    createdAt: new Date().toISOString(),
-    participants: Array.from({ length: 5 }, (_, i) => {
-      const gender = getGenderForCategory(category);
-      const names = firstNamesByGender[gender];
-      return {
-        firstName: names[(index * 5 + i) % names.length],
-        lastName: lastNames[(index * 5 + i) % lastNames.length],
-        gender,
-        birthDate: getBirthDateForCategory(category)
-      };
-    })
-  }));
-};
-
-const generateTestData = (): Team[] => {
-  const categories = ["schueler-a", "jugend", "jungsters", "herren", "masters", "damen-a"];
-  return categories.flatMap(cat => generateTestDataForCategory(cat, 1));
-};
 
 export default function Dashboard() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const fetchTeams = async () => {
     try {
       const response = await fetch('/api/teams');
       const data = await response.json();
       setTeams(data.teams || []);
-      if (typeof window !== "undefined" && data?.teams) {
-        window.localStorage.setItem("s5evo-teams", JSON.stringify(data.teams));
-      }
     } catch (error) {
       console.error('Failed to fetch teams:', error);
     } finally {
@@ -116,35 +60,49 @@ export default function Dashboard() {
     }
   };
 
-  const handleGenerateTestData = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      const testTeams = generateTestData();
-      setTeams(prev => {
-        const updated = [...prev, ...testTeams];
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("s5evo-teams", JSON.stringify(updated));
-        }
-        return updated;
+  const handleDeleteTeam = async (teamId: string, teamName: string) => {
+    setDeleting(teamId);
+    try {
+      const response = await fetch(`/api/teams/${teamId}`, {
+        method: 'DELETE',
       });
-      setGenerating(false);
-    }, 1000);
+      
+      if (response.ok) {
+        await fetchTeams(); // Refresh list
+      } else {
+        const error = await response.json();
+        alert(`Fehler beim Löschen: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to delete team:', error);
+      alert('Fehler beim Löschen des Teams');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleEditTeam = async (teamData: any) => {
+    try {
+      const response = await fetch(`/api/teams/${editingTeam!.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(teamData),
+      });
+      
+      if (response.ok) {
+        setEditingTeam(null);
+        await fetchTeams(); // Refresh list
+      } else {
+        const error = await response.json();
+        alert(`Fehler beim Speichern: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to edit team:', error);
+      alert('Fehler beim Speichern des Teams');
+    }
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const cached = window.localStorage.getItem("s5evo-teams");
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length) {
-            setTeams(parsed);
-          }
-        } catch (error) {
-          console.warn("Failed to parse cached teams", error);
-        }
-      }
-    }
     fetchTeams();
   }, []);
 
@@ -165,7 +123,7 @@ export default function Dashboard() {
       
       return matchesCategory && matchesOwner && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -183,6 +141,15 @@ export default function Dashboard() {
     masters: "🎖️",
     "damen-a": "🏋️‍♀️",
     "damen-b": "👩‍🦳"
+  };
+
+  // Helper function to get discipline label and icon
+  const getDisciplineDisplay = (disciplineCode?: string) => {
+    if (!disciplineCode || disciplineCode === "TBD") {
+      return { label: "Noch offen", icon: "❓" };
+    }
+    const discipline = DISCIPLINES.find(d => d.id === disciplineCode);
+    return discipline ? { label: discipline.label, icon: discipline.icon } : { label: disciplineCode, icon: "🏃" };
   };
 
   if (loading) {
@@ -309,7 +276,7 @@ export default function Dashboard() {
           <CardContent className="p-8 text-center">
             <p className="text-muted-foreground">
               {teams.length === 0 
-                ? "Noch keine Teams angemeldet. Erstelle Testdaten oder registriere dein erstes Team!"
+                ? "Noch keine Teams angemeldet."
                 : "Keine Teams gefunden. Versuche eine andere Suche."}
             </p>
           </CardContent>
@@ -337,20 +304,204 @@ export default function Dashboard() {
                   <div className="text-sm">
                     <div className="font-medium mb-1">Teilnehmer ({team.participants.length}/5):</div>
                     <div className="space-y-1">
-                      {team.participants.map((p, i) => (
-                        <div key={i} className="text-xs text-muted-foreground flex justify-between">
-                          <span>{p.firstName} {p.lastName}</span>
-                          <span>{p.gender === "M" ? "♂" : "♀"}</span>
-                        </div>
-                      ))}
+                      {team.participants.map((p, i) => {
+                        const disciplineDisplay = getDisciplineDisplay(p.discipline);
+                        return (
+                          <div key={i} className="text-xs text-muted-foreground flex justify-between">
+                            <span>{p.firstName} {p.lastName}</span>
+                            <div className="flex items-center gap-2">
+                              <span title={disciplineDisplay.label}>
+                                {disciplineDisplay.icon}
+                              </span>
+                              <span>{p.gender === "M" ? "♂" : "♀"}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
+
+                {/* Team Actions */}
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setEditingTeam(team)}
+                    className="flex-1"
+                  >
+                    ✏️ Bearbeiten
+                  </Button>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        disabled={deleting === team.id}
+                        className="flex-1"
+                      >
+                        {deleting === team.id ? "..." : "🗑️ Löschen"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Team löschen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Möchtest du das Team "{team.name}" wirklich löschen? 
+                          Diese Aktion kann nicht rückgängig gemacht werden.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => handleDeleteTeam(team.id, team.name)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Löschen
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Edit Team Modal */}
+      {editingTeam && (
+        <EditTeamModal 
+          team={editingTeam}
+          onSave={handleEditTeam}
+          onCancel={() => setEditingTeam(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Edit Team Modal Component
+function EditTeamModal({ team, onSave, onCancel }: {
+  team: Team;
+  onSave: (data: any) => void;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    teamName: team.name,
+    participants: team.participants || []
+  });
+
+  const handleParticipantChange = (index: number, field: string, value: string) => {
+    const newParticipants = [...formData.participants];
+    newParticipants[index] = { ...newParticipants[index], [field]: value };
+    setFormData({ ...formData, participants: newParticipants });
+  };
+
+  const handleSubmit = () => {
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <CardHeader>
+          <CardTitle>Team bearbeiten: {team.name}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">Team-Name</label>
+            <Input
+              value={formData.teamName}
+              onChange={(e) => setFormData({ ...formData, teamName: e.target.value })}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Teilnehmer</label>
+            <div className="space-y-3 mt-2">
+              {formData.participants.map((participant, index) => (
+                <div key={index} className="border rounded-lg p-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Vorname</label>
+                      <Input
+                        value={participant.firstName}
+                        onChange={(e) => handleParticipantChange(index, 'firstName', e.target.value)}
+                        size="sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Nachname</label>
+                      <Input
+                        value={participant.lastName}
+                        onChange={(e) => handleParticipantChange(index, 'lastName', e.target.value)}
+                        size="sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Geschlecht</label>
+                      <Select
+                        value={participant.gender}
+                        onValueChange={(value) => handleParticipantChange(index, 'gender', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="M">♂ Männlich</SelectItem>
+                          <SelectItem value="W">♀ Weiblich</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Geburtsdatum</label>
+                      <Input
+                        type="date"
+                        value={participant.birthDate}
+                        onChange={(e) => handleParticipantChange(index, 'birthDate', e.target.value)}
+                        size="sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Disziplin</label>
+                      <Select
+                        value={participant.discipline || "TBD"}
+                        onValueChange={(value) => handleParticipantChange(index, 'discipline', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="TBD">❓ Noch offen</SelectItem>
+                          {DISCIPLINES.map((discipline) => (
+                            <SelectItem key={discipline.id} value={discipline.id}>
+                              {discipline.icon} {discipline.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={onCancel}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleSubmit}>
+              💾 Speichern
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

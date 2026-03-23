@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, type TeamRegistrationInput, generateTeamName } from '@/lib/domain/team';
+import { authOptions } from '../../auth/[...nextauth]/route';
+import { TeamRegistrationSchema, type TeamRegistrationInput } from '@/lib/domain/team';
 import { prisma } from '@/lib/prisma';
 
 // Map frontend gender ("M"/"W") to Prisma enum
@@ -86,38 +86,11 @@ function serializeTeam(team: any) {
   };
 }
 
-// Ensure a default tenant + competition exist
-async function ensureDefaultCompetition(): Promise<string> {
-  let tenant = await prisma.tenant.findFirst();
-  if (!tenant) {
-    tenant = await prisma.tenant.create({
-      data: {
-        name: "ESV Rosenheim",
-        slug: "esv-rosenheim",
-        primaryColor: "#dc2626",
-      }
-    });
-  }
-
-  let competition = await prisma.competition.findFirst({
-    where: { tenantId: tenant.id },
-    orderBy: { year: 'desc' }
-  });
-  if (!competition) {
-    competition = await prisma.competition.create({
-      data: {
-        name: "Mannschafts-5-Kampf 2026",
-        year: 2026,
-        status: "OPEN",
-        tenantId: tenant.id,
-      }
-    });
-  }
-
-  return competition.id;
-}
-
-export async function GET(request: NextRequest) {
+// GET einzelnes Team
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
@@ -126,9 +99,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
+    
     try {
-      const teams = await prisma.team.findMany({
+      const team = await prisma.team.findFirst({
         where: {
+          id: id,
           owner: { email: userEmail },
           deletedAt: null
         },
@@ -138,10 +114,14 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      return NextResponse.json({ teams: teams.map(serializeTeam) });
+      if (!team) {
+        return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ team: serializeTeam(team) });
     } catch (dbError) {
       console.error('Database error on GET:', dbError);
-      return NextResponse.json({ teams: [], message: 'Database temporarily unavailable' });
+      return NextResponse.json({ error: 'Database temporarily unavailable' }, { status: 503 });
     }
   } catch (error) {
     console.error('API error:', error);
@@ -149,17 +129,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// PUT Team aktualisieren
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
-    const userName = session?.user?.name;
-    const userImage = session?.user?.image;
 
     if (!userEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     
     const validation = TeamRegistrationSchema.safeParse(body);
@@ -171,43 +154,52 @@ export async function POST(request: NextRequest) {
     }
 
     const teamData = validation.data;
-    const autoCategory = classifyTeam(teamData.participants);
-    const normalizedTeamName = teamData.teamName?.trim();
-    const finalTeamName = normalizedTeamName && normalizedTeamName.length >= 3
-      ? normalizedTeamName
-      : generateTeamName(autoCategory);
 
     try {
-      // Ensure default competition exists
-      const competitionId = await ensureDefaultCompetition();
+      // Prüfe ob Team existiert und dem User gehört
+      const existingTeam = await prisma.team.findFirst({
+        where: {
+          id: id,
+          owner: { email: userEmail },
+          deletedAt: null
+        },
+        include: {
+          participants: { where: { deletedAt: null } }
+        }
+      });
 
-      // Upsert user
-      let user = await prisma.user.findUnique({ where: { email: userEmail } });
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            email: userEmail,
-            name: userName || null,
-            image: userImage || null
-          }
-        });
+      if (!existingTeam) {
+        return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
-      // Calculate total age
+      // Neue Klassifizierung berechnen
+      const autoCategory = classifyTeam(teamData.participants);
+      const normalizedTeamName = teamData.teamName?.trim();
+      
+      // Team-Name beibehalten wenn leer
+      const finalTeamName = normalizedTeamName && normalizedTeamName.length >= 3
+        ? normalizedTeamName
+        : existingTeam.name;
+
+      // Berechne neues Gesamtalter
       const validParticipants = teamData.participants.filter(p => p.firstName && p.lastName && p.birthDate);
       const totalAge = validParticipants.reduce((sum, p) => sum + (2026 - extractBirthYear(p.birthDate)), 0);
 
-      // Create team with participants
-      const team = await prisma.team.create({
+      // Lösche alte Participants (soft delete)
+      await prisma.participant.updateMany({
+        where: { teamId: id },
+        data: { deletedAt: new Date() }
+      });
+
+      // Update Team mit neuen Participants
+      const updatedTeam = await prisma.team.update({
+        where: { id: id },
         data: {
           name: finalTeamName,
-          contactName: userName || "",
-          contactEmail: userEmail,
+          contactName: body.contactName || existingTeam.contactName,
+          contactEmail: body.contactEmail || existingTeam.contactEmail,
           classificationCode: autoCategory,
           totalAge: totalAge || null,
-          competitionId: competitionId,
-          ownerId: user.id,
-          teamChiefId: user.id,
           participants: {
             create: validParticipants.map(p => ({
               firstName: p.firstName,
@@ -222,32 +214,36 @@ export async function POST(request: NextRequest) {
           }
         },
         include: {
-          participants: true,
+          participants: { where: { deletedAt: null } },
           owner: { select: { email: true, name: true } }
         }
       });
 
       return NextResponse.json({ 
         success: true,
-        message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
-        team: serializeTeam(team)
+        message: `Team "${finalTeamName}" erfolgreich aktualisiert! Klasse: ${autoCategory}`,
+        team: serializeTeam(updatedTeam)
       });
 
     } catch (dbError) {
-      console.error('Database error on POST:', dbError);
+      console.error('Database error on PUT:', dbError);
       return NextResponse.json(
-        { error: 'Datenbankfehler bei der Anmeldung. Bitte versuche es erneut.' },
+        { error: 'Datenbankfehler bei der Aktualisierung. Bitte versuche es erneut.' },
         { status: 500 }
       );
     }
 
   } catch (error) {
     console.error('API error:', error);
-    return NextResponse.json({ error: 'Failed to register team' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update team' }, { status: 500 });
   }
 }
 
-export async function PUT(request: NextRequest) {
+// DELETE Team (soft delete)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
@@ -256,39 +252,51 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    
-    const validation = TeamRegistrationSchema.safeParse(body);
-    if (!validation.success) {
+    const { id } = await params;
+
+    try {
+      // Prüfe ob Team existiert und dem User gehört
+      const existingTeam = await prisma.team.findFirst({
+        where: {
+          id: id,
+          owner: { email: userEmail },
+          deletedAt: null
+        }
+      });
+
+      if (!existingTeam) {
+        return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+
+      // Soft delete: setze deletedAt
+      const deletedTeam = await prisma.team.update({
+        where: { id: id },
+        data: { 
+          deletedAt: new Date()
+        }
+      });
+
+      // Auch alle Participants des Teams soft-deleten
+      await prisma.participant.updateMany({
+        where: { teamId: id },
+        data: { deletedAt: new Date() }
+      });
+
+      return NextResponse.json({ 
+        success: true,
+        message: `Team "${existingTeam.name}" wurde gelöscht.`
+      });
+
+    } catch (dbError) {
+      console.error('Database error on DELETE:', dbError);
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.issues },
-        { status: 400 }
+        { error: 'Datenbankfehler beim Löschen. Bitte versuche es erneut.' },
+        { status: 500 }
       );
     }
 
-    // This would be for bulk operations - not implemented yet
-    return NextResponse.json({ error: 'Bulk PUT not implemented' }, { status: 501 });
-
   } catch (error) {
     console.error('API error:', error);
-    return NextResponse.json({ error: 'Failed to update teams' }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // This would be for bulk operations - not implemented yet
-    return NextResponse.json({ error: 'Bulk DELETE not implemented' }, { status: 501 });
-
-  } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json({ error: 'Failed to delete teams' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete team' }, { status: 500 });
   }
 }

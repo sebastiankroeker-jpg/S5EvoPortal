@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -83,28 +83,131 @@ export default function AdminPage() {
     publicResults: true,
   });
 
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleSaveTenant = () => {
-    setSaving(true);
-    // TODO: API call to save tenant config
-    setTimeout(() => {
-      setSaving(false);
-      setSaved("tenant");
-      setTimeout(() => setSaved(null), 2000);
-    }, 500);
+  // Load data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load Tenant
+        const tenantResponse = await fetch('/api/admin/tenant');
+        if (tenantResponse.ok) {
+          const tenantData = await tenantResponse.json();
+          if (tenantData.tenant) {
+            setTenant({
+              name: tenantData.tenant.name || "ESV Rosenheim",
+              slug: tenantData.tenant.slug || "esv-rosenheim",
+              primaryColor: tenantData.tenant.primaryColor || "#dc2626",
+              logoUrl: tenantData.tenant.logoUrl || "",
+              heroImageUrl: tenantData.tenant.heroImageUrl || "",
+              contactEmail: tenantData.tenant.contactEmail || "",
+              website: tenantData.tenant.website || "",
+              privacyText: tenantData.tenant.privacyText || "",
+              defaultTheme: tenantData.tenant.defaultTheme || "DARK",
+            });
+          }
+        }
+
+        // Load Competition
+        const competitionResponse = await fetch('/api/admin/competition');
+        if (competitionResponse.ok) {
+          const competitionData = await competitionResponse.json();
+          if (competitionData.competition) {
+            const comp = competitionData.competition;
+            setCompetition({
+              name: comp.name || "Mannschafts-5-Kampf 2026",
+              year: comp.year || 2026,
+              date: comp.date ? comp.date.split('T')[0] : "2026-07-12",
+              registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "2026-06-28",
+              status: comp.status || "DRAFT",
+              maxTeams: comp.maxTeams || 120,
+              teamSize: comp.teamSize || 5,
+              ageReferenceDate: comp.ageReferenceDate ? comp.ageReferenceDate.split('T')[0] : "2026-12-31",
+              benchPressTara: comp.benchPressTara || 20.0,
+              benchPressMode: comp.benchPressMode || "GROSS",
+              stockShotsCount: comp.stockShotsCount || 11,
+              stockStrikeoutCount: comp.stockStrikeoutCount || 1,
+              location: comp.location || "",
+              publicResults: comp.publicResults !== false,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load admin data:', error);
+        setMessage({ type: 'error', text: 'Fehler beim Laden der Konfiguration' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
   };
 
-  const handleSaveCompetition = () => {
-    setSaving(true);
-    // TODO: API call to save competition config
-    setTimeout(() => {
-      setSaving(false);
-      setSaved("competition");
-      setTimeout(() => setSaved(null), 2000);
-    }, 500);
+  const handleSaveTenant = async () => {
+    setSaving('tenant');
+    try {
+      const response = await fetch('/api/admin/tenant', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tenant),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showMessage('success', data.message || 'Tenant erfolgreich gespeichert!');
+      } else {
+        const error = await response.json();
+        showMessage('error', error.error || 'Fehler beim Speichern');
+      }
+    } catch (error) {
+      console.error('Failed to save tenant:', error);
+      showMessage('error', 'Netzwerkfehler beim Speichern');
+    } finally {
+      setSaving(null);
+    }
   };
+
+  const handleSaveCompetition = async () => {
+    setSaving('competition');
+    try {
+      const response = await fetch('/api/admin/competition', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(competition),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showMessage('success', data.message || 'Wettkampf erfolgreich gespeichert!');
+      } else {
+        const error = await response.json();
+        showMessage('error', error.error || 'Fehler beim Speichern');
+      }
+    } catch (error) {
+      console.error('Failed to save competition:', error);
+      showMessage('error', 'Netzwerkfehler beim Speichern');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+          <p className="mt-4 text-muted-foreground">Lade Konfiguration...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -122,6 +225,17 @@ export default function AdminPage() {
           <Button variant="ghost" size="sm">← Zurück</Button>
         </Link>
       </nav>
+
+      {/* Success/Error Message */}
+      {message && (
+        <div className={`mx-4 mt-4 p-3 rounded-lg text-sm ${
+          message.type === 'success' 
+            ? 'bg-green-100 text-green-800 border border-green-200' 
+            : 'bg-red-100 text-red-800 border border-red-200'
+        }`}>
+          {message.type === 'success' ? '✓' : '✗'} {message.text}
+        </div>
+      )}
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <motion.div
@@ -250,8 +364,12 @@ export default function AdminPage() {
               </Card>
 
               <div className="flex justify-end">
-                <Button onClick={handleSaveTenant} disabled={saving} size="lg">
-                  {saving ? "Speichert..." : saved === "tenant" ? "✓ Gespeichert!" : "💾 Tenant speichern"}
+                <Button 
+                  onClick={handleSaveTenant} 
+                  disabled={saving === 'tenant'} 
+                  size="lg"
+                >
+                  {saving === 'tenant' ? "Speichert..." : "💾 Tenant speichern"}
                 </Button>
               </div>
             </motion.div>
@@ -429,8 +547,12 @@ export default function AdminPage() {
               </Card>
 
               <div className="flex justify-end">
-                <Button onClick={handleSaveCompetition} disabled={saving} size="lg">
-                  {saving ? "Speichert..." : saved === "competition" ? "✓ Gespeichert!" : "💾 Wettkampf speichern"}
+                <Button 
+                  onClick={handleSaveCompetition} 
+                  disabled={saving === 'competition'} 
+                  size="lg"
+                >
+                  {saving === 'competition' ? "Speichert..." : "💾 Wettkampf speichern"}
                 </Button>
               </div>
             </motion.div>
