@@ -140,6 +140,13 @@ export default function CommandPill() {
       requiresAuth: true,
     },
     {
+      id: "profile",
+      icon: "👤",
+      label: "Profil",
+      action: () => router.push("/profile"),
+      requiresAuth: true,
+    },
+    {
       id: "search",
       icon: "🔍",
       label: "Suche",

@@ -21,9 +21,9 @@ export default function NavBar() {
       <div className="flex items-center gap-3">
         {status === "authenticated" && session?.user && (
           <>
-            <span className="text-sm text-muted-foreground hidden sm:inline">
-              {session.user.name}
-            </span>
+            <Link href="/profile" className="text-sm text-muted-foreground hidden sm:inline hover:text-foreground transition-colors">
+              👤 {session.user.name}
+            </Link>
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               Abmelden
             </Button>

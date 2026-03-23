@@ -262,17 +262,16 @@ export default function TeamRegistration() {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            📋 Mannschaft anmelden
-            <Badge variant="outline">Schritt {step}/3</Badge>
-          </CardTitle>
-          <CardDescription>Registriere deine Mannschaft für den Fünfkampf</CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Mannschaftsanmeldung</CardTitle>
+            <Badge variant="outline" className="text-sm px-3 py-1">Schritt {step}/3</Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-6">
             {[1, 2, 3].map((s) => (
-              <div key={s} className={`flex-1 h-2 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-muted"}`} />
+              <div key={s} className={`flex-1 h-1 rounded-full transition-colors ${s <= step ? "bg-primary/60" : "bg-muted/40"}`} />
             ))}
           </div>
 
@@ -286,12 +285,18 @@ export default function TeamRegistration() {
             <>
               {step === 1 && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Teamchef (aus Authentik)</label>
-                    <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{userName || "Unbekannt"}</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Vorname (Authentik)</label>
+                      <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{teamLeadFirstName || "—"}</div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Nachname (Authentik)</label>
+                      <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{teamLeadLastName || "—"}</div>
+                    </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">E-Mail (aus Authentik)</label>
+                    <label className="text-sm font-medium text-muted-foreground">E-Mail (Authentik)</label>
                     <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{userEmail || "Nicht verfügbar"}</div>
                   </div>
                   <div>
