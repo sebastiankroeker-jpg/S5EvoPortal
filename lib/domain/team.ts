@@ -75,20 +75,49 @@ export function summarizeDisciplines(participants: ParticipantInput[]) {
 
 const TEAM_NAME_POOLS: Record<string, string[]> = {
   default: [
-    "Bergziegen",
-    "Karwendel-Kämpfer",
-    "Isar Renner",
-    "Soier Speedsters",
-    "Lightning Goats",
+    "Ammertaler Bergziegen", "Kofel-Kraxler", "Soier Sturmtrupp", "Ammer-Piraten",
+    "Ettaler Klosterbräu Gang", "Oberammergau Express", "Unterammergau United",
+    "Wildsteig Wölfe", "Rottenbuch Rockets", "Peißenberg Powerplay",
+    "Bad Bayersoier Bademeister", "Alfeld Alligators", "Pürschling Panther",
+    "Laber-Lawine", "Steckenberg Strolche", "Scherenauer Schwalben",
+    "Pulvermoos Pumas", "Graswang Geier", "Linderhof Legenden", "Kolbensattel Crew",
   ],
-  "schueler-a": ["Mini Warriors", "Young Stars", "Soier Minis"],
-  "schueler-b": ["Junior Force", "Nachwuchs Crew"],
-  jugend: ["Future Stars", "Jugend Elite"],
-  jungsters: ["Quick Silver", "Turbo Soier"],
-  herren: ["Powerhouse", "Gipfelstürmer"],
-  masters: ["Golden Eagles", "Vintage Force"],
-  "damen-a": ["Lady Power", "Girls on Fire"],
-  "damen-b": ["Senior Queens", "Experience United"],
+  "schueler-a": [
+    "Soier Mini-Ziegen", "Ammer-Zwerge", "Kofel-Kids", "Kleine Kraxler",
+    "Ettaler Engelchen", "Lütte Laber-Bande", "Mini-Alpinisten",
+  ],
+  "schueler-b": [
+    "Junior Bergsteiger", "Nachwuchs-Gämsen", "Ammer-Jugend Force",
+    "Kofel-Kadetten", "Soier School Stars", "Pürschling Pfadfinder",
+  ],
+  jugend: [
+    "Future Alpinists", "Jugend-Lawine", "Ammertal Next Gen",
+    "Young Kofel Climbers", "Soier Youth Crew", "Oberammergau Originals",
+  ],
+  jungsters: [
+    "Turbo Soier", "Ammer-Blitz", "Quick Kofel", "Kolbensattel Sprinter",
+    "Soier Speedsters", "Junge Wilde Ammertal", "Flash Ettaler",
+  ],
+  herren: [
+    "Gipfelstürmer ESV", "Ammertaler Kraftpaket", "Kofel Kommandos",
+    "Soier Stahlharte", "Oberammergau Outlaws", "Ettaler Eisenmänner",
+    "Pürschling Power", "Steckenberg Strongmen", "Laber Legionäre",
+  ],
+  masters: [
+    "Alte Berghasen", "Silberrücken Ammertal", "Vintage Kofel",
+    "Graue Gipfelwölfe", "Erfahrene Ettaler", "Soier Senioren-Express",
+    "Masters of the Ammer", "Weise Wildsteiger", "Opa-Power Oberammergau",
+  ],
+  "damen-a": [
+    "Ammer-Amazonen", "Kofel Queens", "Soier Powerfrauen",
+    "Ettaler Ladys", "Pürschling Prinzessinnen", "Bergziegen-Mädels",
+    "Lady Laber", "Wildsteig Women", "Ammertaler Heldinnen",
+  ],
+  "damen-b": [
+    "Erfahrene Amazonen", "Ammer Grande Dames", "Kofel Königinnen",
+    "Soier Senior Ladies", "Goldene Gämsinnen", "Ettaler Expertinnen",
+    "Wise Women Wildsteig", "Ammer-Matriarchinnen",
+  ],
 };
 
 export function generateTeamName(category?: string) {

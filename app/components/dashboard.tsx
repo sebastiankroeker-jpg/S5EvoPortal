@@ -269,7 +269,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredTeams.map((team) => (
               <div key={team.id} className="space-y-2">
-                {/* Kompakte Kachel */}
+                {/* Team-Kachel mit Teilnehmern */}
                 <Card 
                   className={`cursor-pointer transition-colors hover:bg-muted/50 ${expandedTeam === team.id ? "ring-2 ring-primary" : ""}`}
                   onClick={() => setExpandedTeam(expandedTeam === team.id ? null : team.id)}
@@ -281,10 +281,29 @@ export default function Dashboard() {
                         {categoryEmojis[team.category] || "🏆"} {team.category}
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>⭐ {team.contactName}</span>
-                      <span>{team.participants?.length || 0}/5</span>
-                    </div>
+                    {/* Teilnehmer-Liste */}
+                    {team.participants && team.participants.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {team.participants.map((p, i) => {
+                          const disc = getDisciplineDisplay(p.discipline);
+                          const isChief = p.firstName === team.contactName?.split(" ")[0];
+                          return (
+                            <div key={i} className="text-xs text-muted-foreground flex items-center justify-between">
+                              <span>{p.firstName} {p.lastName} {isChief ? "⭐" : ""}</span>
+                              <span title={disc.label}>{disc.icon} {p.gender === "M" ? "♂" : "♀"}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    {/* Teamchef:in extra Zeile wenn nicht Teilnehmer */}
+                    {team.contactName && (!team.participants || !team.participants.some(p => 
+                      team.contactName?.includes(p.firstName) || team.contactName?.includes(p.lastName)
+                    )) && (
+                      <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
+                        ⭐ {team.contactName} <span className="text-muted-foreground/60">(Teamchef:in)</span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 

@@ -242,10 +242,9 @@ export default function TeamRegistration() {
 
     // Don't reset teamlead state — preserve if already set
 
-    const generatedName = `${classLabel} ${Math.floor(Math.random() * 900 + 100)}`;
-    if (!teamName?.trim()) {
-      setValue("teamName", generatedName, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
-    }
+    // Immer neuen Mannschaftsnamen generieren aus dem Pool
+    const generatedName = generateTeamName(selectedClass);
+    setValue("teamName", generatedName, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
 
     // Shuffled name pools for maximum variance + no duplicate last names
     const malePool = shuffled(MALE_NAMES);
