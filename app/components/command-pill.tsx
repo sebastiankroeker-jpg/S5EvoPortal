@@ -331,19 +331,19 @@ export default function CommandPill() {
               exit={{ y: 100, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-card border border-border rounded-lg shadow-xl p-6 space-y-6">
+              <div className="bg-card border border-border rounded-lg shadow-xl p-4 max-h-[80vh] overflow-y-auto thin-scrollbar">
                 {session?.user && (
                   <>
                     {/* Navigation Section */}
                     <div>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                         ── Navigation ──────────────
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {can("team.create") && (
                           <Button
                             variant="ghost"
-                            className="w-full justify-start h-9 px-2 text-sm"
+                            className="w-full justify-start h-7 px-2 text-sm"
                             onClick={() => switchToTab("register")}
                           >
                             📋 Anmeldung
@@ -352,7 +352,7 @@ export default function CommandPill() {
                         {(can("team.view.own") || can("team.view.all")) && (
                           <Button
                             variant="ghost"
-                            className="w-full justify-start h-9 px-2 text-sm"
+                            className="w-full justify-start h-7 px-2 text-sm"
                             onClick={() => switchToTab("dashboard")}
                           >
                             📊 Meine Teams
@@ -360,7 +360,7 @@ export default function CommandPill() {
                         )}
                         <Button
                           variant="ghost"
-                          className="w-full justify-start h-9 px-2 text-sm"
+                          className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
                             alert("Ergebnisse werden hier angezeigt sobald der Wettkampf läuft");
                             closeBurger();
@@ -370,7 +370,7 @@ export default function CommandPill() {
                         </Button>
                         <Button
                           variant="ghost"
-                          className="w-full justify-start h-9 px-2 text-sm"
+                          className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
                             alert("Ranglisten werden hier angezeigt sobald der Wettkampf läuft");
                             closeBurger();
@@ -384,14 +384,14 @@ export default function CommandPill() {
                     {/* Admin Section */}
                     {(can("team.view.all") || can("results.edit") || can("config.edit")) && (
                       <div>
-                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                           ──────────────────────────
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                           {can("team.view.all") && (
                             <Button
                               variant="ghost"
-                              className="w-full justify-start h-9 px-2 text-sm"
+                              className="w-full justify-start h-7 px-2 text-sm"
                               onClick={() => switchToTab("dashboard")}
                             >
                               👥 Alle Teams
@@ -400,7 +400,7 @@ export default function CommandPill() {
                           {can("results.edit") && (
                             <Button
                               variant="ghost"
-                              className="w-full justify-start h-9 px-2 text-sm"
+                              className="w-full justify-start h-7 px-2 text-sm"
                               onClick={() => {
                                 alert("Ergebnis-Erfassung wird hier implementiert");
                                 closeBurger();
@@ -415,14 +415,14 @@ export default function CommandPill() {
 
                     {/* Settings Section */}
                     <div>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                         ── Einstellungen ───────────
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {can("config.edit") && (
                           <Button
                             variant="ghost"
-                            className="w-full justify-start h-9 px-2 text-sm"
+                            className="w-full justify-start h-7 px-2 text-sm"
                             onClick={() => navigateAndClose("/admin")}
                           >
                             ⚙️ Administration
@@ -431,7 +431,7 @@ export default function CommandPill() {
                         {can("team.view.all") && (
                           <Button
                             variant="ghost"
-                            className="w-full justify-start h-9 px-2 text-sm"
+                            className="w-full justify-start h-7 px-2 text-sm"
                             onClick={() => {
                               window.open("/architecture", "_blank");
                               closeBurger();
@@ -447,7 +447,7 @@ export default function CommandPill() {
                     {/* Role Simulation */}
                     {roles.includes("ADMIN") && (
                       <div>
-                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                           🔬 Rolle simulieren
                         </div>
                         <div className="space-y-1">
@@ -475,7 +475,7 @@ export default function CommandPill() {
 
                     {/* Theme Section */}
                     <div>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                         ── Darstellung ─────────────
                       </div>
                       <div className="flex gap-1 justify-center">
@@ -496,27 +496,27 @@ export default function CommandPill() {
 
                     {/* Account Section */}
                     <div>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                         ── Konto ───────────────────
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Button
                           variant="ghost"
-                          className="w-full justify-start h-9 px-2 text-sm"
+                          className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => navigateAndClose("/profile")}
                         >
                           👤 Profil
                         </Button>
                         <Button
                           variant="ghost"
-                          className="w-full justify-start h-9 px-2 text-sm"
+                          className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => navigateAndClose("/changelog")}
                         >
                           📋 Changelog
                         </Button>
                         <Button
                           variant="ghost"
-                          className="w-full justify-start h-9 px-2 text-sm"
+                          className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
                             signOut();
                             closeBurger();
@@ -535,7 +535,7 @@ export default function CommandPill() {
                     variant="ghost"
                     size="sm"
                     onClick={closeBurger}
-                    className="w-full h-8 text-xs text-muted-foreground"
+                    className="w-full h-7 text-xs text-muted-foreground"
                   >
                     <X className="h-3 w-3 mr-1" />
                     Schließen
