@@ -23,6 +23,76 @@ export default function CommandPill() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
+  // Menu items for search
+  const MENU_ITEMS = [
+    { 
+      label: "Anmeldung", 
+      keywords: ["anmeldung", "registrierung", "team anmelden", "mannschaft"], 
+      action: () => switchToTab("registration"), 
+      permission: "team.create",
+      icon: "🔗"
+    },
+    { 
+      label: "Meine Teams", 
+      keywords: ["teams", "dashboard", "meine teams", "übersicht"], 
+      action: () => switchToTab("dashboard"), 
+      permission: "team.view.own",
+      icon: "🔗"
+    },
+    { 
+      label: "Ergebnisse", 
+      keywords: ["ergebnisse", "resultate", "punkte"], 
+      action: () => alert("Ergebnisse werden hier angezeigt sobald der Wettkampf läuft"), 
+      permission: "results.view",
+      icon: "🔗"
+    },
+    { 
+      label: "Ranglisten", 
+      keywords: ["ranglisten", "ranking", "platzierung"], 
+      action: () => alert("Ranglisten werden hier angezeigt sobald der Wettkampf läuft"), 
+      permission: "ranking.view",
+      icon: "🔗"
+    },
+    { 
+      label: "Alle Teams", 
+      keywords: ["alle teams", "admin teams"], 
+      action: () => switchToTab("dashboard"), 
+      permission: "team.view.all",
+      icon: "🔗"
+    },
+    { 
+      label: "Administration", 
+      keywords: ["admin", "einstellungen", "konfiguration", "config"], 
+      action: () => router.push("/admin"), 
+      permission: "config.edit",
+      icon: "🔗"
+    },
+    { 
+      label: "Referenzarchitektur", 
+      keywords: ["architektur", "referenz", "technik", "infrastruktur"], 
+      action: () => window.open("/architecture", "_blank"),
+      icon: "🔗"
+    },
+    { 
+      label: "Profil", 
+      keywords: ["profil", "konto", "account", "benutzername"], 
+      action: () => router.push("/profile"),
+      icon: "🔗"
+    },
+    { 
+      label: "Changelog", 
+      keywords: ["changelog", "version", "historie", "änderungen"], 
+      action: () => router.push("/changelog"),
+      icon: "🔗"
+    },
+    { 
+      label: "Abmelden", 
+      keywords: ["abmelden", "logout", "ausloggen"], 
+      action: () => signOut(),
+      icon: "🔗"
+    },
+  ];
+
   // Search implementation
   const performSearch = async (query: string) => {
     if (!query.trim()) {
@@ -30,16 +100,43 @@ export default function CommandPill() {
       return;
     }
 
+    const lowerQuery = query.toLowerCase();
+    
+    // Search menu items first
+    const menuResults = MENU_ITEMS
+      .filter(item => {
+        // Check permission if exists
+        if (item.permission && !can(item.permission as any)) {
+          return false;
+        }
+        
+        // Check if query matches label or keywords
+        return item.label.toLowerCase().includes(lowerQuery) ||
+               item.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery));
+      })
+      .map(item => ({
+        type: 'menu',
+        ...item
+      }));
+
+    // Search teams via API
+    let teamResults: any[] = [];
     try {
       const response = await fetch(`/api/teams?q=${encodeURIComponent(query)}`);
       if (response.ok) {
-        const results = await response.json();
-        setSearchResults(results);
+        const teams = await response.json();
+        teamResults = teams.map((team: any) => ({
+          type: 'team',
+          ...team,
+          icon: "🏅"
+        }));
       }
     } catch (error) {
       console.error("Search error:", error);
-      setSearchResults([]);
     }
+
+    // Combine results: menu items first, then teams
+    setSearchResults([...menuResults, ...teamResults]);
   };
 
   useEffect(() => {
@@ -178,17 +275,29 @@ export default function CommandPill() {
                 {searchQuery && (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {searchResults.length > 0 ? (
-                      searchResults.map((result: any) => (
+                      searchResults.map((result: any, index) => (
                         <div
-                          key={result.id}
+                          key={`${result.type}-${result.id || index}`}
                           className="p-2 rounded-md hover:bg-accent cursor-pointer"
                           onClick={() => {
+                            if (result.type === 'menu') {
+                              result.action();
+                            }
                             closeSearch();
                           }}
                         >
-                          <div className="font-medium">{result.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {result.discipline} • {result.participants?.length || 0} Teilnehmer
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{result.icon}</span>
+                            <div className="flex-1">
+                              <div className="font-medium">
+                                {result.type === 'menu' ? result.label : result.name}
+                              </div>
+                              {result.type === 'team' && (
+                                <div className="text-sm text-muted-foreground">
+                                  {result.discipline} • {result.participants?.length || 0} Teilnehmer
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))

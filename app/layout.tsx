@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Providers from "./providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import CommandPill from "./components/command-pill";
 import RoleSimulationBanner from "./components/role-simulation-banner";
+import LayoutWrapper from "./components/layout-wrapper";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -21,8 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <TooltipProvider>
             <RoleSimulationBanner />
-            {children}
-            <CommandPill />
+            <LayoutWrapper>{children}</LayoutWrapper>
           </TooltipProvider>
         </Providers>
       </body>

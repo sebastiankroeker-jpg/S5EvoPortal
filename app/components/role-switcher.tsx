@@ -78,7 +78,7 @@ export default function RoleSwitcher() {
       </AnimatePresence>
 
       {/* Role Switcher */}
-      <div className="fixed top-16 right-4 z-30">
+      <div className="fixed top-12 right-4 z-30">
         <div className="relative">
           <Button
             variant="outline"
