@@ -46,7 +46,7 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
       {/* Main content with responsive margin */}
       <div 
         className={`lg:transition-all lg:duration-300 ${
-          isCollapsed ? "lg:ml-14" : "lg:ml-60"
+          isCollapsed ? "lg:ml-12" : "lg:ml-52"
         }`}
       >
         {children}
