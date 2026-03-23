@@ -6,6 +6,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "v0.4.0",
+    date: "2026-03-23",
+    items: [
+      "Command Pill Navigation (Vercel-inspiriert, Mobile-first)",
+      "Permission-System mit rollenbasierten Berechtigungen",
+      "Role-Switcher zum Testen verschiedener Ansichten",
+      "Rollenbasierte UI (Admin, Moderator, Teamchef, Teilnehmer, Zuschauer)",
+      "Navbar verschlankt, Referenzarchitektur-Link entfernt",
+      "Admin-Bereich nur für ADMIN-Rolle zugänglich",
+    ],
+  },
+  {
     version: "v0.3.0",
     date: "2026-03-23",
     items: [

@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePermissions } from "@/lib/permissions-context";
+import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
 
 type TenantConfig = {
@@ -54,6 +56,30 @@ function FormField({ label, children, hint }: { label: string; children: React.R
 }
 
 export default function AdminPage() {
+  const { data: session } = useSession();
+  const { can } = usePermissions();
+  
+  // Permission check - redirect if no access
+  if (session && !can("config.edit")) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>🚫 Kein Zugriff</CardTitle>
+            <CardDescription>
+              Du hast keine Berechtigung für die Administration.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/">
+              <Button className="w-full">← Zurück zur Startseite</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
   const [tenant, setTenant] = useState<TenantConfig>({
     name: "ESV Rosenheim",
     slug: "esv-rosenheim",

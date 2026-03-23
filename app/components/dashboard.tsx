@@ -18,6 +18,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { DISCIPLINES } from "@/lib/domain/team";
+import { usePermissions } from "@/lib/permissions-context";
+import { useSession } from "next-auth/react";
 
 interface Team {
   id: string;
@@ -40,6 +42,8 @@ interface Participant {
 }
 
 export default function Dashboard() {
+  const { data: session } = useSession();
+  const { can } = usePermissions();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,6 +51,10 @@ export default function Dashboard() {
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  const canEditAll = can("team.edit.all");
+  const canViewAll = can("team.view.all");
+  const userEmail = session?.user?.email;
 
   const fetchTeams = async () => {
     try {
@@ -323,27 +331,26 @@ export default function Dashboard() {
                 )}
 
                 {/* Team Actions */}
-                <div className="flex gap-2 pt-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setEditingTeam(team)}
-                    className="flex-1"
-                  >
-                    ✏️ Bearbeiten
-                  </Button>
-                  
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button 
-                        size="sm" 
-                        variant="destructive" 
-                        disabled={deleting === team.id}
-                        className="flex-1"
-                      >
-                        {deleting === team.id ? "..." : "🗑️ Löschen"}
-                      </Button>
-                    </AlertDialogTrigger>
+                {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own"))) && (
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setEditingTeam(team)}
+                      className="flex-1"
+                    >
+                      ✏️ Bearbeiten
+                    </Button>
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger>
+                        <button 
+                          className="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-8 px-3 py-1"
+                          disabled={deleting === team.id}
+                        >
+                          {deleting === team.id ? "..." : "🗑️ Löschen"}
+                        </button>
+                      </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Team löschen?</AlertDialogTitle>
@@ -364,6 +371,7 @@ export default function Dashboard() {
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
+              )}
               </CardContent>
             </Card>
           ))}
@@ -430,7 +438,7 @@ function EditTeamModal({ team, onSave, onCancel }: {
                       <Input
                         value={participant.firstName}
                         onChange={(e) => handleParticipantChange(index, 'firstName', e.target.value)}
-                        size="sm"
+                        className="h-8"
                       />
                     </div>
                     <div>
@@ -438,7 +446,7 @@ function EditTeamModal({ team, onSave, onCancel }: {
                       <Input
                         value={participant.lastName}
                         onChange={(e) => handleParticipantChange(index, 'lastName', e.target.value)}
-                        size="sm"
+                        className="h-8"
                       />
                     </div>
                   </div>
@@ -464,7 +472,7 @@ function EditTeamModal({ team, onSave, onCancel }: {
                         type="date"
                         value={participant.birthDate}
                         onChange={(e) => handleParticipantChange(index, 'birthDate', e.target.value)}
-                        size="sm"
+                        className="h-8"
                       />
                     </div>
                     <div>
