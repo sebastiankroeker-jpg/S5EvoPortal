@@ -6,6 +6,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "v0.5.0",
+    date: "2026-03-23",
+    items: [
+      "Vercel-Style Command Pill (Find + Burger-Menü)",
+      "Navigation als Drawer mit rollenbasierten Menüpunkten",
+      "Theme-Switcher dezent im Burger-Menü integriert",
+      "'Psychedelic' umbenannt in 'Bunt'",
+      "Schlanker Header, aufgeräumte Hauptseite",
+      "Referenzarchitektur wieder erreichbar",
+    ],
+  },
+  {
     version: "v0.4.0",
     date: "2026-03-23",
     items: [

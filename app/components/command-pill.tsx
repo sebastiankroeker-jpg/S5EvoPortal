@@ -3,54 +3,25 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { usePermissions } from "@/lib/permissions-context";
+import { useTheme } from "@/lib/theme-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { X, Search, ArrowLeft } from "lucide-react";
-
-interface MenuItem {
-  id: string;
-  icon: string;
-  label: string;
-  action: () => void;
-  permission?: string;
-  requiresAuth?: boolean;
-}
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { X, Search, Menu, ExternalLink } from "lucide-react";
 
 export default function CommandPill() {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { can } = usePermissions();
+  const { can, activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
+  const { theme, setTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
-
-  // Navigation actions
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const switchToTab = (tabId: string) => {
-    // Für Hauptseite: trigger tab switch
-    if (pathname === "/") {
-      const event = new CustomEvent("switchTab", { detail: { tabId } });
-      window.dispatchEvent(event);
-    }
-  };
-
-  const openSearch = () => {
-    setIsSearchOpen(true);
-    setSearchQuery("");
-    setSearchResults([]);
-  };
-
-  const closeSearch = () => {
-    setIsSearchOpen(false);
-    setSearchQuery("");
-    setSearchResults([]);
-  };
 
   // Search implementation
   const performSearch = async (query: string) => {
@@ -75,104 +46,62 @@ export default function CommandPill() {
     const debounce = setTimeout(() => {
       performSearch(searchQuery);
     }, 300);
-
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
-  // Menu items
-  const menuItems: MenuItem[] = [
-    {
-      id: "home",
-      icon: "🏠",
-      label: "Home",
-      action: () => {
-        if (pathname === "/") {
-          scrollToTop();
-        } else {
-          router.push("/");
-        }
-      },
-    },
-    {
-      id: "register",
-      icon: "📋",
-      label: "Anmeldung",
-      action: () => {
-        if (pathname === "/") {
-          switchToTab("register");
-        } else {
-          router.push("/?tab=register");
-        }
-      },
-      permission: "team.create",
-      requiresAuth: true,
-    },
-    {
-      id: "dashboard",
-      icon: "📊",
-      label: "Dashboard",
-      action: () => {
-        if (pathname === "/") {
-          switchToTab("dashboard");
-        } else {
-          router.push("/?tab=dashboard");
-        }
-      },
-      permission: "team.view.own",
-      requiresAuth: true,
-    },
-    {
-      id: "results",
-      icon: "🏆",
-      label: "Ergebnisse",
-      action: () => {
-        alert("Ergebnisse werden hier angezeigt sobald der Wettkampf läuft");
-      },
-      permission: "results.view",
-      requiresAuth: true,
-    },
-    {
-      id: "admin",
-      icon: "⚙️",
-      label: "Admin",
-      action: () => router.push("/admin"),
-      permission: "config.edit",
-      requiresAuth: true,
-    },
-    {
-      id: "profile",
-      icon: "👤",
-      label: "Profil",
-      action: () => router.push("/profile"),
-      requiresAuth: true,
-    },
-    {
-      id: "search",
-      icon: "🔍",
-      label: "Suche",
-      action: openSearch,
-      requiresAuth: true,
-    },
+  // Close overlays with ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsSearchOpen(false);
+        setIsBurgerOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const openSearch = () => {
+    setIsSearchOpen(true);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const closeSearch = () => {
+    setIsSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const openBurger = () => {
+    setIsBurgerOpen(true);
+  };
+
+  const closeBurger = () => {
+    setIsBurgerOpen(false);
+  };
+
+  const switchToTab = (tabId: string) => {
+    if (pathname === "/") {
+      const event = new CustomEvent("switchTab", { detail: { tabId } });
+      window.dispatchEvent(event);
+    }
+    closeBurger();
+  };
+
+  const navigateAndClose = (path: string) => {
+    router.push(path);
+    closeBurger();
+  };
+
+  // Theme options
+  const themes = [
+    { id: "light", label: "Light", icon: "☀️" },
+    { id: "dark", label: "Dark", icon: "🌙" },
+    { id: "esv", label: "ESV", icon: "🏔️" },
+    { id: "bunt", label: "Bunt", icon: "🎨" },
+    { id: "sysadmin", label: "Sys-Admin", icon: "🖥️" },
   ];
-
-  // Add back button for non-home pages
-  if (pathname !== "/") {
-    menuItems.unshift({
-      id: "back",
-      icon: "←",
-      label: "Zurück",
-      action: () => router.push("/"),
-    });
-  }
-
-  // Filter items based on permissions
-  const visibleItems = menuItems.filter((item) => {
-    if (item.requiresAuth && !session) return false;
-    if (item.permission && !can(item.permission)) return false;
-    return true;
-  });
-
-  if (visibleItems.length === 0) return null;
 
   return (
     <>
@@ -183,20 +112,28 @@ export default function CommandPill() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-        <div className="bg-card/90 backdrop-blur-md border border-border rounded-full px-4 py-2 shadow-lg">
-          <div className="flex items-center gap-3">
-            {visibleItems.map((item) => (
-              <Button
-                key={item.id}
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 rounded-full hover:bg-primary/10 transition-all duration-200"
-                onClick={item.action}
-                title={item.label}
-              >
-                <span className="text-lg">{item.icon}</span>
-              </Button>
-            ))}
+        <div className="bg-card/90 backdrop-blur-md border border-border rounded-full px-6 py-3 shadow-lg max-w-[280px]">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-sm hover:bg-primary/10 transition-all duration-200"
+              onClick={openSearch}
+            >
+              <Search className="h-4 w-4 mr-1.5" />
+              Find...
+            </Button>
+            
+            <Separator orientation="vertical" className="h-4" />
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 hover:bg-primary/10 transition-all duration-200"
+              onClick={openBurger}
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </motion.div>
@@ -246,7 +183,6 @@ export default function CommandPill() {
                           key={result.id}
                           className="p-2 rounded-md hover:bg-accent cursor-pointer"
                           onClick={() => {
-                            // Handle search result click
                             closeSearch();
                           }}
                         >
@@ -263,6 +199,239 @@ export default function CommandPill() {
                     )}
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Burger Menu */}
+      <AnimatePresence>
+        {isBurgerOpen && (
+          <motion.div
+            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeBurger}
+          >
+            <motion.div
+              className="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md mx-4 mb-4"
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-card border border-border rounded-lg shadow-xl p-6 space-y-6">
+                {session?.user && (
+                  <>
+                    {/* Navigation Section */}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                        ── Navigation ──────────────
+                      </div>
+                      <div className="space-y-2">
+                        {can("team.create") && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start h-9 px-2 text-sm"
+                            onClick={() => switchToTab("register")}
+                          >
+                            📋 Anmeldung
+                          </Button>
+                        )}
+                        {(can("team.view.own") || can("team.view.all")) && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start h-9 px-2 text-sm"
+                            onClick={() => switchToTab("dashboard")}
+                          >
+                            📊 Meine Teams
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start h-9 px-2 text-sm"
+                          onClick={() => {
+                            alert("Ergebnisse werden hier angezeigt sobald der Wettkampf läuft");
+                            closeBurger();
+                          }}
+                        >
+                          🏆 Ergebnisse
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start h-9 px-2 text-sm"
+                          onClick={() => {
+                            alert("Ranglisten werden hier angezeigt sobald der Wettkampf läuft");
+                            closeBurger();
+                          }}
+                        >
+                          📈 Ranglisten
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Admin Section */}
+                    {(can("team.view.all") || can("results.edit") || can("config.edit")) && (
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                          ──────────────────────────
+                        </div>
+                        <div className="space-y-2">
+                          {can("team.view.all") && (
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start h-9 px-2 text-sm"
+                              onClick={() => switchToTab("dashboard")}
+                            >
+                              👥 Alle Teams
+                            </Button>
+                          )}
+                          {can("results.edit") && (
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start h-9 px-2 text-sm"
+                              onClick={() => {
+                                alert("Ergebnis-Erfassung wird hier implementiert");
+                                closeBurger();
+                              }}
+                            >
+                              ✏️ Ergebnis-Erfassung
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Settings Section */}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                        ── Einstellungen ───────────
+                      </div>
+                      <div className="space-y-2">
+                        {can("config.edit") && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start h-9 px-2 text-sm"
+                            onClick={() => navigateAndClose("/admin")}
+                          >
+                            ⚙️ Administration
+                          </Button>
+                        )}
+                        {can("team.view.all") && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start h-9 px-2 text-sm"
+                            onClick={() => {
+                              window.open("/architecture", "_blank");
+                              closeBurger();
+                            }}
+                          >
+                            🔗 Referenzarchitektur
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Role Simulation */}
+                    {roles.includes("ADMIN") && (
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                          🔬 Rolle simulieren
+                        </div>
+                        <div className="space-y-1">
+                          {(["ZUSCHAUER", "TEAMCHEF", "ADMIN"] as const).map((role) => (
+                            <Button
+                              key={role}
+                              variant={activeRole === role ? "default" : "ghost"}
+                              size="sm"
+                              className="w-full justify-start text-xs h-7"
+                              onClick={() => {
+                                setSimulatedRole(activeRole === role ? null : role);
+                              }}
+                            >
+                              {role}
+                              {isSimulating && simulatedRole === role && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  Aktiv
+                                </Badge>
+                              )}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Theme Section */}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                        ── Darstellung ─────────────
+                      </div>
+                      <div className="flex gap-1 justify-center">
+                        {themes.map((t) => (
+                          <Button
+                            key={t.id}
+                            variant={theme === t.id ? "default" : "ghost"}
+                            size="sm"
+                            className="h-8 w-8 p-0 text-base"
+                            onClick={() => setTheme(t.id as any)}
+                            title={t.label}
+                          >
+                            {t.icon}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Account Section */}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                        ── Konto ───────────────────
+                      </div>
+                      <div className="space-y-2">
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start h-9 px-2 text-sm"
+                          onClick={() => navigateAndClose("/profile")}
+                        >
+                          👤 Profil
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start h-9 px-2 text-sm"
+                          onClick={() => navigateAndClose("/changelog")}
+                        >
+                          📋 Changelog
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start h-9 px-2 text-sm"
+                          onClick={() => {
+                            signOut();
+                            closeBurger();
+                          }}
+                        >
+                          🚪 Abmelden
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Close Button */}
+                <div className="pt-2 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeBurger}
+                    className="w-full h-8 text-xs text-muted-foreground"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Schließen
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

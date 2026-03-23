@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Providers from "./providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import CommandPill from "./components/command-pill";
-import RoleSwitcher from "./components/role-switcher";
+import RoleSimulationBanner from "./components/role-simulation-banner";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -20,9 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
           <TooltipProvider>
+            <RoleSimulationBanner />
             {children}
             <CommandPill />
-            <RoleSwitcher />
           </TooltipProvider>
         </Providers>
       </body>

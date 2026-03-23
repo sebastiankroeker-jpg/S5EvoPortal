@@ -2,36 +2,24 @@
 
 import { useSession, signIn } from "next-auth/react";
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { motion } from "framer-motion";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NavBar from "./components/nav-bar";
-import ThemeSwitcher from "./components/theme-switcher";
 import TeamRegistration from "./components/team-registration";
 import SysAdminView from "./components/sysadmin-view";
 import ESVHero from "./components/esv-hero";
 import Dashboard from "./components/dashboard";
 import { usePermissions } from "@/lib/permissions-context";
+import { useTheme } from "@/lib/theme-context";
 import { APP_VERSION } from "@/lib/version";
-
-type Theme = "light" | "dark" | "psychedelic" | "sysadmin" | "esv";
 
 export default function Home() {
   const { data: session, status } = useSession();
   const { can, activeRole } = usePermissions();
-  const [theme, setTheme] = useState<Theme>("dark");
+  const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState("registration");
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    // Set dark class for shadcn
-    if (theme === "dark" || theme === "sysadmin" || theme === "psychedelic") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [theme]);
 
   // Listen for command pill tab switches
   useEffect(() => {
@@ -60,37 +48,13 @@ export default function Home() {
 
   return (
     <div className={`min-h-screen transition-all duration-500 ${
-      theme === "psychedelic" ? "psychedelic-bg" :
+      theme === "bunt" ? "bunt-bg" :
       theme === "sysadmin" ? "sysadmin-bg" :
       theme === "esv" ? "esv-bg" : ""
     }`}>
       <NavBar />
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center space-y-3"
-        >
-          <h1 className={`text-4xl font-bold tracking-tight ${
-            theme === "psychedelic" ? "psychedelic-text" :
-            theme === "sysadmin" ? "font-mono text-[#00ff88]" : ""
-          }`}>
-            {theme === "sysadmin" ? "S5EVO // MISSION CONTROL" : "🏅 S5Evo Portal"}
-          </h1>
-          <p className={`text-muted-foreground ${
-            theme === "sysadmin" ? "font-mono text-[#64748b]" : ""
-          }`}>
-            {theme === "sysadmin"
-              ? "Infrastructure Status • Fleet Overview • Live Monitoring"
-              : "Mannschaftsfünfkampf – Anmeldung & Verwaltung"}
-          </p>
-        </motion.div>
-
-        {/* Theme Switcher */}
-        <ThemeSwitcher theme={theme} setTheme={setTheme} />
-
         {/* Sys-Admin Mode */}
         {theme === "sysadmin" ? (
           <SysAdminView />
@@ -104,7 +68,7 @@ export default function Home() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
               >
-                <Card className={theme === "psychedelic" ? "psychedelic-card" : ""}>
+                <Card className={theme === "bunt" ? "bunt-card" : ""}>
                   <CardHeader>
                     <CardTitle>Willkommen beim Fünfkampf! 🏆</CardTitle>
                   </CardHeader>
@@ -116,7 +80,7 @@ export default function Home() {
                       <Button
                         size="lg"
                         onClick={() => signIn("authentik")}
-                        className={`w-full ${theme === "psychedelic" ? "psychedelic-btn" : ""}`}
+                        className={`w-full ${theme === "bunt" ? "bunt-btn" : ""}`}
                       >
                         🔐 Anmelden (vorhandener Account)
                       </Button>
