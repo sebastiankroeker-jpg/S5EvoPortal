@@ -104,62 +104,58 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     window.dispatchEvent(event);
   };
 
+  // Get all permitted menu items
+  const permittedMenuItems = MENU_ITEMS.filter(item => {
+    if (item.permission && !can(item.permission as any)) return false;
+    return true;
+  });
+
   // Search implementation
   const performSearch = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = query.toLowerCase().trim();
     
-    // Search menu items first
-    const menuResults = MENU_ITEMS
+    // Filter menu items (show all if no query)
+    const menuResults = permittedMenuItems
       .filter(item => {
-        // Check permission if exists
-        if (item.permission && !can(item.permission as any)) {
-          return false;
-        }
-        
-        // Check if query matches label or keywords
+        if (!lowerQuery) return true; // show all when empty
         return item.label.toLowerCase().includes(lowerQuery) ||
                item.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery));
       })
-      .map(item => ({
-        type: 'menu' as const,
-        ...item
-      }));
+      .map(item => ({ type: 'menu' as const, ...item }));
 
-    // Search teams via API
+    // Search teams via API (only if query)
     let teamResults: SearchItem[] = [];
-    try {
-      const response = await fetch(`/api/teams?q=${encodeURIComponent(query)}`);
-      if (response.ok) {
-        const teams = await response.json();
-        teamResults = teams.map((team: any) => ({
-          type: 'team' as const,
-          name: team.name,
-          discipline: team.discipline,
-          participants: team.participants || [],
-          icon: "🏅",
-          action: () => {
-            // Navigate to team detail or dashboard
-            switchToTab("registration");
-          }
-        }));
+    if (lowerQuery.length >= 2) {
+      try {
+        const response = await fetch(`/api/teams?q=${encodeURIComponent(query)}`);
+        if (response.ok) {
+          const teams = await response.json();
+          teamResults = teams.map((team: any) => ({
+            type: 'team' as const,
+            name: team.name,
+            discipline: team.discipline,
+            participants: team.participants || [],
+            icon: "🏅",
+            action: () => switchToTab("registration"),
+          }));
+        }
+      } catch (error) {
+        console.error("Search error:", error);
       }
-    } catch (error) {
-      console.error("Search error:", error);
     }
 
-    // Combine results: menu items first, then teams
     setSearchResults([...menuResults, ...teamResults]);
   };
+
+  // Initial load: show all menu items
+  useEffect(() => {
+    if (isOpen) performSearch("");
+  }, [isOpen]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
       performSearch(searchQuery);
-    }, 300);
+    }, 200);
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
@@ -219,8 +215,8 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                 </Button>
               </div>
               
-              {searchQuery && (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+              {searchResults.length > 0 && (
+                <div className="space-y-1 max-h-72 overflow-y-auto thin-scrollbar">
                   {searchResults.length > 0 ? (
                     searchResults.map((result, index) => (
                       <div
