@@ -23,12 +23,29 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const { data: session } = useSession();
   const [simulatedRole, setSimulatedRole] = useState<Role | null>(null);
   
-  // TODO: Später aus DB laden über API (TenantRole)
-  // Für jetzt: Eingeloggte User = ZUSCHAUER (Default)
-  // TEAMCHEF wird automatisch wenn man ein Team anmeldet
-  // ADMIN nur für Authentik-User in der Admin-Gruppe (später aus DB)
-  // Zum Testen: Default ADMIN damit Role-Switcher funktioniert
-  const roles: Role[] = session?.user ? ["ADMIN"] : ["ZUSCHAUER"];
+  // Rollen aus der DB laden
+  const [dbRoles, setDbRoles] = useState<Role[]>([]);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
+
+  useEffect(() => {
+    if (session?.user) {
+      fetch("/api/profile/roles")
+        .then(res => res.ok ? res.json() : { roles: [] })
+        .then(data => {
+          setDbRoles(data.roles?.length ? data.roles : ["TEILNEHMER"]);
+          setRolesLoaded(true);
+        })
+        .catch(() => {
+          setDbRoles(["TEILNEHMER"]);
+          setRolesLoaded(true);
+        });
+    } else {
+      setDbRoles(["ZUSCHAUER"]);
+      setRolesLoaded(true);
+    }
+  }, [session]);
+
+  const roles: Role[] = dbRoles.length ? dbRoles : (session?.user ? ["TEILNEHMER"] : ["ZUSCHAUER"]);
   
   const activeRole = simulatedRole || getHighestRole(roles);
   const isSimulating = simulatedRole !== null;

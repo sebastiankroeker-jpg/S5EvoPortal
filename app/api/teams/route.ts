@@ -232,6 +232,32 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      // Automatisch TEAMCHEF-Rolle vergeben wenn noch nicht vorhanden
+      const existingRole = await prisma.tenantRole.findFirst({
+        where: {
+          userId: user.id,
+          role: "TEAMCHEF",
+        }
+      });
+
+      if (!existingRole) {
+        // Tenant finden (vom Competition)
+        const competition = await prisma.competition.findUnique({
+          where: { id: competitionId },
+          select: { tenantId: true }
+        });
+
+        if (competition) {
+          await prisma.tenantRole.create({
+            data: {
+              userId: user.id,
+              tenantId: competition.tenantId,
+              role: "TEAMCHEF",
+            }
+          });
+        }
+      }
+
       return NextResponse.json({ 
         success: true,
         message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
