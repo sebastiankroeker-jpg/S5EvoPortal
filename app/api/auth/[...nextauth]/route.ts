@@ -38,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         token.accessToken = account.access_token;
         token.id = profile?.sub;
         token.email = profile?.email;
-        token.name = profile?.name ?? profile?.preferred_username;
+        token.name = profile?.name ?? (profile as any)?.preferred_username;
         token.picture = profile?.picture;
       }
       return token;
