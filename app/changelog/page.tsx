@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,29 @@ import { CHANGELOG } from "@/lib/data/changelog";
 import { APP_VERSION } from "@/lib/version";
 
 export default function ChangelogPage() {
+  const { status } = useSession();
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (status === "unauthenticated") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="p-8 text-center space-y-4">
+            <p className="text-muted-foreground">Bitte melde dich an um den Changelog zu sehen.</p>
+            <Link href="/"><Button>Zur Startseite</Button></Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Simple Header */}

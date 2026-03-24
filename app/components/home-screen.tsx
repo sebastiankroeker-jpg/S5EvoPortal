@@ -131,7 +131,11 @@ export default function HomeScreen() {
         <p className="text-lg text-muted-foreground">2026</p>
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>📍 {competitionInfo?.location || "Bad Bayersoien · Ammertal"}</p>
-          <p>📅 Wettkampf-Datum (TBD)</p>
+          {competitionInfo?.date ? (
+            <p>📅 {new Date(competitionInfo.date).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (Fr + Sa)</p>
+          ) : (
+            <p>📅 Termin wird noch bekanntgegeben</p>
+          )}
           <p className="font-medium">
             📊 Status: <span className="text-green-600">OPEN</span>
           </p>
