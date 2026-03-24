@@ -130,7 +130,7 @@ export default function HomeScreen() {
         </h1>
         <p className="text-lg text-muted-foreground">2026</p>
         <div className="space-y-1 text-sm text-muted-foreground">
-          <p>📍 {competition?.location || "Bad Bayersoien · Ammertal"}</p>
+          <p>📍 {competitionInfo?.location || "Bad Bayersoien · Ammertal"}</p>
           <p>📅 Wettkampf-Datum (TBD)</p>
           <p className="font-medium">
             📊 Status: <span className="text-green-600">OPEN</span>
