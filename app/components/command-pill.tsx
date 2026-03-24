@@ -88,7 +88,7 @@ export default function CommandPill() {
     { 
       label: "Abmelden", 
       keywords: ["abmelden", "logout", "ausloggen"], 
-      action: () => signOut(),
+      action: () => fullSignOut(),
       icon: "🔗"
     },
   ];
@@ -518,7 +518,7 @@ export default function CommandPill() {
                           variant="ghost"
                           className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
-                            signOut();
+                            fullSignOut();
                             closeBurger();
                           }}
                         >

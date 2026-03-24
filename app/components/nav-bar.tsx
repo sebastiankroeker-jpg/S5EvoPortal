@@ -131,7 +131,7 @@ export default function NavBar() {
           <Link href="/profile" className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">
             👤 {session.user.name}
           </Link>
-          <Button variant="ghost" size="sm" onClick={() => signOut()} className="text-xs text-muted-foreground h-6 px-2">
+          <Button variant="ghost" size="sm" onClick={() => fullSignOut()} className="text-xs text-muted-foreground h-6 px-2">
             Abmelden
           </Button>
         </div>

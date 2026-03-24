@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { fullSignOut } from "@/lib/auth-helpers";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -63,7 +64,7 @@ export default function ProfilePage() {
       const res = await fetch("/api/profile", { method: "DELETE" });
       if (!res.ok) throw new Error("Löschen fehlgeschlagen");
       // Sign out after deletion
-      signOut({ callbackUrl: "/" });
+      fullSignOut();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
       setDeleting(false);
@@ -181,7 +182,7 @@ export default function ProfilePage() {
                 <span className="font-medium">Authentik (auth.s5evo.de)</span>
               </div>
               <div className="pt-2">
-                <Button variant="outline" onClick={() => signOut({ callbackUrl: "/" })} className="w-full">
+                <Button variant="outline" onClick={() => fullSignOut()} className="w-full">
                   Abmelden
                 </Button>
               </div>
