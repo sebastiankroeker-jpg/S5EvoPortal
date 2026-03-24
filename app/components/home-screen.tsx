@@ -77,7 +77,7 @@ export default function HomeScreen() {
         <div className="space-y-4">
           <span className="text-6xl">🏆</span>
           <h1 className="text-2xl font-bold">Mannschafts-5-Kampf</h1>
-          <p className="text-muted-foreground">📍 ESV Rosenheim</p>
+          <p className="text-muted-foreground">📍 Bad Bayersoien · Ammertal</p>
         </div>
 
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
@@ -130,7 +130,7 @@ export default function HomeScreen() {
         </h1>
         <p className="text-lg text-muted-foreground">2026</p>
         <div className="space-y-1 text-sm text-muted-foreground">
-          <p>📍 Sportgelände ESV</p>
+          <p>📍 {competition?.location || "Bad Bayersoien · Ammertal"}</p>
           <p>📅 Wettkampf-Datum (TBD)</p>
           <p className="font-medium">
             📊 Status: <span className="text-green-600">OPEN</span>

@@ -112,6 +112,9 @@ export default function Dashboard() {
     }
   };
 
+  // Pending owner filter (set before teams are loaded)
+  const [pendingOwnerFilter, setPendingOwnerFilter] = useState<string | null>(null);
+
   useEffect(() => {
     fetchTeams();
     
@@ -119,12 +122,21 @@ export default function Dashboard() {
     const handleSwitchTab = (e: CustomEvent) => {
       if (e.detail.ownerFilter && e.detail.tabId === "dashboard") {
         setOwnerFilter(e.detail.ownerFilter);
+        setPendingOwnerFilter(e.detail.ownerFilter);
       }
     };
     
     window.addEventListener("switchTab" as any, handleSwitchTab);
     return () => window.removeEventListener("switchTab" as any, handleSwitchTab);
   }, []);
+
+  // Apply pending owner filter after teams are loaded
+  useEffect(() => {
+    if (pendingOwnerFilter && teams.length > 0) {
+      setOwnerFilter(pendingOwnerFilter);
+      setPendingOwnerFilter(null);
+    }
+  }, [teams, pendingOwnerFilter]);
 
   // Filter and search logic
   const filteredTeams = useMemo(() => {
