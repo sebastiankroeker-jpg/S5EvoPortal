@@ -8,7 +8,7 @@ import NavBar from "./components/nav-bar";
 import HomeScreen from "./components/home-screen";
 import TeamRegistration from "./components/team-registration";
 import Dashboard from "./components/dashboard";
-import LivePlaceholder from "./components/live-placeholder";
+import LiveScreen from "./components/live-screen";
 import SysAdminView from "./components/sysadmin-view";
 import BottomTabBar from "./components/bottom-tab-bar";
 
@@ -48,7 +48,7 @@ export default function Home() {
             {activeTab === "home" && <HomeScreen />}
             {activeTab === "registration" && can("team.create") && <TeamRegistration />}
             {activeTab === "dashboard" && <Dashboard />}
-            {activeTab === "live" && <LivePlaceholder />}
+            {activeTab === "live" && <LiveScreen />}
           </>
         )}
       </main>

@@ -127,9 +127,14 @@ export async function GET(request: NextRequest) {
     }
 
     try {
+      // Check URL search params to determine if we want all teams or just own teams
+      const url = new URL(request.url);
+      const scope = url.searchParams.get('scope');
+      
       const teams = await prisma.team.findMany({
         where: {
-          owner: { email: userEmail },
+          // If scope=all, show all teams. Otherwise, show only own teams
+          ...(scope === 'all' ? {} : { owner: { email: userEmail } }),
           deletedAt: null
         },
         include: {

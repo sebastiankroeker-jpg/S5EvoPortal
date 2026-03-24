@@ -61,8 +61,8 @@ export default function HomeScreen() {
     loadData();
   }, []);
 
-  const handleQuickAction = (tabId: string) => {
-    const event = new CustomEvent('switchTab', { detail: { tabId } });
+  const handleQuickAction = (tabId: string, additionalData?: any) => {
+    const event = new CustomEvent('switchTab', { detail: { tabId, ...additionalData } });
     window.dispatchEvent(event);
   };
 
@@ -181,7 +181,7 @@ export default function HomeScreen() {
           <Button
             variant="outline"
             size="lg"
-            onClick={() => handleQuickAction("dashboard")}
+            onClick={() => handleQuickAction("dashboard", { ownerFilter: session?.user?.email })}
             className="w-full justify-start"
           >
             📊 Meine Teams

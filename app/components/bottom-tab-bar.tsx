@@ -57,7 +57,8 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
       >
         <div className="grid grid-flow-col auto-cols-fr h-14">
           {visibleTabs.map((tab) => {
-            const isActive = activeTab === tab.id;
+            const isActive = tab.id === activeTab || 
+              (tab.id === "registration" && activeTab === "dashboard");
             
             return (
               <button

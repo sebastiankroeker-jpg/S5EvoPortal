@@ -114,6 +114,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchTeams();
+    
+    // Listen for switchTab events to handle owner filter
+    const handleSwitchTab = (e: CustomEvent) => {
+      if (e.detail.ownerFilter && e.detail.tabId === "dashboard") {
+        setOwnerFilter(e.detail.ownerFilter);
+      }
+    };
+    
+    window.addEventListener("switchTab" as any, handleSwitchTab);
+    return () => window.removeEventListener("switchTab" as any, handleSwitchTab);
   }, []);
 
   // Filter and search logic
