@@ -28,6 +28,7 @@ type CompetitionConfig = {
   name: string;
   year: number;
   date: string;
+  dateEnd: string;
   registrationDeadline: string;
   status: string;
   maxTeams: number;
@@ -95,7 +96,8 @@ export default function AdminPage() {
   const [competition, setCompetition] = useState<CompetitionConfig>({
     name: "Mannschafts-5-Kampf 2026",
     year: 2026,
-    date: "2026-07-12",
+    date: "2026-07-10",
+    dateEnd: "2026-07-11",
     registrationDeadline: "2026-06-28",
     status: "DRAFT",
     maxTeams: 120,
@@ -145,7 +147,8 @@ export default function AdminPage() {
             setCompetition({
               name: comp.name || "Mannschafts-5-Kampf 2026",
               year: comp.year || 2026,
-              date: comp.date ? comp.date.split('T')[0] : "2026-07-12",
+              date: comp.date ? comp.date.split('T')[0] : "2026-07-10",
+              dateEnd: comp.dateEnd ? comp.dateEnd.split('T')[0] : "2026-07-11",
               registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "2026-06-28",
               status: comp.status || "DRAFT",
               maxTeams: comp.maxTeams || 120,
@@ -425,11 +428,18 @@ export default function AdminPage() {
                         onChange={(e) => setCompetition({ ...competition, year: parseInt(e.target.value) || 2026 })}
                       />
                     </FormField>
-                    <FormField label="Wettkampf-Datum">
+                    <FormField label="Wettkampf von (Freitag)">
                       <Input
                         type="date"
                         value={competition.date}
                         onChange={(e) => setCompetition({ ...competition, date: e.target.value })}
+                      />
+                    </FormField>
+                    <FormField label="Wettkampf bis (Samstag)">
+                      <Input
+                        type="date"
+                        value={competition.dateEnd || ""}
+                        onChange={(e) => setCompetition({ ...competition, dateEnd: e.target.value })}
                       />
                     </FormField>
                     <FormField label="Status">

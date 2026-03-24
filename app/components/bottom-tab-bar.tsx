@@ -8,15 +8,48 @@ interface Tab {
   id: string;
   icon: string;
   label: string;
-  permission: string | null;
+  show: (ctx: { authenticated: boolean; can: (p: string) => boolean; activeRole: string }) => boolean;
 }
 
 const TABS: Tab[] = [
-  { id: "home", icon: "🏠", label: "Home", permission: null },
-  { id: "registration", icon: "📋", label: "Team", permission: "team.create" },
-  { id: "live", icon: "🏆", label: "Live", permission: "results.view" },
-  { id: "profile", icon: "👤", label: "Profil", permission: null },
+  { 
+    id: "home", icon: "🏠", label: "Home",
+    show: () => true,
+  },
+  { 
+    id: "registration", icon: "📋", label: "Team",
+    show: ({ authenticated }) => authenticated,
+  },
+  { 
+    id: "live", icon: "🏆", label: "Live",
+    show: () => true,
+  },
+  { 
+    id: "profile", icon: "👤", label: "Profil",
+    show: ({ authenticated }) => authenticated,
+  },
+  { 
+    id: "orga", icon: "⚙️", label: "Orga",
+    show: ({ can }) => can("team.view.all") || can("results.edit"),
+  },
 ];
+
+// Dynamic label for Team tab based on role
+function getTeamLabel(activeRole: string): string {
+  switch (activeRole) {
+    case "ZUSCHAUER": return "Watch";
+    case "TEILNEHMER": return "Mein Team";
+    default: return "Teams"; // TEAMCHEF, MODERATOR, ADMIN
+  }
+}
+
+function getTeamIcon(activeRole: string): string {
+  switch (activeRole) {
+    case "ZUSCHAUER": return "👀";
+    case "TEILNEHMER": return "🏃";
+    default: return "📋";
+  }
+}
 
 interface BottomTabBarProps {
   activeTab: string;
@@ -25,26 +58,21 @@ interface BottomTabBarProps {
 
 export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarProps) {
   const { status } = useSession();
-  const { can } = usePermissions();
+  const { can, activeRole } = usePermissions();
+  const authenticated = status === "authenticated";
 
-  // Filter tabs based on authentication and permissions
-  const visibleTabs = TABS.filter(tab => {
-    // Always show home and live
-    if (tab.id === "home" || tab.id === "live") return true;
-    
-    // Profile only when authenticated
-    if (tab.id === "profile") return status === "authenticated";
-    
-    // Other tabs need permission
-    if (tab.permission && !can(tab.permission)) return false;
-    
-    return status === "authenticated";
+  const ctx = { authenticated, can, activeRole };
+
+  const visibleTabs = TABS.filter(tab => tab.show(ctx)).map(tab => {
+    // Dynamic Team tab
+    if (tab.id === "registration") {
+      return { ...tab, label: getTeamLabel(activeRole), icon: getTeamIcon(activeRole) };
+    }
+    return tab;
   });
 
   const handleTabClick = (tabId: string) => {
     onTabChange(tabId);
-    
-    // Dispatch event for other components
     const event = new CustomEvent('switchTab', { detail: { tabId } });
     window.dispatchEvent(event);
   };
@@ -70,20 +98,16 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                   isActive && "text-primary"
                 )}
               >
-                <span 
-                  className={cn(
-                    "text-lg transition-transform duration-200",
-                    isActive && "scale-110"
-                  )}
-                >
+                <span className={cn(
+                  "text-lg transition-transform duration-200",
+                  isActive && "scale-110"
+                )}>
                   {tab.icon}
                 </span>
-                <span 
-                  className={cn(
-                    "text-[10px] font-medium transition-all duration-200",
-                    isActive ? "text-primary" : "text-muted-foreground"
-                  )}
-                >
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  isActive ? "text-primary" : "text-muted-foreground"
+                )}>
                   {tab.label}
                 </span>
               </button>

@@ -46,8 +46,41 @@ export default function Home() {
         ) : (
           <>
             {activeTab === "home" && <HomeScreen />}
-            {activeTab === "registration" && can("team.create") && <TeamRegistration />}
+            {activeTab === "registration" && <TeamRegistration />}
             {activeTab === "dashboard" && <Dashboard />}
+            {activeTab === "orga" && (can("team.view.all") || can("results.edit")) && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold">⚙️ Orga-Bereich</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {can("team.view.all") && (
+                    <button onClick={() => setActiveTab("dashboard")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                      <span className="text-lg">👥</span>
+                      <p className="font-medium text-sm">Alle Teams</p>
+                      <p className="text-xs text-muted-foreground">Teams verwalten & bearbeiten</p>
+                    </button>
+                  )}
+                  {can("results.edit") && (
+                    <button className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1 opacity-60">
+                      <span className="text-lg">✏️</span>
+                      <p className="font-medium text-sm">Ergebnis-Erfassung</p>
+                      <p className="text-xs text-muted-foreground">Demnächst verfügbar</p>
+                    </button>
+                  )}
+                  {can("config.edit") && (
+                    <button onClick={() => window.location.href = "/admin"} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                      <span className="text-lg">🏢</span>
+                      <p className="font-medium text-sm">Administration</p>
+                      <p className="text-xs text-muted-foreground">Tenant & Wettkampf konfigurieren</p>
+                    </button>
+                  )}
+                  <button onClick={() => window.open("/architecture", "_blank")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                    <span className="text-lg">🔗</span>
+                    <p className="font-medium text-sm">Referenzarchitektur</p>
+                    <p className="text-xs text-muted-foreground">Technische Übersicht</p>
+                  </button>
+                </div>
+              </div>
+            )}
             {activeTab === "live" && <LiveScreen />}
           </>
         )}

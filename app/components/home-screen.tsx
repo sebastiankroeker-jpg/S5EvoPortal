@@ -12,6 +12,7 @@ interface CompetitionInfo {
   name: string;
   location: string;
   date: string;
+  dateEnd?: string;
   status: string;
 }
 
@@ -132,7 +133,9 @@ export default function HomeScreen() {
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>📍 {competitionInfo?.location || "Bad Bayersoien · Ammertal"}</p>
           {competitionInfo?.date ? (
-            <p>📅 {new Date(competitionInfo.date).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (Fr + Sa)</p>
+            <p>📅 {new Date(competitionInfo.date).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long' })}
+            {competitionInfo.dateEnd && ` – ${new Date(competitionInfo.dateEnd).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}`}
+            </p>
           ) : (
             <p>📅 Termin wird noch bekanntgegeben</p>
           )}
