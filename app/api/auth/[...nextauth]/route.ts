@@ -53,6 +53,9 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  pages: {
+    signIn: "/login",
+  },
   events: {
     // When signing out, redirect to Authentik logout to clear SSO session
     async signOut() {
