@@ -42,14 +42,18 @@ interface Participant {
   discipline?: string;
 }
 
-export default function Dashboard() {
+interface DashboardProps {
+  ownerFilter?: string;
+}
+
+export default function Dashboard({ ownerFilter: initialOwnerFilter }: DashboardProps = {}) {
   const { data: session } = useSession();
   const { can } = usePermissions();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [ownerFilter, setOwnerFilter] = useState<string>("all");
+  const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);

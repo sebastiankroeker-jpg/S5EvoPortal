@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { APP_VERSION } from "@/lib/version";
+import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
@@ -20,8 +21,17 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function NavBar() {
   const { data: session, status } = useSession();
+  const { theme, setTheme } = useTheme();
   const { activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+
+  const THEMES = [
+    { id: "light", icon: "☀️", label: "Light" },
+    { id: "dark", icon: "🌙", label: "Dark" },
+    { id: "esv", icon: "🏔️", label: "ESV" },
+    { id: "bunt", icon: "🎨", label: "Bunt" },
+    { id: "sysadmin", icon: "🖥️", label: "Sys-Admin" },
+  ];
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
@@ -51,6 +61,22 @@ export default function NavBar() {
         <Link href="/changelog">
           <Badge variant="secondary" className="text-[10px] hover:bg-primary/20 cursor-pointer">{APP_VERSION}</Badge>
         </Link>
+      </div>
+
+      {/* Center: Theme-Dots */}
+      <div className="flex items-center gap-0.5">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTheme(t.id as any)}
+            className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center transition-all hover:scale-110 ${
+              theme === t.id ? "ring-1 ring-primary ring-offset-1 ring-offset-background scale-110" : "opacity-40 hover:opacity-80"
+            }`}
+            title={t.label}
+          >
+            {t.icon}
+          </button>
+        ))}
       </div>
 
       {/* Right: Role-Switcher + User + Abmelden */}

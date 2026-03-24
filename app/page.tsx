@@ -6,7 +6,7 @@ import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import NavBar from "./components/nav-bar";
 import HomeScreen from "./components/home-screen";
-import TeamRegistration from "./components/team-registration";
+import TeamScreen from "./components/team-screen";
 import Dashboard from "./components/dashboard";
 import LiveScreen from "./components/live-screen";
 import SysAdminView from "./components/sysadmin-view";
@@ -46,7 +46,7 @@ export default function Home() {
         ) : (
           <>
             {activeTab === "home" && <HomeScreen />}
-            {activeTab === "registration" && <TeamRegistration />}
+            {activeTab === "registration" && <TeamScreen />}
             {activeTab === "dashboard" && <Dashboard />}
             {activeTab === "orga" && (can("team.view.all") || can("results.edit")) && (
               <div className="space-y-4">
