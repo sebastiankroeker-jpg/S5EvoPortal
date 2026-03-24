@@ -438,8 +438,13 @@ export default function AdminPage() {
                     <FormField label="Wettkampf bis (Samstag)">
                       <Input
                         type="date"
+                        min={competition.date}
                         value={competition.dateEnd || ""}
-                        onChange={(e) => setCompetition({ ...competition, dateEnd: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (competition.date && val < competition.date) return;
+                          setCompetition({ ...competition, dateEnd: val });
+                        }}
                       />
                     </FormField>
                     <FormField label="Status">
