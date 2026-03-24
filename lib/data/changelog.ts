@@ -7,14 +7,14 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "v0.5.0",
-    date: "2026-03-23",
+    date: "2026-03-24",
     items: [
-      "Vercel-Style Command Pill (Find + Burger-Menü)",
-      "Navigation als Drawer mit rollenbasierten Menüpunkten",
-      "Theme-Switcher dezent im Burger-Menü integriert",
-      "'Psychedelic' umbenannt in 'Bunt'",
-      "Schlanker Header, aufgeräumte Hauptseite",
-      "Referenzarchitektur wieder erreichbar",
+      "Bottom Tab Bar Navigation (Mobile-first, 🏠📋🏆👤)",
+      "Home-Screen mit Wettkampf-Übersicht und Quick-Actions",
+      "Hero-Header, Theme-Buttons und redundante Tabs entfernt",
+      "Clean Layout: Header + Content + Tab Bar (3 Layer statt 7)",
+      "Live-Ergebnisse Placeholder",
+      "Role-Switcher nur noch im Admin-Bereich",
     ],
   },
   {

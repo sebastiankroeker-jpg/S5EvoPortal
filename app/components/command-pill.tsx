@@ -202,9 +202,9 @@ export default function CommandPill() {
 
   return (
     <>
-      {/* Command Pill */}
+      {/* Command Pill - Hidden on mobile, visible on desktop */}
       <motion.div
-        className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50"
+        className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 hidden lg:block"
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
