@@ -64,7 +64,7 @@ export default function Sidebar() {
 
   return (
     <motion.div
-      className={`fixed left-0 top-0 h-full bg-card border-r border-border z-40 flex flex-col sidebar-scroll ${
+      className={`fixed left-0 top-0 h-full bg-card border-r border-border/30 z-40 flex flex-col sidebar-scroll ${
         isCollapsed ? "w-12" : "w-52"
       }`}
       initial={false}
@@ -72,7 +72,7 @@ export default function Sidebar() {
       transition={{ duration: 0.2 }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-2 py-2 border-b border-border">
+      <div className="flex items-center justify-between px-2 py-2 border-b border-border/30">
         {!isCollapsed ? (
           <div className="flex items-center gap-1.5">
             <span className="text-base">🏅</span>
@@ -118,7 +118,7 @@ export default function Sidebar() {
       </div>
 
       {/* Footer — Konto */}
-      <div className="border-t border-border px-1 py-1.5 space-y-0.5">
+      <div className="border-t border-border/30 px-1 py-1.5 space-y-0.5">
         <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
         <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
       </div>

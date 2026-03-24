@@ -340,7 +340,7 @@ export default function TeamRegistration() {
                       id="teamName"
                       type="text"
                       {...register("teamName")}
-                      className="mt-1 w-full px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       placeholder="z.B. Die Bergziegen"
                     />
                     {formState.errors.teamName && (
@@ -348,7 +348,7 @@ export default function TeamRegistration() {
                     )}
                   </div>
 
-                  <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+                  <div className="rounded-md border border-border/50 shadow-sm bg-muted/40 p-3 space-y-2">
                     <label className="flex items-center gap-2 text-sm font-medium">
                       <input
                         type="checkbox"
@@ -362,7 +362,7 @@ export default function TeamRegistration() {
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">Gewünschte Disziplin</label>
                         <select
-                          className="px-3 py-2 bg-background border border-input rounded-md text-sm"
+                          className="px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
                           value={teamLeadDiscipline}
                           onChange={(event) => setTeamLeadDiscipline(event.target.value as DisciplineId)}
                         >
@@ -389,7 +389,7 @@ export default function TeamRegistration() {
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium">Test-Klasse</label>
                       <select
-                        className="px-3 py-1.5 bg-background border border-input rounded-md text-sm"
+                        className="px-3 py-1.5 bg-background border border-input/60 rounded-md text-sm"
                         value={testDataClass}
                         onChange={(event) => setTestDataClass(event.target.value as TeamClassId)}
                       >
@@ -429,7 +429,7 @@ export default function TeamRegistration() {
                         id="teamName2"
                         type="text"
                         {...register("teamName")}
-                        className="mt-1 w-full px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         placeholder="z.B. Die Bergziegen"
                       />
                     </div>
@@ -437,7 +437,7 @@ export default function TeamRegistration() {
                     {/* Teilnehmer */}
                     <div className="space-y-3">
                       {fields.map((field, index) => (
-                        <div key={field.id} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                        <div key={field.id} className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 space-y-2">
                           <div className="flex items-center justify-between text-sm font-medium">
                             <span>{disciplineMap[participants[index]?.discipline as DisciplineId]?.icon} {disciplineMap[participants[index]?.discipline as DisciplineId]?.label ?? `Teilnehmer:in ${index + 1}`}</span>
                             {teamLeadParticipates && participants[index]?.discipline === teamLeadDiscipline && (
@@ -453,21 +453,21 @@ export default function TeamRegistration() {
                             />
                             <input
                               placeholder="Vorname"
-                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.firstName` as const)}
                             />
                             <input
                               placeholder="Nachname"
-                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.lastName` as const)}
                             />
                             <input
                               type="date"
-                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.birthDate` as const)}
                             />
                             <select
-                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.gender` as const)}
                             >
                               <option value="M">Männlich</option>
@@ -476,12 +476,12 @@ export default function TeamRegistration() {
                             </select>
                             <input
                               placeholder="E-Mail (optional)"
-                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.email` as const)}
                             />
                             <input
                               placeholder="Telefon (optional)"
-                              className="px-2 py-1 bg-background border border-input rounded text-sm"
+                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.phone` as const)}
                             />
                           </div>

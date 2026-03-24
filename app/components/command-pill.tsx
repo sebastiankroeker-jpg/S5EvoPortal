@@ -209,7 +209,7 @@ export default function CommandPill() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-        <div className="bg-card/90 backdrop-blur-md border border-border rounded-full px-6 py-3 shadow-lg max-w-[280px]">
+        <div className="bg-card/90 backdrop-blur-md border border-border/50 rounded-full px-6 py-3 shadow-lg max-w-[280px]">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -252,7 +252,7 @@ export default function CommandPill() {
               exit={{ y: -50, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-card border border-border rounded-lg shadow-xl p-4">
+              <div className="bg-card border border-border/50 rounded-md shadow-xl p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Search className="h-4 w-4 text-muted-foreground" />
                   <Input
@@ -331,7 +331,7 @@ export default function CommandPill() {
               exit={{ y: 100, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-card border border-border rounded-lg shadow-xl p-4 max-h-[80vh] overflow-y-auto thin-scrollbar">
+              <div className="bg-card border border-border/50 rounded-md shadow-xl p-4 max-h-[80vh] overflow-y-auto thin-scrollbar">
                 {session?.user && (
                   <>
                     {/* Navigation Section */}

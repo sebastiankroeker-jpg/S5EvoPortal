@@ -37,7 +37,7 @@ export default function NavBar() {
 
   return (
     <nav 
-      className={`flex items-center justify-between px-4 py-1 border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-30 lg:transition-all lg:duration-200 ${
+      className={`flex items-center justify-between px-4 py-1 border-b border-border/30 bg-card/80 backdrop-blur-sm sticky top-0 z-30 lg:transition-all lg:duration-200 ${
         isCollapsed ? "lg:ml-12" : "lg:ml-52"
       }`}
     >

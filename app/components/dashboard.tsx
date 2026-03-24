@@ -316,7 +316,7 @@ export default function Dashboard() {
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <Card className="border-l-4 border-l-primary">
+                      <Card className="border-l-4 border-l-primary shadow-sm">
                         <CardContent className="p-4 space-y-4">
                           {/* Team Details */}
                           <div className="space-y-2">
@@ -353,7 +353,7 @@ export default function Dashboard() {
                                   const disciplineDisplay = getDisciplineDisplay(p.discipline);
                                   const birthYear = p.birthDate ? new Date(p.birthDate).getFullYear() : null;
                                   return (
-                                    <div key={i} className="text-sm border rounded p-2 space-y-1">
+                                    <div key={i} className="text-sm border border-border/40 shadow-sm rounded p-2 space-y-1">
                                       <div className="flex items-center justify-between">
                                         <span className="font-medium">{p.firstName} {p.lastName}</span>
                                         <div className="flex items-center gap-2">
@@ -482,7 +482,7 @@ function EditTeamModal({ team, onSave, onCancel }: {
             <label className="text-sm font-medium">Teilnehmer</label>
             <div className="space-y-3 mt-2">
               {formData.participants.map((participant, index) => (
-                <div key={index} className="border rounded-lg p-3 space-y-2">
+                <div key={index} className="border border-border/50 shadow-sm rounded-md p-3 space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground">Vorname</label>
