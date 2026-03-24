@@ -5,8 +5,10 @@ import { motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePermissions } from "@/lib/permissions-context";
+import { useTheme } from "@/lib/theme-context";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import SearchOverlay from "./search-overlay";
 
 function SidebarItem({ icon, label, onClick, isActive, isCollapsed }: {
   icon: string; label: string; onClick: () => void; isActive?: boolean; isCollapsed: boolean;
@@ -39,7 +41,9 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { can } = usePermissions();
+  const { theme, setTheme } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
@@ -86,42 +90,82 @@ export default function Sidebar() {
         </Button>
       </div>
 
+      {/* Search */}
+      <div className="px-2 py-2">
+        {isCollapsed ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSearchOpen(true)}
+            className="w-full h-8 p-0"
+            title="Suchen"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+        ) : (
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/20 rounded-md hover:bg-muted/40 transition-colors"
+          >
+            <Search className="h-3 w-3" />
+            <span>Suche...</span>
+          </button>
+        )}
+      </div>
+
       {/* Navigation — kompakt, kein Scroll nötig */}
       <div className="flex-1 py-1.5 px-1 space-y-0.5 overflow-y-auto">
         <SectionLabel label="Navigation" isCollapsed={isCollapsed} />
-        {can("team.create") && (
-          <SidebarItem icon="📋" label="Anmeldung" onClick={() => switchToTab("registration")} isActive={pathname === "/"} isCollapsed={isCollapsed} />
-        )}
-        {(can("team.view.own") || can("team.view.all")) && (
-          <SidebarItem icon="📊" label="Meine Teams" onClick={() => switchToTab("dashboard")} isCollapsed={isCollapsed} />
-        )}
-        <SidebarItem icon="🏆" label="Ergebnisse" onClick={() => {}} isCollapsed={isCollapsed} />
-        <SidebarItem icon="📈" label="Ranglisten" onClick={() => {}} isCollapsed={isCollapsed} />
+        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && window.location.hash === ""} isCollapsed={isCollapsed} />
+        <SidebarItem icon="📋" label="Teams" onClick={() => switchToTab("registration")} isCollapsed={isCollapsed} />
+        <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isCollapsed={isCollapsed} />
+        <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
 
         {(can("team.view.all") || can("results.edit")) && (
           <>
-            <SectionLabel label="Admin" isCollapsed={isCollapsed} />
+            <SectionLabel label="Orga" isCollapsed={isCollapsed} />
+            <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isCollapsed={isCollapsed} />
             {can("team.view.all") && (
               <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard")} isCollapsed={isCollapsed} />
             )}
             {can("results.edit") && (
               <SidebarItem icon="✏️" label="Erfassung" onClick={() => {}} isCollapsed={isCollapsed} />
             )}
+            {can("config.edit") && (
+              <SidebarItem icon="🏢" label="Administration" onClick={() => router.push("/admin")} isActive={pathname === "/admin"} isCollapsed={isCollapsed} />
+            )}
           </>
         )}
 
-        <SectionLabel label="Einstellungen" isCollapsed={isCollapsed} />
-        {can("config.edit") && (
-          <SidebarItem icon="⚙️" label="Administration" onClick={() => router.push("/admin")} isActive={pathname === "/admin"} isCollapsed={isCollapsed} />
-        )}
+        <SectionLabel label="Tech" isCollapsed={isCollapsed} />
         <SidebarItem icon="🔗" label="Architektur" onClick={() => window.open("/architecture", "_blank")} isCollapsed={isCollapsed} />
+        <SidebarItem icon="🖥️" label="Infrastruktur" onClick={() => router.push("/tech")} isActive={pathname === "/tech"} isCollapsed={isCollapsed} />
+        <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
+
+        <SectionLabel label="Themes" isCollapsed={isCollapsed} />
+        <div className={`${isCollapsed ? "flex flex-col items-center gap-1" : "flex gap-1 justify-center px-2"}`}>
+          {[
+            { id: "light", icon: "☀️", label: "Light" },
+            { id: "dark", icon: "🌙", label: "Dark" },
+            { id: "esv", icon: "🏔️", label: "ESV" },
+            { id: "bunt", icon: "🎨", label: "Bunt" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id as any)}
+              className={`w-6 h-6 rounded-full text-sm flex items-center justify-center transition-all hover:scale-110 ${
+                theme === t.id ? "ring-1 ring-primary ring-offset-1 ring-offset-background scale-110" : "opacity-40 hover:opacity-80"
+              }`}
+              title={t.label}
+            >
+              {t.icon}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Footer — Konto */}
-      <div className="border-t border-border/30 px-1 py-1.5 space-y-0.5">
-        <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
-        <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
-      </div>
+      {/* Search Overlay */}
+      <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </motion.div>
   );
 }

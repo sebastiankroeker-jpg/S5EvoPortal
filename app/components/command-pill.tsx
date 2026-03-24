@@ -68,10 +68,16 @@ export default function CommandPill() {
       icon: "🔗"
     },
     { 
-      label: "Referenzarchitektur", 
-      keywords: ["architektur", "referenz", "technik", "infrastruktur"], 
+      label: "Architektur", 
+      keywords: ["architektur", "referenz", "technik"], 
       action: () => window.open("/architecture", "_blank"),
       icon: "🔗"
+    },
+    { 
+      label: "Infrastruktur", 
+      keywords: ["infrastruktur", "system", "sysadmin"], 
+      action: () => router.push("/tech"),
+      icon: "🖥️"
     },
     { 
       label: "Profil", 
@@ -88,7 +94,7 @@ export default function CommandPill() {
     { 
       label: "Abmelden", 
       keywords: ["abmelden", "logout", "ausloggen"], 
-      action: () => fullSignOut(),
+      action: () => signOut(),
       icon: "🔗"
     },
   ];
@@ -197,7 +203,6 @@ export default function CommandPill() {
     { id: "dark", label: "Dark", icon: "🌙" },
     { id: "esv", label: "ESV", icon: "🏔️" },
     { id: "bunt", label: "Bunt", icon: "🎨" },
-    { id: "sysadmin", label: "Sys-Admin", icon: "🖥️" },
   ];
 
   return (
@@ -428,19 +433,23 @@ export default function CommandPill() {
                             ⚙️ Administration
                           </Button>
                         )}
-                        {can("team.view.all") && (
-                          <Button
-                            variant="ghost"
-                            className="w-full justify-start h-7 px-2 text-sm"
-                            onClick={() => {
-                              window.open("/architecture", "_blank");
-                              closeBurger();
-                            }}
-                          >
-                            🔗 Referenzarchitektur
-                            <ExternalLink className="h-3 w-3 ml-1" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start h-7 px-2 text-sm"
+                          onClick={() => {
+                            window.open("/architecture", "_blank");
+                            closeBurger();
+                          }}
+                        >
+                          🔗 Architektur
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start h-7 px-2 text-sm"
+                          onClick={() => navigateAndClose("/tech")}
+                        >
+                          🖥️ Infrastruktur
+                        </Button>
                       </div>
                     </div>
 
@@ -518,7 +527,7 @@ export default function CommandPill() {
                           variant="ghost"
                           className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
-                            fullSignOut();
+                            signOut();
                             closeBurger();
                           }}
                         >

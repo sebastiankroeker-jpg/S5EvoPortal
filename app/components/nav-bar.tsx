@@ -10,6 +10,8 @@ import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
+import { Search } from "lucide-react";
+import SearchOverlay from "./search-overlay";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admin",
@@ -24,13 +26,13 @@ export default function NavBar() {
   const { theme, setTheme } = useTheme();
   const { activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const THEMES = [
     { id: "light", icon: "☀️", label: "Light" },
     { id: "dark", icon: "🌙", label: "Dark" },
     { id: "esv", icon: "🏔️", label: "ESV" },
     { id: "bunt", icon: "🎨", label: "Bunt" },
-    { id: "sysadmin", icon: "🖥️", label: "Sys-Admin" },
   ];
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -79,11 +81,21 @@ export default function NavBar() {
         ))}
       </div>
 
-      {/* Right: Role-Switcher + User + Abmelden */}
-      {status === "authenticated" && session?.user && (
-        <div className="flex items-center gap-2">
-          {/* Role-Switcher (nur wenn simulierbar) */}
-          {(() => {
+      {/* Right: Search + Role-Switcher + User + Abmelden */}
+      <div className="flex items-center gap-2">
+        {/* Search Icon */}
+        <button 
+          onClick={() => setSearchOpen(true)}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          title="Suchen (Strg+K)"
+        >
+          <Search className="h-4 w-4" />
+        </button>
+
+        {status === "authenticated" && session?.user && (
+          <>
+            {/* Role-Switcher (nur wenn simulierbar) */}
+            {(() => {
             const realRole = roles.length > 0 ? roles[0] : "ZUSCHAUER";
             const simulatable = getSimulatableRoles(realRole as Role);
             if (simulatable.length === 0) return null;
@@ -128,14 +140,18 @@ export default function NavBar() {
               </div>
             );
           })()}
-          <Link href="/profile" className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">
-            👤 {session.user.name}
-          </Link>
-          <Button variant="ghost" size="sm" onClick={() => fullSignOut()} className="text-xs text-muted-foreground h-6 px-2">
-            Abmelden
-          </Button>
-        </div>
-      )}
+            <Link href="/profile" className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">
+              👤 {session.user.name}
+            </Link>
+            <Button variant="ghost" size="sm" onClick={() => signOut()} className="text-xs text-muted-foreground h-6 px-2">
+              Abmelden
+            </Button>
+          </>
+        )}
+      </div>
+
+      {/* Search Overlay */}
+      <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </nav>
   );
 }

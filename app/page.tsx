@@ -9,7 +9,6 @@ import HomeScreen from "./components/home-screen";
 import TeamScreen from "./components/team-screen";
 import Dashboard from "./components/dashboard";
 import LiveScreen from "./components/live-screen";
-import SysAdminView from "./components/sysadmin-view";
 import BottomTabBar from "./components/bottom-tab-bar";
 
 export default function Home() {
@@ -35,17 +34,12 @@ export default function Home() {
   return (
     <div className={`min-h-screen pb-16 lg:pb-0 ${
       theme === "bunt" ? "bunt-bg" :
-      theme === "sysadmin" ? "sysadmin-bg" :
       theme === "esv" ? "esv-bg" : ""
     }`}>
       <NavBar />
       
       <main className="max-w-5xl mx-auto px-4 py-4">
-        {theme === "sysadmin" ? (
-          <SysAdminView />
-        ) : (
-          <>
-            {activeTab === "home" && <HomeScreen />}
+        {activeTab === "home" && <HomeScreen />}
             {activeTab === "registration" && <TeamScreen />}
             {activeTab === "dashboard" && <Dashboard />}
             {activeTab === "orga" && (can("team.view.all") || can("results.edit")) && (
@@ -78,12 +72,15 @@ export default function Home() {
                     <p className="font-medium text-sm">Referenzarchitektur</p>
                     <p className="text-xs text-muted-foreground">Technische Übersicht</p>
                   </button>
+                  <button onClick={() => window.location.href = '/tech'} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                    <span className="text-lg">🖥️</span>
+                    <p className="font-medium text-sm">Infrastruktur</p>
+                    <p className="text-xs text-muted-foreground">System-Übersicht</p>
+                  </button>
                 </div>
               </div>
             )}
             {activeTab === "live" && <LiveScreen />}
-          </>
-        )}
       </main>
 
       {/* Bottom Tab Bar - only mobile */}

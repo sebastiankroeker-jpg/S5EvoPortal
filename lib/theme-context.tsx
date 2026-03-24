@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-type Theme = "light" | "dark" | "bunt" | "sysadmin" | "esv";
+type Theme = "light" | "dark" | "bunt" | "esv";
 
 interface ThemeContextType {
   theme: Theme;
@@ -32,7 +32,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     document.documentElement.setAttribute("data-theme", theme);
     
     // Set dark class for shadcn
-    if (theme === "dark" || theme === "sysadmin" || theme === "bunt") {
+    if (theme === "dark" || theme === "bunt") {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
