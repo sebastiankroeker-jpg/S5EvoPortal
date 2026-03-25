@@ -1,7 +1,25 @@
+# Node/Next
 node_modules
 .next
-.env
-.DS_Store
 coverage
 .vercel
+
+# Env
+.env
 .env*.local
+.env.backup
+
+# Python
+.venv/
+
+# OpenClaw internals (do not commit)
+.openclaw/
+
+# SSH material (do not commit)
+.ssh/
+
+# Memory/logs
+memory/
+
+# OS
+.DS_Store
