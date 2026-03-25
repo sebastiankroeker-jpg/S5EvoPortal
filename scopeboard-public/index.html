@@ -200,6 +200,15 @@
       <ul class="inbox-list" id="inbox-list"></ul>
       <div class="empty-msg" id="inbox-empty">Keine offenen Items 🎯</div>
     </aside>
+
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="inbox-header" style="margin-bottom:16px;">
+        <h2 style="margin:0;font-size:1.05rem;">Activity</h2>
+        <small class="subtitle" style="font-size:0.8rem;">Direktlink: <a href="/activity.jsonl" style="color:var(--accent);text-decoration:none;">activity.jsonl</a></small>
+      </div>
+      <div id="activity" class="empty-msg">lädt…</div>
+    </section>
+
   </div>
 
   <script>
@@ -302,6 +311,14 @@
         document.getElementById('scope-rows').innerHTML = `<tr><td colspan="4">Fehler beim Laden: ${err.message}</td></tr>`;
       }
       loadInbox();
+      // Activity log (optional)
+      try {
+        const mod = await import(./activity.js?t= + Date.now());
+        const items = await mod.loadActivity(/activity.jsonl?t= + Date.now());
+        mod.renderActivity(document.getElementById(activity), items, { limit: 50 });
+      } catch (e) {
+        document.getElementById(activity).innerHTML = `<div style="opacity:.7;">(kein Activity Log gefunden)</div>`;
+      }
     }
 
     init();
