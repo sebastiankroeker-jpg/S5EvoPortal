@@ -161,7 +161,19 @@
         order: -1;
       }
     }
-  </style>
+  
+    /* Detail drawer */
+    .drawer{position:fixed;top:0;right:-520px;width:min(520px,92vw);height:100vh;background:rgba(13,18,32,0.98);border-left:1px solid var(--border);box-shadow:-20px 0 60px rgba(0,0,0,0.45);padding:18px;transition:right .18s ease;z-index:50;overflow:auto;}
+    .drawer.open{right:0;}
+    .drawer h3{margin:0 0 8px;font-size:1.05rem;}
+    .drawer .close{float:right;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:6px 10px;cursor:pointer;}
+    .drawer .kv{display:grid;grid-template-columns:90px 1fr;gap:8px 10px;font-size:.92rem;margin-top:10px;}
+    .drawer .kv div:nth-child(odd){color:var(--muted);}
+    .clickable-row{cursor:pointer;}
+    .clickable-row:hover{background:rgba(148,163,184,0.06);}
+    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:40;}
+    .backdrop.open{opacity:1;pointer-events:auto;}
+</style>
 </head>
 <body>
   <header>
@@ -213,7 +225,67 @@
 
   </div>
 
+
+  <div id="backdrop" class="backdrop"></div>
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <button class="close" id="drawer-close">Close</button>
+    <h3 id="drawer-title">Scope</h3>
+    <div class="kv">
+      <div>ID</div><div id="d-id">—</div>
+      <div>Status</div><div id="d-status">—</div>
+      <div>Owner</div><div id="d-owner">—</div>
+      <div>DoD</div><div id="d-dod">—</div>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="subtitle" style="font-size:.8rem;">Recent activity</div>
+      <div id="d-activity" class="empty-msg" style="margin-top:8px;">—</div>
+    </div>
+  </aside>
+
   <script>
+    function openDrawer(scope, activityItems) {
+      const drawer = document.getElementById('drawer');
+      const backdrop = document.getElementById('backdrop');
+      if (!drawer || !backdrop) return;
+      document.getElementById('drawer-title').textContent = scope.title;
+      document.getElementById('d-id').textContent = scope.id;
+      document.getElementById('d-status').textContent = scope.status;
+      document.getElementById('d-owner').textContent = scope.owner;
+      document.getElementById('d-dod').textContent = scope.dod;
+
+      const recent = (activityItems || []).filter(x => String(x.scope||'') === String(scope.id)).slice(0, 10);
+      const el = document.getElementById('d-activity');
+      if (el) {
+        if (!recent.length) {
+          el.innerHTML = '<div class="muted">(no activity for this scope yet)</div>';
+        } else {
+          el.innerHTML = recent.map(x => `<div style="margin-top:6px;"><code>${x.ts||''}</code> <span class="muted">${x.type||''}</span><div class="muted" style="margin-top:2px;">${x.summary||''}</div></div>`).join('');
+        }
+      }
+      drawer.classList.add('open');
+      backdrop.classList.add('open');
+      drawer.setAttribute('aria-hidden','false');
+    }
+
+    function closeDrawer() {
+      const drawer = document.getElementById('drawer');
+      const backdrop = document.getElementById('backdrop');
+      if (!drawer || !backdrop) return;
+      drawer.classList.remove('open');
+      backdrop.classList.remove('open');
+      drawer.setAttribute('aria-hidden','true');
+    }
+
+    function bindScopeClicks(activityItems) {
+      document.querySelectorAll('tr[data-scope]').forEach(tr => {
+        tr.addEventListener('click', () => {
+          const id = tr.getAttribute('data-scope');
+          const scope = (window.__lastScopes || []).find(s => s.id === id);
+          if (scope) openDrawer(scope, activityItems || []);
+        });
+      });
+    }
+
     const statusOrder = ['IN_PROGRESS', 'REVIEW', 'READY', 'BACKLOG', 'DONE', 'BLOCKED'];
 
     function parseScopes(text) {
@@ -240,6 +312,7 @@
     }
 
     function renderScopes(entries) {
+      window.__lastScopes = entries.filter(e => e.type === 'scope');
       const tbody = document.getElementById('scope-rows');
       tbody.innerHTML = '';
       entries.forEach(entry => {
@@ -325,10 +398,16 @@
           if (running.length) runningEl.style.borderColor = 'rgba(249,115,22,0.55)';
         }
         mod.renderRunning(document.getElementById('activity-running'), running);
+        bindScopeClicks(items);
       } catch (e) {
         document.getElementById('activity').innerHTML = `<div style="opacity:.7;">(kein Activity Log gefunden)</div>`;
+        bindScopeClicks([]);
       }
     }
+
+    document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+    document.getElementById('backdrop').addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
 
     init();
   </script>
