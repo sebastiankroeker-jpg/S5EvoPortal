@@ -173,6 +173,7 @@
       <div class="inbox-header" style="margin-bottom:16px;">
         <h2 style="margin:0;font-size:1.1rem;">Scopes</h2>
         <span id="updated" class="inbox-pill"><span class="dot"></span> lädt…</span>
+        <span id="running" class="inbox-pill" style="margin-left:10px; opacity:0.95;"><span class="dot" style="background: var(--status-progress);"></span><span class="muted">…</span></span>
       </div>
       <table>
         <thead>
@@ -206,6 +207,7 @@
         <h2 style="margin:0;font-size:1.05rem;">Activity</h2>
         <small class="subtitle" style="font-size:0.8rem;">Direktlink: <a href="/activity.jsonl" style="color:var(--accent);text-decoration:none;">activity.jsonl</a></small>
       </div>
+      <div id="activity-running" style="margin-bottom:12px;"></div>
       <div id="activity" class="empty-msg">lädt…</div>
     </section>
 
@@ -274,7 +276,7 @@
     }
 
     async function loadInbox() {
-      const res = await fetch('/INBOX.md?t=' + Date.now());
+      const res = await fetch('./INBOX.md?t=' + Date.now());
       const text = await res.text();
       const lines = text.split(/\r?\n/).map(l => l.trim());
       const items = lines.filter(l => l.startsWith('- ') && l.length > 2);
@@ -302,7 +304,7 @@
 
     async function init() {
       try {
-        const res = await fetch('/SCOPEBOARD.md?t=' + Date.now());
+        const res = await fetch('./SCOPEBOARD.md?t=' + Date.now());
         const text = await res.text();
         const entries = parseScopes(text);
         renderScopes(entries);
@@ -313,11 +315,18 @@
       loadInbox();
       // Activity log (optional)
       try {
-        const mod = await import(./activity.js?t= + Date.now());
-        const items = await mod.loadActivity(/activity.jsonl?t= + Date.now());
-        mod.renderActivity(document.getElementById(activity), items, { limit: 50 });
+        const mod = await import('./activity.js?t=' + Date.now());
+        const items = await mod.loadActivity('./activity.jsonl?t=' + Date.now());
+        mod.renderActivity(document.getElementById('activity'), items, { limit: 50 });
+        const running = mod.computeRunning(items);
+        const runningEl = document.getElementById('running');
+        if (runningEl) {
+          runningEl.innerHTML = `<span class=\"dot\" style=\"background: var(--status-progress);\"></span><span>${running.length} running</span>`;
+          if (running.length) runningEl.style.borderColor = 'rgba(249,115,22,0.55)';
+        }
+        mod.renderRunning(document.getElementById('activity-running'), running);
       } catch (e) {
-        document.getElementById(activity).innerHTML = `<div style="opacity:.7;">(kein Activity Log gefunden)</div>`;
+        document.getElementById('activity').innerHTML = `<div style="opacity:.7;">(kein Activity Log gefunden)</div>`;
       }
     }
 
