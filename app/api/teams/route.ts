@@ -87,6 +87,18 @@ function serializeTeam(team: any) {
 }
 
 // Ensure a default tenant + competition exist
+async function ensureTenantRole(userId: string, tenantId: string, role: 'ADMIN' | 'TEAMCHEF') {
+  const existingRole = await prisma.tenantRole.findFirst({
+    where: { userId, tenantId, role },
+  });
+
+  if (!existingRole) {
+    await prisma.tenantRole.create({
+      data: { userId, tenantId, role },
+    });
+  }
+}
+
 async function ensureDefaultCompetition(): Promise<string> {
   let tenant = await prisma.tenant.findFirst();
   if (!tenant) {
@@ -232,30 +244,16 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Automatisch TEAMCHEF-Rolle vergeben wenn noch nicht vorhanden
-      const existingRole = await prisma.tenantRole.findFirst({
-        where: {
-          userId: user.id,
-          role: "TEAMCHEF",
-        }
+      const competition = await prisma.competition.findUnique({
+        where: { id: competitionId },
+        select: { tenantId: true }
       });
 
-      if (!existingRole) {
-        // Tenant finden (vom Competition)
-        const competition = await prisma.competition.findUnique({
-          where: { id: competitionId },
-          select: { tenantId: true }
-        });
-
-        if (competition) {
-          await prisma.tenantRole.create({
-            data: {
-              userId: user.id,
-              tenantId: competition.tenantId,
-              role: "TEAMCHEF",
-            }
-          });
-        }
+      if (competition) {
+        await Promise.all([
+          ensureTenantRole(user.id, competition.tenantId, "TEAMCHEF"),
+          ensureTenantRole(user.id, competition.tenantId, "ADMIN"),
+        ]);
       }
 
       return NextResponse.json({ 
