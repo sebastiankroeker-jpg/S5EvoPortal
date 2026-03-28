@@ -1,23 +1,92 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, type TeamRegistrationInput, generateTeamName } from '@/lib/domain/team';
+import {
+  TeamRegistrationSchema,
+  type TeamRegistrationInput,
+  type ParticipantInput,
+  type DisciplineId,
+  generateTeamName,
+} from '@/lib/domain/team';
 import { prisma } from '@/lib/prisma';
 
-// Map frontend gender ("M"/"W") to Prisma enum
-function mapGender(g: string): "MALE" | "FEMALE" {
-  return g === "W" ? "FEMALE" : "MALE";
+type SerializableParticipant = {
+  firstName?: string;
+  lastName?: string;
+  gender?: ParticipantInput['gender'] | string;
+  birthDate?: string | Date;
+  email?: string | null;
+  phone?: string | null;
+  discipline?: DisciplineId | string;
+};
+
+type SerializableTeam = {
+  id?: string;
+  name?: string;
+  category?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string | null;
+  ownerEmail?: string | null;
+  ownerName?: string | null;
+  ownerId?: string;
+  owner?: { email?: string | null; name?: string | null } | null;
+  createdAt?: string | Date;
+  participants?: SerializableParticipant[];
+};
+
+type TempTeam = SerializableTeam & {
+  participants: SerializableParticipant[];
+};
+
+
+// Global temp storage (until DB ready)
+declare global {
+  var tempTeams: TempTeam[] | undefined;
 }
 
-// Map frontend discipline to Prisma DisciplineAssignment enum
-function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | "TBD" {
-  const valid = ["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"];
-  return valid.includes(d) ? (d as any) : "TBD";
+if (!global.tempTeams) {
+  global.tempTeams = [];
 }
 
-// Extract birth year from date string
-function extractBirthYear(birthDate: string): number {
-  return new Date(birthDate).getFullYear();
+function serializeParticipant(participant: SerializableParticipant | null) {
+  if (!participant) return null;
+  return {
+    firstName: participant.firstName,
+    lastName: participant.lastName,
+    gender: participant.gender,
+    birthDate:
+      typeof participant.birthDate === "string"
+        ? participant.birthDate
+        : participant.birthDate?.toISOString?.() ?? "",
+    email: participant.email ?? "",
+    phone: participant.phone ?? "",
+    discipline: participant.discipline,
+  };
+}
+
+function serializeTeam(team: SerializableTeam | null) {
+  if (!team) return null;
+  return {
+    id: team.id,
+    name: team.name,
+    category: team.category,
+    contactName: team.contactName,
+    contactEmail: team.contactEmail,
+    contactPhone: team.contactPhone ?? "",
+    ownerEmail: team.owner?.email ?? team.ownerEmail ?? team.contactEmail,
+    ownerName: team.owner?.name ?? team.ownerName ?? team.contactName,
+    createdAt:
+      team.createdAt instanceof Date
+        ? team.createdAt.toISOString()
+        : typeof team.createdAt === 'string'
+        ? team.createdAt
+        : new Date().toISOString(),
+    participants: Array.isArray(team.participants)
+      ? team.participants.map(serializeParticipant).filter(Boolean)
+      : [],
+  };
 }
 
 // 2026 Classification Logic
@@ -28,12 +97,13 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
     return "unclassified";
   }
 
+  const ages = participantsWithData.map(p => 2026 - new Date(p.birthDate).getFullYear());
   const birthYears = participantsWithData.map(p => new Date(p.birthDate).getFullYear());
-  const ages = birthYears.map(y => 2026 - y);
   const totalAge = ages.reduce((sum, age) => sum + age, 0);
+  const isMaleOnly = participantsWithData.every(p => p.gender === "M");
   const isFemaleOnly = participantsWithData.every(p => p.gender === "W");
   
-  // Jahrgänge-basierte Klassen (Schüler/Jugend)
+  // Jahrgänge-basierte Klassen
   if (birthYears.every(year => year >= 2016 && year <= 2018)) {
     return "schueler-a";
   } else if (birthYears.every(year => year >= 2013 && year <= 2015)) {
@@ -41,83 +111,23 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
   } else if (birthYears.every(year => year >= 2009 && year <= 2012)) {
     return "jugend";
   }
-  // Altersklassen (Gesamtalter aller 5 Teilnehmer)
-  else if (isFemaleOnly && totalAge <= 150) {
-    return "damen-a";
-  } else if (isFemaleOnly && totalAge > 150) {
-    return "damen-b";
-  } else if (totalAge <= 125) {
+  // Altersklassen (Gesamtalter)
+  else if (totalAge <= 125) {
     return "jungsters";
   } else if (totalAge >= 226) {
     return "masters";
-  } else {
+  } else if (isFemaleOnly && totalAge <= 150) {
+    return "damen-a";
+  } else if (isFemaleOnly && totalAge > 150) {
+    return "damen-b";
+  } else if (isMaleOnly) {
     return "herren";
+  } else {
+    return "herren"; // Default fallback
   }
 }
 
-function serializeParticipant(participant: any) {
-  if (!participant) return null;
-  return {
-    firstName: participant.firstName,
-    lastName: participant.lastName,
-    gender: participant.gender === "MALE" ? "M" : "W",
-    birthDate: participant.birthYear ? `${participant.birthYear}-01-01` : "",
-    email: participant.email ?? "",
-    phone: participant.phone ?? "",
-    discipline: participant.disciplineCode ?? "TBD",
-  };
-}
-
-function serializeTeam(team: any) {
-  if (!team) return null;
-  return {
-    id: team.id,
-    name: team.name,
-    category: team.classificationCode ?? "unclassified",
-    contactName: team.contactName ?? team.owner?.name ?? "",
-    contactEmail: team.contactEmail ?? team.owner?.email ?? "",
-    contactPhone: team.contactPhone ?? "",
-    ownerEmail: team.owner?.email ?? team.contactEmail ?? "",
-    ownerName: team.owner?.name ?? team.contactName ?? "",
-    createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
-    participants: Array.isArray(team.participants)
-      ? team.participants.map(serializeParticipant).filter(Boolean)
-      : [],
-  };
-}
-
-// Ensure a default tenant + competition exist
-async function ensureDefaultCompetition(): Promise<string> {
-  let tenant = await prisma.tenant.findFirst();
-  if (!tenant) {
-    tenant = await prisma.tenant.create({
-      data: {
-        name: "ESV Rosenheim",
-        slug: "esv-rosenheim",
-        primaryColor: "#dc2626",
-      }
-    });
-  }
-
-  let competition = await prisma.competition.findFirst({
-    where: { tenantId: tenant.id },
-    orderBy: { year: 'desc' }
-  });
-  if (!competition) {
-    competition = await prisma.competition.create({
-      data: {
-        name: "Mannschafts-5-Kampf 2026",
-        year: 2026,
-        status: "OPEN",
-        tenantId: tenant.id,
-      }
-    });
-  }
-
-  return competition.id;
-}
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
@@ -126,31 +136,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Try Prisma first, fallback to temp storage
     try {
-      // Check URL search params to determine if we want all teams or just own teams
-      const url = new URL(request.url);
-      const scope = url.searchParams.get('scope');
-      
       const teams = await prisma.team.findMany({
         where: {
-          // If scope=all, show all teams. Otherwise, show only own teams
-          ...(scope === 'all' ? {} : { owner: { email: userEmail } }),
+          owner: {
+            email: userEmail
+          },
           deletedAt: null
         },
         include: {
-          participants: { where: { deletedAt: null } },
-          owner: { select: { email: true, name: true } }
+          participants: {
+            where: { deletedAt: null }
+          },
+          owner: {
+            select: { email: true, name: true }
+          }
         }
       });
 
       return NextResponse.json({ teams: teams.map(serializeTeam) });
     } catch (dbError) {
-      console.error('Database error on GET:', dbError);
-      return NextResponse.json({ teams: [], message: 'Database temporarily unavailable' });
+      // Fallback to temp storage
+      const userEmailFallback = session.user?.email;
+      const userTeams = userEmailFallback
+        ? global.tempTeams?.filter(t => t.ownerEmail === userEmailFallback || t.ownerId === userEmailFallback) || []
+        : [];
+      return NextResponse.json({ 
+        teams: userTeams.map(serializeTeam),
+        message: userTeams.length === 0 ? 'No teams registered yet' : undefined
+      });
     }
   } catch (error) {
     console.error('API error:', error);
-    return NextResponse.json({ error: 'API temporarily unavailable' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'API temporarily unavailable' },
+      { status: 503 }
+    );
   }
 }
 
@@ -167,10 +189,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     
+    // Validate with Zod schema
     const validation = TeamRegistrationSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.issues },
+        { 
+          error: 'Validation failed', 
+          details: validation.error.issues 
+        },
         { status: 400 }
       );
     }
@@ -182,12 +208,13 @@ export async function POST(request: NextRequest) {
       ? normalizedTeamName
       : generateTeamName(autoCategory);
 
+    // Try Prisma first
     try {
-      // Ensure default competition exists
-      const competitionId = await ensureDefaultCompetition();
+      // Check if user exists, create if not
+      let user = await prisma.user.findUnique({
+        where: { email: userEmail }
+      });
 
-      // Upsert user
-      let user = await prisma.user.findUnique({ where: { email: userEmail } });
       if (!user) {
         user = await prisma.user.create({
           data: {
@@ -198,65 +225,32 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Calculate total age
-      const validParticipants = teamData.participants.filter(p => p.firstName && p.lastName && p.birthDate);
-      const totalAge = validParticipants.reduce((sum, p) => sum + (2026 - extractBirthYear(p.birthDate)), 0);
-
       // Create team with participants
       const team = await prisma.team.create({
         data: {
           name: finalTeamName,
+          category: autoCategory,
           contactName: userName || "",
           contactEmail: userEmail,
-          classificationCode: autoCategory,
-          totalAge: totalAge || null,
-          competitionId: competitionId,
           ownerId: user.id,
-          teamChiefId: user.id,
           participants: {
-            create: validParticipants.map(p => ({
-              firstName: p.firstName,
-              lastName: p.lastName,
-              birthYear: extractBirthYear(p.birthDate),
-              gender: mapGender(p.gender),
-              disciplineCode: mapDiscipline(p.discipline),
-              consentGiven: true,
-              email: p.email || null,
-              phone: p.phone || null,
-            }))
+            create: teamData.participants
+              .filter(p => p.firstName && p.lastName)
+              .map(p => ({
+                firstName: p.firstName,
+                lastName: p.lastName,
+                birthDate: new Date(p.birthDate),
+                gender: p.gender,
+                email: p.email || null,
+                phone: p.phone || null,
+                discipline: p.discipline
+              }))
           }
         },
         include: {
-          participants: true,
-          owner: { select: { email: true, name: true } }
+          participants: true
         }
       });
-
-      // Automatisch TEAMCHEF-Rolle vergeben wenn noch nicht vorhanden
-      const existingRole = await prisma.tenantRole.findFirst({
-        where: {
-          userId: user.id,
-          role: "TEAMCHEF",
-        }
-      });
-
-      if (!existingRole) {
-        // Tenant finden (vom Competition)
-        const competition = await prisma.competition.findUnique({
-          where: { id: competitionId },
-          select: { tenantId: true }
-        });
-
-        if (competition) {
-          await prisma.tenantRole.create({
-            data: {
-              userId: user.id,
-              tenantId: competition.tenantId,
-              role: "TEAMCHEF",
-            }
-          });
-        }
-      }
 
       return NextResponse.json({ 
         success: true,
@@ -265,61 +259,42 @@ export async function POST(request: NextRequest) {
       });
 
     } catch (dbError) {
-      console.error('Database error on POST:', dbError);
-      return NextResponse.json(
-        { error: 'Datenbankfehler bei der Anmeldung. Bitte versuche es erneut.' },
-        { status: 500 }
-      );
+      console.warn('Database not available, using temp storage:', dbError);
+      
+      // Fallback: Store in temp storage
+      const newTeam = {
+        id: `temp-${Date.now()}`,
+        name: finalTeamName,
+        category: autoCategory,
+        contactName: userName || "",
+        contactEmail: userEmail,
+        contactPhone: "",
+        participants: teamData.participants
+          .filter(p => p.firstName && p.lastName)
+          .map(p => ({
+            ...p,
+            birthDate: p.birthDate
+          })),
+        ownerEmail: userEmail,
+        ownerName: userName || "Teamchef",
+        createdAt: new Date().toISOString()
+      };
+
+      global.tempTeams = global.tempTeams || [];
+      global.tempTeams.push(newTeam);
+
+      return NextResponse.json({ 
+        success: true,
+        message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory} (Temporär gespeichert)`,
+        team: serializeTeam(newTeam)
+      });
     }
 
   } catch (error) {
     console.error('API error:', error);
-    return NextResponse.json({ error: 'Failed to register team' }, { status: 500 });
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    
-    const validation = TeamRegistrationSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.issues },
-        { status: 400 }
-      );
-    }
-
-    // This would be for bulk operations - not implemented yet
-    return NextResponse.json({ error: 'Bulk PUT not implemented' }, { status: 501 });
-
-  } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json({ error: 'Failed to update teams' }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // This would be for bulk operations - not implemented yet
-    return NextResponse.json({ error: 'Bulk DELETE not implemented' }, { status: 501 });
-
-  } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json({ error: 'Failed to delete teams' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to register team' },
+      { status: 500 }
+    );
   }
 }

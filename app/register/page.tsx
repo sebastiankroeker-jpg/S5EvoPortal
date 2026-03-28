@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -50,9 +51,9 @@ export default function RegisterPage() {
             <div className="text-center text-sm text-muted-foreground">
               <p>
                 Schon einen Account?{" "}
-                <a href="/api/auth/signin" className="text-primary hover:underline">
+                <Link href="/api/auth/signin" className="text-primary hover:underline">
                   Hier anmelden
-                </a>
+                </Link>
               </p>
             </div>
           </CardContent>

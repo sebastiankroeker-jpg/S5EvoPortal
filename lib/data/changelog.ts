@@ -9,7 +9,11 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: "v0.5.0",
     date: "2026-03-24",
     items: [
-      "Bottom Tab Bar Navigation (Mobile-first, 🏠📋🏆👤)",
+<<<<<<< HEAD
+      "Bottom Tab Bar Navigation (Mobile-first, 🏠📋🏆🧑‍🤝‍🧑)",
+=======
+      "Bottom Tab Bar Navigation (Mobile-first, 🏠📋🏆🧑‍🤝‍🧑)",
+>>>>>>> 35b976e (chore: lint fixes and API typing)
       "Home-Screen mit Wettkampf-Übersicht und Quick-Actions",
       "Hero-Header, Theme-Buttons und redundante Tabs entfernt",
       "Clean Layout: Header + Content + Tab Bar (3 Layer statt 7)",
@@ -27,6 +31,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Rollenbasierte UI (Admin, Moderator, Teamchef, Teilnehmer, Zuschauer)",
       "Navbar verschlankt, Referenzarchitektur-Link entfernt",
       "Admin-Bereich nur für ADMIN-Rolle zugänglich",
+      "Profil-Seite mit Konto-Verwaltung",
     ],
   },
   {
@@ -38,6 +43,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Versionsnummer konsistent in Navbar und Footer (aus lib/version.ts)",
       "Version als Link zur Changelog-Seite",
       "Prisma Migration auf Prisma Postgres (DB-Persistenz aktiv)",
+=======
+      "Navbar verschlankt, Referenzarchitektur-Link entfernt",
+      "Profil-Seite mit Konto-Verwaltung",
+>>>>>>> 35b976e (chore: lint fixes and API typing)
     ],
   },
   {

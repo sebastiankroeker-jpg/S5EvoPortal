@@ -136,11 +136,16 @@ export default function TeamRegistration() {
     if (index === -1) return;
 
     Object.entries(partial).forEach(([key, value]) => {
-      setValue(`participants.${index}.${key as keyof ParticipantInput}` as const, value as any, {
+      if (value !== undefined) {
+        setValue(
+          (`participants.${index}.${key as keyof ParticipantInput}` as const),
+          value as ParticipantInput[keyof ParticipantInput],
+          {
         shouldDirty: true,
         shouldTouch: true,
         shouldValidate: false,
       });
+      }
     });
   };
 
