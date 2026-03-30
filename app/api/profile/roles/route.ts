@@ -25,9 +25,11 @@ export async function GET() {
     const isAdmin = ADMIN_EMAILS.includes(session.user.email);
 
     if (!user || user.tenantRoles.length === 0) {
-      // Eingeloggt aber keine DB-Rollen
-      if (isAdmin) return NextResponse.json({ roles: ["ADMIN"] });
-      return NextResponse.json({ roles: ["TEILNEHMER"] });
+      // Eingeloggt aber noch keine DB-Rollen → Standard: Teamchef + Teilnehmer
+      if (isAdmin) {
+        return NextResponse.json({ roles: ["ADMIN", "TEAMCHEF", "TEILNEHMER"] });
+      }
+      return NextResponse.json({ roles: ["TEAMCHEF", "TEILNEHMER"] });
     }
 
     // Unique Rollen extrahieren
@@ -36,6 +38,10 @@ export async function GET() {
     // Admin-Email immer ADMIN ergänzen
     if (isAdmin && !roles.includes("ADMIN")) {
       roles.push("ADMIN");
+    }
+
+    if (!roles.includes("TEAMCHEF")) {
+      roles.push("TEAMCHEF");
     }
 
     return NextResponse.json({ roles });
