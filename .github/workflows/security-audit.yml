@@ -1,0 +1,18 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  axios-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run axios supply-chain audit
+        run: |
+          chmod +x scripts/security/axios-audit.sh
+          scripts/security/axios-audit.sh
