@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { usePermissions } from "@/lib/permissions-context";
+import { useCompetition } from "@/lib/competition-context";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import ParticipantEditDialog from "./participant-edit-dialog";
@@ -69,10 +70,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const canEditAll = can("team.edit.all");
   const canViewAll = can("team.view.all");
   const userEmail = session?.user?.email;
+  const { active: activeCompetition } = useCompetition();
 
   const fetchTeams = async () => {
     try {
-      const response = await fetch('/api/teams');
+      const params = new URLSearchParams();
+      if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
+      const response = await fetch(`/api/teams?${params}`);
       const data = await response.json();
       setTeams(data.teams || []);
     } catch (error) {
@@ -129,7 +133,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   useEffect(() => {
     fetchTeams();
-    
+  }, [activeCompetition?.id]);
+
+  useEffect(() => {
     // Listen for switchTab events to handle owner filter
     const handleSwitchTab = (e: CustomEvent) => {
       if (e.detail.ownerFilter && e.detail.tabId === "dashboard") {

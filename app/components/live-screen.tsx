@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useCompetition } from "@/lib/competition-context";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,12 +58,15 @@ export default function LiveScreen() {
   const [disciplineFilter, setDisciplineFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const { active: activeCompetition } = useCompetition();
 
   // Fetch teams data
   const fetchTeams = async () => {
     try {
       // Fetch all teams for live view
-      const response = await fetch('/api/teams?scope=all');
+      const params = new URLSearchParams({ scope: 'all' });
+      if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
+      const response = await fetch(`/api/teams?${params}`);
       const data = await response.json();
       setTeams(data.teams || []);
     } catch (error) {
@@ -74,7 +78,7 @@ export default function LiveScreen() {
 
   useEffect(() => {
     fetchTeams();
-  }, []);
+  }, [activeCompetition?.id]);
 
   // Toggle section expansion
   const toggleSection = (key: string) => {

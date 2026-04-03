@@ -2,6 +2,7 @@
 
 import { useSession, signIn } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { useCompetition } from "@/lib/competition-context";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,20 +30,25 @@ export default function HomeScreen() {
   const [competitionInfo, setCompetitionInfo] = useState<CompetitionInfo | null>(null);
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { active: activeCompetition } = useCompetition();
 
   // Load competition info and stats
   useEffect(() => {
     const loadData = async () => {
       try {
         // Load competition info
-        const compResponse = await fetch('/api/admin/competition');
+        const compId = activeCompetition?.id;
+        const compUrl = compId ? `/api/admin/competition?id=${compId}` : '/api/admin/competition';
+        const compResponse = await fetch(compUrl);
         if (compResponse.ok) {
           const compData = await compResponse.json();
           setCompetitionInfo(compData);
         }
 
         // Load team stats
-        const teamsResponse = await fetch('/api/teams');
+        const params = new URLSearchParams();
+        if (compId) params.set('competitionId', compId);
+        const teamsResponse = await fetch(`/api/teams?${params}`);
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
           const stats = {
@@ -60,7 +66,7 @@ export default function HomeScreen() {
     };
 
     loadData();
-  }, []);
+  }, [activeCompetition?.id]);
 
   const handleQuickAction = (tabId: string, additionalData?: any) => {
     const event = new CustomEvent('switchTab', { detail: { tabId, ...additionalData } });

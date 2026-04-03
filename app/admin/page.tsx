@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissions } from "@/lib/permissions-context";
+import { useCompetition } from "@/lib/competition-context";
 import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
 
@@ -68,6 +69,7 @@ function FormField({ label, children, hint }: { label: string; children: React.R
 export default function AdminPage() {
   const { data: session } = useSession();
   const { can } = usePermissions();
+  const { active: activeCompetition, all: competitions, switchTo } = useCompetition();
   
   // Permission check - redirect if no access
   if (session && !can("config.edit")) {
@@ -120,30 +122,25 @@ export default function AdminPage() {
     publicResults: true,
   });
 
-  const [competitions, setCompetitions] = useState<CompetitionListItem[]>([]);
-  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const loadCompetition = async (compId?: string) => {
-    const url = compId ? `/api/admin/competition?id=${compId}` : '/api/admin/competition';
-    const competitionResponse = await fetch(url);
-    if (competitionResponse.ok) {
-      const competitionData = await competitionResponse.json();
-      if (competitionData.competition) {
-        const comp = competitionData.competition;
-        setSelectedCompetitionId(comp.id);
+  const loadCompetitionDetails = async (compId: string) => {
+    const res = await fetch(`/api/admin/competition?id=${compId}`);
+    if (res.ok) {
+      const { competition: comp } = await res.json();
+      if (comp) {
         setCompetition({
-          name: comp.name || "Mannschafts-5-Kampf 2026",
+          name: comp.name || "",
           year: comp.year || 2026,
-          date: comp.date ? comp.date.split('T')[0] : "2026-07-10",
-          dateEnd: comp.dateEnd ? comp.dateEnd.split('T')[0] : "2026-07-11",
-          registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "2026-06-28",
+          date: comp.date ? comp.date.split('T')[0] : "",
+          dateEnd: comp.dateEnd ? comp.dateEnd.split('T')[0] : "",
+          registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "",
           status: comp.status || "DRAFT",
           maxTeams: comp.maxTeams || 120,
           teamSize: comp.teamSize || 5,
-          ageReferenceDate: comp.ageReferenceDate ? comp.ageReferenceDate.split('T')[0] : "2026-12-31",
+          ageReferenceDate: comp.ageReferenceDate ? comp.ageReferenceDate.split('T')[0] : "",
           benchPressTara: comp.benchPressTara || 20.0,
           benchPressMode: comp.benchPressMode || "GROSS",
           stockShotsCount: comp.stockShotsCount || 11,
@@ -155,18 +152,17 @@ export default function AdminPage() {
     }
   };
 
-  // Load data on mount
+  // Load tenant on mount
   useEffect(() => {
-    const loadData = async () => {
+    (async () => {
       try {
-        // Load Tenant
         const tenantResponse = await fetch('/api/admin/tenant');
         if (tenantResponse.ok) {
           const tenantData = await tenantResponse.json();
           if (tenantData.tenant) {
             setTenant({
-              name: tenantData.tenant.name || "ESV Rosenheim",
-              slug: tenantData.tenant.slug || "esv-rosenheim",
+              name: tenantData.tenant.name || "",
+              slug: tenantData.tenant.slug || "",
               primaryColor: tenantData.tenant.primaryColor || "#dc2626",
               logoUrl: tenantData.tenant.logoUrl || "",
               heroImageUrl: tenantData.tenant.heroImageUrl || "",
@@ -177,26 +173,21 @@ export default function AdminPage() {
             });
           }
         }
-
-        // Load all competitions for switcher
-        const compsResponse = await fetch('/api/admin/competitions');
-        if (compsResponse.ok) {
-          const compsData = await compsResponse.json();
-          setCompetitions(compsData.competitions || []);
-        }
-
-        // Load default (latest) competition
-        await loadCompetition();
       } catch (error) {
-        console.error('Failed to load admin data:', error);
+        console.error('Failed to load tenant:', error);
         setMessage({ type: 'error', text: 'Fehler beim Laden der Konfiguration' });
       } finally {
         setLoading(false);
       }
-    };
-
-    loadData();
+    })();
   }, []);
+
+  // Load competition details when active competition changes
+  useEffect(() => {
+    if (activeCompetition?.id) {
+      loadCompetitionDetails(activeCompetition.id);
+    }
+  }, [activeCompetition?.id]);
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -233,7 +224,7 @@ export default function AdminPage() {
       const response = await fetch('/api/admin/competition', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...competition, id: selectedCompetitionId }),
+        body: JSON.stringify({ ...competition, id: activeCompetition?.id }),
       });
 
       if (response.ok) {
@@ -307,12 +298,12 @@ export default function AdminPage() {
           <CardContent className="pt-6">
             <FormField label="Aktiver Wettkampf" hint="Bestimmt welche Daten in allen Tabs angezeigt werden">
               <select
-                value={selectedCompetitionId || ""}
+                value={activeCompetition?.id || ""}
                 onChange={async (e) => {
                   const id = e.target.value;
                   if (id) {
                     setLoading(true);
-                    await loadCompetition(id);
+                    switchTo(id);
                     setLoading(false);
                   }
                 }}
@@ -320,7 +311,7 @@ export default function AdminPage() {
               >
                 {competitions.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} ({c.year}) — {c.status} • {c._count.teams} Teams
+                    {c.name} ({c.year}) — {c.status} • {c.teamCount} Teams
                   </option>
                 ))}
               </select>

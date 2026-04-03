@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
+import { useCompetition } from "@/lib/competition-context";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface ParticipantEntry {
@@ -47,11 +48,14 @@ export default function ParticipantList() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [disciplineFilter, setDisciplineFilter] = useState("all");
+  const { active: activeCompetition } = useCompetition();
   const [editingParticipant, setEditingParticipant] = useState<ParticipantEntry | null>(null);
 
   const fetchParticipants = async () => {
     try {
-      const res = await fetch("/api/admin/participants");
+      const params = new URLSearchParams();
+      if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
+      const res = await fetch(`/api/admin/participants?${params}`);
       if (res.ok) {
         const data = await res.json();
         setParticipants(data.participants || []);
@@ -65,7 +69,7 @@ export default function ParticipantList() {
 
   useEffect(() => {
     fetchParticipants();
-  }, []);
+  }, [activeCompetition?.id]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(participants.map((p) => p.teamCategory))].sort();
