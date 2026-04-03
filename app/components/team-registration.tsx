@@ -307,20 +307,9 @@ export default function TeamRegistration() {
           ? Math.random() > 0.5 ? "M" : "W"
           : config.gender;
 
-      // If both names are filled (e.g. team lead), only update gender + birthDate for classification
+      // Team lead (pre-filled name) is never touched — user must adjust manually.
+      // Classification warnings will show mismatches (age, gender) in real-time.
       if (hasFirstName && hasLastName) {
-        setValue(`participants.${index}.gender` as const, participantGender, {
-          shouldDirty: true,
-          shouldTouch: true,
-          shouldValidate: true,
-        });
-        if (!hasBirthDate) {
-          setValue(`participants.${index}.birthDate` as const, randomBirthDate(config.minYear, config.maxYear), {
-            shouldDirty: true,
-            shouldTouch: true,
-            shouldValidate: true,
-          });
-        }
         return;
       }
 
