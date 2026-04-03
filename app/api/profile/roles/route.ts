@@ -53,8 +53,9 @@ export async function GET() {
         }
       }
 
-      // Nicht der erste User → Standard-Rollen
-      return NextResponse.json({ roles: ["TEAMCHEF", "TEILNEHMER"] });
+      // TEMPORÄR: Alle neuen User bekommen Admin (für Testphase)
+      // TODO: Vor Go-Live zurücksetzen auf ["TEAMCHEF", "TEILNEHMER"]
+      return NextResponse.json({ roles: ["ADMIN", "TEAMCHEF", "TEILNEHMER"] });
     }
 
     // Unique Rollen extrahieren
