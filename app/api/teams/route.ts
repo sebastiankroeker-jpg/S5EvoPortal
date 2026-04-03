@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, generateTeamName } from '@/lib/domain/team';
+import { classifyTeam as classifyTeamShared, validateDisciplineAssignment } from '@/lib/domain/classification';
 import { prisma } from '@/lib/prisma';
 
 // Map frontend gender ("M"/"W") to Prisma enum
@@ -22,37 +23,13 @@ function extractBirthYear(birthDate: string): number {
 
 // 2026 Classification Logic
 function classifyTeam(participants: TeamRegistrationInput['participants']): string {
-  const participantsWithData = participants.filter(p => p.firstName && p.lastName && p.birthDate);
-  
-  if (participantsWithData.length === 0) {
-    return "unclassified";
-  }
-
-  const birthYears = participantsWithData.map(p => new Date(p.birthDate).getFullYear());
-  const ages = birthYears.map(y => 2026 - y);
-  const totalAge = ages.reduce((sum, age) => sum + age, 0);
-  const isFemaleOnly = participantsWithData.every(p => p.gender === "W");
-  
-  // Jahrgänge-basierte Klassen (Schüler/Jugend)
-  if (birthYears.every(year => year >= 2016 && year <= 2018)) {
-    return "schueler-a";
-  } else if (birthYears.every(year => year >= 2013 && year <= 2015)) {
-    return "schueler-b";
-  } else if (birthYears.every(year => year >= 2009 && year <= 2012)) {
-    return "jugend";
-  }
-  // Altersklassen (Gesamtalter aller 5 Teilnehmer)
-  else if (isFemaleOnly && totalAge <= 150) {
-    return "damen-a";
-  } else if (isFemaleOnly && totalAge > 150) {
-    return "damen-b";
-  } else if (totalAge <= 125) {
-    return "jungsters";
-  } else if (totalAge >= 226) {
-    return "masters";
-  } else {
-    return "herren";
-  }
+  const inputs = participants
+    .filter(p => p.firstName && p.lastName && p.birthDate)
+    .map(p => ({
+      birthYear: new Date(p.birthDate).getFullYear(),
+      gender: p.gender as "M" | "W" | "D",
+    }));
+  return classifyTeamShared(inputs).code;
 }
 
 function serializeParticipant(participant: any) {

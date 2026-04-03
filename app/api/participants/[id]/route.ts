@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { classifyTeam, compareClassification } from "@/lib/domain/classification";
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
 export async function GET(
@@ -107,7 +108,42 @@ export async function PUT(
       where: { id },
       data: changeData,
     });
-    return NextResponse.json({ participant: updated, applied: true });
+
+    // Reklassifikation prüfen wenn relevante Felder geändert wurden
+    let classificationWarnings: string[] = [];
+    if (changeData.birthYear !== undefined || changeData.gender !== undefined) {
+      const teamWithParticipants = await prisma.team.findUnique({
+        where: { id: participant.team.id },
+        include: { participants: { where: { deletedAt: null } } },
+      });
+
+      if (teamWithParticipants) {
+        const inputs = teamWithParticipants.participants.map(p => ({
+          birthYear: p.birthYear,
+          gender: p.gender as "M" | "W" | "D" | "MALE" | "FEMALE" | "DIVERSE",
+        }));
+        const newClassification = classifyTeam(inputs);
+        const oldCode = teamWithParticipants.classificationCode || "unclassified";
+        classificationWarnings = compareClassification(oldCode, newClassification);
+
+        // Klasse aktualisieren wenn geändert
+        if (newClassification.code !== oldCode) {
+          await prisma.team.update({
+            where: { id: participant.team.id },
+            data: {
+              classificationCode: newClassification.code,
+              totalAge: newClassification.totalAge,
+            },
+          });
+        }
+      }
+    }
+
+    return NextResponse.json({
+      participant: updated,
+      applied: true,
+      classificationWarnings,
+    });
   }
 
   // Teilnehmer: PendingChange erstellen (Approval-Workflow)

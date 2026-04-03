@@ -20,6 +20,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { classifyTeam, validateDisciplineAssignment, CLASSIFICATIONS } from "@/lib/domain/classification";
 
 type TeamClassId =
   | "schueler-a"
@@ -81,6 +82,8 @@ export default function TeamRegistration() {
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState("");
 
+
+
   const form = useForm<TeamRegistrationInput>({
     resolver: zodResolver(TeamRegistrationSchema),
     defaultValues: createDefaultTeamForm(),
@@ -100,6 +103,23 @@ export default function TeamRegistration() {
   } = form;
 
   const { fields } = useFieldArray({ control, name: "participants" });
+
+  // Live-Klassifikation basierend auf aktuellen Teilnehmer-Daten
+  const watchedParticipants = form.watch("participants");
+  const liveClassification = useMemo(() => {
+    const inputs = (watchedParticipants || [])
+      .filter((p: any) => p.birthDate)
+      .map((p: any) => ({
+        birthYear: new Date(p.birthDate).getFullYear(),
+        gender: p.gender as "M" | "W" | "D",
+      }));
+    return classifyTeam(inputs);
+  }, [watchedParticipants]);
+
+  const disciplineCheck = useMemo(() => {
+    const discs = (watchedParticipants || []).map((p: any) => p.discipline || "TBD");
+    return validateDisciplineAssignment(discs);
+  }, [watchedParticipants]);
 
   const participants = watch("participants");
   const teamName = watch("teamName");
@@ -389,6 +409,39 @@ export default function TeamRegistration() {
 
               {step === 2 && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
+                  {/* Live-Klassifikation Banner */}
+                  <div className={`rounded-lg p-3 border ${
+                    liveClassification.code === "unclassified"
+                      ? "bg-muted/30 border-border/40"
+                      : "bg-primary/5 border-primary/20"
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{liveClassification.emoji}</span>
+                        <div>
+                          <span className="font-medium text-sm">{liveClassification.label}</span>
+                          {liveClassification.totalAge > 0 && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              Gesamtalter: {liveClassification.totalAge}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {!disciplineCheck.valid && (
+                        <Badge variant="outline" className="text-xs text-amber-600">
+                          Disziplinen unvollständig
+                        </Badge>
+                      )}
+                    </div>
+                    {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
+                      <div className="mt-2 space-y-1">
+                        {[...liveClassification.warnings, ...disciplineCheck.warnings].map((w, i) => (
+                          <p key={i} className="text-xs text-amber-600 dark:text-amber-400">⚠️ {w}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Testdaten-Generierung OBEN */}
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
@@ -512,6 +565,14 @@ export default function TeamRegistration() {
                     <div className="flex justify-between">
                       <span>Team:</span>
                       <span className="font-medium">{teamName || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Klasse:</span>
+                      <span className="font-medium">{liveClassification.emoji} {liveClassification.label}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Gesamtalter:</span>
+                      <span className="font-medium">{liveClassification.totalAge}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Kontakt:</span>
