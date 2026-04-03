@@ -14,7 +14,7 @@ interface CompetitionInfo {
   year: number;
   location: string;
   date: string;
-  dateEnd?: string;
+  dateEnd: string | null;
   status: string;
 }
 
@@ -146,11 +146,13 @@ export default function HomeScreen() {
           {competitionInfo?.date ? (
             <p>📅 {(() => {
               const d1 = new Date(competitionInfo.date);
-              const d2 = new Date(d1);
-              d2.setDate(d2.getDate() + 1);
               const f1 = d1.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
-              const f2 = d2.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
-              return `${f1}. - ${f2}`;
+              if (competitionInfo.dateEnd) {
+                const d2 = new Date(competitionInfo.dateEnd);
+                const f2 = d2.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+                return `${f1}. - ${f2}`;
+              }
+              return d1.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
             })()}
             </p>
           ) : (

@@ -149,6 +149,7 @@ model Competition {
   name                  String
   year                  Int
   date                  DateTime?
+  dateEnd               DateTime?
   registrationDeadline  DateTime?
   status                CompetitionStatus @default(DRAFT)
   maxTeams              Int?
