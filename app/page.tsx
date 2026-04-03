@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
@@ -15,6 +16,7 @@ import UserManagement from "./components/user-management";
 import ParticipantList from "./components/participant-list";
 
 export default function Home() {
+  const router = useRouter();
   const { status } = useSession();
   const { theme } = useTheme();
   const { can } = usePermissions();
@@ -48,16 +50,8 @@ export default function Home() {
             {activeTab === "orga" && (can("team.view.all") || can("results.edit")) && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">⚙️ Orga-Bereich</h2>
-                
-                {/* Approval Queue */}
-                <ApprovalQueue />
 
-                {/* Teilnehmerübersicht */}
-                <ParticipantList />
-
-                {/* User Management — nur für Admins */}
-                {can("config.edit") && <UserManagement />}
-
+                {/* Quick-Actions — oben, immer sichtbar */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {can("team.view.all") && (
                     <button onClick={() => setActiveTab("dashboard")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
@@ -66,6 +60,11 @@ export default function Home() {
                       <p className="text-xs text-muted-foreground">Teams verwalten & bearbeiten</p>
                     </button>
                   )}
+                  <button onClick={() => { const el = document.getElementById('participant-list'); el?.scrollIntoView({ behavior: 'smooth' }); }} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                    <span className="text-lg">📋</span>
+                    <p className="font-medium text-sm">Teilnehmerübersicht</p>
+                    <p className="text-xs text-muted-foreground">Alle Teilnehmer suchen & bearbeiten</p>
+                  </button>
                   {can("results.edit") && (
                     <button className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1 opacity-60">
                       <span className="text-lg">✏️</span>
@@ -74,7 +73,7 @@ export default function Home() {
                     </button>
                   )}
                   {can("config.edit") && (
-                    <button onClick={() => window.location.href = "/admin"} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                    <button onClick={() => router.push("/admin")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">🏢</span>
                       <p className="font-medium text-sm">Administration</p>
                       <p className="text-xs text-muted-foreground">Tenant & Wettkampf konfigurieren</p>
@@ -85,12 +84,23 @@ export default function Home() {
                     <p className="font-medium text-sm">Referenzarchitektur</p>
                     <p className="text-xs text-muted-foreground">Technische Übersicht</p>
                   </button>
-                  <button onClick={() => window.location.href = '/tech'} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                  <button onClick={() => router.push('/tech')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                     <span className="text-lg">🖥️</span>
                     <p className="font-medium text-sm">Infrastruktur</p>
                     <p className="text-xs text-muted-foreground">System-Übersicht</p>
                   </button>
                 </div>
+
+                {/* Approval Queue */}
+                <ApprovalQueue />
+
+                {/* Teilnehmerübersicht */}
+                <div id="participant-list">
+                  <ParticipantList />
+                </div>
+
+                {/* User Management — nur für Admins */}
+                {can("config.edit") && <UserManagement />}
               </div>
             )}
             {activeTab === "live" && <LiveScreen />}

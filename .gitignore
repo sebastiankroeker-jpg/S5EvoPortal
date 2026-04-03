@@ -9,3 +9,4 @@ out/
 *.pem
 *.key
 next-env.d.ts
+.vercel
