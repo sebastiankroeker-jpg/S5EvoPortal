@@ -10,6 +10,7 @@ import TeamScreen from "./components/team-screen";
 import Dashboard from "./components/dashboard";
 import LiveScreen from "./components/live-screen";
 import BottomTabBar from "./components/bottom-tab-bar";
+import ApprovalQueue from "./components/approval-queue";
 
 export default function Home() {
   const { status } = useSession();
@@ -45,6 +46,10 @@ export default function Home() {
             {activeTab === "orga" && (can("team.view.all") || can("results.edit")) && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">⚙️ Orga-Bereich</h2>
+                
+                {/* Approval Queue */}
+                <ApprovalQueue />
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {can("team.view.all") && (
                     <button onClick={() => setActiveTab("dashboard")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">

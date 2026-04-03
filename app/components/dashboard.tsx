@@ -21,6 +21,7 @@ import { DISCIPLINES } from "@/lib/domain/team";
 import { usePermissions } from "@/lib/permissions-context";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
+import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface Team {
   id: string;
@@ -35,11 +36,17 @@ interface Team {
 }
 
 interface Participant {
+  id?: string;
   firstName: string;
   lastName: string;
   gender: string;
   birthDate: string;
+  birthYear?: number;
   discipline?: string;
+  disciplineCode?: string;
+  email?: string | null;
+  phone?: string | null;
+  pendingChanges?: { id: string; status: string }[];
 }
 
 interface DashboardProps {
@@ -55,6 +62,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
@@ -383,6 +391,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                       <div className="flex items-center justify-between">
                                         <span className="font-medium">{p.firstName} {p.lastName}</span>
                                         <div className="flex items-center gap-2">
+                                          {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own")) || (p.email === userEmail && can("participant.edit.self"))) && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setEditingParticipant({ ...p, teamOwnerEmail: team.ownerEmail }); }}
+                                              className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                                              title="Teilnehmer bearbeiten"
+                                            >
+                                              ✏️
+                                            </button>
+                                          )}
                                           <span title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
                                           <span>{p.gender === "M" ? "♂" : p.gender === "W" ? "♀" : "⚥"}</span>
                                         </div>
@@ -463,6 +480,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           onCancel={() => setEditingTeam(null)}
         />
       )}
+
+      {/* Participant Edit Dialog */}
+      <ParticipantEditDialog
+        participant={editingParticipant}
+        open={!!editingParticipant}
+        onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
+        onSaved={() => { setEditingParticipant(null); fetchTeams(); }}
+        directEdit={canEditAll || (editingParticipant?.teamOwnerEmail === userEmail)}
+      />
     </div>
   );
 }
