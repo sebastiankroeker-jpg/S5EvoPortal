@@ -144,8 +144,14 @@ export default function HomeScreen() {
         <div className="space-y-1 text-sm text-muted-foreground">
           {competitionInfo?.location && <p>📍 {competitionInfo.location}</p>}
           {competitionInfo?.date ? (
-            <p>📅 {new Date(competitionInfo.date).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long' })}
-            {competitionInfo.dateEnd && ` – ${new Date(competitionInfo.dateEnd).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}`}
+            <p>📅 {(() => {
+              const d1 = new Date(competitionInfo.date);
+              const d2 = new Date(d1);
+              d2.setDate(d2.getDate() + 1);
+              const f1 = d1.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
+              const f2 = d2.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+              return `${f1}. - ${f2}`;
+            })()}
             </p>
           ) : (
             <p>📅 Termin wird noch bekanntgegeben</p>

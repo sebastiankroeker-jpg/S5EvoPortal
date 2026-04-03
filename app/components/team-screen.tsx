@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,29 @@ import { usePermissions } from "@/lib/permissions-context";
 import Dashboard from "./dashboard";
 import TeamRegistration from "./team-registration";
 
-type TeamView = "my-teams" | "register" | "watchlist";
+type TeamView = "mannschaften" | "register" | "watchlist";
 
 export default function TeamScreen() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
   const [view, setView] = useState<TeamView>("register");
+  const [hasOwnTeams, setHasOwnTeams] = useState<boolean | null>(null);
+
+  // Check if user has teams → default to Mannschaften tab with owner filter
+  useEffect(() => {
+    if (!session?.user?.email) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/teams');
+        if (res.ok) {
+          const data = await res.json();
+          const owns = (data.teams || []).length > 0;
+          setHasOwnTeams(owns);
+          if (owns) setView("mannschaften");
+        }
+      } catch {}
+    })();
+  }, [session?.user?.email]);
 
   if (!session?.user) return null;
 
@@ -52,12 +69,12 @@ export default function TeamScreen() {
           </button>
         )}
         <button
-          onClick={() => setView("my-teams")}
+          onClick={() => setView("mannschaften")}
           className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-            view === "my-teams" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            view === "mannschaften" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          📊 Meine Teams
+          📊 Mannschaften
         </button>
         <button
           onClick={() => setView("watchlist")}
@@ -70,7 +87,7 @@ export default function TeamScreen() {
       </div>
 
       {/* Content */}
-      {view === "my-teams" && <Dashboard ownerFilter={session.user.email || undefined} />}
+      {view === "mannschaften" && <Dashboard ownerFilter={hasOwnTeams ? (session.user.email || undefined) : undefined} />}
       {view === "register" && <TeamRegistration />}
       {view === "watchlist" && (
         <div className="text-center space-y-4 py-8">
