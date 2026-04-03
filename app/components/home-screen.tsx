@@ -51,10 +51,11 @@ export default function HomeScreen() {
         const teamsResponse = await fetch(`/api/teams?${params}`);
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
+          const teams = teamsData.teams || [];
           const stats = {
-            totalTeams: teamsData.length,
-            totalParticipants: teamsData.reduce((sum: number, team: any) => sum + (team.participants?.length || 0), 0),
-            totalClasses: new Set(teamsData.map((team: any) => team.ageClass)).size
+            totalTeams: teams.length,
+            totalParticipants: teams.reduce((sum: number, team: any) => sum + (team.participants?.length || 0), 0),
+            totalClasses: new Set(teams.map((team: any) => team.category).filter(Boolean)).size
           };
           setTeamStats(stats);
         }

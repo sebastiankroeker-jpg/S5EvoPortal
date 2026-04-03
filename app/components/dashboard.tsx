@@ -76,6 +76,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     try {
       const params = new URLSearchParams();
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
+      if (canViewAll) params.set('scope', 'all');
       const response = await fetch(`/api/teams?${params}`);
       const data = await response.json();
       setTeams(data.teams || []);
