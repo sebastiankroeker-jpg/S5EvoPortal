@@ -307,21 +307,23 @@ export default function TeamRegistration() {
           ? Math.random() > 0.5 ? "M" : "W"
           : config.gender;
 
-      // Team lead (pre-filled name) is never touched — user must adjust manually.
-      // Classification warnings will show mismatches (age, gender) in real-time.
-      if (hasFirstName && hasLastName) {
+      // Participant 0 = team lead (pre-filled from session). Never touched by test data.
+      // Classification warnings show mismatches (age, gender) in real-time.
+      const isTeamLead = index === 0 && teamLeadParticipates;
+      if (isTeamLead) {
         return;
       }
 
+      // All other participants: always overwrite with fresh test data (even on re-roll)
       const firstName = participantGender === "W"
         ? femalePool[femaleIdx++ % femalePool.length]
         : malePool[maleIdx++ % malePool.length];
       const lastName = lastPool[lastIdx++ % lastPool.length];
 
       const payload: ParticipantInput = {
-        firstName: hasFirstName ? current.firstName : firstName,
-        lastName: hasLastName ? current.lastName : lastName,
-        birthDate: hasBirthDate ? current.birthDate : randomBirthDate(config.minYear, config.maxYear),
+        firstName,
+        lastName,
+        birthDate: randomBirthDate(config.minYear, config.maxYear),
         gender: participantGender,
         email: current?.email || "",
         phone: current?.phone || "",
