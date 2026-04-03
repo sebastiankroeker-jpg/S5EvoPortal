@@ -211,7 +211,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const incompleteTeams = teams.filter(t => !t.participants || t.participants.some(p => !p.firstName || !p.lastName)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 lg:pb-0">
       {/* Kompakte Stats-Leiste */}
       <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-2">
         <span><span className="font-semibold text-primary">{filteredTeams.length}</span> Teams</span>
