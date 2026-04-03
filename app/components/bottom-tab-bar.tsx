@@ -78,9 +78,9 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
       <div 
-        className="bg-card/95 backdrop-blur-md border-t border-border/30"
+        className="bg-background/95 backdrop-blur-md border-t border-border/50"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="grid grid-flow-col auto-cols-fr h-14">
