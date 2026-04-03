@@ -59,12 +59,18 @@ const MALE_NAMES = [
   "Tobias", "Lukas", "Felix", "Florian", "Alexander", "Moritz", "David", "Simon", "Patrick", "Matthias",
   "Dominik", "Benjamin", "Jan", "Philipp", "Fabian", "Kevin", "Marcel", "Nico", "Leon", "Paul",
   "Tim", "Martin", "Robert", "Peter", "Klaus", "Rainer", "Georg", "Werner", "Helmut", "Franz",
+  "Elias", "Noah", "Finn", "Liam", "Emil", "Oskar", "Theo", "Anton", "Jakob", "Valentin",
+  "Rafael", "Benedikt", "Lorenz", "Kilian", "Xaver", "Ludwig", "Hugo", "Konrad", "Armin", "Hannes",
+  "Christoph", "Roland", "Günter", "Erwin", "Sepp", "Alois", "Bernhard", "Norbert", "Gerhard", "Josef",
 ];
 const FEMALE_NAMES = [
   "Lisa", "Anna", "Sarah", "Julia", "Petra", "Sandra", "Nicole", "Stefanie", "Laura", "Mia",
   "Nina", "Franziska", "Katharina", "Maria", "Lena", "Sophie", "Hannah", "Lea", "Johanna", "Christina",
   "Sabine", "Monika", "Claudia", "Martina", "Birgit", "Heike", "Kerstin", "Andrea", "Simone", "Melanie",
   "Verena", "Theresa", "Magdalena", "Eva", "Elisabeth", "Anja", "Tanja", "Sonja", "Cornelia", "Manuela",
+  "Emilia", "Lina", "Ella", "Clara", "Ida", "Frieda", "Greta", "Mathilda", "Rosa", "Alma",
+  "Amelie", "Nora", "Paulina", "Antonia", "Victoria", "Carla", "Marlene", "Ronja", "Annika", "Selina",
+  "Renate", "Ingrid", "Helga", "Gertrude", "Elfriede", "Rosemarie", "Waltraud", "Hildegard", "Brigitte", "Ursula",
 ];
 const LAST_NAMES = [
   "Müller", "Huber", "Wagner", "Bauer", "Mayer", "Weber", "Schmid", "Lehner", "Berger", "Schneider",
@@ -72,6 +78,9 @@ const LAST_NAMES = [
   "Eder", "Schwarz", "Reiter", "Fuchs", "Haas", "Lang", "Maier", "Baumann", "Kraus", "Seidl",
   "Riedl", "Winkler", "Moser", "Frank", "Schuster", "Hartl", "Brandl", "Leitner", "Aigner", "Koller",
   "Strasser", "Ziegler", "Ortner", "Kirchner", "Graf", "Hofmann", "Keller", "Richter", "Vogt", "Auer",
+  "Stadler", "Lindner", "Lechner", "Holzer", "Wallner", "Prager", "Stöger", "Karner", "Thaler", "Ebner",
+  "Doppler", "Mitterer", "Sommer", "Winter", "Neumeier", "Kronberger", "Reisinger", "Feichtinger", "Grassl", "Riedler",
+  "Huemer", "Plank", "Stern", "Hinterberger", "Jungwirth", "Altmann", "Binder", "Ertl", "Kopf", "Zangerl",
 ];
 
 export default function TeamRegistration() {
@@ -293,15 +302,28 @@ export default function TeamRegistration() {
       const hasLastName = current?.lastName?.trim();
       const hasBirthDate = current?.birthDate?.trim();
 
-      // Skip entirely if both first and last name are already filled
-      if (hasFirstName && hasLastName) {
-        return;
-      }
-
       const participantGender =
         config.gender === "mixed"
           ? Math.random() > 0.5 ? "M" : "W"
           : config.gender;
+
+      // If both names are filled (e.g. team lead), only update gender + birthDate for classification
+      if (hasFirstName && hasLastName) {
+        setValue(`participants.${index}.gender` as const, participantGender, {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        });
+        if (!hasBirthDate) {
+          setValue(`participants.${index}.birthDate` as const, randomBirthDate(config.minYear, config.maxYear), {
+            shouldDirty: true,
+            shouldTouch: true,
+            shouldValidate: true,
+          });
+        }
+        return;
+      }
+
       const firstName = participantGender === "W"
         ? femalePool[femaleIdx++ % femalePool.length]
         : malePool[maleIdx++ % malePool.length];
