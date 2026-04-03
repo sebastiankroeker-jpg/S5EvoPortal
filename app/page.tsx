@@ -11,6 +11,7 @@ import Dashboard from "./components/dashboard";
 import LiveScreen from "./components/live-screen";
 import BottomTabBar from "./components/bottom-tab-bar";
 import ApprovalQueue from "./components/approval-queue";
+import UserManagement from "./components/user-management";
 
 export default function Home() {
   const { status } = useSession();
@@ -49,6 +50,9 @@ export default function Home() {
                 
                 {/* Approval Queue */}
                 <ApprovalQueue />
+
+                {/* User Management — nur für Admins */}
+                {can("config.edit") && <UserManagement />}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {can("team.view.all") && (

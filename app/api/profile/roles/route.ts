@@ -20,26 +20,47 @@ export async function GET() {
       }
     });
 
-    // Admin-Emails (Bootstrap — später über Authentik-Gruppen lösen)
-    const ADMIN_EMAILS = ["sebkroeker@web.de"];
-    const isAdmin = ADMIN_EMAILS.includes(session.user.email);
-
     if (!user || user.tenantRoles.length === 0) {
-      // Eingeloggt aber noch keine DB-Rollen → Standard: Teamchef + Teilnehmer
-      if (isAdmin) {
-        return NextResponse.json({ roles: ["ADMIN", "TEAMCHEF", "TEILNEHMER"] });
+      // Eingeloggt aber noch keine DB-Rollen
+      // Bootstrap: Allererster User wird automatisch Admin
+      const tenant = await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } });
+      if (tenant) {
+        const existingAdmins = await prisma.tenantRole.count({
+          where: { tenantId: tenant.id, role: "ADMIN" },
+        });
+
+        if (existingAdmins === 0) {
+          // Kein Admin existiert — dieser User wird Admin (Bootstrap)
+          let dbUser = user;
+          if (!dbUser) {
+            dbUser = await prisma.user.create({
+              data: {
+                email: session.user.email,
+                name: session.user.name || null,
+                image: (session.user as any).image || null,
+              },
+              include: { tenantRoles: true },
+            });
+          }
+          await prisma.tenantRole.createMany({
+            data: [
+              { userId: dbUser.id, tenantId: tenant.id, role: "ADMIN" },
+              { userId: dbUser.id, tenantId: tenant.id, role: "TEAMCHEF" },
+            ],
+            skipDuplicates: true,
+          });
+          return NextResponse.json({ roles: ["ADMIN", "TEAMCHEF", "TEILNEHMER"] });
+        }
       }
+
+      // Nicht der erste User → Standard-Rollen
       return NextResponse.json({ roles: ["TEAMCHEF", "TEILNEHMER"] });
     }
 
     // Unique Rollen extrahieren
     const roles = [...new Set(user.tenantRoles.map(tr => tr.role))] as string[];
-    
-    // Admin-Email immer ADMIN ergänzen
-    if (isAdmin && !roles.includes("ADMIN")) {
-      roles.push("ADMIN");
-    }
 
+    // Jeder mit DB-Rollen bekommt auch TEAMCHEF implizit
     if (!roles.includes("TEAMCHEF")) {
       roles.push("TEAMCHEF");
     }
