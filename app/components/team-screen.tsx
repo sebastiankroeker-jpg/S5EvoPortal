@@ -13,7 +13,7 @@ type TeamView = "my-teams" | "register" | "watchlist";
 export default function TeamScreen() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
-  const [view, setView] = useState<TeamView>("my-teams");
+  const [view, setView] = useState<TeamView>("register");
 
   if (!session?.user) return null;
 
@@ -41,14 +41,6 @@ export default function TeamScreen() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
       {/* Sub-Navigation */}
       <div className="flex items-center gap-1 bg-muted/30 rounded-md p-0.5 w-fit">
-        <button
-          onClick={() => setView("my-teams")}
-          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-            view === "my-teams" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          📊 Meine Teams
-        </button>
         {can("team.create") && (
           <button
             onClick={() => setView("register")}
@@ -59,6 +51,14 @@ export default function TeamScreen() {
             📋 Anmelden
           </button>
         )}
+        <button
+          onClick={() => setView("my-teams")}
+          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+            view === "my-teams" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          📊 Meine Teams
+        </button>
         <button
           onClick={() => setView("watchlist")}
           className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
