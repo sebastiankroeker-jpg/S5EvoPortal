@@ -45,7 +45,7 @@ export default function TeamScreen() {
           <button
             onClick={() => setView("register")}
             className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              view === "register" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              view === "register" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             📋 Anmelden
@@ -54,7 +54,7 @@ export default function TeamScreen() {
         <button
           onClick={() => setView("my-teams")}
           className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-            view === "my-teams" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            view === "my-teams" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           📊 Meine Teams
@@ -62,7 +62,7 @@ export default function TeamScreen() {
         <button
           onClick={() => setView("watchlist")}
           className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-            view === "watchlist" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            view === "watchlist" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           👀 Watchlist
