@@ -105,27 +105,33 @@ export default function TeamRegistration() {
   const { fields } = useFieldArray({ control, name: "participants" });
 
   // Live-Klassifikation basierend auf aktuellen Teilnehmer-Daten
+  // watch() ohne useMemo — re-rendert bei jeder Feldänderung
   const watchedParticipants = form.watch("participants");
+  const watchedValues = JSON.stringify(
+    (watchedParticipants || []).map((p: any) => ({ bd: p.birthDate, g: p.gender, d: p.discipline }))
+  );
   const liveClassification = useMemo(() => {
     const inputs = (watchedParticipants || [])
-      .filter((p: any) => p.birthDate)
+      .filter((p: any) => p.birthDate && p.birthDate.length >= 4)
       .map((p: any) => ({
         birthYear: new Date(p.birthDate).getFullYear(),
         gender: p.gender as "M" | "W" | "D",
       }));
     return classifyTeam(inputs);
-  }, [watchedParticipants]);
+  }, [watchedValues]);
 
   const disciplineCheck = useMemo(() => {
     const discs = (watchedParticipants || []).map((p: any) => p.discipline || "TBD");
     return validateDisciplineAssignment(discs);
-  }, [watchedParticipants]);
+  }, [watchedValues]);
 
   const participants = watch("participants");
   const teamName = watch("teamName");
 
   const [teamLeadParticipates, setTeamLeadParticipates] = useState(false);
   const [teamLeadDiscipline, setTeamLeadDiscipline] = useState<DisciplineId>(DISCIPLINES[0].id);
+  const [teamLeadBirthDate, setTeamLeadBirthDate] = useState("");
+  const [teamLeadGender, setTeamLeadGender] = useState<"M" | "W" | "D">("M");
   const [testDataClass, setTestDataClass] = useState<TeamClassId>("schueler-a");
 
   const [teamLeadFirstName, teamLeadLastName] = useMemo(() => {
@@ -183,6 +189,8 @@ export default function TeamRegistration() {
       firstName: teamLeadFirstName || userName || "Teamchef:in",
       lastName: teamLeadLastName || (!teamLeadFirstName && userName ? userName : ""),
       email: userEmail,
+      birthDate: teamLeadBirthDate,
+      gender: teamLeadGender,
     });
   };
 
@@ -196,7 +204,7 @@ export default function TeamRegistration() {
     } else {
       clearTeamLeadSlot(previousTeamLeadDiscipline.current);
     }
-  }, [teamLeadParticipates, teamLeadDiscipline, teamLeadFirstName, teamLeadLastName, userEmail]);
+  }, [teamLeadParticipates, teamLeadDiscipline, teamLeadFirstName, teamLeadLastName, userEmail, teamLeadBirthDate, teamLeadGender]);
 
   if (!session?.user) return null;
 
@@ -384,20 +392,45 @@ export default function TeamRegistration() {
                       Ich starte selbst in einer Disziplin
                     </label>
                     {teamLeadParticipates && (
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Gewünschte Disziplin</label>
-                        <select
-                          className="px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
-                          value={teamLeadDiscipline}
-                          onChange={(event) => setTeamLeadDiscipline(event.target.value as DisciplineId)}
-                        >
-                          {DISCIPLINES.map((discipline) => (
-                            <option key={discipline.id} value={discipline.id}>
-                              {discipline.icon} {discipline.label}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-muted-foreground">Du wirst automatisch als Teilnehmer dieser Disziplin übernommen.</p>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Geburtsdatum</label>
+                            <input
+                              type="date"
+                              className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                              value={teamLeadBirthDate}
+                              onChange={(e) => setTeamLeadBirthDate(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Geschlecht</label>
+                            <select
+                              className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                              value={teamLeadGender}
+                              onChange={(e) => setTeamLeadGender(e.target.value as "M" | "W" | "D")}
+                            >
+                              <option value="M">♂️ Männlich</option>
+                              <option value="W">♀️ Weiblich</option>
+                              <option value="D">⚧️ Divers</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Gewünschte Disziplin</label>
+                          <select
+                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                            value={teamLeadDiscipline}
+                            onChange={(event) => setTeamLeadDiscipline(event.target.value as DisciplineId)}
+                          >
+                            {DISCIPLINES.map((discipline) => (
+                              <option key={discipline.id} value={discipline.id}>
+                                {discipline.icon} {discipline.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Du wirst automatisch als Teilnehmer übernommen.</p>
                       </div>
                     )}
                   </div>
@@ -551,6 +584,16 @@ export default function TeamRegistration() {
                   {formState.errors.participants && (
                     <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
                   )}
+
+                  {/* Navigation Buttons UNTEN */}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
+                      ← Zurück
+                    </Button>
+                    <Button onClick={handleNextFromParticipants} className="flex-1">
+                      Zur Bestätigung →
+                    </Button>
+                  </div>
                 </motion.div>
               )}
 
