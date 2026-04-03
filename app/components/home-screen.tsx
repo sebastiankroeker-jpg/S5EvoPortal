@@ -11,6 +11,7 @@ import { useTheme } from "@/lib/theme-context";
 
 interface CompetitionInfo {
   name: string;
+  year: number;
   location: string;
   date: string;
   dateEnd?: string;
@@ -137,11 +138,11 @@ export default function HomeScreen() {
       {/* Competition Header */}
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-bold flex items-center justify-center gap-2">
-          🏆 Mannschafts-5-Kampf
+          🏆 {competitionInfo?.name || "Mannschafts-Fünfkampf"}
         </h1>
-        <p className="text-lg text-muted-foreground">2026</p>
+        <p className="text-lg text-muted-foreground">{competitionInfo?.year || ""}</p>
         <div className="space-y-1 text-sm text-muted-foreground">
-          <p>📍 {competitionInfo?.location || "Bad Bayersoien · Ammertal"}</p>
+          {competitionInfo?.location && <p>📍 {competitionInfo.location}</p>}
           {competitionInfo?.date ? (
             <p>📅 {new Date(competitionInfo.date).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long' })}
             {competitionInfo.dateEnd && ` – ${new Date(competitionInfo.dateEnd).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}`}
@@ -150,7 +151,7 @@ export default function HomeScreen() {
             <p>📅 Termin wird noch bekanntgegeben</p>
           )}
           <p className="font-medium">
-            📊 Status: <span className="text-green-600">OPEN</span>
+            📊 Status: <span className={competitionInfo?.status === "OPEN" ? "text-green-600" : "text-muted-foreground"}>{competitionInfo?.status || "..."}</span>
           </p>
         </div>
       </div>
