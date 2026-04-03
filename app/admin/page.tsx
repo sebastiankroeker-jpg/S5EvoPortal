@@ -293,32 +293,6 @@ export default function AdminPage() {
           </p>
         </motion.div>
 
-        {/* Competition Switcher — above tabs, affects everything */}
-        <Card>
-          <CardContent className="pt-6">
-            <FormField label="Aktiver Wettkampf" hint="Bestimmt welche Daten in allen Tabs angezeigt werden">
-              <select
-                value={activeCompetition?.id || ""}
-                onChange={async (e) => {
-                  const id = e.target.value;
-                  if (id) {
-                    setLoading(true);
-                    switchTo(id);
-                    setLoading(false);
-                  }
-                }}
-                className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm font-medium"
-              >
-                {competitions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.year}) — {c.status} • {c.teamCount} Teams
-                  </option>
-                ))}
-              </select>
-            </FormField>
-          </CardContent>
-        </Card>
-
         <Tabs defaultValue="tenant" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
@@ -328,6 +302,43 @@ export default function AdminPage() {
           {/* ==================== TENANT TAB ==================== */}
           <TabsContent value="tenant">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {/* Competition Switcher */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Wettkampf-Mandant</CardTitle>
+                  <CardDescription>Wähle den aktiven Wettkampf — wirkt auf alle Ansichten</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-2">
+                    {competitions.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => switchTo(c.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
+                          activeCompetition?.id === c.id
+                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
+                            : "border-border hover:bg-accent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xl ${
+                            activeCompetition?.id === c.id ? "" : "opacity-40"
+                          }`}>
+                            {activeCompetition?.id === c.id ? "✅" : "⚪"}
+                          </span>
+                          <div>
+                            <p className="font-medium text-sm">{c.name}</p>
+                            <p className="text-xs text-muted-foreground">{c.year} • {c.teamCount} Teams</p>
+                          </div>
+                        </div>
+                        <Badge variant={c.status === "OPEN" ? "default" : c.status === "CLOSED" ? "secondary" : "outline"} className="text-xs">
+                          {c.status}
+                        </Badge>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
               {/* Branding */}
               <Card>
                 <CardHeader>
