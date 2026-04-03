@@ -17,8 +17,9 @@ P30 | BACKLOG | S5Evo | Owner:s5evo | Audit/Activity Log für Änderungen | DoD:
 P31 | BACKLOG | S5Evo | Owner:s5evo | Lint Debt Cleanup | DoD: `npm run lint` zero errors/warnings für Portal-Repo
 P40 | READY | S5Evo | Owner:s5evo | Phase 1 - Design-System & Farben | DoD: neue Tokens, Light/Dark Feinschliff, reduzierte Borders
 P42 | BACKLOG | S5Evo | Owner:s5evo | Phase 3 - Admin Separation | DoD: dedizierte Admin-Sidebar, Role-Switch im Admin-Bereich
-P08 | BLOCKED | S5Evo | Owner:s5evo+Subagent(pdf-importer) | Historische PDF-Import Pipeline | DoD: CSV/JSON für 2016-2024 + README + Test-Fixtures (Pause, wartet auf Sebastian)
-P09 | BLOCKED | S5Evo | Owner:s5evo | Ergebnis-Engine v1 | DoD: Ranking + Punkte + Tiebreaks + Regression gegen Archivdaten (Pause, wartet auf P08 + Freigabe)
+P08 | IN_PROGRESS | S5Evo | Owner:s5evo | Historische PDF-Import Pipeline | DoD: CSV/JSON für 2016-2024 + Seed in DB + Multi-Tenant-Switcher
+P09 | READY | S5Evo | Owner:s5evo | Ergebnis-Engine v1 | DoD: Ranking + Punkte + Tiebreaks + Regression gegen Archivdaten
+P99 | BACKLOG | S5Evo | Owner:s5evo | Fleet Dev Policy | DoD: docs/FLEET-DEV-POLICY.md geschrieben + von Claw reviewed
 
 ---
 
