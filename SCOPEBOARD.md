@@ -18,7 +18,7 @@ P31 | BACKLOG | S5Evo | Owner:s5evo | Lint Debt Cleanup | DoD: `npm run lint` ze
 P40 | READY | S5Evo | Owner:s5evo | Phase 1 - Design-System & Farben | DoD: neue Tokens, Light/Dark Feinschliff, reduzierte Borders
 P42 | BACKLOG | S5Evo | Owner:s5evo | Phase 3 - Admin Separation | DoD: dedizierte Admin-Sidebar, Role-Switch im Admin-Bereich
 P08 | REVIEW | S5Evo | Owner:s5evo | Historische PDF-Import Pipeline | DoD: CSV/JSON für 2016-2024 + Seed in DB + Multi-Tenant-Switcher — 2024 geseeded (106 Teams/525 TN), Switcher + CompetitionContext live, Home/Dashboard/Live/Participants filtern nach Mandant
-P09 | READY | S5Evo | Owner:s5evo | Ergebnis-Engine v1 | DoD: Ranking + Punkte + Tiebreaks + Ergebnis-UI + Regression gegen 2024-Archivdaten
+P09 | IN_PROGRESS | S5Evo | Owner:s5evo | Ergebnis-Engine v1 | DoD: Ranking + Punkte + Tiebreaks + Ergebnis-UI + Regression gegen 2024-Archivdaten — Scoring-Engine + API + Results-UI live, wartet auf Sebastian-Feedback
 P99 | BACKLOG | S5Evo | Owner:s5evo | Fleet Dev Policy | DoD: docs/FLEET-DEV-POLICY.md geschrieben + von Claw reviewed
 
 ---
