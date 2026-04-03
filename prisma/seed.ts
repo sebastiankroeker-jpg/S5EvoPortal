@@ -19,13 +19,38 @@ function parseCSV(filePath: string): Record<string, string>[] {
   const raw = fs.readFileSync(filePath, "utf-8");
   const lines = raw.split("\n").filter((l) => l.trim());
   if (lines.length < 2) return [];
-  const headers = lines[0].split(",");
+  const headers = splitCSVLine(lines[0]);
   return lines.slice(1).map((line) => {
-    const values = line.split(",");
+    const values = splitCSVLine(line);
     const row: Record<string, string> = {};
     headers.forEach((h, i) => (row[h.trim()] = (values[i] ?? "").trim()));
     return row;
   });
+}
+
+// RFC 4180 compliant CSV line splitter (handles quoted fields with commas)
+function splitCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
 }
 
 // ─── Classification mapping for 2024 ────────────────────────────────────────
