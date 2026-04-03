@@ -22,10 +22,13 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get("search")?.toLowerCase() || "";
+  const competitionId = searchParams.get("competitionId");
 
   const participants = await prisma.participant.findMany({
     where: {
       deletedAt: null,
+      // Filter by competition if specified
+      ...(competitionId ? { team: { competitionId } } : {}),
       ...(search ? {
         OR: [
           { firstName: { contains: search, mode: "insensitive" as const } },

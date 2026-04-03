@@ -432,32 +432,30 @@ export default function AdminPage() {
           <TabsContent value="competition">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               {/* Competition Switcher */}
-              {competitions.length > 1 && (
-                <Card>
-                  <CardContent className="pt-6">
-                    <FormField label="Wettkampf auswählen" hint="Wechsle zwischen verschiedenen Wettkampfjahren">
-                      <select
-                        value={selectedCompetitionId || ""}
-                        onChange={async (e) => {
-                          const id = e.target.value;
-                          if (id) {
-                            setLoading(true);
-                            await loadCompetition(id);
-                            setLoading(false);
-                          }
-                        }}
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                      >
-                        {competitions.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} ({c.year}) — {c.status} • {c._count.teams} Teams
-                          </option>
-                        ))}
-                      </select>
-                    </FormField>
-                  </CardContent>
-                </Card>
-              )}
+              <Card>
+                <CardContent className="pt-6">
+                  <FormField label="Wettkampf auswählen" hint={competitions.length > 1 ? "Wechsle zwischen verschiedenen Wettkampfjahren" : "Aktuell nur ein Wettkampf vorhanden"}>
+                    <select
+                      value={selectedCompetitionId || ""}
+                      onChange={async (e) => {
+                        const id = e.target.value;
+                        if (id) {
+                          setLoading(true);
+                          await loadCompetition(id);
+                          setLoading(false);
+                        }
+                      }}
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    >
+                      {competitions.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.year}) — {c.status} • {c._count.teams} Teams
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                </CardContent>
+              </Card>
 
               {/* Grunddaten */}
               <Card>

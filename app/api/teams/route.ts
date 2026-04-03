@@ -120,10 +120,15 @@ export async function GET(request: NextRequest) {
       const url = new URL(request.url);
       const scope = url.searchParams.get('scope');
       
+      // Optional competition filter (admin context)
+      const competitionId = url.searchParams.get('competitionId');
+
       const teams = await prisma.team.findMany({
         where: {
           // If scope=all, show all teams. Otherwise, show only own teams
           ...(scope === 'all' ? {} : { owner: { email: userEmail } }),
+          // Filter by competition if specified
+          ...(competitionId ? { competitionId } : {}),
           deletedAt: null
         },
         include: {
