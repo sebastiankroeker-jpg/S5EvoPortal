@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { fullSignOut } from "@/lib/auth-helpers";
 import { usePermissions } from "@/lib/permissions-context";
 import { useTheme } from "@/lib/theme-context";
 import { Input } from "@/components/ui/input";
@@ -94,7 +95,7 @@ export default function CommandPill() {
     { 
       label: "Abmelden", 
       keywords: ["abmelden", "logout", "ausloggen"], 
-      action: () => signOut(),
+      action: () => fullSignOut(),
       icon: "🔗"
     },
   ];
@@ -527,7 +528,7 @@ export default function CommandPill() {
                           variant="ghost"
                           className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
-                            signOut();
+                            fullSignOut();
                             closeBurger();
                           }}
                         >

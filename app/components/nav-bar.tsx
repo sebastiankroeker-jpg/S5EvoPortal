@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { fullSignOut } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { APP_VERSION } from "@/lib/version";
@@ -143,7 +144,7 @@ export default function NavBar() {
             <Link href="/profile" className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">
               👤 {session.user.name}
             </Link>
-            <Button variant="ghost" size="sm" onClick={() => signOut()} className="text-xs text-muted-foreground h-6 px-2">
+            <Button variant="ghost" size="sm" onClick={() => fullSignOut()} className="text-xs text-muted-foreground h-6 px-2">
               Abmelden
             </Button>
           </>
