@@ -12,6 +12,7 @@ import LiveScreen from "./components/live-screen";
 import BottomTabBar from "./components/bottom-tab-bar";
 import ApprovalQueue from "./components/approval-queue";
 import UserManagement from "./components/user-management";
+import ParticipantList from "./components/participant-list";
 
 export default function Home() {
   const { status } = useSession();
@@ -50,6 +51,9 @@ export default function Home() {
                 
                 {/* Approval Queue */}
                 <ApprovalQueue />
+
+                {/* Teilnehmerübersicht */}
+                <ParticipantList />
 
                 {/* User Management — nur für Admins */}
                 {can("config.edit") && <UserManagement />}
