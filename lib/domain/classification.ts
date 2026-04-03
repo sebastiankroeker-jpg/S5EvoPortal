@@ -16,7 +16,9 @@ export interface ClassificationResult {
   emoji: string;
   totalAge: number;
   isFemaleOnly: boolean;
+  isYouthClass: boolean;
   warnings: string[];
+  info: string[];
 }
 
 export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; desc: string }> = {
@@ -41,6 +43,7 @@ function isFemale(gender: string): boolean {
  */
 export function classifyTeam(participants: ClassificationInput[]): ClassificationResult {
   const warnings: string[] = [];
+  const infoMessages: string[] = [];
   const valid = participants.filter(p => p.birthYear > 1900);
 
   if (valid.length < 5) {
@@ -50,7 +53,9 @@ export function classifyTeam(participants: ClassificationInput[]): Classificatio
       emoji: "❓",
       totalAge: 0,
       isFemaleOnly: false,
+      isYouthClass: false,
       warnings: [`Nur ${valid.length}/5 Teilnehmer mit gültigem Geburtsjahr`],
+      info: [],
     };
   }
 
@@ -60,13 +65,47 @@ export function classifyTeam(participants: ClassificationInput[]): Classificatio
   const isFemaleOnly = valid.every(p => isFemale(p.gender));
   const hasMixed = !isFemaleOnly && valid.some(p => isFemale(p.gender));
 
-  // Warnungen generieren
-  if (hasMixed) {
+  // Klassifikation — zuerst prüfen, dann Warnungen generieren
+  let code: string;
+  let isYouthClass = false;
+
+  // Jahrgänge-basierte Klassen (Schüler/Jugend)
+  if (birthYears.every(y => y >= 2016 && y <= 2018)) {
+    code = "schueler-a";
+    isYouthClass = true;
+  } else if (birthYears.every(y => y >= 2013 && y <= 2015)) {
+    code = "schueler-b";
+    isYouthClass = true;
+  } else if (birthYears.every(y => y >= 2009 && y <= 2012)) {
+    code = "jugend";
+    isYouthClass = true;
+  }
+  // Altersklassen (Gesamtalter)
+  else if (isFemaleOnly && totalAge <= 150) {
+    code = "damen-a";
+  } else if (isFemaleOnly && totalAge > 150) {
+    code = "damen-b";
+  } else if (totalAge <= 125) {
+    code = "jungsters";
+  } else if (totalAge >= 226) {
+    code = "masters";
+  } else {
+    code = "herren";
+  }
+
+  // Info-Nachrichten für Jugend-Klassen
+  if (isYouthClass) {
+    infoMessages.push("Eigene Ergebnisliste (nicht in der Gesamtwertung)");
+    infoMessages.push("Klassifikation nach Jahrgängen, nicht Gesamtalter");
+  }
+
+  // Warnungen nur für Erwachsenen-Klassen
+  if (!isYouthClass && hasMixed) {
     warnings.push("Gemischtes Team → startet in der Herren-Wertung (keine Mixed-Kategorie 2026)");
   }
 
-  // Grenzfall-Warnungen (±5 Jahre vom Schwellenwert)
-  if (!isFemaleOnly) {
+  // Grenzfall-Warnungen nur für altersbasierte Klassen
+  if (!isYouthClass && !isFemaleOnly) {
     if (totalAge >= 121 && totalAge <= 125) {
       warnings.push(`Grenzfall Jungsters/Herren: Gesamtalter ${totalAge} (Grenze: 125)`);
     }
@@ -74,9 +113,22 @@ export function classifyTeam(participants: ClassificationInput[]): Classificatio
       warnings.push(`Grenzfall Herren/Masters: Gesamtalter ${totalAge} (Grenze: 226)`);
     }
   }
-  if (isFemaleOnly) {
+  if (!isYouthClass && isFemaleOnly) {
     if (totalAge >= 146 && totalAge <= 154) {
       warnings.push(`Grenzfall Damen A/B: Gesamtalter ${totalAge} (Grenze: 150)`);
+    }
+  }
+
+  // Jahrgangs-Validierung für Jugend
+  if (isYouthClass) {
+    const outOfRange = birthYears.filter(y => {
+      if (code === "schueler-a") return y < 2016 || y > 2018;
+      if (code === "schueler-b") return y < 2013 || y > 2015;
+      if (code === "jugend") return y < 2009 || y > 2012;
+      return false;
+    });
+    if (outOfRange.length > 0) {
+      warnings.push(`${outOfRange.length} Teilnehmer außerhalb des Jahrgangsbereichs`);
     }
   }
 
@@ -90,39 +142,17 @@ export function classifyTeam(participants: ClassificationInput[]): Classificatio
     warnings.push(`Ältester Teilnehmer ist ${maxAge} Jahre — bitte prüfen`);
   }
 
-  // Klassifikation
-  let code: string;
-
-  // Jahrgänge-basierte Klassen
-  if (birthYears.every(y => y >= 2016 && y <= 2018)) {
-    code = "schueler-a";
-  } else if (birthYears.every(y => y >= 2013 && y <= 2015)) {
-    code = "schueler-b";
-  } else if (birthYears.every(y => y >= 2009 && y <= 2012)) {
-    code = "jugend";
-  }
-  // Altersklassen
-  else if (isFemaleOnly && totalAge <= 150) {
-    code = "damen-a";
-  } else if (isFemaleOnly && totalAge > 150) {
-    code = "damen-b";
-  } else if (totalAge <= 125) {
-    code = "jungsters";
-  } else if (totalAge >= 226) {
-    code = "masters";
-  } else {
-    code = "herren";
-  }
-
-  const info = CLASSIFICATIONS[code];
+  const classInfo = CLASSIFICATIONS[code];
 
   return {
     code,
-    label: info?.label || code,
-    emoji: info?.emoji || "❓",
+    label: classInfo?.label || code,
+    emoji: classInfo?.emoji || "❓",
     totalAge,
     isFemaleOnly,
+    isYouthClass,
     warnings,
+    info: infoMessages,
   };
 }
 

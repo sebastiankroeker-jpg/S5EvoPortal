@@ -453,7 +453,7 @@ export default function TeamRegistration() {
                         <span className="text-xl">{liveClassification.emoji}</span>
                         <div>
                           <span className="font-medium text-sm">{liveClassification.label}</span>
-                          {liveClassification.totalAge > 0 && (
+                          {!liveClassification.isYouthClass && liveClassification.totalAge > 0 && (
                             <span className="text-xs text-muted-foreground ml-2">
                               Gesamtalter: {liveClassification.totalAge}
                             </span>
@@ -466,8 +466,15 @@ export default function TeamRegistration() {
                         </Badge>
                       )}
                     </div>
-                    {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
+                    {liveClassification.info.length > 0 && (
                       <div className="mt-2 space-y-1">
+                        {liveClassification.info.map((msg, i) => (
+                          <p key={i} className="text-xs text-blue-500 dark:text-blue-400">ℹ️ {msg}</p>
+                        ))}
+                      </div>
+                    )}
+                    {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
+                      <div className="mt-1 space-y-1">
                         {[...liveClassification.warnings, ...disciplineCheck.warnings].map((w, i) => (
                           <p key={i} className="text-xs text-amber-600 dark:text-amber-400">⚠️ {w}</p>
                         ))}
