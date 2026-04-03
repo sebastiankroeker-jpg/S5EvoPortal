@@ -34,20 +34,23 @@ export default function HomeScreen() {
 
   // Load competition info and stats
   useEffect(() => {
+    // Wait until context has loaded (avoid race condition with null → real ID)
+    if (!activeCompetition?.id) return;
+
     const loadData = async () => {
       try {
-        // Load competition info
-        const compId = activeCompetition?.id;
-        const compUrl = compId ? `/api/admin/competition?id=${compId}` : '/api/admin/competition';
-        const compResponse = await fetch(compUrl);
+        // Load competition info for selected competition
+        const compResponse = await fetch(`/api/admin/competition?id=${activeCompetition.id}`);
         if (compResponse.ok) {
           const compData = await compResponse.json();
           setCompetitionInfo(compData.competition || compData);
         }
 
-        // Load team stats
-        const params = new URLSearchParams();
-        if (compId) params.set('competitionId', compId);
+        // Load team stats (scope=all to count all teams, not just own)
+        const params = new URLSearchParams({
+          competitionId: activeCompetition.id,
+          scope: 'all',
+        });
         const teamsResponse = await fetch(`/api/teams?${params}`);
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
