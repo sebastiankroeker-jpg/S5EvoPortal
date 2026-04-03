@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useTheme } from "@/lib/theme-context";
 import { APP_VERSION } from "@/lib/version";
 import {
   AlertDialog,
@@ -24,6 +25,7 @@ import {
 
 export default function ProfilePage() {
   const { data: session, status } = useSession();
+  const { theme, setTheme } = useTheme();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
@@ -185,6 +187,40 @@ export default function ProfilePage() {
                 <Button variant="outline" onClick={() => fullSignOut()} className="w-full">
                   Abmelden
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Darstellung / Appearance */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">🎨 Darstellung</CardTitle>
+              <CardDescription>Wähle ein Theme für das Portal</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {([
+                  { id: "light" as const, label: "Light", icon: "☀️", desc: "Hell & klar" },
+                  { id: "dark" as const, label: "Dark", icon: "🌙", desc: "Dunkel & schonend" },
+                  { id: "esv" as const, label: "ESV", icon: "🏅", desc: "Vereinsfarben" },
+                  { id: "bunt" as const, label: "Bunt", icon: "🌈", desc: "Farbenfroh" },
+                ]).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTheme(t.id)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all ${
+                      theme === t.id
+                        ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                        : "border-border/40 hover:border-border hover:bg-accent/50"
+                    }`}
+                  >
+                    <span className="text-2xl">{t.icon}</span>
+                    <span className="text-sm font-medium">{t.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{t.desc}</span>
+                  </button>
+                ))}
               </div>
             </CardContent>
           </Card>
