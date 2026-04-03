@@ -42,7 +42,7 @@ export default function HomeScreen() {
         const compResponse = await fetch(compUrl);
         if (compResponse.ok) {
           const compData = await compResponse.json();
-          setCompetitionInfo(compData);
+          setCompetitionInfo(compData.competition || compData);
         }
 
         // Load team stats
