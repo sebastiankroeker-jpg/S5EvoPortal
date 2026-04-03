@@ -47,7 +47,7 @@ const CLASS_CONFIG: Record<TeamClassId, { minYear: number; maxYear: number; gend
   "schueler-a": { minYear: 2016, maxYear: 2018, gender: "mixed" },
   "schueler-b": { minYear: 2013, maxYear: 2015, gender: "mixed" },
   jugend: { minYear: 2009, maxYear: 2012, gender: "mixed" },
-  jungsters: { minYear: 2001, maxYear: 2004, gender: "mixed" },
+  jungsters: { minYear: 2001, maxYear: 2004, gender: "M" },
   herren: { minYear: 1985, maxYear: 1995, gender: "M" },
   masters: { minYear: 1965, maxYear: 1975, gender: "M" },
   "damen-a": { minYear: 1995, maxYear: 2001, gender: "W" },
