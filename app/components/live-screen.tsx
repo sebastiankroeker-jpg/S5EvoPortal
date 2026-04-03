@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DISCIPLINES } from "@/lib/domain/team";
+import ResultsView from "./results-view";
 
 const SEGMENTS = ["teams", "start", "ergebnis"] as const;
 type Segment = typeof SEGMENTS[number];
@@ -448,7 +449,7 @@ export default function LiveScreen() {
         >
           {activeSegment === "teams" && renderTeamsSegment()}
           {activeSegment === "start" && renderStartSegment()}
-          {activeSegment === "ergebnis" && renderErgebnisSegment()}
+          {activeSegment === "ergebnis" && <ResultsView />}
         </motion.div>
       </AnimatePresence>
     </div>
