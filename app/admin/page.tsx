@@ -302,6 +302,32 @@ export default function AdminPage() {
           </p>
         </motion.div>
 
+        {/* Competition Switcher — above tabs, affects everything */}
+        <Card>
+          <CardContent className="pt-6">
+            <FormField label="Aktiver Wettkampf" hint="Bestimmt welche Daten in allen Tabs angezeigt werden">
+              <select
+                value={selectedCompetitionId || ""}
+                onChange={async (e) => {
+                  const id = e.target.value;
+                  if (id) {
+                    setLoading(true);
+                    await loadCompetition(id);
+                    setLoading(false);
+                  }
+                }}
+                className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm font-medium"
+              >
+                {competitions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.year}) — {c.status} • {c._count.teams} Teams
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="tenant" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
@@ -431,32 +457,6 @@ export default function AdminPage() {
           {/* ==================== COMPETITION TAB ==================== */}
           <TabsContent value="competition">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              {/* Competition Switcher */}
-              <Card>
-                <CardContent className="pt-6">
-                  <FormField label="Wettkampf auswählen" hint={competitions.length > 1 ? "Wechsle zwischen verschiedenen Wettkampfjahren" : "Aktuell nur ein Wettkampf vorhanden"}>
-                    <select
-                      value={selectedCompetitionId || ""}
-                      onChange={async (e) => {
-                        const id = e.target.value;
-                        if (id) {
-                          setLoading(true);
-                          await loadCompetition(id);
-                          setLoading(false);
-                        }
-                      }}
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                    >
-                      {competitions.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.year}) — {c.status} • {c._count.teams} Teams
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-                </CardContent>
-              </Card>
-
               {/* Grunddaten */}
               <Card>
                 <CardHeader>
