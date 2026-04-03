@@ -14,10 +14,12 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Hole erste Competition (oder die aktuelle mit höchstem Jahr)
-      const competition = await prisma.competition.findFirst({
-        orderBy: { year: 'desc' }
-      });
+      // If ?id= is provided, load that specific competition (admin switcher)
+      const competitionId = request.nextUrl.searchParams.get('id');
+      
+      const competition = competitionId
+        ? await prisma.competition.findUnique({ where: { id: competitionId } })
+        : await prisma.competition.findFirst({ orderBy: { year: 'desc' } });
 
       if (!competition) {
         return NextResponse.json({ error: 'No competition found' }, { status: 404 });
@@ -70,10 +72,10 @@ export async function PUT(request: NextRequest) {
     }
 
     try {
-      // Hole aktuelle Competition
-      let competition = await prisma.competition.findFirst({
-        orderBy: { year: 'desc' }
-      });
+      // Load specific competition by id, or fall back to latest
+      let competition = body.id
+        ? await prisma.competition.findUnique({ where: { id: body.id } })
+        : await prisma.competition.findFirst({ orderBy: { year: 'desc' } });
 
       // Für Competition brauchen wir einen Tenant
       let tenant = await prisma.tenant.findFirst();

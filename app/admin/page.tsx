@@ -12,6 +12,15 @@ import { usePermissions } from "@/lib/permissions-context";
 import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
 
+type CompetitionListItem = {
+  id: string;
+  name: string;
+  year: number;
+  status: string;
+  tenant: { name: string; slug: string };
+  _count: { teams: number };
+};
+
 type TenantConfig = {
   name: string;
   slug: string;
@@ -111,9 +120,40 @@ export default function AdminPage() {
     publicResults: true,
   });
 
+  const [competitions, setCompetitions] = useState<CompetitionListItem[]>([]);
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const loadCompetition = async (compId?: string) => {
+    const url = compId ? `/api/admin/competition?id=${compId}` : '/api/admin/competition';
+    const competitionResponse = await fetch(url);
+    if (competitionResponse.ok) {
+      const competitionData = await competitionResponse.json();
+      if (competitionData.competition) {
+        const comp = competitionData.competition;
+        setSelectedCompetitionId(comp.id);
+        setCompetition({
+          name: comp.name || "Mannschafts-5-Kampf 2026",
+          year: comp.year || 2026,
+          date: comp.date ? comp.date.split('T')[0] : "2026-07-10",
+          dateEnd: comp.dateEnd ? comp.dateEnd.split('T')[0] : "2026-07-11",
+          registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "2026-06-28",
+          status: comp.status || "DRAFT",
+          maxTeams: comp.maxTeams || 120,
+          teamSize: comp.teamSize || 5,
+          ageReferenceDate: comp.ageReferenceDate ? comp.ageReferenceDate.split('T')[0] : "2026-12-31",
+          benchPressTara: comp.benchPressTara || 20.0,
+          benchPressMode: comp.benchPressMode || "GROSS",
+          stockShotsCount: comp.stockShotsCount || 11,
+          stockStrikeoutCount: comp.stockStrikeoutCount || 1,
+          location: comp.location || "",
+          publicResults: comp.publicResults !== false,
+        });
+      }
+    }
+  };
 
   // Load data on mount
   useEffect(() => {
@@ -138,31 +178,15 @@ export default function AdminPage() {
           }
         }
 
-        // Load Competition
-        const competitionResponse = await fetch('/api/admin/competition');
-        if (competitionResponse.ok) {
-          const competitionData = await competitionResponse.json();
-          if (competitionData.competition) {
-            const comp = competitionData.competition;
-            setCompetition({
-              name: comp.name || "Mannschafts-5-Kampf 2026",
-              year: comp.year || 2026,
-              date: comp.date ? comp.date.split('T')[0] : "2026-07-10",
-              dateEnd: comp.dateEnd ? comp.dateEnd.split('T')[0] : "2026-07-11",
-              registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "2026-06-28",
-              status: comp.status || "DRAFT",
-              maxTeams: comp.maxTeams || 120,
-              teamSize: comp.teamSize || 5,
-              ageReferenceDate: comp.ageReferenceDate ? comp.ageReferenceDate.split('T')[0] : "2026-12-31",
-              benchPressTara: comp.benchPressTara || 20.0,
-              benchPressMode: comp.benchPressMode || "GROSS",
-              stockShotsCount: comp.stockShotsCount || 11,
-              stockStrikeoutCount: comp.stockStrikeoutCount || 1,
-              location: comp.location || "",
-              publicResults: comp.publicResults !== false,
-            });
-          }
+        // Load all competitions for switcher
+        const compsResponse = await fetch('/api/admin/competitions');
+        if (compsResponse.ok) {
+          const compsData = await compsResponse.json();
+          setCompetitions(compsData.competitions || []);
         }
+
+        // Load default (latest) competition
+        await loadCompetition();
       } catch (error) {
         console.error('Failed to load admin data:', error);
         setMessage({ type: 'error', text: 'Fehler beim Laden der Konfiguration' });
@@ -209,7 +233,7 @@ export default function AdminPage() {
       const response = await fetch('/api/admin/competition', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(competition),
+        body: JSON.stringify({ ...competition, id: selectedCompetitionId }),
       });
 
       if (response.ok) {
@@ -407,6 +431,34 @@ export default function AdminPage() {
           {/* ==================== COMPETITION TAB ==================== */}
           <TabsContent value="competition">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {/* Competition Switcher */}
+              {competitions.length > 1 && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <FormField label="Wettkampf auswählen" hint="Wechsle zwischen verschiedenen Wettkampfjahren">
+                      <select
+                        value={selectedCompetitionId || ""}
+                        onChange={async (e) => {
+                          const id = e.target.value;
+                          if (id) {
+                            setLoading(true);
+                            await loadCompetition(id);
+                            setLoading(false);
+                          }
+                        }}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        {competitions.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.year}) — {c.status} • {c._count.teams} Teams
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Grunddaten */}
               <Card>
                 <CardHeader>
