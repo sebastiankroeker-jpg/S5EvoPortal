@@ -107,14 +107,17 @@ export default function ChangelogPage() {
         body: JSON.stringify(formState),
       });
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error?.error ? "Validierungsfehler" : "API Fehler");
+        const error = await res.json().catch(() => null);
+        const fieldErrors = error?.error?.fieldErrors;
+        const descriptionError = Array.isArray(fieldErrors?.description) ? fieldErrors.description[0] : null;
+        throw new Error(descriptionError || (error?.error ? "Validierungsfehler" : "API Fehler"));
       }
       showAdminMessage("success", "Eintrag gespeichert");
       setFormState({ type: "BUG", status: "OPEN", description: "" });
       fetchEntries();
     } catch (error) {
-      showAdminMessage("error", "Speichern fehlgeschlagen");
+      const message = error instanceof Error ? error.message : "Speichern fehlgeschlagen";
+      showAdminMessage("error", message);
     } finally {
       setFormLoading(false);
     }
@@ -262,11 +265,12 @@ export default function ChangelogPage() {
                       onChange={(e) => setFormState((prev) => ({ ...prev, description: e.target.value }))}
                       placeholder="Was soll angepasst oder korrigiert werden?"
                       rows={4}
+                      minLength={3}
                       required
                     />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Button type="submit" disabled={formLoading || !formState.description.trim()}>
+                    <Button type="submit" disabled={formLoading || formState.description.trim().length < 3}>
                       {formLoading ? "Speichere..." : "Eintrag hinzufügen"}
                     </Button>
                   </div>
