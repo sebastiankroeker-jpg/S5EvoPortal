@@ -80,6 +80,17 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum ChangelogEntryType {
+  BUG
+  REQUEST
+}
+
+enum ChangelogEntryStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
 // ==================== TENANT ====================
 
 model Tenant {
@@ -116,11 +127,13 @@ model User {
   deletedAt    DateTime?
 
   // Relations
-  tenantRoles     TenantRole[]
-  ownedTeams      Team[]          @relation("TeamOwner")
-  chiefOfTeams    Team[]          @relation("TeamChief")
+  tenantRoles      TenantRole[]
+  ownedTeams       Team[]          @relation("TeamOwner")
+  chiefOfTeams     Team[]          @relation("TeamChief")
   requestedChanges PendingChange[] @relation("ChangeRequester")
   reviewedChanges  PendingChange[] @relation("ChangeReviewer")
+  changelogEntriesCreated ChangelogEntry[] @relation("EntryCreator")
+  changelogEntriesResolved ChangelogEntry[] @relation("EntryResolver")
 
   @@map("users")
 }
@@ -343,4 +356,26 @@ model PendingChange {
   reviewedBy    User?       @relation("ChangeReviewer", fields: [reviewedById], references: [id])
 
   @@map("pending_changes")
+}
+
+// ==================== CHANGELOG ENTRY ====================
+
+model ChangelogEntry {
+  id          String               @id @default(cuid())
+  type        ChangelogEntryType
+  status      ChangelogEntryStatus @default(OPEN)
+  description String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  resolvedAt  DateTime?
+
+  createdById String
+  createdBy   User @relation("EntryCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  resolvedById String?
+  resolvedBy   User? @relation("EntryResolver", fields: [resolvedById], references: [id])
+
+  @@index([status])
+  @@index([type])
+  @@map("changelog_entries")
 }
