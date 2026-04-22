@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { DISCIPLINES } from "@/lib/domain/team";
+import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { useSession } from "next-auth/react";
@@ -45,6 +46,7 @@ interface Participant {
   birthYear?: number;
   discipline?: string;
   disciplineCode?: string;
+  shirtSize?: string;
   email?: string | null;
   phone?: string | null;
   pendingChanges?: { id: string; status: string }[];
@@ -413,7 +415,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                       </div>
                                       <div className="text-xs text-muted-foreground flex justify-between">
                                         <span>{disciplineDisplay.label}</span>
-                                        {birthYear && <span>Jg. {birthYear}</span>}
+                                        <div className="flex items-center gap-2">
+                                          {p.shirtSize && <span>👕 {p.shirtSize}</span>}
+                                          {birthYear && <span>Jg. {birthYear}</span>}
+                                        </div>
                                       </div>
                                     </div>
                                   );
@@ -561,7 +566,7 @@ function EditTeamModal({ team, onSave, onCancel }: {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground">Geschlecht</label>
                       <Select
@@ -574,6 +579,25 @@ function EditTeamModal({ team, onSave, onCancel }: {
                         <SelectContent>
                           <SelectItem value="M">♂ Männlich</SelectItem>
                           <SelectItem value="W">♀ Weiblich</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">T-Shirt</label>
+                      <Select
+                        value={participant.shirtSize || "none"}
+                        onValueChange={(value) => handleParticipantChange(index, 'shirtSize', value === 'none' ? '' : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Keine Angabe</SelectItem>
+                          {SHIRT_SIZES.map((size) => (
+                            <SelectItem key={size.id} value={size.id}>
+                              {size.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
