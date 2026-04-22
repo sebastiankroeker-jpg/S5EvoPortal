@@ -60,6 +60,7 @@ function serializeTeam(team: any) {
     ownerEmail: team.owner?.email ?? team.contactEmail ?? "",
     ownerName: team.owner?.name ?? team.contactName ?? "",
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
+    updatedAt: team.updatedAt?.toISOString?.() ?? team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     participants: Array.isArray(team.participants)
       ? team.participants.map(serializeParticipant).filter(Boolean)
       : [],

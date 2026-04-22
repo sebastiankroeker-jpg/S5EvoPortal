@@ -34,6 +34,7 @@ interface Team {
   ownerEmail?: string;
   ownerName?: string;
   createdAt?: string;
+  updatedAt?: string;
   participants?: Participant[];
 }
 
@@ -381,9 +382,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               <div><strong>Teamchef:in:</strong> ⭐ {team.contactName}</div>
                               <div><strong>E-Mail:</strong> {team.contactEmail}</div>
                               <div><strong>Klasse:</strong> {categoryEmojis[team.category] || "🏆"} {team.category}</div>
-                              {team.createdAt && (
-                                <div><strong>Erstellt:</strong> {new Date(team.createdAt).toLocaleDateString('de-DE')}</div>
-                              )}
                             </div>
                           </div>
 
@@ -490,6 +488,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           team={editingTeam}
           onSave={handleEditTeam}
           onCancel={() => setEditingTeam(null)}
+          showAdminInfo={canEditAll}
         />
       )}
 
@@ -507,11 +506,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 }
 
 // Edit Team Modal Component
-function EditTeamModal({ team, onSave, onCancel }: {
+function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
   team: Team;
   onSave: (data: any) => void;
   onCancel: () => void;
+  showAdminInfo?: boolean;
 }) {
+  const [showInfo, setShowInfo] = useState(false);
   const [formData, setFormData] = useState({
     teamName: team.name,
     participants: team.participants || []
@@ -531,9 +532,33 @@ function EditTeamModal({ team, onSave, onCancel }: {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader>
-          <CardTitle>Team bearbeiten: {team.name}</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Team bearbeiten: {team.name}</CardTitle>
+            {showAdminInfo && (
+              <Button variant="ghost" size="sm" onClick={() => setShowInfo((value) => !value)}>
+                ℹ️ Info
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {showAdminInfo && showInfo && (
+            <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm space-y-1">
+              {team.createdAt && (
+                <div><strong>Angelegt:</strong> {new Date(team.createdAt).toLocaleString('de-DE')}</div>
+              )}
+              {team.updatedAt && (
+                <div><strong>Zuletzt geändert:</strong> {new Date(team.updatedAt).toLocaleString('de-DE')}</div>
+              )}
+              {team.ownerName && (
+                <div><strong>Angelegt von:</strong> {team.ownerName}</div>
+              )}
+              {team.ownerEmail && (
+                <div><strong>Owner-Mail:</strong> {team.ownerEmail}</div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="text-sm font-medium">Team-Name</label>
             <Input
