@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-04-11
+
+- **P50: Admin-Changelog Feedback**
+  - Neue Prisma-Tabelle `ChangelogEntry` inkl. Enums + Migration `20260411025305_add_changelog_entry`
+  - Admin-API (`/api/admin/changelog-entries`) mit Create/List/Update + Filterabfragen
+  - Changelog-Seite erweitert um Admin-Panel (Form, Filterliste, Status-Aktionen)
+
 ## 2026-04-03
 
 - **Testdaten-Generator überarbeitet:**

@@ -1,1 +1,6 @@
 {"ts":"2026-03-25T22:30:00Z","actor":"claw","type":"init","scope":"scopeboard","summary":"Initialized activity log"}
+{"ts": "2026-03-25T23:01:07Z", "actor": "s5evo", "type": "build.start", "summary": "Test event", "scope": "P10", "runId": "test-1"}
+{"ts": "2026-03-25T23:03:23Z", "actor": "s5evo", "type": "build.start", "summary": "PDF-Parser Altjahre", "scope": "P08", "runId": "pdf-archiv-001"}
+{"ts": "2026-03-26T03:01:48Z", "actor": "s5evo", "type": "build.end", "summary": "PDF-Parser Altjahre", "scope": "P08", "runId": "pdf-archiv-001", "status": "success"}
+{"ts": "2026-03-26T06:14:01Z", "actor": "s5evo", "type": "build.start", "summary": "Portal Deploy v0.6.0-pre", "scope": "P07", "runId": "portal-v0-6-rc"}
+{"ts": "2026-03-26T16:22:33Z", "actor": "s5evo", "type": "build.end", "summary": "Portal Deploy v0.6.0-pre", "scope": "P07", "runId": "portal-v0-6-rc", "status": "success"}
