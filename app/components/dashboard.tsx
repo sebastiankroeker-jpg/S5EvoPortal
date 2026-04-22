@@ -495,6 +495,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
         onSaved={() => { setEditingParticipant(null); fetchTeams(); }}
         directEdit={canEditAll || (editingParticipant?.teamOwnerEmail === userEmail)}
+        isAdminEdit={canEditAll}
       />
     </div>
   );

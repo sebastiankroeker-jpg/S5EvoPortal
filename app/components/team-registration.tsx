@@ -21,6 +21,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { classifyTeam, validateDisciplineAssignment, CLASSIFICATIONS } from "@/lib/domain/classification";
+import { useCompetition } from "@/lib/competition-context";
+import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
 
 type TeamClassId =
   | "schueler-a"
@@ -85,11 +87,13 @@ const LAST_NAMES = [
 
 export default function TeamRegistration() {
   const { data: session } = useSession();
+  const { active: activeCompetition } = useCompetition();
   const userName = session?.user?.name ?? "";
   const userEmail = session?.user?.email ?? "";
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
 
 
 
@@ -156,12 +160,31 @@ export default function TeamRegistration() {
   );
 
   const disciplineSummary = useMemo(() => summarizeDisciplines(participants), [participants]);
+  const shirtOrderClosed = useMemo(() => isShirtOrderClosed(shirtOrderDeadline), [shirtOrderDeadline]);
 
   useEffect(() => {
     if (!teamName) {
       setValue("teamName", generateTeamName(), { shouldDirty: false, shouldTouch: false });
     }
   }, [teamName, setValue]);
+
+  useEffect(() => {
+    if (!activeCompetition?.id) {
+      setShirtOrderDeadline(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/competition?id=${activeCompetition.id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setShirtOrderDeadline(data.competition?.shirtOrderDeadline || null);
+      } catch (err) {
+        console.error("Failed to load competition details:", err);
+      }
+    })();
+  }, [activeCompetition?.id]);
 
   const previousTeamLeadDiscipline = useRef<DisciplineId>(DISCIPLINES[0].id);
 
@@ -595,11 +618,25 @@ export default function TeamRegistration() {
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.phone` as const)}
                             />
+                            <select
+                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
+                              disabled={shirtOrderClosed}
+                              {...register(`participants.${index}.shirtSize` as const)}
+                            >
+                              <option value="">T-Shirt-Größe (optional)</option>
+                              {SHIRT_SIZES.map((size) => (
+                                <option key={size.id} value={size.id}>{size.label}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
                       ))}
                     </div>
                   </Card>
+
+                  {shirtOrderClosed && (
+                    <p className="text-xs text-muted-foreground">T-Shirt-Bestellfrist abgeschlossen, Größen sind nur noch für Admin editierbar.</p>
+                  )}
 
                   {formState.errors.participants && (
                     <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>

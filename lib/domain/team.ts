@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SHIRT_SIZE_IDS, type ShirtSizeId } from "@/lib/domain/shirts";
 
 export const DISCIPLINE_PLACEHOLDER = "TBD" as const;
 
@@ -20,6 +21,8 @@ const disciplineEnum = z.enum([
   ...DISCIPLINE_IDS,
 ] as [DisciplineSelection, ...DisciplineSelection[]]);
 
+const shirtSizeEnum = z.enum(SHIRT_SIZE_IDS as [ShirtSizeId, ...ShirtSizeId[]]);
+
 export const ParticipantSchema = z.object({
   firstName: z.string().min(2, "Vorname zu kurz"),
   lastName: z.string().min(2, "Nachname zu kurz"),
@@ -28,6 +31,7 @@ export const ParticipantSchema = z.object({
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   discipline: disciplineEnum,
+  shirtSize: shirtSizeEnum.optional().or(z.literal("")),
 });
 
 export const TeamRegistrationSchema = z.object({
@@ -49,6 +53,7 @@ export function createEmptyParticipant(): ParticipantInput {
     email: "",
     phone: "",
     discipline: DISCIPLINE_PLACEHOLDER,
+    shirtSize: "",
   };
 }
 

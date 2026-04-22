@@ -58,6 +58,7 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
 function serializeParticipant(participant: any) {
   if (!participant) return null;
   return {
+    id: participant.id,
     firstName: participant.firstName,
     lastName: participant.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
@@ -65,6 +66,7 @@ function serializeParticipant(participant: any) {
     email: participant.email ?? "",
     phone: participant.phone ?? "",
     discipline: participant.disciplineCode ?? "TBD",
+    shirtSize: participant.shirtSize ?? "",
   };
 }
 
@@ -207,6 +209,7 @@ export async function PUT(
               birthYear: extractBirthYear(p.birthDate),
               gender: mapGender(p.gender),
               disciplineCode: mapDiscipline(p.discipline),
+              shirtSize: p.shirtSize || null,
               consentGiven: true,
               email: p.email || null,
               phone: p.phone || null,

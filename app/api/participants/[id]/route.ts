@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { classifyTeam, compareClassification } from "@/lib/domain/classification";
+import { isShirtOrderClosed } from "@/lib/domain/shirts";
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
 export async function GET(
@@ -18,7 +19,20 @@ export async function GET(
   const participant = await prisma.participant.findUnique({
     where: { id, deletedAt: null },
     include: {
-      team: { select: { id: true, name: true, contactEmail: true } },
+      team: {
+        select: {
+          id: true,
+          name: true,
+          contactEmail: true,
+          competition: {
+            select: {
+              id: true,
+              status: true,
+              shirtOrderDeadline: true,
+            },
+          },
+        },
+      },
       pendingChanges: {
         where: { status: "PENDING" },
         orderBy: { createdAt: "desc" },
@@ -60,13 +74,23 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
-  const { firstName, lastName, birthYear, gender, disciplineCode, email, phone } = body;
+  const { firstName, lastName, birthYear, gender, disciplineCode, shirtSize, email, phone } = body;
 
   // Teilnehmer laden
   const participant = await prisma.participant.findUnique({
     where: { id, deletedAt: null },
     include: {
-      team: { select: { id: true, contactEmail: true } },
+      team: {
+        select: {
+          id: true,
+          contactEmail: true,
+          competition: {
+            select: {
+              shirtOrderDeadline: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -87,9 +111,14 @@ export async function PUT(
   const isAdmin = user.tenantRoles.some(r => r.role === "ADMIN" || r.role === "MODERATOR");
   const isTeamOwner = participant.team.contactEmail === session.user.email;
   const isSelf = participant.email === session.user.email;
+  const shirtOrderClosed = isShirtOrderClosed(participant.team.competition?.shirtOrderDeadline);
 
   if (!isAdmin && !isTeamOwner && !isSelf) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+  }
+
+  if (!isAdmin && shirtOrderClosed && shirtSize !== undefined && shirtSize !== participant.shirtSize) {
+    return NextResponse.json({ error: "T-Shirt-Bestellfrist abgeschlossen" }, { status: 403 });
   }
 
   const changeData = {
@@ -98,6 +127,7 @@ export async function PUT(
     ...(birthYear !== undefined && { birthYear: Number(birthYear) }),
     ...(gender !== undefined && { gender }),
     ...(disciplineCode !== undefined && { disciplineCode }),
+    ...(shirtSize !== undefined && { shirtSize }),
     ...(email !== undefined && { email }),
     ...(phone !== undefined && { phone }),
   };

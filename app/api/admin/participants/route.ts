@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
       birthYear: p.birthYear,
       gender: p.gender,
       disciplineCode: p.disciplineCode,
+      shirtSize: p.shirtSize,
       email: p.email,
       phone: p.phone,
       teamId: p.team.id,

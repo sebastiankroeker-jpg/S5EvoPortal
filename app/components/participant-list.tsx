@@ -17,6 +17,7 @@ interface ParticipantEntry {
   birthYear: number;
   gender: string;
   disciplineCode: string;
+  shirtSize?: string | null;
   email?: string | null;
   phone?: string | null;
   teamId: string;
@@ -185,6 +186,12 @@ export default function ParticipantList() {
                           <span>{p.teamCategory}</span>
                           <span>·</span>
                           <span>Jg. {p.birthYear}</span>
+                          {p.shirtSize && (
+                            <>
+                              <span>·</span>
+                              <span>👕 {p.shirtSize}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -211,6 +218,7 @@ export default function ParticipantList() {
         onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
         onSaved={() => { setEditingParticipant(null); fetchParticipants(); }}
         directEdit={true}
+        isAdminEdit={true}
       />
     </div>
   );

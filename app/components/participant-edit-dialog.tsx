@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DISCIPLINES } from "@/lib/domain/team";
+import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
 
 interface Participant {
   id: string;
@@ -22,6 +23,7 @@ interface Participant {
   birthYear: number;
   gender: string;
   disciplineCode: string;
+  shirtSize?: string | null;
   email?: string | null;
   phone?: string | null;
   pendingChanges?: { id: string; status: string }[];
@@ -33,6 +35,7 @@ interface ParticipantEditDialogProps {
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   directEdit: boolean; // true = Admin/Teamchef, false = Teilnehmer (Approval)
+  isAdminEdit?: boolean;
 }
 
 export default function ParticipantEditDialog({
@@ -41,14 +44,17 @@ export default function ParticipantEditDialog({
   onOpenChange,
   onSaved,
   directEdit,
+  isAdminEdit = false,
 }: ParticipantEditDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [birthYear, setBirthYear] = useState("");
   const [gender, setGender] = useState("");
   const [disciplineCode, setDisciplineCode] = useState("");
+  const [shirtSize, setShirtSize] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ applied: boolean; message?: string } | null>(null);
   const [error, setError] = useState("");
@@ -62,12 +68,33 @@ export default function ParticipantEditDialog({
       setBirthYear(String(participant.birthYear));
       setGender(participant.gender);
       setDisciplineCode(participant.disciplineCode);
+      setShirtSize(participant.shirtSize || "");
       setEmail(participant.email || "");
       setPhone(participant.phone || "");
+      setShirtOrderDeadline(null);
       setResult(null);
       setError("");
     }
   }, [participant]);
+
+  useEffect(() => {
+    if (!open || !participant?.id) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/participants/${participant.id}`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        setShirtSize(data.shirtSize || "");
+        setShirtOrderDeadline(data.team?.competition?.shirtOrderDeadline || null);
+      } catch (err) {
+        console.error("Failed to load participant details:", err);
+      }
+    })();
+  }, [open, participant?.id]);
+
+  const shirtLocked = !isAdminEdit && isShirtOrderClosed(shirtOrderDeadline);
 
   const handleSave = async () => {
     if (!participant) return;
@@ -85,6 +112,7 @@ export default function ParticipantEditDialog({
           birthYear: Number(birthYear),
           gender,
           disciplineCode,
+          shirtSize: shirtSize || null,
           email: email || null,
           phone: phone || null,
         }),
@@ -191,6 +219,26 @@ export default function ParticipantEditDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">T-Shirt-Größe</label>
+            <Select value={shirtSize || "none"} onValueChange={(value) => setShirtSize(value === "none" ? "" : value)} disabled={shirtLocked}>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine Angabe</SelectItem>
+                {SHIRT_SIZES.map((size) => (
+                  <SelectItem key={size.id} value={size.id}>
+                    {size.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {shirtLocked && (
+              <p className="mt-1 text-xs text-muted-foreground">Bestellfrist abgeschlossen, nur Admin kann noch ändern.</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
 
 // GET aktuelle Competition
 export async function GET(request: NextRequest) {
@@ -98,6 +99,7 @@ export async function PUT(request: NextRequest) {
             date: body.date ? new Date(body.date) : null,
             dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : null,
+            shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
             status: body.status || "DRAFT",
             maxTeams: parseInt(body.maxTeams) || null,
             teamSize: parseInt(body.teamSize) || 5,
@@ -121,6 +123,9 @@ export async function PUT(request: NextRequest) {
             date: body.date ? new Date(body.date) : competition.date,
             dateEnd: body.dateEnd !== undefined ? (body.dateEnd ? new Date(body.dateEnd) : null) : competition.dateEnd,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : competition.registrationDeadline,
+            shirtOrderDeadline: body.shirtOrderDeadline !== undefined
+              ? parseDateInputEndOfDay(body.shirtOrderDeadline)
+              : competition.shirtOrderDeadline,
             status: body.status || competition.status,
             maxTeams: body.maxTeams !== undefined ? parseInt(body.maxTeams) || null : competition.maxTeams,
             teamSize: body.teamSize !== undefined ? parseInt(body.teamSize) || 5 : competition.teamSize,

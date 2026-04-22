@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, generateTeamName } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, validateDisciplineAssignment } from '@/lib/domain/classification';
+import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { prisma } from '@/lib/prisma';
 
 // Map frontend gender ("M"/"W") to Prisma enum
@@ -35,6 +36,7 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
 function serializeParticipant(participant: any) {
   if (!participant) return null;
   return {
+    id: participant.id,
     firstName: participant.firstName,
     lastName: participant.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
@@ -42,6 +44,7 @@ function serializeParticipant(participant: any) {
     email: participant.email ?? "",
     phone: participant.phone ?? "",
     discipline: participant.disciplineCode ?? "TBD",
+    shirtSize: participant.shirtSize ?? "",
   };
 }
 
@@ -179,6 +182,12 @@ export async function POST(request: NextRequest) {
     try {
       // Ensure default competition exists
       const competitionId = await ensureDefaultCompetition();
+      const competition = await prisma.competition.findUnique({
+        where: { id: competitionId },
+        select: { tenantId: true, shirtOrderDeadline: true },
+      });
+
+      const canEditShirts = !isShirtOrderClosed(competition?.shirtOrderDeadline);
 
       // Upsert user
       let user = await prisma.user.findUnique({ where: { email: userEmail } });
@@ -214,6 +223,7 @@ export async function POST(request: NextRequest) {
               birthYear: extractBirthYear(p.birthDate),
               gender: mapGender(p.gender),
               disciplineCode: mapDiscipline(p.discipline),
+              shirtSize: canEditShirts && p.shirtSize ? p.shirtSize : null,
               consentGiven: true,
               email: p.email || null,
               phone: p.phone || null,
@@ -224,11 +234,6 @@ export async function POST(request: NextRequest) {
           participants: true,
           owner: { select: { email: true, name: true } }
         }
-      });
-
-      const competition = await prisma.competition.findUnique({
-        where: { id: competitionId },
-        select: { tenantId: true }
       });
 
       if (competition) {

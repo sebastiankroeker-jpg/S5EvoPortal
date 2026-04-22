@@ -80,6 +80,21 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum ShirtSize {
+  K116
+  K128
+  K140
+  K152
+  K164
+  XS
+  S
+  M
+  L
+  XL
+  XXL
+  XXXL
+}
+
 enum ChangelogEntryType {
   BUG
   REQUEST
@@ -164,6 +179,7 @@ model Competition {
   date                  DateTime?
   dateEnd               DateTime?
   registrationDeadline  DateTime?
+  shirtOrderDeadline    DateTime?
   status                CompetitionStatus @default(DRAFT)
   maxTeams              Int?
   teamSize              Int               @default(5)
@@ -226,6 +242,7 @@ model Participant {
   birthYear       Int
   gender          Gender
   disciplineCode  DisciplineAssignment @default(TBD)
+  shirtSize       ShirtSize?
   consentGiven    Boolean              @default(false)
   email           String?
   phone           String?

@@ -40,6 +40,7 @@ type CompetitionConfig = {
   date: string;
   dateEnd: string;
   registrationDeadline: string;
+  shirtOrderDeadline: string;
   status: string;
   maxTeams: number;
   teamSize: number;
@@ -110,6 +111,7 @@ export default function AdminPage() {
     date: "2026-07-10",
     dateEnd: "2026-07-11",
     registrationDeadline: "2026-06-28",
+    shirtOrderDeadline: "",
     status: "DRAFT",
     maxTeams: 120,
     teamSize: 5,
@@ -137,6 +139,7 @@ export default function AdminPage() {
           date: comp.date ? comp.date.split('T')[0] : "",
           dateEnd: comp.dateEnd ? comp.dateEnd.split('T')[0] : "",
           registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "",
+          shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
           status: comp.status || "DRAFT",
           maxTeams: comp.maxTeams || 120,
           teamSize: comp.teamSize || 5,
@@ -528,12 +531,19 @@ export default function AdminPage() {
                   <CardDescription>Anmeldezeitraum und Teamkonfiguration</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <FormField label="Anmeldeschluss">
                       <Input
                         type="date"
                         value={competition.registrationDeadline}
                         onChange={(e) => setCompetition({ ...competition, registrationDeadline: e.target.value })}
+                      />
+                    </FormField>
+                    <FormField label="T-Shirt-Bestellschluss" hint="Bis dahin dürfen Teams Größen pflegen">
+                      <Input
+                        type="date"
+                        value={competition.shirtOrderDeadline}
+                        onChange={(e) => setCompetition({ ...competition, shirtOrderDeadline: e.target.value })}
                       />
                     </FormField>
                     <FormField label="Max. Teams" hint="0 = unbegrenzt">
