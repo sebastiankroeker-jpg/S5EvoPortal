@@ -99,6 +99,7 @@ export async function PUT(request: NextRequest) {
             date: body.date ? new Date(body.date) : null,
             dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : null,
+            registrationNotificationEmail: body.registrationNotificationEmail || null,
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
             status: body.status || "DRAFT",
             maxTeams: parseInt(body.maxTeams) || null,
@@ -123,6 +124,9 @@ export async function PUT(request: NextRequest) {
             date: body.date ? new Date(body.date) : competition.date,
             dateEnd: body.dateEnd !== undefined ? (body.dateEnd ? new Date(body.dateEnd) : null) : competition.dateEnd,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : competition.registrationDeadline,
+            registrationNotificationEmail: body.registrationNotificationEmail !== undefined
+              ? body.registrationNotificationEmail || null
+              : competition.registrationNotificationEmail,
             shirtOrderDeadline: body.shirtOrderDeadline !== undefined
               ? parseDateInputEndOfDay(body.shirtOrderDeadline)
               : competition.shirtOrderDeadline,

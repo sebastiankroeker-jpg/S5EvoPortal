@@ -179,6 +179,7 @@ model Competition {
   date                  DateTime?
   dateEnd               DateTime?
   registrationDeadline  DateTime?
+  registrationNotificationEmail String?
   shirtOrderDeadline    DateTime?
   status                CompetitionStatus @default(DRAFT)
   maxTeams              Int?

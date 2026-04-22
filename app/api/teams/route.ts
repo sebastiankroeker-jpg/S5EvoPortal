@@ -4,6 +4,7 @@ import { authOptions } from '../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, generateTeamName } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, validateDisciplineAssignment } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
+import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { prisma } from '@/lib/prisma';
 
 // Map frontend gender ("M"/"W") to Prisma enum
@@ -185,7 +186,19 @@ export async function POST(request: NextRequest) {
       const competitionId = await ensureDefaultCompetition();
       const competition = await prisma.competition.findUnique({
         where: { id: competitionId },
-        select: { tenantId: true, shirtOrderDeadline: true },
+        select: {
+          tenantId: true,
+          name: true,
+          year: true,
+          shirtOrderDeadline: true,
+          registrationNotificationEmail: true,
+          tenant: {
+            select: {
+              name: true,
+              contactEmail: true,
+            },
+          },
+        },
       });
 
       const canEditShirts = !isShirtOrderClosed(competition?.shirtOrderDeadline);
@@ -242,6 +255,24 @@ export async function POST(request: NextRequest) {
           ensureTenantRole(user.id, competition.tenantId, "TEAMCHEF"),
           ensureTenantRole(user.id, competition.tenantId, "ADMIN"),
         ]);
+
+        await sendTeamRegistrationEmails({
+          competition,
+          team: {
+            name: finalTeamName,
+            classificationCode: autoCategory,
+            contactName: userName || "",
+            contactEmail: userEmail,
+            participants: team.participants.map((participant) => ({
+              firstName: participant.firstName,
+              lastName: participant.lastName,
+              birthYear: participant.birthYear,
+              gender: participant.gender,
+              disciplineCode: participant.disciplineCode,
+              shirtSize: participant.shirtSize,
+            })),
+          },
+        });
       }
 
       return NextResponse.json({ 
