@@ -141,3 +141,151 @@ Der Bearbeitungslink sollte **nicht** über Authentik gemanaged werden, sondern 
 3. Paket C als bewusstes UX-/Auth-Paket separat
 
 So entsteht früh Nutzen, ohne die Registrierung in einem großen Umbau unnötig riskant zu machen.
+
+## Technischer Umsetzungsschnitt
+
+### 1. Datenmodell
+
+#### Competition
+Ergänzungen:
+- `shirtOrderDeadline DateTime?`
+- optional später: `registrationEditDeadline DateTime?`
+
+#### Participant
+Ergänzungen:
+- `shirtSize ShirtSize?`
+
+Neues Enum:
+- `ShirtSize`
+  - Vorschlag: `K116`, `K128`, `K140`, `K152`, `K164`, `XS`, `S`, `M`, `L`, `XL`, `XXL`, `XXXL`
+
+#### Optional für Paket C
+Neue Tabelle, z. B. `RegistrationAccessToken`:
+- `id`
+- `teamId`
+- `email`
+- `tokenHash`
+- `expiresAt`
+- `revokedAt`
+- `lastUsedAt`
+- `createdAt`
+
+#### Optional für Paket B
+Wenn Mailversand nachvollziehbar sein soll:
+- `OutboundMailLog`
+  - Event-Typ
+  - Empfänger
+  - Status
+  - Fehlertext
+  - Timestamp
+
+### 2. Betroffene Screens
+
+#### Öffentliche Anmeldung
+- bestehender Registration-Flow wird in zwei Varianten getrennt:
+  1. **public registration** ohne Login
+  2. **authenticated self-service** mit Authentik
+
+#### Team-/Teilnehmerformular
+- neues Feld `shirtSize` pro Teilnehmer
+- UI-Hinweis auf T-Shirt-Frist
+- nach Frist: read-only oder ausgeblendet
+
+#### Admin Wettkampf-Parameter
+- neues Feld `shirtOrderDeadline`
+- optional mit Beschreibung:
+  - „Bis zu diesem Zeitpunkt können Team-Anmelder T-Shirt-Größen pflegen“
+
+#### Admin Team-/Teilnehmerübersicht
+- T-Shirt-Größen sichtbar
+- Filter „Größe fehlt“ wäre ein sinnvoller Zusatz für später
+
+### 3. Betroffene APIs
+
+#### Paket A
+- `POST/PUT/PATCH` für Teilnehmer erweitern um `shirtSize`
+- `GET competition settings` um `shirtOrderDeadline` erweitern
+- Validierungsregel:
+  - Änderungen an `shirtSize` nur bis `shirtOrderDeadline`, außer Admin
+
+#### Paket B
+Neue Mail-Events:
+- `team_registered`
+- optional später: `team_updated`
+- optional später: `shirt_deadline_reminder`
+
+#### Paket C
+Neue öffentliche Endpunkte, z. B.:
+- `POST /api/public/register-team`
+- `POST /api/public/registration-access/request`
+- `GET /api/public/registration-access/:token`
+- `PATCH /api/public/registration-access/:token`
+
+### 4. Rechte- und Fristenlogik
+
+#### Vor `shirtOrderDeadline`
+- Team-Anmelder darf `shirtSize` ändern
+- Admin darf immer ändern
+
+#### Nach `shirtOrderDeadline`
+- Team-Anmelder: kein Edit mehr für `shirtSize`
+- andere Teamdaten je nach normalem Registration-Workflow
+- Admin: weiterhin editierbar
+
+#### Während Wettkampfstatus RUNNING/CLOSED
+- T-Shirt-Infos außerhalb Admin nicht mehr prominent darstellen
+
+### 5. Versandarchitektur für Mails
+
+Empfehlung:
+- transaktionaler Versand über SMTP/Resend/Postmark/Brevo Transactional
+- kein Newsletter-System für dieses Feature
+
+Technischer Schnitt:
+- Mailservice in eigenem Modul, z. B. `lib/mail/`
+- Template-Funktionen getrennt von Versand-Transport
+- Events aus Registration-API aufrufen
+- Fehler protokollieren, aber Registrierung selbst nicht unnötig blockieren
+
+### 6. Rollout-Reihenfolge
+
+#### Sprint 1
+- Prisma: `shirtSize`, `shirtOrderDeadline`
+- Admin-Parameter-UI
+- Teilnehmer-Formular + Anzeige + Locking
+- Build + Smoke-Test
+
+#### Sprint 2
+- transaktionale Bestätigungsmails
+- Mail-Konfiguration pro Wettkampf/Tenant
+- Logging / Retry light
+
+#### Sprint 3
+- öffentliche Anmeldung ohne Login
+- Token-/Magic-Link-Mechanismus
+- optionales Claiming Richtung Authentik
+
+### 7. Technische Risiken
+
+#### Gering
+- `shirtSize` Feld
+- `shirtOrderDeadline`
+- UI-Locking
+
+#### Mittel
+- Mailversand + Fehlerbehandlung
+- Fristenlogik an mehreren Stellen konsistent halten
+
+#### Höher
+- öffentlicher Registration-Flow ohne Login
+- Token-Sicherheit
+- Missbrauchsschutz / Spam / Idempotenz
+
+### 8. Empfehlung für die Umsetzung
+
+Wenn Zeit und Risiko knapp sind:
+- **zuerst alles rund um T-Shirt + Deadline bauen**
+- **danach Mails**
+- **öffentliche Anmeldung als eigenes Paket**
+
+Das minimiert Umbauten am Auth-Flow und liefert trotzdem schnell sichtbaren Nutzen für den Verein.
