@@ -278,6 +278,8 @@ export default function HomeScreen() {
         </div>
       </div>
 
+      <FlyerInfoCard />
+
       {/* Stats Overview */}
       {teamStats && (
         <Card>
@@ -302,8 +304,6 @@ export default function HomeScreen() {
           </CardContent>
         </Card>
       )}
-
-      <FlyerInfoCard />
 
       {/* Quick Actions */}
       <div className="space-y-3">
