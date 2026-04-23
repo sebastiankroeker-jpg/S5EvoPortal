@@ -52,6 +52,88 @@ const FLYER_INFO_2026 = {
   ],
 };
 
+function FlyerInfoCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-center text-base">📣 Digitale Ausschreibung 2026</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5 text-sm">
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+          <p className="text-base font-semibold">33. Bayersoier Fünfkampf für Mannschaften</p>
+          <div className="space-y-1 text-muted-foreground">
+            <p><span className="font-medium text-foreground">📅 Termin:</span> 24. + 25.07.2026</p>
+            <p><span className="font-medium text-foreground">📍 Ort:</span> Bad Bayersoien</p>
+            <p><span className="font-medium text-foreground">📝 Anmeldung bis:</span> {FLYER_INFO_2026.registrationDeadline}</p>
+            <p><span className="font-medium text-foreground">🌐 Anmeldung:</span> {FLYER_INFO_2026.registrationUrl}</p>
+          </div>
+          <a
+            href={`https://${FLYER_INFO_2026.registrationUrl}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:opacity-90 transition-opacity"
+          >
+            Zur Anmeldung ↗
+          </a>
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-medium">Anmeldung</p>
+          <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+            {FLYER_INFO_2026.registrationNotes.map((note) => (
+              <p key={note}>• {note}</p>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-medium">Startgebühr pro Mannschaft</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {FLYER_INFO_2026.fees.map((fee) => (
+              <div key={fee.label} className="rounded-md border border-border/50 px-3 py-2 text-center">
+                <div className="text-xs text-muted-foreground">{fee.label}</div>
+                <div className="font-semibold text-primary">{fee.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-medium">Mannschaft & Regeln</p>
+          <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+            {FLYER_INFO_2026.teamRules.map((rule) => (
+              <p key={rule}>• {rule}</p>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="font-medium">Ablauf</p>
+          {FLYER_INFO_2026.schedule.map((day) => (
+            <div key={day.day} className="rounded-md border border-border/50 p-3">
+              <p className="font-medium mb-2">{day.day}</p>
+              <ul className="space-y-1 text-muted-foreground">
+                {day.items.map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-medium">Wichtige Hinweise</p>
+          <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+            {FLYER_INFO_2026.eventNotes.map((note) => (
+              <p key={note}>• {note}</p>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function HomeScreen() {
   const { data: session, status } = useSession();
   const { can } = usePermissions();
@@ -142,6 +224,10 @@ export default function HomeScreen() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="max-w-3xl mx-auto">
+          <FlyerInfoCard />
+        </div>
       </motion.div>
     );
   }
@@ -217,71 +303,7 @@ export default function HomeScreen() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-center text-sm">── Ausschreibung 2026 ──</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <div className="space-y-1 text-muted-foreground">
-            <p><span className="font-medium text-foreground">📅 Termin:</span> 24. + 25.07.2026</p>
-            <p><span className="font-medium text-foreground">📝 Anmeldung bis:</span> {FLYER_INFO_2026.registrationDeadline}</p>
-            <p><span className="font-medium text-foreground">🌐 Anmeldung:</span> {FLYER_INFO_2026.registrationUrl}</p>
-          </div>
-
-          <div className="space-y-2">
-            <p className="font-medium">Anmeldung</p>
-            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
-              {FLYER_INFO_2026.registrationNotes.map((note) => (
-                <p key={note}>• {note}</p>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="font-medium">Startgebühr pro Mannschaft</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {FLYER_INFO_2026.fees.map((fee) => (
-                <div key={fee.label} className="rounded-md border border-border/50 px-3 py-2 text-center">
-                  <div className="text-xs text-muted-foreground">{fee.label}</div>
-                  <div className="font-semibold text-primary">{fee.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="font-medium">Mannschaft & Regeln</p>
-            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
-              {FLYER_INFO_2026.teamRules.map((rule) => (
-                <p key={rule}>• {rule}</p>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="font-medium">Ablauf</p>
-            {FLYER_INFO_2026.schedule.map((day) => (
-              <div key={day.day} className="rounded-md border border-border/50 p-3">
-                <p className="font-medium mb-2">{day.day}</p>
-                <ul className="space-y-1 text-muted-foreground">
-                  {day.items.map((item) => (
-                    <li key={item}>• {item}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-2">
-            <p className="font-medium">Wichtige Hinweise</p>
-            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
-              {FLYER_INFO_2026.eventNotes.map((note) => (
-                <p key={note}>• {note}</p>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <FlyerInfoCard />
 
       {/* Quick Actions */}
       <div className="space-y-3">
