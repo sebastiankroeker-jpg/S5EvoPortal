@@ -31,15 +31,35 @@ const FLYER_INFO_2026 = {
     "Anmeldung nur über die Website des ESV Bad Bayersoien",
     "Die Anmeldung gilt erst mit Überweisung der Startgebühr als verbindlich",
   ],
+  venues: [
+    "Bad Bayersoien",
+    "Soier See",
+    "Bierzelt",
+  ],
   fees: [
     { label: "Schüler", value: "55 €" },
     { label: "Jugend", value: "65 €" },
     { label: "Damen / Herren", value: "80 €" },
   ],
   schedule: [
-    { day: "Freitag, 24. Juli", items: ["16:30 Laufen am Soier See", "18:30 Bankdrücken im Bierzelt"] },
-    { day: "Samstag, 25. Juli", items: ["08:00 Stock-Zielschießen", "12:30 Rennrad-Einzelzeitfahren", "15:30 Mountainbike-Rennen", "20:00 Siegerehrung im Bierzelt"] },
+    { day: "Freitag, 24. Juli", items: ["16:30 Uhr, Laufen am Soier See", "18:30 Uhr, Bankdrücken im Bierzelt"] },
+    { day: "Samstag, 25. Juli", items: ["08:00 Uhr, Stock-Zielschießen", "12:30 Uhr, Rennrad-Einzelzeitfahren", "15:30 Uhr, Mountainbike-Rennen", "20:00 Uhr, Siegerehrung im Bierzelt"] },
   ],
+  classes: {
+    youth: [
+      "Schüler A, Jahrgänge 2016–2018",
+      "Schüler B, Jahrgänge 2013–2015",
+      "Jugend, Jahrgänge 2009–2012",
+      "Gemischte Mannschaften bei Schüler und Jugend möglich",
+    ],
+    adults: [
+      "Damen A, Gesamtalter bis 150 Jahre",
+      "Damen B, Gesamtalter über 150 Jahre",
+      "Jungsters, Gesamtalter bis 125 Jahre",
+      "Herren, Gesamtalter 126–225 Jahre",
+      "Masters, Gesamtalter ab 226 Jahre",
+    ],
+  },
   teamRules: [
     "Eine Mannschaft besteht aus genau 5 Mitgliedern",
     "Keine Doppelfunktion innerhalb einer Mannschaft oder in einer anderen Mannschaft",
@@ -87,6 +107,15 @@ function FlyerInfoCard() {
         </div>
 
         <div className="space-y-2">
+          <p className="font-medium">Wettkampforte</p>
+          <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+            {FLYER_INFO_2026.venues.map((venue) => (
+              <p key={venue}>• {venue}</p>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
           <p className="font-medium">Startgebühr pro Mannschaft</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {FLYER_INFO_2026.fees.map((fee) => (
@@ -104,6 +133,24 @@ function FlyerInfoCard() {
             {FLYER_INFO_2026.teamRules.map((rule) => (
               <p key={rule}>• {rule}</p>
             ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-medium">Klassen 2026</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">Schüler & Jugend</p>
+              {FLYER_INFO_2026.classes.youth.map((entry) => (
+                <p key={entry}>• {entry}</p>
+              ))}
+            </div>
+            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">Damen & Herren</p>
+              {FLYER_INFO_2026.classes.adults.map((entry) => (
+                <p key={entry}>• {entry}</p>
+              ))}
+            </div>
           </div>
         </div>
 
