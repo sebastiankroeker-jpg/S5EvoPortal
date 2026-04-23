@@ -27,6 +27,10 @@ interface TeamStats {
 const FLYER_INFO_2026 = {
   registrationDeadline: "22.07.2026",
   registrationUrl: "www.esv-bad-bayersoien.de",
+  registrationNotes: [
+    "Anmeldung nur über die Website des ESV Bad Bayersoien",
+    "Die Anmeldung gilt erst mit Überweisung der Startgebühr als verbindlich",
+  ],
   fees: [
     { label: "Schüler", value: "55 €" },
     { label: "Jugend", value: "65 €" },
@@ -35,6 +39,16 @@ const FLYER_INFO_2026 = {
   schedule: [
     { day: "Freitag, 24. Juli", items: ["16:30 Laufen am Soier See", "18:30 Bankdrücken im Bierzelt"] },
     { day: "Samstag, 25. Juli", items: ["08:00 Stock-Zielschießen", "12:30 Rennrad-Einzelzeitfahren", "15:30 Mountainbike-Rennen", "20:00 Siegerehrung im Bierzelt"] },
+  ],
+  teamRules: [
+    "Eine Mannschaft besteht aus genau 5 Mitgliedern",
+    "Keine Doppelfunktion innerhalb einer Mannschaft oder in einer anderen Mannschaft",
+    "Für die Altersberechnung zählt der Jahrgang, nicht das aktuelle Alter",
+  ],
+  eventNotes: [
+    "Rennrad und Mountainbike nur mit Helm",
+    "Teilnahme auf eigene Gefahr",
+    "Während der Veranstaltung werden Fotos für Berichterstattung und Werbung gemacht",
   ],
 };
 
@@ -215,6 +229,15 @@ export default function HomeScreen() {
           </div>
 
           <div className="space-y-2">
+            <p className="font-medium">Anmeldung</p>
+            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+              {FLYER_INFO_2026.registrationNotes.map((note) => (
+                <p key={note}>• {note}</p>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <p className="font-medium">Startgebühr pro Mannschaft</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {FLYER_INFO_2026.fees.map((fee) => (
@@ -226,7 +249,17 @@ export default function HomeScreen() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <p className="font-medium">Mannschaft & Regeln</p>
+            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+              {FLYER_INFO_2026.teamRules.map((rule) => (
+                <p key={rule}>• {rule}</p>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-3">
+            <p className="font-medium">Ablauf</p>
             {FLYER_INFO_2026.schedule.map((day) => (
               <div key={day.day} className="rounded-md border border-border/50 p-3">
                 <p className="font-medium mb-2">{day.day}</p>
@@ -237,6 +270,15 @@ export default function HomeScreen() {
                 </ul>
               </div>
             ))}
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-medium">Wichtige Hinweise</p>
+            <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+              {FLYER_INFO_2026.eventNotes.map((note) => (
+                <p key={note}>• {note}</p>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
