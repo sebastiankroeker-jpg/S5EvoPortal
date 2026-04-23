@@ -102,7 +102,11 @@ async function ensureDefaultCompetition(): Promise<string> {
       data: {
         name: "Mannschafts-5-Kampf 2026",
         year: 2026,
+        date: new Date("2026-07-24T00:00:00.000Z"),
+        dateEnd: new Date("2026-07-25T00:00:00.000Z"),
+        registrationDeadline: new Date("2026-07-22T23:59:59.999Z"),
         status: "OPEN",
+        location: "Bad Bayersoien",
         tenantId: tenant.id,
       }
     });

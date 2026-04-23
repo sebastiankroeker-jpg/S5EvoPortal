@@ -109,9 +109,9 @@ export default function AdminPage() {
   const [competition, setCompetition] = useState<CompetitionConfig>({
     name: "Mannschafts-5-Kampf 2026",
     year: 2026,
-    date: "2026-07-10",
-    dateEnd: "2026-07-11",
-    registrationDeadline: "2026-06-28",
+    date: "2026-07-24",
+    dateEnd: "2026-07-25",
+    registrationDeadline: "2026-07-22",
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
     status: "DRAFT",
@@ -122,7 +122,7 @@ export default function AdminPage() {
     benchPressMode: "GROSS",
     stockShotsCount: 11,
     stockStrikeoutCount: 1,
-    location: "",
+    location: "Bad Bayersoien",
     publicResults: true,
   });
 

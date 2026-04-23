@@ -24,6 +24,20 @@ interface TeamStats {
   totalClasses: number;
 }
 
+const FLYER_INFO_2026 = {
+  registrationDeadline: "22.07.2026",
+  registrationUrl: "www.esv-bad-bayersoien.de",
+  fees: [
+    { label: "Schüler", value: "55 €" },
+    { label: "Jugend", value: "65 €" },
+    { label: "Damen / Herren", value: "80 €" },
+  ],
+  schedule: [
+    { day: "Freitag, 24. Juli", items: ["16:30 Laufen am Soier See", "18:30 Bankdrücken im Bierzelt"] },
+    { day: "Samstag, 25. Juli", items: ["08:00 Stock-Zielschießen", "12:30 Rennrad-Einzelzeitfahren", "15:30 Mountainbike-Rennen", "20:00 Siegerehrung im Bierzelt"] },
+  ],
+};
+
 export default function HomeScreen() {
   const { data: session, status } = useSession();
   const { can } = usePermissions();
@@ -188,6 +202,44 @@ export default function HomeScreen() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-center text-sm">── Ausschreibung 2026 ──</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="space-y-1 text-muted-foreground">
+            <p><span className="font-medium text-foreground">📅 Termin:</span> 24. + 25.07.2026</p>
+            <p><span className="font-medium text-foreground">📝 Anmeldung bis:</span> {FLYER_INFO_2026.registrationDeadline}</p>
+            <p><span className="font-medium text-foreground">🌐 Anmeldung:</span> {FLYER_INFO_2026.registrationUrl}</p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-medium">Startgebühr pro Mannschaft</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {FLYER_INFO_2026.fees.map((fee) => (
+                <div key={fee.label} className="rounded-md border border-border/50 px-3 py-2 text-center">
+                  <div className="text-xs text-muted-foreground">{fee.label}</div>
+                  <div className="font-semibold text-primary">{fee.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {FLYER_INFO_2026.schedule.map((day) => (
+              <div key={day.day} className="rounded-md border border-border/50 p-3">
+                <p className="font-medium mb-2">{day.day}</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  {day.items.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <div className="space-y-3">
