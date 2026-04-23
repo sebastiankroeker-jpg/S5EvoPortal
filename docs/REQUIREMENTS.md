@@ -4,7 +4,7 @@
 > Bevor du Features implementierst, prüfe hier den aktuellen Stand.
 > Änderungen an Anforderungen → hier dokumentieren, nicht anderswo.
 
-**Stand:** 2026-04-01 (v3)
+**Stand:** 2026-04-23 (v4)
 **Maintainer:** Sebastian (Dude) + S5Evo
 
 ---
@@ -17,6 +17,7 @@
 - **Name:** Soier / Super 5Kampf — evolve
 - **Verein:** ESV (Branding: #dc2626 rot, Luftbild-Ästhetik)
 - **Scope:** ~107 Teams à 5 Teilnehmer, Multi-Tenant-fähig
+- **Verbindliche Ausschreibung 2026:** Wettkampf am **24./25.07.2026**, Anmeldeschluss **22.07.2026**, Anmeldung über `www.esv-bad-bayersoien.de`
 
 ---
 
@@ -242,9 +243,9 @@ User → TenantRoles (pro Wettkampf)
 - [ ] Öffentliche Ergebnistafel (kein Login nötig)
 - [ ] Ergebnis-Erfassung (mobiltauglich)
 - [ ] Öffentliche Mannschaftsanmeldung ohne vorherigen Authentik-Login
-- [ ] Bestätigungsmail an Anmelder + Verein nach erfolgreicher Anmeldung
-- [ ] T-Shirt-Größe pro Teilnehmer
-- [ ] T-Shirt-Bestellschluss (`shirtOrderDeadline`) in Wettkampf-Parametern
+- [x] Bestätigungsmail an Anmelder + Verein nach erfolgreicher Anmeldung
+- [x] T-Shirt-Größe pro Teilnehmer
+- [x] T-Shirt-Bestellschluss (`shirtOrderDeadline`) in Wettkampf-Parametern
 
 ### Phase 1.5 — Public API (Read-Only)
 - [ ] `GET /api/public/teams` — Alle Teams + Klassen (kein Auth)
