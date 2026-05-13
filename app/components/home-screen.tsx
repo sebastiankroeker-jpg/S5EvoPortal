@@ -28,7 +28,7 @@ const FLYER_INFO_2026 = {
   registrationDeadline: "22.07.2026",
   registrationUrl: "www.esv-bad-bayersoien.de",
   registrationNotes: [
-    "Anmeldung nur über die Website des ESV Bad Bayersoien",
+    "Anmeldung hier im Portal",
     "Die Anmeldung gilt erst mit Überweisung der Startgebühr als verbindlich",
   ],
   venues: [
