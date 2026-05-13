@@ -93,9 +93,9 @@ export default function ClaimPage() {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>🔐 Team-Zuordnung & Bearbeitung</CardTitle>
+          <CardTitle>🔐 Team übernehmen & im Portal bearbeiten</CardTitle>
           <CardDescription>
-            Bearbeitungslink für eine bestehende Mannschaftsanmeldung
+            Dieser Link ordnet eine bestehende Mannschaftsanmeldung deinem Authentik-Account zu.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -112,11 +112,14 @@ export default function ClaimPage() {
                 <p><strong>Wettkampf:</strong> {data.claim.competitionName} ({data.claim.competitionYear})</p>
                 <p><strong>Vorgesehene E-Mail:</strong> {data.claim.suggestedEmail || data.claim.maskedSuggestedEmail}</p>
                 {data.claim.suggestedName ? <p><strong>Vorgeschlagener Name:</strong> {data.claim.suggestedName}</p> : null}
+                <p><strong>Link gültig bis:</strong> {new Date(data.claim.expiresAt).toLocaleString("de-DE")}</p>
               </div>
 
               {!data.session.authenticated && (
                 <div className="space-y-3">
-                  <p>Bitte melde dich zuerst über Authentik an. Danach prüfen wir, ob dein Account zu dieser Anmeldung passt.</p>
+                  <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
+                    Bitte melde dich jetzt mit der passenden E-Mail über Authentik an. Nur dann kann die Mannschaft deinem Account zugeordnet werden.
+                  </div>
                   <Link href={loginUrl}>
                     <Button className="w-full">Mit Authentik anmelden</Button>
                   </Link>
@@ -124,8 +127,9 @@ export default function ClaimPage() {
               )}
 
               {data.session.authenticated && !data.state.emailMatches && !data.state.alreadyClaimedByOtherUser && (
-                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3">
-                  Angemeldet bist du als <strong>{data.session.email}</strong>, der Link ist aber für <strong>{data.claim.suggestedEmail}</strong> gedacht.
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-2">
+                  <p>Angemeldet bist du als <strong>{data.session.email}</strong>, der Link ist aber für <strong>{data.claim.suggestedEmail}</strong> gedacht.</p>
+                  <p className="text-sm">Bitte melde dich mit der richtigen E-Mail neu an, sonst lässt sich das Team nicht übernehmen.</p>
                 </div>
               )}
 
@@ -140,8 +144,11 @@ export default function ClaimPage() {
                   <p>
                     Angemeldet als <strong>{data.session.email}</strong>. Wenn du bestätigst, wird diese Mannschaft mit deinem Account verknüpft.
                   </p>
+                  <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
+                    Danach läuft die weitere Bearbeitung ganz normal im Portal, nicht mehr über diesen Link.
+                  </div>
                   <Button onClick={handleClaim} disabled={claiming} className="w-full">
-                    {claiming ? "Verknüpfe..." : data.state.alreadyClaimedBySessionUser ? "Mannschaft öffnen" : "Mannschaft mit meinem Account verknüpfen"}
+                    {claiming ? "Verknüpfe..." : data.state.alreadyClaimedBySessionUser ? "Mannschaft im Portal öffnen" : "Mannschaft mit meinem Account verknüpfen"}
                   </Button>
                 </div>
               )}
@@ -150,6 +157,9 @@ export default function ClaimPage() {
                 <div className="space-y-3">
                   <div className="rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3">
                     Die Mannschaft ist mit deinem Account verknüpft. Du kannst jetzt wie gewohnt im Portal weiterarbeiten.
+                  </div>
+                  <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
+                    Nächster Schritt: im Portal anmelden, Team öffnen und dort Änderungen pflegen.
                   </div>
                   <Link href="/">
                     <Button className="w-full">Ins Portal</Button>

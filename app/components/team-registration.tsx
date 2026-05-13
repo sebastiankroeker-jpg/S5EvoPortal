@@ -394,8 +394,18 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
               <div className="text-6xl">🏅</div>
               <h3 className="text-xl font-semibold text-green-600">Anmeldung erfolgreich!</h3>
               <p className="text-muted-foreground">Eure Mannschaft wurde erfolgreich übermittelt.</p>
-              {isAnonymousRegistration && (
-                <p className="text-sm text-muted-foreground">Du bekommst per Mail einen Claim-Link, mit dem du die Anmeldung später über deinen Authentik-Login übernehmen kannst.</p>
+              {isAnonymousRegistration ? (
+                <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
+                  <p className="text-sm font-medium">So geht's weiter</p>
+                  <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
+                    <li>Wir schicken den Claim-Link an <strong>{effectiveContactEmail}</strong>.</li>
+                    <li>Öffne den Link aus der Mail und melde dich dort mit derselben E-Mail über Authentik an.</li>
+                    <li>Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.</li>
+                  </ol>
+                  <p className="text-xs text-muted-foreground">Wenn nichts ankommt, prüfe bitte auch Spam und Werbung.</p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Du kannst jetzt wie gewohnt im Portal weiterarbeiten.</p>
               )}
             </motion.div>
           ) : (
@@ -710,6 +720,9 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   <div className="text-center space-y-2">
                     <h3 className="text-lg font-medium">Bestätigung</h3>
                     <p className="text-muted-foreground">Prüfe deine Angaben und sende die Anmeldung ab</p>
+                    {isAnonymousRegistration && (
+                      <p className="text-xs text-muted-foreground">Der Claim-Link für die spätere Übernahme geht an {effectiveContactEmail || "deine Kontakt-E-Mail"}.</p>
+                    )}
                   </div>
 
                   <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">

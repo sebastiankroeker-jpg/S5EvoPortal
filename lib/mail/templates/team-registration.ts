@@ -59,7 +59,7 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
         <h3>Teilnehmer</h3>
         <ul>${participantListHtml(input.participants)}</ul>
-        ${input.claimUrl ? `<p><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Daten mit Login bearbeiten</a></p><p style="font-size:14px;color:#555;">Der Link öffnet den Bearbeitungsflow. Änderungen selbst erfordern eine Anmeldung über Authentik.</p>` : ""}
+        ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>So geht's weiter</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Claim-Link.</li><li>Melde dich dort mit <strong>${input.contactEmail}</strong> über Authentik an.</li><li>Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Team mit Authentik-Konto übernehmen</a></p><p style="margin:0;font-size:14px;color:#555;">Falls die Anmeldung oder der Login nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung.</p></div>` : ""}
         <p>Viele Grüße<br />${input.tenantName}</p>
       </div>
     `.trim(),
@@ -72,7 +72,16 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
       "",
       "Teilnehmer:",
       participantListText(input.participants),
-      ...(input.claimUrl ? ["", `Daten mit Login bearbeiten: ${input.claimUrl}`, "Der Link öffnet den Bearbeitungsflow. Änderungen selbst erfordern eine Anmeldung über Authentik."] : []),
+      ...(input.claimUrl
+        ? [
+            "",
+            "So geht's weiter:",
+            `1. Claim-Link öffnen: ${input.claimUrl}`,
+            `2. Mit ${input.contactEmail} über Authentik anmelden`,
+            "3. Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.",
+            "Wenn nichts ankommt oder etwas hakt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung.",
+          ]
+        : []),
       "",
       `Viele Grüße\n${input.tenantName}`,
     ].join("\n"),
