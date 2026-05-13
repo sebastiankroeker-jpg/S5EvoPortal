@@ -156,6 +156,12 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 - Startseite: `https://s5-evo-portal.vercel.app`
 - Öffentliche Anmeldung: `https://s5-evo-portal.vercel.app/anmeldung`
 
+### Letzte relevante Commits
+- `a25fe99` `fix: clarify unauthenticated registration entry points`
+- `1078de7` `feat: allow public team registration without login`
+- `75e7236` `feat: clarify registration claim handoff`
+- `0edc1f3` `docs: add s5evo session handoff`
+
 ---
 
 ## 8. ScopeBoard-Snapshot
@@ -242,7 +248,20 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 
 ---
 
-## 12. Empfohlener Start für die nächste Session
+## 12. Next 3 actions
+
+### 1. Nächster sicherer Schritt
+Smoke-Datensatz aus Production gezielt bereinigen und danach den Claim-Handoff einmal Ende-zu-Ende mit echter Mail und echtem Login verifizieren.
+
+### 2. Größtes Risiko
+Neue Sessions oder Subagenten landen versehentlich im falschen Projekt-/Deploy-Kontext statt im aktuell relevanten App-Verzeichnis `authentik-nextjs-demo`.
+
+### 3. Nicht verwechseln
+`docs/REQUIREMENTS.md` ist fachliche SSOT, aber der operative Live-Stand vom 2026-05-13 steckt zusätzlich in `memory/2026-05-13.md` und in diesem Handoff.
+
+---
+
+## 13. Empfohlener Start für die nächste Session
 
 ### In 5 Minuten orientieren
 - `docs/REQUIREMENTS.md`
@@ -258,7 +277,7 @@ Nicht beides gleichzeitig.
 
 ---
 
-## 13. Verbesserungsvorschläge für unsere Methodik
+## 14. Verbesserungsvorschläge für unsere Methodik
 
 ### 1. Standardisiertes Handout pro Projekt einführen
 Empfehlung:
@@ -323,7 +342,7 @@ Nutzen:
 
 ---
 
-## 14. Meine klare Empfehlung
+## 15. Meine klare Empfehlung
 
 Ja, ich würde das **als Standard auf jedes Projekt anwenden**.
 
