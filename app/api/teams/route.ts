@@ -82,7 +82,18 @@ async function ensureTenantRole(userId: string, tenantId: string, role: 'ADMIN' 
 }
 
 async function ensureDefaultCompetition(): Promise<string> {
-  let tenant = await prisma.tenant.findFirst();
+  const currentCompetition = await prisma.competition.findFirst({
+    where: { status: "OPEN" },
+    orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
+  });
+
+  if (currentCompetition) {
+    return currentCompetition.id;
+  }
+
+  let tenant = await prisma.tenant.findFirst({
+    orderBy: { createdAt: 'desc' },
+  });
   if (!tenant) {
     tenant = await prisma.tenant.create({
       data: {
@@ -95,7 +106,7 @@ async function ensureDefaultCompetition(): Promise<string> {
 
   let competition = await prisma.competition.findFirst({
     where: { tenantId: tenant.id },
-    orderBy: { year: 'desc' }
+    orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
   });
   if (!competition) {
     competition = await prisma.competition.create({
