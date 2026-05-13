@@ -245,8 +245,8 @@ export default function HomeScreen() {
       >
         <div className="space-y-4">
           <span className="text-6xl">🏆</span>
-          <h1 className="text-2xl font-bold">Mannschafts-5-Kampf</h1>
-          <p className="text-muted-foreground">📍 Bad Bayersoien · Ammertal</p>
+          <h1 className="text-2xl font-bold">33. Bad Bayersoier Fünfkampf für Mannschaften</h1>
+          <p className="text-muted-foreground">24. + 25.07.2026</p>
         </div>
 
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
