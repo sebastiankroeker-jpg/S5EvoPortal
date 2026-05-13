@@ -6,6 +6,7 @@ import { classifyTeam as classifyTeamShared, validateDisciplineAssignment } from
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { prisma } from '@/lib/prisma';
+import { buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -265,6 +266,21 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      const claimToken = createRegistrationClaimToken();
+      await prisma.registrationClaimToken.create({
+        data: {
+          teamId: team.id,
+          tokenHash: claimToken.tokenHash,
+          suggestedEmail: userEmail,
+          suggestedName: userName || null,
+          expiresAt: claimToken.expiresAt,
+          claimedAt: new Date(),
+          claimedByUserId: user.id,
+        },
+      });
+
+      const claimUrl = buildRegistrationClaimUrl(claimToken.rawToken);
+
       if (competition) {
         await Promise.all([
           ensureTenantRole(user.id, competition.tenantId, "TEAMCHEF"),
@@ -278,6 +294,7 @@ export async function POST(request: NextRequest) {
             classificationCode: autoCategory,
             contactName: userName || "",
             contactEmail: userEmail,
+            claimUrl,
             participants: team.participants.map((participant) => ({
               firstName: participant.firstName,
               lastName: participant.lastName,

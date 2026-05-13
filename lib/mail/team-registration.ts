@@ -16,6 +16,7 @@ type TeamMailPayload = {
   classificationCode?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
+  claimUrl?: string;
   participants: Array<{
     firstName: string;
     lastName: string;
@@ -51,6 +52,7 @@ export async function sendTeamRegistrationEmails({
     contactEmail: team.contactEmail,
     tenantName: competition.tenant?.name || "S5Evo",
     participants: team.participants,
+    claimUrl: team.claimUrl,
   };
 
   const registrantMail = buildRegistrantConfirmationMail(input);

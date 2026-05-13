@@ -11,9 +11,11 @@ export default function LoginPage() {
   useEffect(() => {
     if (status === "unauthenticated") {
       // Direkt zu Authentik weiterleiten, keine Zwischenseite
-      signIn("authentik", { callbackUrl: "/" });
+      const callbackUrl = new URL(window.location.href).searchParams.get("callbackUrl") || "/";
+      signIn("authentik", { callbackUrl });
     } else if (status === "authenticated") {
-      router.push("/");
+      const callbackUrl = new URL(window.location.href).searchParams.get("callbackUrl") || "/";
+      router.push(callbackUrl);
     }
   }, [status, router]);
 

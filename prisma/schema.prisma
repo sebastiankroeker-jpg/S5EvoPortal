@@ -149,6 +149,7 @@ model User {
   reviewedChanges  PendingChange[] @relation("ChangeReviewer")
   changelogEntriesCreated ChangelogEntry[] @relation("EntryCreator")
   changelogEntriesResolved ChangelogEntry[] @relation("EntryResolver")
+  claimedRegistrationTokens RegistrationClaimToken[] @relation("ClaimedRegistrationTokens")
 
   @@map("users")
 }
@@ -230,8 +231,29 @@ model Team {
   teamChief     User?       @relation("TeamChief", fields: [teamChiefId], references: [id])
   participants  Participant[]
   rankings      CompetitionRanking[]
+  registrationClaimTokens RegistrationClaimToken[]
 
   @@map("teams")
+}
+
+model RegistrationClaimToken {
+  id             String   @id @default(cuid())
+  tokenHash      String   @unique
+  suggestedEmail String
+  suggestedName  String?
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  claimedAt      DateTime?
+  revokedAt      DateTime?
+
+  teamId         String
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  claimedByUserId String?
+  claimedByUser   User?    @relation("ClaimedRegistrationTokens", fields: [claimedByUserId], references: [id])
+
+  @@index([teamId])
+  @@index([suggestedEmail])
+  @@map("registration_claim_tokens")
 }
 
 // ==================== PARTICIPANT ====================

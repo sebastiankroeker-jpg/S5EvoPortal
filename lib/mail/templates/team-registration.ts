@@ -19,6 +19,7 @@ type TemplateInput = {
   contactEmail: string;
   tenantName: string;
   participants: MailParticipant[];
+  claimUrl?: string;
 };
 
 const disciplineLabels = Object.fromEntries(
@@ -58,7 +59,7 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
         <h3>Teilnehmer</h3>
         <ul>${participantListHtml(input.participants)}</ul>
-        <p>Ein Bearbeitungslink folgt im nächsten Ausbauschritt.</p>
+        ${input.claimUrl ? `<p><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Daten mit Login bearbeiten</a></p><p style="font-size:14px;color:#555;">Der Link öffnet den Bearbeitungsflow. Änderungen selbst erfordern eine Anmeldung über Authentik.</p>` : ""}
         <p>Viele Grüße<br />${input.tenantName}</p>
       </div>
     `.trim(),
@@ -71,8 +72,7 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
       "",
       "Teilnehmer:",
       participantListText(input.participants),
-      "",
-      "Ein Bearbeitungslink folgt im nächsten Ausbauschritt.",
+      ...(input.claimUrl ? ["", `Daten mit Login bearbeiten: ${input.claimUrl}`, "Der Link öffnet den Bearbeitungsflow. Änderungen selbst erfordern eine Anmeldung über Authentik."] : []),
       "",
       `Viele Grüße\n${input.tenantName}`,
     ].join("\n"),
