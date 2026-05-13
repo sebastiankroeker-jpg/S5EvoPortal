@@ -8,7 +8,7 @@ export default function PublicRegistrationPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">📋 Öffentliche Mannschaftsanmeldung</h1>
-            <p className="text-sm text-muted-foreground">Ohne Login anmelden, später per Claim-Link mit Authentik übernehmen.</p>
+            <p className="text-sm text-muted-foreground">Ohne Login anmelden, später per Übernahmelink im Portal weiterführen.</p>
           </div>
           <Link href="/" className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
             ← Startseite

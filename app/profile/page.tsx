@@ -128,7 +128,7 @@ export default function ProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Profildaten</CardTitle>
-              <CardDescription>Name und E-Mail aus deinem Authentik-Konto</CardDescription>
+              <CardDescription>Name und E-Mail aus deinem Portal-Konto</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -151,7 +151,7 @@ export default function ProfilePage() {
                   className="mt-1 opacity-60"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Wird über Authentik verwaltet — <a href="https://auth.s5evo.de" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">dort ändern</a>
+                  Wird zentral verwaltet — <a href="https://auth.s5evo.de" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Kontoverwaltung öffnen</a>
                 </p>
               </div>
 
@@ -180,8 +180,8 @@ export default function ProfilePage() {
                 <span className="font-medium">{session.user.email}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Identity Provider</span>
-                <span className="font-medium">Authentik (auth.s5evo.de)</span>
+                <span className="text-muted-foreground">Anmeldedienst</span>
+                <span className="font-medium">S5Evo Konto</span>
               </div>
               <div className="pt-2">
                 <Button variant="outline" onClick={() => fullSignOut()} className="w-full">
@@ -248,7 +248,7 @@ export default function ProfilePage() {
                       <AlertDialogTitle>Konto wirklich löschen?</AlertDialogTitle>
                       <AlertDialogDescription>
                         Dein Profil, alle deine Teams und Teilnehmerdaten werden unwiderruflich gelöscht. 
-                        Dein Authentik-Konto bleibt bestehen und kann separat unter auth.s5evo.de gelöscht werden.
+                        Dein Portal-Konto bleibt separat bestehen und kann bei Bedarf in der Kontoverwaltung gelöscht werden.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

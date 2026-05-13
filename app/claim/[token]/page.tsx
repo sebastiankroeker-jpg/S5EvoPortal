@@ -87,7 +87,9 @@ export default function ClaimPage() {
     );
   }
 
-  const loginUrl = `/login?callbackUrl=${encodeURIComponent(`/claim/${token}`)}`;
+  const callbackUrl = `/claim/${token}`;
+  const loginUrl = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+  const registerUrl = `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
@@ -95,7 +97,7 @@ export default function ClaimPage() {
         <CardHeader>
           <CardTitle>🔐 Team übernehmen & im Portal bearbeiten</CardTitle>
           <CardDescription>
-            Dieser Link ordnet eine bestehende Mannschaftsanmeldung deinem Authentik-Account zu.
+            Dieser Link ordnet eine bestehende Mannschaftsanmeldung deinem Portal-Konto zu.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -118,18 +120,31 @@ export default function ClaimPage() {
               {!data.session.authenticated && (
                 <div className="space-y-3">
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Bitte melde dich jetzt mit der passenden E-Mail über Authentik an. Nur dann kann die Mannschaft deinem Account zugeordnet werden.
+                    Bitte melde dich jetzt mit der passenden E-Mail im Portal an. Falls du noch kein Konto hast, kannst du direkt eines anlegen. Nur dann kann die Mannschaft deinem Account zugeordnet werden.
                   </div>
-                  <Link href={loginUrl}>
-                    <Button className="w-full">Mit Authentik anmelden</Button>
-                  </Link>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Link href={loginUrl}>
+                      <Button className="w-full">Mit bestehendem Konto weiter</Button>
+                    </Link>
+                    <Link href={registerUrl}>
+                      <Button variant="outline" className="w-full">Neues Konto anlegen</Button>
+                    </Link>
+                  </div>
                 </div>
               )}
 
               {data.session.authenticated && !data.state.emailMatches && !data.state.alreadyClaimedByOtherUser && (
-                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-2">
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-3">
                   <p>Angemeldet bist du als <strong>{data.session.email}</strong>, der Link ist aber für <strong>{data.claim.suggestedEmail}</strong> gedacht.</p>
-                  <p className="text-sm">Bitte melde dich mit der richtigen E-Mail neu an, sonst lässt sich das Team nicht übernehmen.</p>
+                  <p className="text-sm">Bitte melde dich mit der richtigen E-Mail neu an oder lege damit ein Konto an, sonst lässt sich das Team nicht übernehmen.</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Link href={loginUrl}>
+                      <Button className="w-full">Mit anderer E-Mail anmelden</Button>
+                    </Link>
+                    <Link href={registerUrl}>
+                      <Button variant="outline" className="w-full">Neues Konto anlegen</Button>
+                    </Link>
+                  </div>
                 </div>
               )}
 

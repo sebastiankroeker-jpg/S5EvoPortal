@@ -1,67 +1,65 @@
 "use client";
 
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export default function RegisterPage() {
-  const handleRegisterRedirect = () => {
-    // Redirect to Authentik registration flow
-    window.location.href = "https://auth.s5evo.de/if/flow/s5-evo-registration/";
-  };
+  const [callbackUrl, setCallbackUrl] = useState("/");
+  const loginUrl = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
-  const handleSocialLogin = (provider: string) => {
-    // Redirect to Authentik social login with correct client_id
-    const clientId = "aG3hurJM1wq7y0XYMe2St1f7bZrSRvXNhDtJDwZO";
-    const redirectUri = encodeURIComponent(window.location.origin + '/api/auth/callback/authentik');
-    window.location.href = `https://auth.s5evo.de/application/o/authorize/?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=openid%20profile%20email`;
+  useEffect(() => {
+    const value = new URL(window.location.href).searchParams.get("callbackUrl") || "/";
+    setCallbackUrl(value);
+  }, []);
+
+  const handleRegisterRedirect = () => {
+    window.location.href = "https://auth.s5evo.de/if/flow/s5-evo-registration/";
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold">🏅 Account erstellen</h1>
+          <h1 className="text-3xl font-bold">🏅 Neues Konto anlegen</h1>
           <p className="text-muted-foreground mt-2">
-            Erstelle einen Account für die Fünfkampf-Anmeldung
+            Erstelle dein Portal-Konto, um Mannschaften zu übernehmen und später weiter zu bearbeiten.
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Registrierung</CardTitle>
+            <CardTitle>Konto erstellen</CardTitle>
+            <CardDescription>
+              Nutze nach der Erstellung bitte dieselbe E-Mail-Adresse wie in deiner Anmeldung, falls du ein Team übernehmen willst.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button 
+            <Button
               onClick={handleRegisterRedirect}
               className="w-full"
               size="lg"
             >
-              🔐 Anmelden / Registrieren
+              Neues Konto erstellen
             </Button>
-            
-            <p className="text-xs text-muted-foreground text-center">
-              Neue Benutzer werden automatisch registriert
-            </p>
-            
-            <div className="text-center text-xs text-muted-foreground">
-              <p>Social Login wird bald verfügbar sein</p>
-            </div>
 
-            <div className="text-center text-sm text-muted-foreground">
-              <p>
-                Schon einen Account?{" "}
-                <Link href="/api/auth/signin" className="text-primary hover:underline">
-                  Hier anmelden
+            <p className="text-xs text-muted-foreground text-center">
+              Nach der Registrierung kannst du zum Portal zurückkehren und mit deinem neuen Konto weitermachen.
+            </p>
+
+            <div className="grid gap-2">
+              <Link href={loginUrl}>
+                <Button variant="outline" className="w-full">Ich habe schon ein Konto</Button>
+              </Link>
+              {callbackUrl !== "/" && (
+                <Link href={callbackUrl}>
+                  <Button variant="ghost" className="w-full">Zurück zum Übernahmelink</Button>
                 </Link>
-              </p>
+              )}
             </div>
           </CardContent>
         </Card>
-
-        <div className="text-center text-xs text-muted-foreground">
-          Nach der Registrierung erhältst du eine E-Mail zur Bestätigung.
-        </div>
       </div>
     </div>
   );

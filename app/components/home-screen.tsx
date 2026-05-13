@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { motion } from "framer-motion";
@@ -265,7 +265,7 @@ export default function HomeScreen() {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => signIn("authentik")}
+              onClick={() => window.location.href = '/login'}
               className="w-full"
             >
               🔐 Ins Portal einloggen

@@ -415,7 +415,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   <p className="text-sm font-medium">So geht's weiter</p>
                   <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
                     <li>Wir schicken den Claim-Link an <strong>{effectiveContactEmail}</strong>.</li>
-                    <li>Öffne den Link aus der Mail und melde dich dort mit derselben E-Mail über Authentik an.</li>
+                    <li>Öffne den Link aus der Mail und melde dich dort mit derselben E-Mail im Portal an oder lege damit ein neues Konto an.</li>
                     <li>Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.</li>
                   </ol>
                   <p className="text-xs text-muted-foreground">Wenn nichts ankommt, prüfe bitte auch Spam und Werbung.</p>
@@ -434,7 +434,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   {isAnonymousRegistration ? (
                     <>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 text-sm text-muted-foreground">
-                        Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Claim-Link für die spätere Übernahme mit Authentik.
+                        Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Übernahmelink, mit dem du das Team später deinem Portal-Konto zuordnen kannst.
                       </div>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-4 space-y-4">
                         <div>
@@ -488,16 +488,16 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-sm font-medium text-muted-foreground">Vorname (Authentik)</label>
+                          <label className="text-sm font-medium text-muted-foreground">Vorname (aus deinem Konto)</label>
                           <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{teamLeadFirstName || "—"}</div>
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-muted-foreground">Nachname (Authentik)</label>
+                          <label className="text-sm font-medium text-muted-foreground">Nachname (aus deinem Konto)</label>
                           <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{teamLeadLastName || "—"}</div>
                         </div>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-muted-foreground">E-Mail (Authentik)</label>
+                        <label className="text-sm font-medium text-muted-foreground">E-Mail (aus deinem Konto)</label>
                         <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{userEmail || "Nicht verfügbar"}</div>
                       </div>
                     </>
