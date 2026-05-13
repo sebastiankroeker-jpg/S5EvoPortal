@@ -652,7 +652,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       ← Zurück
                     </Button>
                     <Button onClick={handleNextFromParticipants} className="flex-1">
-                      Zur Bestätigung →
+                      Zur finalen Prüfung →
                     </Button>
                   </div>
 
@@ -750,7 +750,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       ← Zurück
                     </Button>
                     <Button onClick={handleNextFromParticipants} className="flex-1">
-                      Zur Bestätigung →
+                      Zur finalen Prüfung →
                     </Button>
                   </div>
                 </motion.div>
@@ -759,10 +759,10 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
               {step === 3 && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
                   <div className="text-center space-y-2">
-                    <h3 className="text-lg font-medium">Bestätigung</h3>
-                    <p className="text-muted-foreground">Prüfe deine Angaben und sende die Anmeldung ab</p>
+                    <h3 className="text-lg font-medium">Letzter Schritt, Anmeldung absenden</h3>
+                    <p className="text-muted-foreground">Prüfe hier alles ein letztes Mal. Erst mit dem Klick auf den blauen Button wird die Mannschaft wirklich angemeldet.</p>
                     {isAnonymousRegistration && (
-                      <p className="text-xs text-muted-foreground">Der Claim-Link für die spätere Übernahme geht an {effectiveContactEmail || "deine Kontakt-E-Mail"}.</p>
+                      <p className="text-xs text-muted-foreground">Der Übernahmelink für die spätere Weiterbearbeitung geht an {effectiveContactEmail || "deine Kontakt-E-Mail"}.</p>
                     )}
                   </div>
 
@@ -833,7 +833,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       ← Zurück
                     </Button>
                     <Button onClick={onSubmit} className="flex-1" disabled={formState.isSubmitting}>
-                      {formState.isSubmitting ? "Speichere..." : "Anmelden! 🏅"}
+                      {formState.isSubmitting ? "Sende Anmeldung ab..." : "Mannschaft jetzt verbindlich anmelden 🏅"}
                     </Button>
                   </div>
                 </motion.div>
