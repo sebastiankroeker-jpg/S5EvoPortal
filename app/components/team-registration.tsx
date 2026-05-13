@@ -144,9 +144,11 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   const participants = watch("participants");
   const teamName = watch("teamName");
+  const contactFirstName = watch("contactFirstName");
+  const contactLastName = watch("contactLastName");
   const contactName = watch("contactName");
   const contactEmail = watch("contactEmail");
-  const effectiveContactName = userName || contactName || "";
+  const effectiveContactName = userName || [contactFirstName, contactLastName].filter(Boolean).join(" ").trim() || contactName || "";
   const effectiveContactEmail = userEmail || contactEmail || "";
   const isAnonymousRegistration = allowAnonymous && !session?.user;
 
@@ -157,11 +159,13 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const [testDataClass, setTestDataClass] = useState<TeamClassId>("schueler-a");
 
   const [teamLeadFirstName, teamLeadLastName] = useMemo(() => {
-    if (!effectiveContactName) return ["", ""];
-    const parts = effectiveContactName.trim().split(" ");
+    if (!userName) {
+      return [contactFirstName || "", contactLastName || ""];
+    }
+    const parts = userName.trim().split(" ");
     if (parts.length === 1) return [parts[0], ""];
     return [parts[0], parts.slice(1).join(" ")];
-  }, [effectiveContactName]);
+  }, [userName, contactFirstName, contactLastName]);
 
   const disciplineMap = useMemo(
     () => Object.fromEntries(DISCIPLINES.map((discipline) => [discipline.id, discipline])),
@@ -173,9 +177,16 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   useEffect(() => {
     if (!teamName) {
-      setValue("teamName", generateTeamName(), { shouldDirty: false, shouldTouch: false });
+      setValue("teamName", generateTeamName(), { shouldDirty: false, shouldTouch: false, shouldValidate: true });
     }
   }, [teamName, setValue]);
+
+  useEffect(() => {
+    if (!userName) {
+      const composedName = [contactFirstName, contactLastName].filter(Boolean).join(" ").trim();
+      setValue("contactName", composedName, { shouldDirty: true, shouldTouch: false, shouldValidate: false });
+    }
+  }, [userName, contactFirstName, contactLastName, setValue]);
 
   useEffect(() => {
     if (!activeCompetition?.id) {
@@ -251,7 +262,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   const handleNextFromTeam = async () => {
     const fieldsToValidate = isAnonymousRegistration
-      ? (["teamName", "contactName", "contactEmail"] as const)
+      ? (["teamName", "contactFirstName", "contactLastName", "contactEmail"] as const)
       : (["teamName"] as const);
     const ok = await trigger(fieldsToValidate);
     if (ok) {
@@ -260,7 +271,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   };
 
   const handleNextFromParticipants = async () => {
-    const ok = await trigger("participants");
+    const ok = await trigger(["teamName", "participants"]);
     if (ok) {
       setStep(3);
     }
@@ -417,31 +428,52 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 text-sm text-muted-foreground">
                         Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Claim-Link für die spätere Übernahme mit Authentik.
                       </div>
-                      <div>
-                        <label htmlFor="contactName" className="text-sm font-medium">Kontaktname</label>
-                        <input
-                          id="contactName"
-                          type="text"
-                          {...register("contactName")}
-                          className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                          placeholder="z.B. Max Mustermann"
-                        />
-                        {formState.errors.contactName && (
-                          <p className="text-xs text-red-500 mt-1">{formState.errors.contactName.message}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label htmlFor="contactEmail" className="text-sm font-medium">Kontakt-E-Mail</label>
-                        <input
-                          id="contactEmail"
-                          type="email"
-                          {...register("contactEmail")}
-                          className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                          placeholder="teamchef@example.de"
-                        />
-                        {formState.errors.contactEmail && (
-                          <p className="text-xs text-red-500 mt-1">{formState.errors.contactEmail.message}</p>
-                        )}
+                      <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-4 space-y-4">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Kontakt</p>
+                          <p className="text-xs text-muted-foreground">An diese E-Mail senden wir später den Claim-Link zur Übernahme.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor="contactLastName" className="text-sm font-medium">Name</label>
+                            <input
+                              id="contactLastName"
+                              type="text"
+                              {...register("contactLastName")}
+                              className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                              placeholder="z.B. Mustermann"
+                            />
+                            {formState.errors.contactLastName && (
+                              <p className="text-xs text-red-500 mt-1">{formState.errors.contactLastName.message}</p>
+                            )}
+                          </div>
+                          <div>
+                            <label htmlFor="contactFirstName" className="text-sm font-medium">Vorname</label>
+                            <input
+                              id="contactFirstName"
+                              type="text"
+                              {...register("contactFirstName")}
+                              className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                              placeholder="z.B. Max"
+                            />
+                            {formState.errors.contactFirstName && (
+                              <p className="text-xs text-red-500 mt-1">{formState.errors.contactFirstName.message}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <label htmlFor="contactEmail" className="text-sm font-medium">E-Mail</label>
+                          <input
+                            id="contactEmail"
+                            type="email"
+                            {...register("contactEmail")}
+                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="teamchef@example.de"
+                          />
+                          {formState.errors.contactEmail && (
+                            <p className="text-xs text-red-500 mt-1">{formState.errors.contactEmail.message}</p>
+                          )}
+                        </div>
                       </div>
                     </>
                   ) : (
@@ -464,7 +496,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   )}
                   <div>
                     <label htmlFor="teamName" className="text-sm font-medium">
-                      Mannschaftsname (optional)
+                      Mannschaftsname
                     </label>
                     <input
                       id="teamName"
@@ -473,6 +505,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       placeholder="z.B. Die Bergziegen"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Der Name ist Pflicht, kann auf der Folgeseite aber noch angepasst werden.</p>
                     {formState.errors.teamName && (
                       <p className="text-xs text-red-500 mt-1">{formState.errors.teamName.message}</p>
                     )}
@@ -531,7 +564,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       </div>
                     )}
                   </div>
-                  <Button onClick={handleNextFromTeam} disabled={isAnonymousRegistration ? !contactName || !contactEmail : !teamName} className="w-full">
+                  <Button onClick={handleNextFromTeam} disabled={isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName} className="w-full">
                     Zu Teilnehmern →
                   </Button>
                 </motion.div>
