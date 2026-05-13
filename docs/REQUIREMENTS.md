@@ -156,6 +156,12 @@
 - **Admin:** Alles + Approvals abarbeiten
 - **Klassenänderung durch Datenänderung:** Automatische Neuberechnung + Extra-Approval
 
+### Anmelde- & Login-Modi
+- Mannschaftsanmeldung muss **ohne vorherigen Login** möglich bleiben
+- Zusätzlich soll sich ein Teamchef **optional vor der Anmeldung registrieren und über Authentik anmelden** können
+- Beide Einstiege müssen in denselben fachlichen Anmeldeprozess führen
+- Ein späterer Claim-/Zuordnungsflow für bereits anonym angelegte Teams bleibt weiterhin möglich
+
 ### Approval-Status
 ```
 DRAFT → PENDING → APPROVED | REJECTED
@@ -243,6 +249,7 @@ User → TenantRoles (pro Wettkampf)
 - [ ] Öffentliche Ergebnistafel (kein Login nötig)
 - [ ] Ergebnis-Erfassung (mobiltauglich)
 - [ ] Öffentliche Mannschaftsanmeldung ohne vorherigen Authentik-Login
+- [ ] Optionale Registrierung / Authentik-Login schon vor der Mannschaftsanmeldung
 - [x] Bestätigungsmail an Anmelder + Verein nach erfolgreicher Anmeldung
 - [x] T-Shirt-Größe pro Teilnehmer
 - [x] T-Shirt-Bestellschluss (`shirtOrderDeadline`) in Wettkampf-Parametern
