@@ -172,13 +172,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-    const userName = session?.user?.name;
-    const userImage = session?.user?.image;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const sessionUserEmail = session?.user?.email;
+    const sessionUserName = session?.user?.name;
+    const sessionUserImage = session?.user?.image;
 
     const body = await request.json();
     
@@ -191,6 +187,14 @@ export async function POST(request: NextRequest) {
     }
 
     const teamData = validation.data;
+    const userEmail = sessionUserEmail || teamData.contactEmail?.trim();
+    const userName = sessionUserName || teamData.contactName?.trim();
+    const userImage = sessionUserImage;
+
+    if (!userEmail || !userName) {
+      return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
+    }
+
     const autoCategory = classifyTeam(teamData.participants);
     const normalizedTeamName = teamData.teamName?.trim();
     const finalTeamName = normalizedTeamName && normalizedTeamName.length >= 3
@@ -277,8 +281,8 @@ export async function POST(request: NextRequest) {
           suggestedEmail: userEmail,
           suggestedName: userName || null,
           expiresAt: claimToken.expiresAt,
-          claimedAt: new Date(),
-          claimedByUserId: user.id,
+          claimedAt: sessionUserEmail ? new Date() : null,
+          claimedByUserId: sessionUserEmail ? user.id : null,
         },
       });
 
@@ -287,7 +291,6 @@ export async function POST(request: NextRequest) {
       if (competition) {
         await Promise.all([
           ensureTenantRole(user.id, competition.tenantId, "TEAMCHEF"),
-          ensureTenantRole(user.id, competition.tenantId, "ADMIN"),
         ]);
 
         await sendTeamRegistrationEmails({

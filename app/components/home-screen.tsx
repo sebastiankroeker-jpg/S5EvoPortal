@@ -253,12 +253,20 @@ export default function HomeScreen() {
           <CardContent className="space-y-4 pt-6">
             <div className="text-sm text-muted-foreground text-left rounded-md border border-border/50 p-3 bg-muted/20">
               <p className="font-medium text-foreground mb-1">Portal-Zugang</p>
-              <p>Die Mannschaftsanmeldung im Portal läuft aktuell über einen Account. Die öffentliche Anmeldung ohne Login ist der nächste Ausbauschritt.</p>
+              <p>Du kannst die Mannschaft jetzt direkt ohne Login anmelden oder optional erst einen Account anlegen und dich dann mit Authentik anmelden.</p>
             </div>
             <Button
               size="lg"
-              onClick={() => signIn("authentik")}
+              onClick={() => window.location.href = '/anmeldung'}
               className={`w-full ${theme === "bunt" ? "bunt-btn" : ""}`}
+            >
+              📋 Ohne Account anmelden
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => signIn("authentik")}
+              className="w-full"
             >
               🔐 Mit Account anmelden
             </Button>

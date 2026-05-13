@@ -36,6 +36,8 @@ export const ParticipantSchema = z.object({
 
 export const TeamRegistrationSchema = z.object({
   teamName: z.string().optional().or(z.literal("")),
+  contactName: z.string().min(2, "Kontaktname zu kurz").optional().or(z.literal("")),
+  contactEmail: z.string().email("Ungültige Kontakt-E-Mail").optional().or(z.literal("")),
   participants: z
     .array(ParticipantSchema)
     .length(5, "Es müssen genau 5 Teilnehmer erfasst werden"),
@@ -65,6 +67,8 @@ export function createDefaultTeamForm(): TeamRegistrationInput {
 
   return {
     teamName: "",
+    contactName: "",
+    contactEmail: "",
     participants: baseParticipants,
   };
 }
