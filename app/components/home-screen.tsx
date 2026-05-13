@@ -93,7 +93,7 @@ function FlyerInfoCard() {
             rel="noreferrer"
             className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:opacity-90 transition-opacity"
           >
-            Zur Anmeldung ↗
+            Zur ESV-Ausschreibung ↗
           </a>
         </div>
 
@@ -251,12 +251,16 @@ export default function HomeScreen() {
 
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
           <CardContent className="space-y-4 pt-6">
+            <div className="text-sm text-muted-foreground text-left rounded-md border border-border/50 p-3 bg-muted/20">
+              <p className="font-medium text-foreground mb-1">Portal-Zugang</p>
+              <p>Die Mannschaftsanmeldung im Portal läuft aktuell über einen Account. Die öffentliche Anmeldung ohne Login ist der nächste Ausbauschritt.</p>
+            </div>
             <Button
               size="lg"
               onClick={() => signIn("authentik")}
               className={`w-full ${theme === "bunt" ? "bunt-btn" : ""}`}
             >
-              🔐 Anmelden
+              🔐 Mit Account anmelden
             </Button>
             <Button
               size="lg"
@@ -266,8 +270,9 @@ export default function HomeScreen() {
             >
               📝 Account erstellen
             </Button>
-            <div className="text-xs text-center text-muted-foreground">
+            <div className="text-xs text-center text-muted-foreground space-y-1">
               <p>auth.s5evo.de</p>
+              <p>Die Schaltfläche unten in der Ausschreibung führt zur ESV-Website, nicht ins Portal.</p>
             </div>
           </CardContent>
         </Card>
