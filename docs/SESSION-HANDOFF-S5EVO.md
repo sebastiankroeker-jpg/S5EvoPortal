@@ -192,16 +192,13 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 ## 9. Offene ToDos / Nächste sinnvolle Schritte
 
 ### Kurzfristig sinnvoll
-1. **Smoke-Datensatz aus Production bereinigen**
-   - übrig geblieben: `Smoke Public 1778693099371`
-   - Team-ID: `cmp4by56z0002jp040v3mq5pv`
-2. **Claim-Handoff fachlich einmal komplett durchtesten**
+1. **Claim-Handoff fachlich einmal komplett durchtesten**
    - echte Mail
    - echter Claim
    - echter Login mit passender E-Mail
-3. **Scope REVIEW sauber abschließen**
+2. **Scope REVIEW sauber abschließen**
    - vor allem `P50`, `P08`, `P05`
-4. **Nächsten READY/BACKLOG-Scope fokussiert ziehen**
+3. **Nächsten READY/BACKLOG-Scope fokussiert ziehen**
    - bevorzugt nur ein Featureblock gleichzeitig
 
 ### Fachlich größere Themen danach
@@ -242,7 +239,6 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 - Claim-Handoff-UX live verbessert
 
 ### Noch offen
-- Smoke-Test-Datensatz aufräumen
 - Claim-Handoff Ende-zu-Ende fachlich final absichern
 - REVIEW-Scopes konsequent abräumen
 
@@ -251,7 +247,7 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 ## 12. Next 3 actions
 
 ### 1. Nächster sicherer Schritt
-Smoke-Datensatz aus Production gezielt bereinigen und danach den Claim-Handoff einmal Ende-zu-Ende mit echter Mail und echtem Login verifizieren.
+Claim-Handoff einmal Ende-zu-Ende mit echter Mail und echtem Login verifizieren.
 
 ### 2. Größtes Risiko
 Neue Sessions oder Subagenten landen versehentlich im falschen Projekt-/Deploy-Kontext statt im aktuell relevanten App-Verzeichnis `authentik-nextjs-demo`.
