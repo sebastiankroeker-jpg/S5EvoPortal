@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
           tenantId: true,
           name: true,
           year: true,
+          registrationDeadline: true,
           shirtOrderDeadline: true,
           registrationNotificationEmail: true,
           tenant: {
@@ -266,7 +267,9 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      const claimToken = createRegistrationClaimToken();
+      const claimToken = createRegistrationClaimToken({
+        maxExpiresAt: competition?.registrationDeadline || null,
+      });
       await prisma.registrationClaimToken.create({
         data: {
           teamId: team.id,

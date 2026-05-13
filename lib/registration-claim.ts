@@ -3,10 +3,14 @@ import crypto from "crypto";
 const CLAIM_TOKEN_BYTES = 32;
 const CLAIM_TOKEN_TTL_DAYS = 30;
 
-export function createRegistrationClaimToken() {
+export function createRegistrationClaimToken(options?: { maxExpiresAt?: Date | null }) {
   const rawToken = crypto.randomBytes(CLAIM_TOKEN_BYTES).toString("base64url");
   const tokenHash = hashRegistrationClaimToken(rawToken);
-  const expiresAt = new Date(Date.now() + CLAIM_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const defaultExpiresAt = new Date(Date.now() + CLAIM_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const configuredMax = options?.maxExpiresAt;
+  const expiresAt = configuredMax && configuredMax.getTime() > Date.now() && configuredMax.getTime() < defaultExpiresAt.getTime()
+    ? configuredMax
+    : defaultExpiresAt;
 
   return {
     rawToken,

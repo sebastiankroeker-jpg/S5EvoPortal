@@ -256,6 +256,28 @@ model RegistrationClaimToken {
   @@map("registration_claim_tokens")
 }
 
+model RegistrationClaimAuditEvent {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  eventType    String
+  outcome      String?
+  reason       String?
+  suspicious   Boolean  @default(false)
+  ipAddress    String?
+  userAgent    String?
+  sessionEmail String?
+  tokenId      String?
+  teamId       String?
+  userId       String?
+
+  @@index([createdAt])
+  @@index([tokenId])
+  @@index([teamId])
+  @@index([ipAddress])
+  @@index([suspicious])
+  @@map("registration_claim_audit_events")
+}
+
 // ==================== PARTICIPANT ====================
 
 model Participant {

@@ -12,7 +12,8 @@ type ClaimState = {
     teamName: string;
     competitionName: string;
     competitionYear: number;
-    suggestedEmail: string;
+    suggestedEmail?: string | null;
+    maskedSuggestedEmail?: string | null;
     suggestedName?: string | null;
     claimedAt?: string | null;
     expiresAt: string;
@@ -109,7 +110,7 @@ export default function ClaimPage() {
               <div className="rounded-md border p-3 space-y-1">
                 <p><strong>Team:</strong> {data.claim.teamName}</p>
                 <p><strong>Wettkampf:</strong> {data.claim.competitionName} ({data.claim.competitionYear})</p>
-                <p><strong>Vorgesehene E-Mail:</strong> {data.claim.suggestedEmail}</p>
+                <p><strong>Vorgesehene E-Mail:</strong> {data.claim.suggestedEmail || data.claim.maskedSuggestedEmail}</p>
                 {data.claim.suggestedName ? <p><strong>Vorgeschlagener Name:</strong> {data.claim.suggestedName}</p> : null}
               </div>
 
