@@ -301,11 +301,16 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       setTeamLeadDiscipline(DISCIPLINES[0].id);
       previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
       setStep(1);
-      setTimeout(() => setSubmitted(false), 3500);
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Unbekannter Fehler");
     }
   });
+
+  const startAnotherRegistration = () => {
+    setServerError("");
+    setSubmitted(false);
+    setStep(1);
+  };
 
   const randomBirthDate = (minYear: number, maxYear: number) => {
     const year = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
@@ -418,6 +423,9 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
               ) : (
                 <p className="text-sm text-muted-foreground">Du kannst jetzt wie gewohnt im Portal weiterarbeiten.</p>
               )}
+              <div className="flex justify-center pt-2">
+                <Button onClick={startAnotherRegistration}>Weitere Mannschaft anmelden</Button>
+              </div>
             </motion.div>
           ) : (
             <>
