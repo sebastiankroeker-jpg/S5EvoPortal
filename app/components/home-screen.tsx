@@ -252,15 +252,15 @@ export default function HomeScreen() {
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
           <CardContent className="space-y-4 pt-6">
             <div className="text-sm text-muted-foreground text-left rounded-md border border-border/50 p-3 bg-muted/20">
-              <p className="font-medium text-foreground mb-1">Portal-Zugang</p>
-              <p>Du kannst die Mannschaft jetzt direkt ohne Login anmelden oder optional erst einen Account anlegen und dich dann mit Authentik anmelden.</p>
+              <p className="font-medium text-foreground mb-1">So kannst du starten</p>
+              <p>Du kannst deine Mannschaft direkt anmelden oder optional zuerst einen Portal-Account erstellen und dich danach einloggen.</p>
             </div>
             <Button
               size="lg"
               onClick={() => window.location.href = '/anmeldung'}
               className={`w-full ${theme === "bunt" ? "bunt-btn" : ""}`}
             >
-              📋 Ohne Account anmelden
+              📋 Mannschaft anmelden
             </Button>
             <Button
               size="lg"
@@ -268,7 +268,7 @@ export default function HomeScreen() {
               onClick={() => signIn("authentik")}
               className="w-full"
             >
-              🔐 Mit Account anmelden
+              🔐 Ins Portal einloggen
             </Button>
             <Button
               size="lg"
@@ -276,7 +276,7 @@ export default function HomeScreen() {
               onClick={() => window.location.href = 'https://auth.s5evo.de/if/flow/s5-evo-registration/'}
               className="w-full"
             >
-              📝 Account erstellen
+              📝 Portal-Account erstellen
             </Button>
             <div className="text-xs text-center text-muted-foreground space-y-1">
               <p>auth.s5evo.de</p>
