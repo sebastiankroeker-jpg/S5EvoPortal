@@ -76,6 +76,7 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
         <ul>${participantListHtml(input.participants)}</ul>
         <h3>T-Shirt-Größen</h3>
         <ul>${shirtSizeListHtml(input.participants)}</ul>
+        <p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.</p>
         ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>So geht's weiter</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Übernahme-Link.</li><li>Melde dich dort mit <strong>${input.contactEmail}</strong> im Portal an oder lege mit derselben E-Mail ein neues Konto an.</li><li>Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Team im Portal übernehmen</a></p><p style="margin:0;font-size:14px;color:#555;">Falls die Anmeldung oder der Login nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung.</p></div>` : ""}
         <p>Viele Grüße<br />${input.tenantName}</p>
       </div>
@@ -92,6 +93,8 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
       "",
       "T-Shirt-Größen:",
       shirtSizeListText(input.participants),
+      "",
+      "Wichtig: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.",
       ...(input.claimUrl
         ? [
             "",
@@ -124,6 +127,7 @@ export function buildOrgNotificationMail(input: TemplateInput) {
         <ul>${participantListHtml(input.participants)}</ul>
         <h3>T-Shirt-Größen</h3>
         <ul>${shirtSizeListHtml(input.participants)}</ul>
+        <p><strong>Hinweis:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.</p>
       </div>
     `.trim(),
     text: [
@@ -139,6 +143,8 @@ export function buildOrgNotificationMail(input: TemplateInput) {
       "",
       "T-Shirt-Größen:",
       shirtSizeListText(input.participants),
+      "",
+      "Hinweis: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.",
     ].join("\n"),
   };
 }
