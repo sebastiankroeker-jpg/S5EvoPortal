@@ -1,11 +1,16 @@
 import { signOut } from "next-auth/react";
 
+const AUTH_END_SESSION_URL = "https://auth.s5evo.de/application/o/s5-evo-portal/end-session/";
+
 /**
- * Portal-Logout: lokale Session beenden und sauber zur Startseite zurück.
- * Ein zusätzlicher IdP-Logout ist hier nicht nötig, weil der Login-Flow
- * ohnehin mit erneuter Anmeldung arbeitet und der bisherige Redirect-Pfad
- * im IdP auf eine NotFound-Seite lief.
+ * Beendet sowohl die lokale Portal-Session als auch die SSO-Session beim Login-Dienst.
+ * Sonst meldet der Browser beim nächsten Login durch das bestehende SSO-Cookie sofort
+ * wieder denselben Account an.
  */
 export async function fullSignOut() {
-  await signOut({ callbackUrl: window.location.origin });
+  await signOut({ redirect: false });
+
+  const endSessionUrl = new URL(AUTH_END_SESSION_URL);
+  endSessionUrl.searchParams.set("post_logout_redirect_uri", window.location.origin);
+  window.location.href = endSessionUrl.toString();
 }

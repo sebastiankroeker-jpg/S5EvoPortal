@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { motion } from "framer-motion";
@@ -76,7 +76,7 @@ function FlyerInfoCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center text-base">📣 Digitale Ausschreibung 2026</CardTitle>
+        <CardTitle className="text-center text-base">📣 Ausschreibung 2026</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 text-sm">
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
@@ -265,7 +265,7 @@ export default function HomeScreen() {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => window.location.href = '/login'}
+              onClick={() => signIn("authentik")}
               className="w-full"
             >
               🔐 Ins Portal einloggen
