@@ -1,16 +1,11 @@
 import { signOut } from "next-auth/react";
 
 /**
- * Vollständiger Logout: NextAuth Session + Authentik SSO Session beenden.
- * Ohne das bleibt die Authentik-Session aktiv und der nächste Login
- * gibt automatisch den gleichen Account zurück (SSO).
+ * Portal-Logout: lokale Session beenden und sauber zur Startseite zurück.
+ * Ein zusätzlicher IdP-Logout ist hier nicht nötig, weil der Login-Flow
+ * ohnehin mit erneuter Anmeldung arbeitet und der bisherige Redirect-Pfad
+ * im IdP auf eine NotFound-Seite lief.
  */
 export async function fullSignOut() {
-  // 1. NextAuth Session beenden
-  await signOut({ redirect: false });
-  
-  // 2. Authentik SSO Session beenden + zurück zur App
-  const authentikLogoutUrl = "https://auth.s5evo.de/if/session-end/?redirect_uri=" + 
-    encodeURIComponent(window.location.origin);
-  window.location.href = authentikLogoutUrl;
+  await signOut({ callbackUrl: window.location.origin });
 }
