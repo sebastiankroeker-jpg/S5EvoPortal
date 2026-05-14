@@ -133,11 +133,10 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
   - Tagesgedächtnis
   - Architekturentscheidungen
 
-### Cross-Agent-Arbeitsmodell (Stand 2026-05-14)
-- **Claw**: Orchestrierung, VM-/Instanz-Sanity, Infrastruktur-Standards, Tailscale-first, Backup-Plan, übergreifende Security- und Betriebsleitplanken
-- **S5Evo**: 5-Kampf-Fachlichkeit, Portal, Requirements, Session-Handoff, App-seitiger Authentik-Flow
-- **Alois**: Homepage, Außenauftritt, Marketing, Recruiting-/Landingpage-Themen
-- **zukünftiger Security-Agent empfohlen**: Hardening, Secrets, Audit-Standards, Monitoring, Restore-/Incident-Checks
+### Abgrenzung zum CrewUnited-Kontext
+- Übergreifende Methodik, Rollen, A2A-Kommunikation, zentrale Repo-/Infra-/Security-Fragen stehen jetzt separat in:
+  - `docs/SESSION-HANDOFF-CREWUNITED.md`
+- Dieses S5Evo-Handoff bleibt bewusst **projektspezifisch** für 5-Kampf-Portal, fachlichen Stand und S5Evo-nahe ToDos.
 
 ### Parallelarbeit, aber mit Leitplanken
 - Tasks dürfen parallel laufen, **wenn ein klarer Owner und ein klares Zielartefakt definiert sind**
