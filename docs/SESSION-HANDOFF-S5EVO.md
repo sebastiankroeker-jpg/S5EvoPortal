@@ -3,7 +3,7 @@
 > Zweck: Dieses Dokument dient als kompakte Übergabe für die nächste Session.
 > Es bündelt Methodik, Ordnungssystem, Architektur, Fortschritt, offene Punkte und den aktuellen Arbeitsstand.
 
-**Stand:** 2026-05-13
+**Stand:** 2026-05-14
 **Projekt:** S5Evo Portal
 **Live:** https://s5-evo-portal.vercel.app
 **Aktives App-Verzeichnis:** `/home/ocadmin/.openclaw/workspace/authentik-nextjs-demo`
@@ -33,7 +33,7 @@ Dieses Dokument soll pro Session schnell beantworten:
 - `SCOPEBOARD.md`
 - `INBOX.md`
 - `HEARTBEAT.md`
-- `memory/2026-05-13.md` und weitere Tagesnotizen in `memory/`
+- `memory/2026-05-14.md` und weitere Tagesnotizen in `memory/`
 
 ### Architektur / Auth
 - `docs/ADR-auth-konzept.md`
@@ -133,6 +133,17 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
   - Tagesgedächtnis
   - Architekturentscheidungen
 
+### Cross-Agent-Arbeitsmodell (Stand 2026-05-14)
+- **Claw**: Orchestrierung, VM-/Instanz-Sanity, Infrastruktur-Standards, Tailscale-first, Backup-Plan, übergreifende Security- und Betriebsleitplanken
+- **S5Evo**: 5-Kampf-Fachlichkeit, Portal, Requirements, Session-Handoff, App-seitiger Authentik-Flow
+- **Alois**: Homepage, Außenauftritt, Marketing, Recruiting-/Landingpage-Themen
+- **zukünftiger Security-Agent empfohlen**: Hardening, Secrets, Audit-Standards, Monitoring, Restore-/Incident-Checks
+
+### Parallelarbeit, aber mit Leitplanken
+- Tasks dürfen parallel laufen, **wenn ein klarer Owner und ein klares Zielartefakt definiert sind**
+- Entscheidungen danach zurück in Doku, nicht nur im Chat lassen
+- Vor dem Wettkampf **keine große Repo- oder Strukturmigration** ohne klaren Sofortnutzen
+
 ---
 
 ## 7. Aktueller Fortschritt
@@ -192,14 +203,17 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 ## 9. Offene ToDos / Nächste sinnvolle Schritte
 
 ### Kurzfristig sinnvoll
-1. **Claim-Handoff fachlich einmal komplett durchtesten**
-   - echte Mail
-   - echter Claim
-   - echter Login mit passender E-Mail
+1. **Nahtlosen Authentik-Flow Ende-zu-Ende absichern**
+   - anonyme Anmeldung
+   - Claim
+   - Login/Registrierung mit passender E-Mail
+   - sauberer Rückweg in den fachlichen Flow
 2. **Scope REVIEW sauber abschließen**
    - vor allem `P50`, `P08`, `P05`
-3. **Nächsten READY/BACKLOG-Scope fokussiert ziehen**
-   - bevorzugt nur ein Featureblock gleichzeitig
+3. **Methodik nur minimal-invasiv stärken**
+   - Handoff pflegen
+   - Rollen/Owner klar halten
+   - keine große Strukturmigration vor dem Wettkampf
 
 ### Fachlich größere Themen danach
 - Public API (Phase 1.5)
@@ -230,30 +244,33 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 
 ---
 
-## 11. Konkreter Status vom 2026-05-13
+## 11. Konkreter Status vom 2026-05-14
 
 ### Bestätigt
 - Production-Deploy erfolgreich
 - Registration-Mails für 2026 fachlich live bestätigt
 - öffentliche Anmeldung ohne Login live
 - Claim-Handoff-UX live verbessert
+- Cross-Agent-Abstimmung gestartet: Handoff wird als gemeinsames Projekt-Handout genutzt
+- Ein kleines, zentrales Git-Repo für Methodik/Betrieb ist als sinnvolle Richtung festgehalten, aber **erstmal ohne große Migration vor dem Wettkampf**
 
 ### Noch offen
-- Claim-Handoff Ende-zu-Ende fachlich final absichern
+- Authentik-Flow Ende-zu-Ende fachlich final absichern
 - REVIEW-Scopes konsequent abräumen
+- gemeinsames Agenten-Betriebsmodell nach dem Wettkampf sauber ausformulieren
 
 ---
 
 ## 12. Next 3 actions
 
 ### 1. Nächster sicherer Schritt
-Claim-Handoff einmal Ende-zu-Ende mit echter Mail und echtem Login verifizieren.
+Authentik-/Claim-Handoff einmal Ende-zu-Ende mit echter Mail und echtem Login verifizieren.
 
 ### 2. Größtes Risiko
-Neue Sessions oder Subagenten landen versehentlich im falschen Projekt-/Deploy-Kontext statt im aktuell relevanten App-Verzeichnis `authentik-nextjs-demo`.
+Vor dem Wettkampf zu viel Methodik-, Repo- oder Infra-Umbau anzustoßen und dadurch Fokus von der fachlich kritischen Authentik-/Anmeldekette abzuziehen.
 
 ### 3. Nicht verwechseln
-`docs/REQUIREMENTS.md` ist fachliche SSOT, aber der operative Live-Stand vom 2026-05-13 steckt zusätzlich in `memory/2026-05-13.md` und in diesem Handoff.
+`docs/REQUIREMENTS.md` ist fachliche SSOT. Chat ist nur Abstimmung, nicht Wahrheit. Operativer Stand steckt in `memory/2026-05-14.md`, `SCOPEBOARD.md` und diesem Handoff.
 
 ---
 
