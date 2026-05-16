@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { motion } from "framer-motion";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/permissions-context";
 import { useTheme } from "@/lib/theme-context";
+import { startPortalLogin, startPortalRegistration } from "@/lib/auth-flow";
 
 interface CompetitionInfo {
   name: string;
@@ -188,6 +189,7 @@ export default function HomeScreen() {
   const [competitionInfo, setCompetitionInfo] = useState<CompetitionInfo | null>(null);
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthActionPending, setIsAuthActionPending] = useState(false);
   const { active: activeCompetition } = useCompetition();
 
   // Load competition info and stats
@@ -265,16 +267,32 @@ export default function HomeScreen() {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => signIn("authentik")}
+              onClick={async () => {
+                setIsAuthActionPending(true);
+                try {
+                  await startPortalLogin("/");
+                } finally {
+                  setIsAuthActionPending(false);
+                }
+              }}
               className="w-full"
+              disabled={isAuthActionPending}
             >
               🔐 Ins Portal einloggen
             </Button>
             <Button
               size="lg"
               variant="outline"
-              onClick={() => window.location.href = 'https://auth.s5evo.de/if/flow/s5-evo-registration/'}
               className="w-full"
+              onClick={async () => {
+                setIsAuthActionPending(true);
+                try {
+                  await startPortalRegistration("/");
+                } finally {
+                  setIsAuthActionPending(false);
+                }
+              }}
+              disabled={isAuthActionPending}
             >
               📝 Portal-Account erstellen
             </Button>

@@ -1,16 +1,35 @@
 import { signOut } from "next-auth/react";
+import { clearPendingAuthCallback, normalizeCallbackUrl } from "@/lib/auth-flow";
 
-const AUTH_END_SESSION_URL = "https://auth.s5evo.de/application/o/s5-evo-portal/end-session/";
+const FEDERATED_LOGOUT_PATH = "/api/auth/federated-logout";
 
 /**
  * Beendet sowohl die lokale Portal-Session als auch die SSO-Session beim Login-Dienst.
  * Sonst meldet der Browser beim nächsten Login durch das bestehende SSO-Cookie sofort
  * wieder denselben Account an.
  */
-export async function fullSignOut() {
-  await signOut({ redirect: false });
+export async function fullSignOut(callbackUrl?: string | null) {
+  const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
+  clearPendingAuthCallback();
+  const federatedLogoutUrl = new URL(FEDERATED_LOGOUT_PATH, window.location.origin);
+  federatedLogoutUrl.searchParams.set("callbackUrl", normalizedCallbackUrl);
 
-  const endSessionUrl = new URL(AUTH_END_SESSION_URL);
-  endSessionUrl.searchParams.set("post_logout_redirect_uri", window.location.origin);
-  window.location.href = endSessionUrl.toString();
+  try {
+    const response = await fetch(federatedLogoutUrl.toString(), {
+      method: "GET",
+      credentials: "include",
+    });
+    const data = (await response.json()) as { url?: string };
+
+    await signOut({ redirect: false, callbackUrl: normalizedCallbackUrl });
+
+    if (data.url) {
+      window.location.replace(data.url);
+      return;
+    }
+  } catch {
+    // Fall through to the local callback if the IdP logout URL could not be prepared.
+  }
+
+  window.location.replace(normalizedCallbackUrl);
 }

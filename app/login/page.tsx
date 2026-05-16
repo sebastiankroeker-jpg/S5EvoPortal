@@ -1,34 +1,50 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { normalizeCallbackUrl, startPortalLogin, startPortalRegistration } from "@/lib/auth-flow";
 
 export default function LoginPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [callbackUrl, setCallbackUrl] = useState("/");
-  const registerUrl = `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+  const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const value = new URL(window.location.href).searchParams.get("callbackUrl") || "/";
-    setCallbackUrl(value);
+    const params = new URLSearchParams(window.location.search);
+    setCallbackUrl(normalizeCallbackUrl(params.get("callbackUrl")));
   }, []);
 
   useEffect(() => {
-    if (status === "authenticated") {
-      router.push(callbackUrl);
+    if (status === "authenticated" && callbackUrl) {
+      router.replace(callbackUrl);
     }
   }, [status, router, callbackUrl]);
 
-  const handleLogin = () => {
-    signIn("authentik", { callbackUrl });
+  const handleLogin = async () => {
+    if (!callbackUrl) return;
+    setIsSubmitting(true);
+    try {
+      await startPortalLogin(callbackUrl);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  if (status === "loading") {
+  const handleRegister = async () => {
+    if (!callbackUrl) return;
+    setIsSubmitting(true);
+    try {
+      await startPortalRegistration(callbackUrl);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (status === "loading" || !callbackUrl) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -49,14 +65,12 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button onClick={handleLogin} className="w-full">
+          <Button onClick={handleLogin} className="w-full" disabled={isSubmitting}>
             Mit bestehendem Konto weiter
           </Button>
-          <Link href={registerUrl}>
-            <Button variant="outline" className="w-full">
+          <Button variant="outline" className="w-full" onClick={handleRegister} disabled={isSubmitting}>
               Neues Konto anlegen
-            </Button>
-          </Link>
+          </Button>
           <p className="text-xs text-muted-foreground text-center">
             Wenn du aus einer Anmeldemail kommst, nutze bitte dieselbe E-Mail-Adresse wie dort.
           </p>

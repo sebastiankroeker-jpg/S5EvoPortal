@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { signIn } from "next-auth/react";
+import { startPortalLogin } from "@/lib/auth-flow";
 
 interface ESVHeroProps {
   onLogin?: () => void;
@@ -51,7 +51,7 @@ export default function ESVHero({ onLogin }: ESVHeroProps) {
                 Sichere dir einen Platz für deine Mannschaft beim diesjährigen Fünfkampf
               </p>
               <Button 
-                onClick={() => signIn("authentik")}
+                onClick={() => void startPortalLogin("/")}
                 size="lg"
                 className="w-full bg-[#dc2626] hover:bg-[#b91c1c] text-white font-semibold"
               >
