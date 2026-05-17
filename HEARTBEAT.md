@@ -15,7 +15,7 @@
 ### 2. Build & Commit Check
 - `cd ~/workspace && git status`
 - Uncommitted changes? → Committen mit sinnvoller Message
-- `npm run build` — bricht der Build? → Fixen hat Vorrang vor neuen Features
+- `cd ~/workspace/authentik-nextjs-demo && npm run build` — bricht der Portal-Build? → Fixen hat Vorrang vor neuen Features
 
 ### 3. Blocker melden (wenn nötig)
 - BLOCKED Scopes prüfen: Gibt es neue Infos die den Blocker lösen?

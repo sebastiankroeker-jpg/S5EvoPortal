@@ -14,6 +14,7 @@ P10 | DONE | S5Evo | Owner:s5evo | Self-Service Teilnehmerdaten ändern | DoD: U
 P41 | DONE | S5Evo | Owner:s5evo | Phase 2 – Navigation & Home-Flow | DoD: Bottom Tabs, Home-Dashboard, Profil „Darstellung" (Backport ThemeSwitcher)
 P20 | DONE | S5Evo | Owner:Sebastian | Admin-UI: Teilnehmerübersicht + Search | DoD: Liste + Suche + Edit-Entrypoint
 P30 | BACKLOG | S5Evo | Owner:s5evo | Audit/Activity Log für Änderungen | DoD: Änderungsprotokoll pro Teilnehmer sichtbar
+P32 | BACKLOG | S5Evo | Owner:s5evo | Approval-Mailflow + Dashboard-Freigabe | DoD: Änderungsantrag erzeugt Orga-Mail mit Deep-Link, Status „in Prüfung/genehmigt/abgelehnt“ sichtbar, Review auditierbar
 P31 | BACKLOG | S5Evo | Owner:s5evo | Lint Debt Cleanup | DoD: `npm run lint` zero errors/warnings für Portal-Repo
 P40 | BLOCKED | S5Evo | Owner:s5evo | Phase 1 - Design-System & Farben | DoD: neue Tokens, Light/Dark Feinschliff, reduzierte Borders — pausiert (wartet auf neues Briefing)
 P42 | BACKLOG | S5Evo | Owner:s5evo | Phase 3 - Admin Separation | DoD: dedizierte Admin-Sidebar, Role-Switch im Admin-Bereich

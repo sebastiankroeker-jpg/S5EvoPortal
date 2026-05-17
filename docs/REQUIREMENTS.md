@@ -147,7 +147,8 @@
 
 ### Default-Rollen (Neu-Registrierung)
 - Neue User ohne existierende Tenant-Rolle erhalten automatisch **TEAMCHEF + TEILNEHMER**
-- User mit Authentik-Admin-Gruppe erhalten zusätzlich **ADMIN**
+- **ADMIN wird nie automatisch** bei einer normalen Neu-Registrierung vergeben
+- Admin-Rechte werden nur bewusst durch bestehende Admins vergeben
 - Damit sehen Neu-Registrierte sofort den Anmelde-Tab (Fix vom 30.03.2026)
 
 ### Approval-Workflow
@@ -155,6 +156,9 @@
 - **Teilnehmer:** Nur eigene Daten → Approval-Queue
 - **Admin:** Alles + Approvals abarbeiten
 - **Klassenänderung durch Datenänderung:** Automatische Neuberechnung + Extra-Approval
+- Änderungsanträge sollen für Orga **auditierbar** bleiben (wer, was, wann, alter/neuer Wert, Review-Entscheid)
+- Im UI soll der Status für Änderungsanträge klar sichtbar sein, mindestens **„in Prüfung“** und **„genehmigt“** (optional auch **„abgelehnt“**)
+- Folgeausbau nach Testfreigabe: Orga-Mail bei eingereichten Änderungen mit Deep-Link ins Mannschafts-/Admin-Dashboard zur Freigabe
 
 ### Anmelde- & Login-Modi
 - Mannschaftsanmeldung muss **ohne vorherigen Login** möglich bleiben
@@ -266,6 +270,7 @@ User → TenantRoles (pro Wettkampf)
 - [ ] Mannschafts-Statistiken & Historie
 - [ ] Foto-Upload pro Wettkampf
 - [ ] Benachrichtigungen (E-Mail / Push)
+- [ ] Auditierbare Änderungshistorie + Approval-Mail-Workflow für Teilnehmer-/Mannschaftsänderungen
 - [ ] Anpassbares Regelwerk pro Wettkampf-Typ
 
 ### Phase 3 — Vision
@@ -312,6 +317,7 @@ User → TenantRoles (pro Wettkampf)
 ---
 
 *Änderungshistorie:*
+- 2026-05-17 v5: Approval-Workflow fachlich erweitert: Änderungsanträge sollen auditierbar sein, UI-Status wie „in Prüfung“ / „genehmigt“ tragen und später per Orga-Mail mit Deep-Link ins Freigabe-Dashboard ausgelöst werden. Umsetzung bewusst nach der ersten Testwelle einplanen.
 - 2026-04-22 v4: Neue Anforderungsrichtung aus Vereins-Feedback ergänzt: öffentliche Mannschaftsanmeldung ohne vorgelagerten Authentik-Login, Bestätigungsmails an Anmelder + Verein, T-Shirt-Größe pro Teilnehmer sowie T-Shirt-Bestellschluss in den Wettkampf-Parametern.
 - 2026-04-01 v3: Default-Rollen-Fix dokumentiert (neue User ohne Tenant-Rolle bekommen automatisch TEAMCHEF+TEILNEHMER, Admins zusätzlich ADMIN). Supply-Chain-Security ergänzt (axios-Audit, npm Safety Defaults). Deploy-Pipeline-Referenz aktualisiert. CrewUnited-Gruppenchat als Kommunikationskanal notiert.
 - 2026-03-22 v2: Teamchef-Regel präzisiert (kann Betreuer ODER Teilnehmer sein), Disziplin-Zuordnung definiert (Dropdown, keine Doppelnennung, TBD erlaubt), Registration-Flow (3 Schritte), Auth Redirect URIs + ENV-Vars ergänzt, Mixed-Wording bereinigt.
