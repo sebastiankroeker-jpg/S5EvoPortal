@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-type Theme = "light" | "dark" | "bunt" | "esv";
+export type Theme = "light" | "dark" | "bunt" | "esv";
 
 interface ThemeContextType {
   theme: Theme;
@@ -16,15 +16,12 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "light";
 
-  useEffect(() => {
-    // Theme aus localStorage laden beim Start
-    const savedTheme = localStorage.getItem("s5evo-theme") as Theme;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-  }, []);
+    const savedTheme = localStorage.getItem("s5evo-theme") as Theme | null;
+    return savedTheme ?? "light";
+  });
 
   useEffect(() => {
     // Theme speichern und auf DOM anwenden

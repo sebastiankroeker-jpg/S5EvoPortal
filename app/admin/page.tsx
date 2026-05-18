@@ -14,15 +14,6 @@ import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
 import UserManagement from "@/app/components/user-management";
 
-type CompetitionListItem = {
-  id: string;
-  name: string;
-  year: number;
-  status: string;
-  tenant: { name: string; slug: string };
-  _count: { teams: number };
-};
-
 type TenantConfig = {
   name: string;
   slug: string;
@@ -73,28 +64,7 @@ export default function AdminPage() {
   const { data: session } = useSession();
   const { can } = usePermissions();
   const { active: activeCompetition, all: competitions, switchTo } = useCompetition();
-  
-  // Permission check - redirect if no access
-  if (session && !can("config.edit")) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>🚫 Kein Zugriff</CardTitle>
-            <CardDescription>
-              Du hast keine Berechtigung für die Administration.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/">
-              <Button className="w-full">← Zurück zur Startseite</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-  
+
   const [tenant, setTenant] = useState<TenantConfig>({
     name: "ESV Rosenheim",
     slug: "esv-rosenheim",
@@ -130,6 +100,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const hasAdminAccess = !session || can("config.edit");
 
   const loadCompetitionDetails = async (compId: string) => {
     const res = await fetch(`/api/admin/competition?id=${compId}`);
@@ -161,6 +132,11 @@ export default function AdminPage() {
 
   // Load tenant on mount
   useEffect(() => {
+    if (!hasAdminAccess) {
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         const tenantResponse = await fetch('/api/admin/tenant');
@@ -187,14 +163,14 @@ export default function AdminPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [hasAdminAccess]);
 
   // Load competition details when active competition changes
   useEffect(() => {
-    if (activeCompetition?.id) {
+    if (hasAdminAccess && activeCompetition?.id) {
       loadCompetitionDetails(activeCompetition.id);
     }
-  }, [activeCompetition?.id]);
+  }, [activeCompetition?.id, hasAdminAccess]);
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -256,6 +232,26 @@ export default function AdminPage() {
           <div className="animate-spin inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
           <p className="mt-4 text-muted-foreground">Lade Konfiguration...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (!hasAdminAccess) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>🚫 Kein Zugriff</CardTitle>
+            <CardDescription>
+              Du hast keine Berechtigung für die Administration.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/">
+              <Button className="w-full">← Zurück zur Startseite</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     );
   }

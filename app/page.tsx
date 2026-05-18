@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import NavBar from "./components/nav-bar";
@@ -29,43 +28,38 @@ function getTabFromHash() {
 
 export default function Home() {
   const router = useRouter();
-  const { status } = useSession();
   const { theme } = useTheme();
   const { can } = usePermissions();
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState<MainTab>(() => {
+    if (typeof window === "undefined") return "home";
+
+    const initialTab = getTabFromHash();
+    if (initialTab) return initialTab;
+
+    const storedTab = window.sessionStorage.getItem("s5evo-active-tab");
+    return isMainTab(storedTab) ? storedTab : "home";
+  });
 
   // Listen for tab switch events (from sidebar, bottom bar, etc.)
   useEffect(() => {
-    const initialTab = getTabFromHash();
-    if (initialTab) {
-      setActiveTab(initialTab);
-    } else if (typeof window !== "undefined") {
-      const storedTab = window.sessionStorage.getItem("s5evo-active-tab");
-      if (isMainTab(storedTab)) {
-        setActiveTab(storedTab);
+    const handler = (event: Event) => {
+      const tabId = (event as CustomEvent<{ tabId?: string }>).detail?.tabId ?? null;
+      if (isMainTab(tabId)) {
+        setActiveTab(tabId);
       }
-    }
-
-    const handler = (e: CustomEvent) => setActiveTab(e.detail.tabId);
+    };
     const handleHashChange = () => {
       const nextTab = getTabFromHash();
       setActiveTab(nextTab ?? "home");
     };
 
-    window.addEventListener("switchTab" as any, handler);
+    window.addEventListener("switchTab", handler as EventListener);
     window.addEventListener("hashchange", handleHashChange);
     return () => {
-      window.removeEventListener("switchTab" as any, handler);
+      window.removeEventListener("switchTab", handler as EventListener);
       window.removeEventListener("hashchange", handleHashChange);
     };
   }, []);
-
-  // Profile tab → navigate to /profile
-  useEffect(() => {
-    if (activeTab === "profile") {
-      window.location.href = "/profile";
-    }
-  }, [activeTab]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -151,7 +145,14 @@ export default function Home() {
 
       {/* Bottom Tab Bar - only mobile */}
       <div className="lg:hidden">
-        <BottomTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <BottomTabBar
+          activeTab={activeTab}
+          onTabChange={(tabId) => {
+            if (isMainTab(tabId)) {
+              setActiveTab(tabId);
+            }
+          }}
+        />
       </div>
     </div>
   );

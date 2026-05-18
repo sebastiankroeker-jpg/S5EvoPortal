@@ -24,28 +24,34 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const [simulatedRole, setSimulatedRole] = useState<Role | null>(null);
   
   // Rollen aus der DB laden
-  const [dbRoles, setDbRoles] = useState<Role[]>([]);
-  const [rolesLoaded, setRolesLoaded] = useState(false);
+  const [dbRoles, setDbRoles] = useState<Role[] | null>(null);
 
   useEffect(() => {
-    if (session?.user) {
-      fetch("/api/profile/roles")
-        .then(res => res.ok ? res.json() : { roles: [] })
-        .then(data => {
-          setDbRoles(data.roles?.length ? data.roles : ["TEILNEHMER"]);
-          setRolesLoaded(true);
-        })
-        .catch(() => {
-          setDbRoles(["TEILNEHMER"]);
-          setRolesLoaded(true);
-        });
-    } else {
-      setDbRoles(["ZUSCHAUER"]);
-      setRolesLoaded(true);
-    }
-  }, [session]);
+    if (!session?.user) return;
 
-  const roles: Role[] = dbRoles.length ? dbRoles : (session?.user ? ["TEILNEHMER"] : ["ZUSCHAUER"]);
+    let cancelled = false;
+
+    fetch("/api/profile/roles")
+      .then(res => res.ok ? res.json() : { roles: [] })
+      .then(data => {
+        if (!cancelled) {
+          setDbRoles(data.roles?.length ? data.roles : ["TEILNEHMER"]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDbRoles(["TEILNEHMER"]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user]);
+
+  const roles: Role[] = session?.user
+    ? (dbRoles?.length ? dbRoles : ["TEILNEHMER"])
+    : ["ZUSCHAUER"];
   
   const activeRole = simulatedRole || getHighestRole(roles);
   const isSimulating = simulatedRole !== null;

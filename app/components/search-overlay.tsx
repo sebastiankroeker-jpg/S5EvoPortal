@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -18,7 +18,14 @@ interface SearchItem {
   keywords?: string[];
   icon: string;
   discipline?: string;
-  participants?: any[];
+  participants?: Array<{ id?: string }>;
+}
+
+interface SearchTeamResult {
+  id?: string;
+  name: string;
+  discipline?: string;
+  participants?: Array<{ id?: string }>;
 }
 
 interface SearchOverlayProps {
@@ -90,6 +97,12 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     }
   };
 
+  const handleClose = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+    onClose();
+  };
+
   // Search implementation
   const performSearch = async (query: string) => {
     const lowerQuery = query.toLowerCase().trim();
@@ -109,9 +122,11 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       try {
         const response = await fetch(`/api/teams?q=${encodeURIComponent(query)}`);
         if (response.ok) {
-          const teams = await response.json();
-          teamResults = teams.map((team: any) => ({
+          const data = await response.json();
+          const teams: SearchTeamResult[] = Array.isArray(data) ? data : data.teams || [];
+          teamResults = teams.map((team) => ({
             type: 'team' as const,
+            id: team.id,
             name: team.name,
             discipline: team.discipline,
             participants: team.participants || [],
@@ -126,36 +141,28 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     setSearchResults([...menuResults, ...teamResults]);
   };
 
-  // Initial load: show all menu items
   useEffect(() => {
-    if (isOpen) performSearch("");
-  }, [isOpen]);
+    if (!isOpen) return;
 
-  useEffect(() => {
     const debounce = setTimeout(() => {
-      performSearch(searchQuery);
-    }, 200);
+      void performSearch(searchQuery);
+    }, searchQuery ? 200 : 0);
+
     return () => clearTimeout(debounce);
-  }, [searchQuery]);
+  }, [isOpen, searchQuery, pathname, permittedMenuItems, roles, status]);
 
   // Close overlay with ESC
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
+        setSearchQuery("");
+        setSearchResults([]);
         onClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
-
-  // Reset search when closing
-  useEffect(() => {
-    if (!isOpen) {
-      setSearchQuery("");
-      setSearchResults([]);
-    }
-  }, [isOpen]);
 
   return (
     <AnimatePresence>
@@ -165,7 +172,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={handleClose}
         >
           <motion.div
             className="fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-lg mx-4"
@@ -187,7 +194,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="h-8 w-8 p-0"
                 >
                   <X className="h-4 w-4" />
@@ -208,7 +215,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                               handleMenuSelection(item);
                             }
                           }
-                          onClose();
+                          handleClose();
                         }}
                       >
                         <div className="flex items-center gap-2">

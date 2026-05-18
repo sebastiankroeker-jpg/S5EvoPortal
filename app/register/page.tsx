@@ -11,16 +11,16 @@ import { normalizeCallbackUrl, startPortalRegistration } from "@/lib/auth-flow";
 export default function RegisterPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
+  const [callbackUrl] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+
+    const params = new URLSearchParams(window.location.search);
+    return normalizeCallbackUrl(params.get("callbackUrl"));
+  });
   const [error, setError] = useState<string | null>(null);
   const redirectStarted = useRef(false);
   const resolvedCallbackUrl = callbackUrl || "/";
   const loginUrl = `/login?callbackUrl=${encodeURIComponent(resolvedCallbackUrl)}`;
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setCallbackUrl(normalizeCallbackUrl(params.get("callbackUrl")));
-  }, []);
 
   useEffect(() => {
     if (status === "authenticated" && callbackUrl) {

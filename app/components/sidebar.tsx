@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePermissions } from "@/lib/permissions-context";
-import { useTheme } from "@/lib/theme-context";
+import { useTheme, type Theme } from "@/lib/theme-context";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import SearchOverlay from "./search-overlay";
@@ -14,6 +14,12 @@ import { isClaimNavigationPath } from "@/lib/navigation-menu";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
+const THEME_OPTIONS: Array<{ id: Theme; icon: string; label: string }> = [
+  { id: "light", icon: "☀️", label: "Light" },
+  { id: "dark", icon: "🌙", label: "Dark" },
+  { id: "esv", icon: "🏔️", label: "ESV" },
+  { id: "bunt", icon: "🎨", label: "Bunt" },
+];
 
 function isMainTab(value: string | null): value is MainTab {
   return value !== null && MAIN_TABS.includes(value as MainTab);
@@ -57,9 +63,22 @@ export default function Sidebar() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
   const { theme, setTheme } = useTheme();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+
+    const saved = localStorage.getItem("sidebar-collapsed");
+    return saved ? JSON.parse(saved) : false;
+  });
   const [searchOpen, setSearchOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<MainTab>("home");
+  const [activeTab, setActiveTab] = useState<MainTab>(() => {
+    if (typeof window === "undefined") return "home";
+
+    const hashTab = getTabFromHash();
+    if (hashTab) return hashTab;
+
+    const storedTab = window.sessionStorage.getItem("s5evo-active-tab");
+    return isMainTab(storedTab) ? storedTab : "home";
+  });
   const isClaimPath = isClaimNavigationPath(pathname);
   const showOrgaSection = !isClaimPath && (can("team.view.all") || can("results.edit"));
   const showTechSection = !isClaimPath;
@@ -67,36 +86,25 @@ export default function Sidebar() {
   const teamIcon = isClaimPath || activeRole === "TEILNEHMER" ? "🏃" : "📋";
 
   useEffect(() => {
-    const saved = localStorage.getItem("sidebar-collapsed");
-    if (saved) setIsCollapsed(JSON.parse(saved));
-  }, []);
-
-  useEffect(() => {
     if (pathname !== "/") return;
 
-    const syncMainTab = () => {
+    const handleSwitchTab = (event: Event) => {
+      const tabId = (event as CustomEvent<{ tabId?: string }>).detail?.tabId ?? null;
+      if (isMainTab(tabId)) {
+        setActiveTab(tabId);
+      }
+    };
+
+    const handleHashChange = () => {
       const hashTab = getTabFromHash();
-      if (hashTab) {
-        setActiveTab(hashTab);
-        return;
-      }
-
-      const storedTab = window.sessionStorage.getItem("s5evo-active-tab");
-      setActiveTab(isMainTab(storedTab) ? storedTab : "home");
+      setActiveTab(hashTab ?? "home");
     };
 
-    syncMainTab();
-    const handleSwitchTab = (event: CustomEvent) => {
-      if (isMainTab(event.detail?.tabId ?? null)) {
-        setActiveTab(event.detail.tabId);
-      }
-    };
-
-    window.addEventListener("switchTab" as any, handleSwitchTab);
-    window.addEventListener("hashchange", syncMainTab);
+    window.addEventListener("switchTab", handleSwitchTab as EventListener);
+    window.addEventListener("hashchange", handleHashChange);
     return () => {
-      window.removeEventListener("switchTab" as any, handleSwitchTab);
-      window.removeEventListener("hashchange", syncMainTab);
+      window.removeEventListener("switchTab", handleSwitchTab as EventListener);
+      window.removeEventListener("hashchange", handleHashChange);
     };
   }, [pathname]);
 
@@ -211,15 +219,10 @@ export default function Sidebar() {
 
         <SectionLabel label="Themes" isCollapsed={isCollapsed} />
         <div className={`${isCollapsed ? "flex flex-col items-center gap-1" : "flex gap-1 justify-center px-2"}`}>
-          {[
-            { id: "light", icon: "☀️", label: "Light" },
-            { id: "dark", icon: "🌙", label: "Dark" },
-            { id: "esv", icon: "🏔️", label: "ESV" },
-            { id: "bunt", icon: "🎨", label: "Bunt" },
-          ].map((t) => (
+          {THEME_OPTIONS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTheme(t.id as any)}
+              onClick={() => setTheme(t.id)}
               className={`w-6 h-6 rounded-full text-sm flex items-center justify-center transition-all hover:scale-110 ${
                 theme === t.id ? "ring-1 ring-primary ring-offset-1 ring-offset-background scale-110" : "opacity-40 hover:opacity-80"
               }`}
