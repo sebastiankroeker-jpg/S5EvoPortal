@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -8,6 +9,13 @@ import { fullSignOut } from "@/lib/auth-helpers";
 
 export default function LogoutPage() {
   const { status } = useSession();
+  const retryStarted = useRef(false);
+
+  useEffect(() => {
+    if (status !== "authenticated" || retryStarted.current) return;
+    retryStarted.current = true;
+    void fullSignOut("/logout");
+  }, [status]);
 
   if (status === "authenticated") {
     return (
@@ -16,10 +24,13 @@ export default function LogoutPage() {
           <CardHeader>
             <CardTitle>Sitzung noch aktiv</CardTitle>
             <CardDescription>
-              Die Portal- oder SSO-Session ist noch nicht komplett beendet. Ich stoße den vollständigen Logout direkt erneut an.
+              Die Portal- oder SSO-Session ist noch nicht komplett beendet. Der vollständige Logout wird automatisch erneut angestoßen.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="flex items-center justify-center py-2">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
             <Button className="w-full" onClick={() => fullSignOut("/logout")}>
               Vollständig abmelden
             </Button>
