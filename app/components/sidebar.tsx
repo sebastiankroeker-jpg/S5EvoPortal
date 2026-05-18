@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
@@ -138,12 +139,14 @@ export default function Sidebar() {
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-2 border-b border-border/30">
         {!isCollapsed ? (
-          <div className="flex items-center gap-1.5">
+          <Link href="/" className="flex items-center gap-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
             <span className="text-base">🏅</span>
             <span className="font-semibold text-sm">S5Evo</span>
-          </div>
+          </Link>
         ) : (
-          <span className="text-base mx-auto">🏅</span>
+          <Link href="/" className="mx-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            <span className="text-base">🏅</span>
+          </Link>
         )}
         <Button variant="ghost" size="sm" onClick={toggleCollapsed} className="h-6 w-6 p-0">
           {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}

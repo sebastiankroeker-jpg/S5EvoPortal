@@ -29,6 +29,7 @@ interface TeamStats {
 const FLYER_INFO_2026 = {
   registrationDeadline: "22.07.2026",
   registrationUrl: "www.esv-bad-bayersoien.de",
+  flyerUrl: "https://www.esvbadbayersoien.de/veranstaltungen/5-kampf/",
   registrationNotes: [
     "Mannschaftsanmeldung direkt hier im Portal",
     "Die Anmeldung gilt erst mit Überweisung der Startgebühr als verbindlich",
@@ -90,7 +91,7 @@ function FlyerInfoCard() {
             <p><span className="font-medium text-foreground">🌐 Anmeldung:</span> {FLYER_INFO_2026.registrationUrl}</p>
           </div>
           <a
-            href={`https://${FLYER_INFO_2026.registrationUrl}`}
+            href={FLYER_INFO_2026.flyerUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:opacity-90 transition-opacity"
@@ -294,7 +295,8 @@ export default function HomeScreen() {
                   📝 Portal-Konto erstellen
                 </Button>
                 <Button
-                  variant="secondary"
+                  size="sm"
+                  variant="ghost"
                   onClick={async () => {
                     setIsAuthActionPending(true);
                     try {
@@ -306,17 +308,13 @@ export default function HomeScreen() {
                   className="w-full"
                   disabled={isAuthActionPending}
                 >
-                  🔐 Ins Portal einloggen
+                  🔐 Im Portal anmelden
                 </Button>
               </div>
             </div>
             <div className="text-xs text-left text-muted-foreground rounded-md border border-border/50 p-3 bg-muted/10">
               <p className="font-medium text-foreground mb-1">Hinweis zum Beta-Release</p>
               <p>Das Portal ist testbereit, aber noch nicht komplett auspoliert. Wenn etwas schief läuft, ist das kein Charakterfehler von dir, sondern eher normaler Beta-Sport.</p>
-            </div>
-            <div className="text-xs text-center text-muted-foreground space-y-1">
-              <p>auth.s5evo.de</p>
-              <p>Die Schaltfläche unten in der Ausschreibung führt zur ESV-Website, nicht ins Portal.</p>
             </div>
           </CardContent>
         </Card>

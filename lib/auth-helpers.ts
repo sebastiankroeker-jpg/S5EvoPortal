@@ -13,23 +13,26 @@ export async function fullSignOut(callbackUrl?: string | null) {
   clearPendingAuthCallback();
   const federatedLogoutUrl = new URL(FEDERATED_LOGOUT_PATH, window.location.origin);
   federatedLogoutUrl.searchParams.set("callbackUrl", normalizedCallbackUrl);
+  let logoutRedirectUrl = normalizedCallbackUrl;
 
   try {
     const response = await fetch(federatedLogoutUrl.toString(), {
       method: "GET",
       credentials: "include",
     });
-    const data = (await response.json()) as { url?: string };
-
-    await signOut({ redirect: false, callbackUrl: normalizedCallbackUrl });
-
-    if (data.url) {
-      window.location.replace(data.url);
-      return;
+    if (response.ok) {
+      const data = (await response.json()) as { url?: string };
+      if (data.url) {
+        logoutRedirectUrl = data.url;
+      }
     }
   } catch {
-    // Fall through to the local callback if the IdP logout URL could not be prepared.
+    // Fall back to the local callback if the IdP logout URL could not be prepared.
   }
 
-  window.location.replace(normalizedCallbackUrl);
+  try {
+    await signOut({ redirect: false, callbackUrl: normalizedCallbackUrl });
+  } finally {
+    window.location.replace(logoutRedirectUrl);
+  }
 }

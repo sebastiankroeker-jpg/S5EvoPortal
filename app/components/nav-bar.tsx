@@ -60,8 +60,10 @@ export default function NavBar() {
     >
       {/* Left: Logo + Version */}
       <div className="flex items-center gap-2">
-        <span className="text-lg">🏅</span>
-        <span className="font-semibold text-sm">S5Evo</span>
+        <Link href="/" className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+          <span className="text-lg">🏅</span>
+          <span className="font-semibold text-sm">S5Evo</span>
+        </Link>
         <Link href="/changelog">
           <Badge variant="secondary" className="text-[10px] hover:bg-primary/20 cursor-pointer">{APP_VERSION}</Badge>
         </Link>
