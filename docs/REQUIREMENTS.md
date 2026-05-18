@@ -33,6 +33,8 @@
 
 **Authentik-Gruppen-Mapping:**
 
+> Authentik bleibt primär für Identität/SSO zuständig. Die fachlich maßgeblichen Portal-Rollen werden im Portal über `TenantRole` verwaltet. Authentik-Gruppen sind optional für Bootstrap-/Systemadmin-Zugänge, aber nicht der Standardweg für die laufende Rollenzuordnung.
+
 | Authentik Gruppe | Portal-Rolle |
 |---|---|
 | `s5evo-admin` | Administrator |
@@ -195,6 +197,11 @@ User → TenantRoles (pro Wettkampf)
 ## 8. Authentifizierung
 
 **Entscheidung:** Authentik (self-hosted IdP) via OAuth2/OIDC
+
+**Rollenmodell:** Hybrid
+- Authentik = Login, SSO, Identität
+- Portal-Datenbank (`User`, `TenantRole`) = fachliche Rollen und Berechtigungen
+- Optionale Authentik-Gruppen bleiben für spätere Systemadmin-/Bootstrap-Fälle möglich
 
 | Komponente | Detail |
 |---|---|

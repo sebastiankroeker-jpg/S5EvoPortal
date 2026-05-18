@@ -3,7 +3,7 @@
 > Zweck: Dieses Dokument dient als kompakte Übergabe für die nächste Session.
 > Es bündelt Methodik, Ordnungssystem, Architektur, Fortschritt, offene Punkte und den aktuellen Arbeitsstand.
 
-**Stand:** 2026-05-14
+**Stand:** 2026-05-18
 **Projekt:** S5Evo Portal
 **Live:** https://s5-evo-portal.vercel.app
 **Aktives App-Verzeichnis:** `/home/ocadmin/.openclaw/workspace/authentik-nextjs-demo`
@@ -161,6 +161,24 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
    - bessere Texte nach anonymer Anmeldung
    - bessere Mail-Texte
    - verständlichere Claim-Seite
+6. **Dashboard-/Rechte-Härtung umgesetzt**
+   - Team-APIs serverseitig gehärtet
+   - scope=all nur noch für Admin/Moderator
+   - Einzelzugriffe prüfen konsistent auf Owner oder privilegierte Rolle
+7. **Benutzer-Dashboard im Admin-Bereich umgesetzt**
+   - Rollenbearbeitung sichtbar nutzbar
+   - Schutz gegen Entfernen des letzten Admins
+   - eigener Benutzer und letzter Admin serverseitig geschützt
+8. **Mannschaft-Dashboard erweitert**
+   - Listenansicht zusätzlich zur Kartenansicht
+   - CSV-Export der aktuell gefilterten Teams
+   - Teams-Ansicht mit Sortierung und konfigurierbaren Spalten
+9. **Anmelde-/Claim-UX weiter gestrafft**
+   - Login/Register/Claim sowie Success-/Hinweisstrecken textlich bereinigt
+10. **Node-/Build-Kontext bereinigt**
+   - authentik-nextjs-demo explizit als aktives Portal-Projekt abgesichert
+   - Turbopack-Root auf das Repo gesetzt
+   - redundante Root-Manifeste archiviert, damit Build-Kontext nicht mehr mehrdeutig ist
 
 ### Live relevante Einstiege
 - Startseite: `https://s5-evo-portal.vercel.app`
@@ -197,22 +215,27 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 - `P42` Admin Separation
 - `P99` Fleet Dev Policy
 
+### Hinweis zum heutigen Stand
+- Die Stabilisierungspakete A1, A2, B und C vom 2026-05-18 sind in memory/2026-05-18.md dokumentiert, aber noch nicht als eigene Scopes im SCOPEBOARD.md nachgezogen.
+
 ---
 
 ## 9. Offene ToDos / Nächste sinnvolle Schritte
 
 ### Kurzfristig sinnvoll
-1. **Nahtlosen Authentik-Flow Ende-zu-Ende absichern**
-   - anonyme Anmeldung
-   - Claim
-   - Login/Registrierung mit passender E-Mail
-   - sauberer Rückweg in den fachlichen Flow
+1. **Claim-/Identity-Fix sauber abschließen**
+   - Session-User und Portal-User konsistent zusammenführen
+   - OIDC-Sub + normalisierte E-Mail als gemeinsame Identitätsbasis
+   - Claim, Rollen und Dashboard müssen dieselbe User-Identität sehen
 2. **Scope REVIEW sauber abschließen**
    - vor allem `P50`, `P08`, `P05`
 3. **Methodik nur minimal-invasiv stärken**
    - Handoff pflegen
    - Rollen/Owner klar halten
    - keine große Strukturmigration vor dem Wettkampf
+4. **Admin Separation bewusst als nächstes größeres Paket schneiden**
+   - Benutzer-Dashboard ist jetzt nur noch im Admin-Bereich
+   - dedizierte Admin-Navigation bleibt als separates Paket offen
 
 ### Fachlich größere Themen danach
 - Public API (Phase 1.5)
@@ -227,6 +250,7 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 1. **Falsches Projekt / falscher Deploy-Kontext**
    - relevant ist aktuell `authentik-nextjs-demo`
    - ein erster Deploy ging versehentlich ins falsche Vercel-Projekt
+   - altes Root-Node-Projekt wurde am 2026-05-18 archiviert, damit der Build-Kontext eindeutig bleibt
 
 2. **Veraltete Dokumente können irreführen**
    - insbesondere altes Domain Model und Roadmap
@@ -243,18 +267,23 @@ Konsequenz: Diese Dokumente nur als Kontext lesen, nicht als maßgebliche Quelle
 
 ---
 
-## 11. Konkreter Status vom 2026-05-14
+## 11. Konkreter Status vom 2026-05-18
 
 ### Bestätigt
 - Production-Deploy erfolgreich
 - Registration-Mails für 2026 fachlich live bestätigt
 - öffentliche Anmeldung ohne Login live
 - Claim-Handoff-UX live verbessert
+- Dashboard-/API-Rechte serverseitig gehärtet
+- Benutzer-Dashboard im Admin-Bereich erweitert
+- Mannschaft-Dashboard hat Listenansicht + CSV-Export
+- Teams-Ansicht hat Sortierung, Filterbox und konfigurierbare Spalten
+- Node-/Build-Kontext bereinigt; Portal-Repo ist als einzig aktives Node-Projekt explizit abgesichert
 - Cross-Agent-Abstimmung gestartet: Handoff wird als gemeinsames Projekt-Handout genutzt
 - Ein kleines, zentrales Git-Repo für Methodik/Betrieb ist als sinnvolle Richtung festgehalten, aber **erstmal ohne große Migration vor dem Wettkampf**
 
 ### Noch offen
-- Authentik-Flow Ende-zu-Ende fachlich final absichern
+- Claim-/Identity-Fix fachlich final absichern
 - REVIEW-Scopes konsequent abräumen
 - gemeinsames Agenten-Betriebsmodell nach dem Wettkampf sauber ausformulieren
 
