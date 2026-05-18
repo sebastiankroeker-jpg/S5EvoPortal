@@ -9,7 +9,7 @@ const FEDERATED_LOGOUT_PATH = "/api/auth/federated-logout";
  * wieder denselben Account an.
  */
 export async function fullSignOut(callbackUrl?: string | null) {
-  const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
+  const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl ?? "/logout");
   clearPendingAuthCallback();
   const federatedLogoutUrl = new URL(FEDERATED_LOGOUT_PATH, window.location.origin);
   federatedLogoutUrl.searchParams.set("callbackUrl", normalizedCallbackUrl);

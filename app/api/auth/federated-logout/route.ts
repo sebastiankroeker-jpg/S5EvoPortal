@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 
-const AUTH_END_SESSION_URL = "https://auth.s5evo.de/application/o/s5-evo-portal/end-session/";
+const AUTHENTIK_SESSION_END_URL = "https://auth.s5evo.de/if/session-end/";
 
 function normalizeLogoutCallbackUrl(value?: string | null) {
   if (!value) return "/";
@@ -15,23 +14,14 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("callbackUrl"),
   );
   const postLogoutRedirectUri = new URL(callbackUrl, request.nextUrl.origin);
+  const sessionEndUrl = new URL(AUTHENTIK_SESSION_END_URL);
+  const redirectTarget = postLogoutRedirectUri.toString();
 
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+  // auth.s5evo.de has historically accepted redirect_uri here; newer
+  // authentik installs commonly use next for flow redirects. Supplying both
+  // keeps the logout redirect stable across upgrades.
+  sessionEndUrl.searchParams.set("redirect_uri", redirectTarget);
+  sessionEndUrl.searchParams.set("next", redirectTarget);
 
-  const endSessionUrl = new URL(AUTH_END_SESSION_URL);
-  endSessionUrl.searchParams.set(
-    "post_logout_redirect_uri",
-    postLogoutRedirectUri.toString(),
-  );
-
-  const idTokenHint =
-    token && typeof token.idToken === "string" ? token.idToken : null;
-  if (idTokenHint) {
-    endSessionUrl.searchParams.set("id_token_hint", idTokenHint);
-  }
-
-  return NextResponse.json({ url: endSessionUrl.toString() });
+  return NextResponse.json({ url: sessionEndUrl.toString() });
 }
