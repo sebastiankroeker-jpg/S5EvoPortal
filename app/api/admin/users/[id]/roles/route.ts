@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { Role } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+
+const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"];
 
 // PUT /api/admin/users/[id]/roles — Rollen eines Users setzen
 export async function PUT(
@@ -32,8 +35,9 @@ export async function PUT(
     return NextResponse.json({ error: "roles muss ein Array sein" }, { status: 400 });
   }
 
-  const validRoles = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"];
-  const filteredRoles = roles.filter((r: string) => validRoles.includes(r));
+  const filteredRoles = roles.filter(
+    (role): role is Role => typeof role === "string" && VALID_ROLES.includes(role as Role)
+  );
 
   // User + Default-Tenant finden
   const user = await prisma.user.findUnique({ where: { id } });
@@ -52,17 +56,34 @@ export async function PUT(
     return NextResponse.json({ error: "Kein Tenant vorhanden" }, { status: 500 });
   }
 
+  const currentTenantRoles = await prisma.tenantRole.findMany({
+    where: { userId: id, tenantId: tenant.id },
+    select: { role: true },
+  });
+  const hadAdminRole = currentTenantRoles.some((tenantRole) => tenantRole.role === "ADMIN");
+  const keepsAdminRole = filteredRoles.includes("ADMIN");
+
+  if (hadAdminRole && !keepsAdminRole) {
+    const adminCount = await prisma.tenantRole.count({
+      where: { tenantId: tenant.id, role: "ADMIN" },
+    });
+
+    if (adminCount <= 1) {
+      return NextResponse.json({ error: "Der letzte Admin kann nicht entfernt werden" }, { status: 400 });
+    }
+  }
+
   // Bestehende Rollen für diesen Tenant löschen und neue setzen
   await prisma.$transaction([
     prisma.tenantRole.deleteMany({
       where: { userId: id, tenantId: tenant.id },
     }),
-    ...filteredRoles.map((role: string) =>
+    ...filteredRoles.map((role) =>
       prisma.tenantRole.create({
         data: {
           userId: id,
           tenantId: tenant.id,
-          role: role as any,
+          role,
         },
       })
     ),

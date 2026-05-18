@@ -12,7 +12,6 @@ import Dashboard from "./components/dashboard";
 import LiveScreen from "./components/live-screen";
 import BottomTabBar from "./components/bottom-tab-bar";
 import ApprovalQueue from "./components/approval-queue";
-import UserManagement from "./components/user-management";
 import ParticipantList from "./components/participant-list";
 
 export default function Home() {
@@ -98,9 +97,6 @@ export default function Home() {
                 <div id="participant-list">
                   <ParticipantList />
                 </div>
-
-                {/* User Management — nur für Admins */}
-                {can("config.edit") && <UserManagement />}
               </div>
             )}
             {activeTab === "live" && <LiveScreen />}

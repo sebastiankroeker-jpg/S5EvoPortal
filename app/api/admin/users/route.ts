@@ -16,6 +16,10 @@ export async function GET() {
     include: { tenantRoles: true },
   });
 
+  if (!currentUser) {
+    return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
+  }
+
   const isAdmin = currentUser?.tenantRoles.some(r => r.role === "ADMIN");
   if (!isAdmin) {
     return NextResponse.json({ error: "Nur Admins" }, { status: 403 });
@@ -32,7 +36,11 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
+  const adminCount = users.filter((user) => user.tenantRoles.some((role) => role.role === "ADMIN")).length;
+
   return NextResponse.json({
+    currentUserId: currentUser.id,
+    adminCount,
     users: users.map((u) => ({
       id: u.id,
       email: u.email,

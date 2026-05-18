@@ -186,6 +186,7 @@ function FlyerInfoCard() {
 export default function HomeScreen() {
   const { data: session, status } = useSession();
   const { can } = usePermissions();
+  const canViewAllTeams = can("team.view.all");
   const { theme } = useTheme();
   const [competitionInfo, setCompetitionInfo] = useState<CompetitionInfo | null>(null);
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
@@ -207,21 +208,24 @@ export default function HomeScreen() {
           setCompetitionInfo(compData.competition || compData);
         }
 
-        // Load team stats (scope=all to count all teams, not just own)
-        const params = new URLSearchParams({
-          competitionId: activeCompetition.id,
-          scope: 'all',
-        });
-        const teamsResponse = await fetch(`/api/teams?${params}`);
-        if (teamsResponse.ok) {
-          const teamsData = await teamsResponse.json();
-          const teams = teamsData.teams || [];
-          const stats = {
-            totalTeams: teams.length,
-            totalParticipants: teams.reduce((sum: number, team: any) => sum + (team.participants?.length || 0), 0),
-            totalClasses: new Set(teams.map((team: any) => team.category).filter(Boolean)).size
-          };
-          setTeamStats(stats);
+        if (canViewAllTeams) {
+          const params = new URLSearchParams({
+            competitionId: activeCompetition.id,
+            scope: 'all',
+          });
+          const teamsResponse = await fetch(`/api/teams?${params}`);
+          if (teamsResponse.ok) {
+            const teamsData = await teamsResponse.json();
+            const teams = teamsData.teams || [];
+            const stats = {
+              totalTeams: teams.length,
+              totalParticipants: teams.reduce((sum: number, team: any) => sum + (team.participants?.length || 0), 0),
+              totalClasses: new Set(teams.map((team: any) => team.category).filter(Boolean)).size
+            };
+            setTeamStats(stats);
+          }
+        } else {
+          setTeamStats(null);
         }
       } catch (error) {
         console.error('Error loading competition data:', error);
@@ -231,7 +235,7 @@ export default function HomeScreen() {
     };
 
     loadData();
-  }, [activeCompetition?.id]);
+  }, [activeCompetition?.id, canViewAllTeams]);
 
   const handleQuickAction = (tabId: string, additionalData?: any) => {
     const event = new CustomEvent('switchTab', { detail: { tabId, ...additionalData } });

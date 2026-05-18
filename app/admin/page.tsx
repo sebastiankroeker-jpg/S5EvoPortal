@@ -12,6 +12,7 @@ import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
+import UserManagement from "@/app/components/user-management";
 
 type CompetitionListItem = {
   id: string;
@@ -295,14 +296,15 @@ export default function AdminPage() {
         >
           <h1 className="text-3xl font-bold tracking-tight">⚙️ Administration</h1>
           <p className="text-muted-foreground">
-            Tenant- und Wettkampf-Konfiguration
+            Tenant-, Wettkampf- und Benutzerverwaltung
           </p>
         </motion.div>
 
         <Tabs defaultValue="tenant" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
             <TabsTrigger value="competition">🏆 Wettkampf</TabsTrigger>
+            <TabsTrigger value="users">👥 Benutzer</TabsTrigger>
           </TabsList>
 
           {/* ==================== TENANT TAB ==================== */}
@@ -671,6 +673,12 @@ export default function AdminPage() {
                   {saving === 'competition' ? "Speichert..." : "💾 Wettkampf speichern"}
                 </Button>
               </div>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="users">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <UserManagement />
             </motion.div>
           </TabsContent>
         </Tabs>

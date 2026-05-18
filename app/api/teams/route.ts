@@ -7,6 +7,7 @@ import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { prisma } from '@/lib/prisma';
 import { buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
+import { getScopedRoleFlags } from '@/lib/server-permissions';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -141,18 +142,25 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Check URL search params to determine if we want all teams or just own teams
       const url = new URL(request.url);
       const scope = url.searchParams.get('scope');
-      
-      // Optional competition filter (admin context)
       const competitionId = url.searchParams.get('competitionId');
+      const wantsAllTeams = scope === 'all';
+      const competition = competitionId
+        ? await prisma.competition.findUnique({
+            where: { id: competitionId },
+            select: { tenantId: true },
+          })
+        : null;
+      const access = await getScopedRoleFlags(userEmail, competition?.tenantId);
+
+      if (wantsAllTeams && !access.canViewAllTeams) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
 
       const teams = await prisma.team.findMany({
         where: {
-          // If scope=all, show all teams. Otherwise, show only own teams
-          ...(scope === 'all' ? {} : { owner: { email: userEmail } }),
-          // Filter by competition if specified
+          ...(wantsAllTeams ? {} : { owner: { email: userEmail } }),
           ...(competitionId ? { competitionId } : {}),
           deletedAt: null
         },

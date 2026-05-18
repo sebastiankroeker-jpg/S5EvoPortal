@@ -90,6 +90,8 @@ export default function ClaimPage() {
   const callbackUrl = `/claim/${token}`;
   const loginUrl = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
   const registerUrl = `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+  const sessionEmail = data?.session.email || "deinem Konto";
+  const claimEmail = data?.claim.suggestedEmail || data?.claim.maskedSuggestedEmail || "der vorgesehenen E-Mail";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
@@ -97,7 +99,7 @@ export default function ClaimPage() {
         <CardHeader>
           <CardTitle>🔐 Team übernehmen & im Portal bearbeiten</CardTitle>
           <CardDescription>
-            Dieser Link ordnet eine bestehende Mannschaftsanmeldung deinem Portal-Konto zu.
+            Dieser Link ordnet eine bestehende Mannschaftsanmeldung deinem Portal-Konto zu. Du brauchst dafuer dieselbe E-Mail-Adresse wie bei der Anmeldung.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -120,11 +122,11 @@ export default function ClaimPage() {
               {!data.session.authenticated && (
                 <div className="space-y-3">
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Bitte melde dich jetzt mit der passenden E-Mail im Portal an. Falls du noch kein Konto hast, kannst du direkt eines anlegen. Nur dann kann die Mannschaft deinem Account zugeordnet werden.
+                    Bitte melde dich jetzt mit <strong>{claimEmail}</strong> im Portal an. Falls du noch kein Konto hast, kannst du es direkt mit derselben E-Mail anlegen. Nur dann kann die Mannschaft uebernommen werden.
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Link href={loginUrl}>
-                      <Button className="w-full">Mit bestehendem Konto weiter</Button>
+                      <Button className="w-full">Mit bestehendem Konto anmelden</Button>
                     </Link>
                     <Link href={registerUrl}>
                       <Button variant="outline" className="w-full">Neues Konto anlegen</Button>
@@ -135,35 +137,36 @@ export default function ClaimPage() {
 
               {data.session.authenticated && !data.state.emailMatches && !data.state.alreadyClaimedByOtherUser && (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-3">
-                  <p>Angemeldet bist du als <strong>{data.session.email}</strong>, der Link ist aber für <strong>{data.claim.suggestedEmail}</strong> gedacht.</p>
-                  <p className="text-sm">Bitte melde dich mit der richtigen E-Mail neu an oder lege damit ein Konto an, sonst lässt sich das Team nicht übernehmen.</p>
+                  <p>Angemeldet bist du als <strong>{sessionEmail}</strong>, der Link ist aber fuer <strong>{claimEmail}</strong> gedacht.</p>
+                  <p className="text-sm">Bitte melde dich mit der richtigen E-Mail neu an oder lege damit ein Konto an. Erst dann laesst sich die Mannschaft uebernehmen.</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Link href={loginUrl}>
                       <Button className="w-full">Mit anderer E-Mail anmelden</Button>
                     </Link>
                     <Link href={registerUrl}>
-                      <Button variant="outline" className="w-full">Neues Konto anlegen</Button>
+                      <Button variant="outline" className="w-full">Konto mit richtiger E-Mail anlegen</Button>
                     </Link>
                   </div>
                 </div>
               )}
 
               {data.state.alreadyClaimedByOtherUser && (
-                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3">
-                  Dieser Link wurde bereits von <strong>{data.claim.claimedBy?.email}</strong> eingelöst.
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-2">
+                  <p>Dieser Link wurde bereits von <strong>{data.claim.claimedBy?.email}</strong> eingelöst.</p>
+                  <p className="text-sm">Wenn das nicht so sein sollte, melde dich bitte direkt bei der Orga.</p>
                 </div>
               )}
 
               {(data.state.emailMatches || data.state.alreadyClaimedBySessionUser) && !claimed && (
                 <div className="space-y-3">
                   <p>
-                    Angemeldet als <strong>{data.session.email}</strong>. Wenn du bestätigst, wird diese Mannschaft mit deinem Account verknüpft.
+                    Angemeldet als <strong>{sessionEmail}</strong>. Wenn du bestaetigst, wird diese Mannschaft mit deinem Account verknuepft.
                   </p>
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Danach läuft die weitere Bearbeitung ganz normal im Portal, nicht mehr über diesen Link.
+                    Danach laeuft die weitere Bearbeitung ganz normal im Portal. Diesen Link brauchst du dann nicht mehr.
                   </div>
                   <Button onClick={handleClaim} disabled={claiming} className="w-full">
-                    {claiming ? "Verknüpfe..." : data.state.alreadyClaimedBySessionUser ? "Mannschaft im Portal öffnen" : "Mannschaft mit meinem Account verknüpfen"}
+                    {claiming ? "Verknuepfe Mannschaft..." : data.state.alreadyClaimedBySessionUser ? "Mannschaft im Portal oeffnen" : "Mannschaft mit meinem Account verknuepfen"}
                   </Button>
                 </div>
               )}
@@ -171,10 +174,10 @@ export default function ClaimPage() {
               {(claimed || data.state.alreadyClaimedBySessionUser) && (
                 <div className="space-y-3">
                   <div className="rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3">
-                    Die Mannschaft ist mit deinem Account verknüpft. Du kannst jetzt wie gewohnt im Portal weiterarbeiten.
+                    Die Mannschaft ist mit deinem Account verknuepft. Du kannst jetzt wie gewohnt im Portal weiterarbeiten.
                   </div>
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Nächster Schritt: im Portal anmelden, Team öffnen und dort Änderungen pflegen.
+                    Naechster Schritt: im Portal ins Mannschafts-Dashboard wechseln und das Team dort weiter pflegen.
                   </div>
                   <Link href="/">
                     <Button className="w-full">Ins Portal</Button>

@@ -22,12 +22,12 @@ export default function LoginPage() {
     const errorCode = params.get("error");
     setAuthErrorCode(errorCode);
     const errorMessages: Record<string, string> = {
-      OAuthCallback: "Authentik hat den Login oder die Registrierung nicht sauber abgeschlossen. Der Fehler wurde serverseitig protokolliert.",
-      Callback: "Der Rueckweg aus Authentik ins Portal ist fehlgeschlagen. Der Fehler wurde serverseitig protokolliert.",
-      OAuthSignin: "Authentik konnte den Anmeldeflow nicht starten. Der Fehler wurde serverseitig protokolliert.",
-      SessionRequired: "Deine Sitzung ist abgelaufen. Bitte den Login erneut starten.",
+      OAuthCallback: "Authentik hat den Vorgang abgeschlossen, aber der Rueckweg ins Portal war nicht sauber. Bitte den Login noch einmal starten.",
+      Callback: "Der Rueckweg aus Authentik ins Portal ist fehlgeschlagen. Bitte den Login erneut starten.",
+      OAuthSignin: "Authentik konnte den Anmeldeflow gerade nicht starten. Bitte versuche es erneut.",
+      SessionRequired: "Deine Sitzung ist abgelaufen. Bitte starte den Login erneut.",
     };
-    setAuthError(errorCode ? errorMessages[errorCode] ?? `Authentifizierung fehlgeschlagen (${errorCode}). Der Fehler wurde serverseitig protokolliert.` : null);
+    setAuthError(errorCode ? errorMessages[errorCode] ?? `Authentifizierung fehlgeschlagen (${errorCode}). Bitte erneut versuchen.` : null);
   }, []);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function LoginPage() {
 
     resumeAttempted.current = true;
     setAuthError(
-      "Authentik hat die Registrierung abgeschlossen. Das Portal startet jetzt einmalig den Rueckweg neu.",
+      "Die Registrierung in Authentik scheint fertig zu sein. Das Portal startet jetzt einmalig den Rueckweg neu.",
     );
     setIsSubmitting(true);
 
@@ -107,7 +107,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>🔐 Ins Portal</CardTitle>
           <CardDescription>
-            Melde dich mit deinem bestehenden Konto an oder lege direkt ein neues an.
+            Melde dich mit deinem bestehenden Konto an oder lege direkt ein neues an. Danach geht es automatisch im Portal weiter.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -116,14 +116,19 @@ export default function LoginPage() {
               {authError}
             </div>
           )}
+          {callbackUrl !== "/" && (
+            <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              Nach dem Login landest du wieder automatisch beim laufenden Portal-Schritt.
+            </div>
+          )}
           <Button onClick={handleLogin} className="w-full" disabled={isSubmitting}>
-            Mit bestehendem Konto weiter
+            {isSubmitting ? "Leite zu Authentik weiter..." : "Mit bestehendem Konto anmelden"}
           </Button>
           <Button variant="outline" className="w-full" onClick={handleRegister} disabled={isSubmitting}>
-              Neues Konto anlegen
+            {isSubmitting ? "Bitte kurz warten..." : "Neues Konto anlegen"}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Wenn du aus einer Anmeldemail kommst, nutze bitte dieselbe E-Mail-Adresse wie dort.
+            Wenn du aus einer Anmeldemail oder von einem Uebernahmelink kommst, nutze bitte dieselbe E-Mail-Adresse wie dort.
           </p>
         </CardContent>
       </Card>

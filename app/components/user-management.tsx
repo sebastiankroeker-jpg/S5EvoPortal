@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface UserRole {
   id: string;
@@ -22,6 +23,12 @@ interface UserEntry {
   teamCount: number;
 }
 
+interface UsersResponse {
+  currentUserId: string;
+  adminCount: number;
+  users: UserEntry[];
+}
+
 const ALL_ROLES = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"] as const;
 
 const ROLE_INFO: Record<string, { icon: string; color: string; desc: string }> = {
@@ -31,22 +38,45 @@ const ROLE_INFO: Record<string, { icon: string; color: string; desc: string }> =
   TEILNEHMER: { icon: "🏃", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300", desc: "Eigene Daten" },
 };
 
+function formatCreatedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unbekannt";
+  return date.toLocaleDateString("de-DE");
+}
+
+function joinClasses(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 export default function UserManagement() {
   const [users, setUsers] = useState<UserEntry[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [adminCount, setAdminCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     try {
       const res = await fetch("/api/admin/users");
-      if (res.ok) {
+      if (!res.ok) {
         const data = await res.json();
-        setUsers(data.users || []);
+        setErrorMessage(data.error || "Fehler beim Laden der Benutzer");
+        return;
       }
+
+      const data = (await res.json()) as UsersResponse;
+      setUsers(data.users || []);
+      setCurrentUserId(data.currentUserId || null);
+      setAdminCount(data.adminCount || 0);
+      setErrorMessage(null);
     } catch (err) {
       console.error("Fehler beim Laden:", err);
+      setErrorMessage("Fehler beim Laden der Benutzer");
     } finally {
       setLoading(false);
     }
@@ -58,138 +88,249 @@ export default function UserManagement() {
 
   const startEdit = (user: UserEntry) => {
     setEditingUser(user.id);
-    setEditRoles(user.roles.map((r) => r.role));
+    setEditRoles(user.roles.map((role) => role.role));
+    setStatusMessage(null);
+    setErrorMessage(null);
   };
 
   const toggleRole = (role: string) => {
-    setEditRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
+    setEditRoles((prev) => (
+      prev.includes(role) ? prev.filter((entry) => entry !== role) : [...prev, role]
+    ));
   };
 
   const saveRoles = async (userId: string) => {
     setSaving(true);
+    setStatusMessage(null);
+    setErrorMessage(null);
+
     try {
-      const res = await fetch(`/api/admin/users/${userId}/roles`, {
+      const res = await fetch("/api/admin/users/" + userId + "/roles", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roles: editRoles }),
       });
 
-      if (res.ok) {
-        setEditingUser(null);
-        fetchUsers();
-      } else {
+      if (!res.ok) {
         const data = await res.json();
-        alert(data.error || "Fehler beim Speichern");
+        setErrorMessage(data.error || "Fehler beim Speichern");
+        return;
       }
+
+      setEditingUser(null);
+      setStatusMessage("Rollen gespeichert");
+      await fetchUsers();
     } catch (err) {
       console.error("Fehler:", err);
+      setErrorMessage("Fehler beim Speichern");
     } finally {
       setSaving(false);
     }
   };
 
+  const filteredUsers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return users;
+
+    return users.filter((user) => {
+      const haystacks = [user.name || "", user.email, ...user.roles.map((role) => role.role)];
+      return haystacks.some((value) => value.toLowerCase().includes(query));
+    });
+  }, [searchQuery, users]);
+
+  const stats = useMemo(() => ({
+    admins: users.filter((user) => user.roles.some((role) => role.role === "ADMIN")).length,
+    moderators: users.filter((user) => user.roles.some((role) => role.role === "MODERATOR")).length,
+    teamOwners: users.filter((user) => user.teamCount > 0).length,
+  }), [users]);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">👥 Benutzer & Rollen ({users.length})</h3>
-      </div>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-1">
+              <CardTitle>👥 Benutzer-Dashboard</CardTitle>
+              <CardDescription>
+                Portal-Rollen für Admins verwalten. Fachliche Rollen bleiben in der App, nicht in Authentik.
+              </CardDescription>
+            </div>
+            <div className="w-full md:w-72">
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Suche nach Name, Mail oder Rolle"
+              />
+            </div>
+          </div>
 
-      {users.map((user) => (
-        <motion.div key={user.id} layout>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{user.name || "Unbenannt"}</span>
-                    {user.teamCount > 0 && (
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        {user.teamCount} Team{user.teamCount > 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Benutzer</p>
+              <p className="text-2xl font-semibold">{users.length}</p>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Admins</p>
+              <p className="text-2xl font-semibold">{stats.admins}</p>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Moderatoren</p>
+              <p className="text-2xl font-semibold">{stats.moderators}</p>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">mit Teams</p>
+              <p className="text-2xl font-semibold">{stats.teamOwners}</p>
+            </div>
+          </div>
 
-                  {/* Rollen-Anzeige */}
-                  {editingUser !== user.id && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {user.roles.length > 0 ? (
-                        user.roles.map((r) => {
-                          const info = ROLE_INFO[r.role];
-                          return (
-                            <span
-                              key={r.id}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${info?.color || ""}`}
-                            >
-                              {info?.icon} {r.role}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Keine Rollen</span>
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-xs text-muted-foreground">
+            Letzter Schutzmechanismus aktiv: Der letzte Admin kann serverseitig nicht entfernt werden.
+          </div>
+
+          {statusMessage && (
+            <div className="rounded-lg border border-green-200 bg-green-100 p-3 text-sm text-green-800">
+              ✓ {statusMessage}
+            </div>
+          )}
+          {errorMessage && (
+            <div className="rounded-lg border border-red-200 bg-red-100 p-3 text-sm text-red-800">
+              ✗ {errorMessage}
+            </div>
+          )}
+        </CardHeader>
+      </Card>
+
+      {filteredUsers.map((user) => {
+        const isCurrentUser = user.id === currentUserId;
+        const isLastAdmin = adminCount === 1 && user.roles.some((role) => role.role === "ADMIN");
+
+        return (
+          <motion.div key={user.id} layout>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-medium">{user.name || "Unbenannt"}</span>
+                      {isCurrentUser && (
+                        <Badge variant="secondary" className="shrink-0 text-xs">Du</Badge>
+                      )}
+                      {user.teamCount > 0 && (
+                        <Badge variant="outline" className="shrink-0 text-xs">
+                          {user.teamCount} Team{user.teamCount > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                      {isLastAdmin && (
+                        <Badge className="shrink-0 text-xs">letzter Admin</Badge>
                       )}
                     </div>
-                  )}
+                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Registriert seit {formatCreatedAt(user.createdAt)}
+                    </p>
 
-                  {/* Rollen-Editor */}
-                  {editingUser === user.id && (
-                    <div className="mt-3 space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        {ALL_ROLES.map((role) => {
-                          const info = ROLE_INFO[role];
-                          const active = editRoles.includes(role);
-                          return (
-                            <button
-                              key={role}
-                              onClick={() => toggleRole(role)}
-                              className={`flex items-center gap-2 p-2 rounded-lg border text-left text-xs transition-all ${
-                                active
-                                  ? "border-primary bg-primary/10 ring-1 ring-primary/30"
-                                  : "border-border/40 hover:border-border hover:bg-accent/50"
-                              }`}
-                            >
-                              <span>{info.icon}</span>
-                              <div>
-                                <span className="font-medium">{role}</span>
-                                <p className="text-[10px] text-muted-foreground">{info.desc}</p>
-                              </div>
-                            </button>
-                          );
-                        })}
+                    {editingUser !== user.id && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {user.roles.length > 0 ? (
+                          user.roles.map((role) => {
+                            const info = ROLE_INFO[role.role];
+                            return (
+                              <span
+                                key={role.id}
+                                className={joinClasses(
+                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                                  info?.color
+                                )}
+                              >
+                                {info?.icon} {role.role}
+                              </span>
+                            );
+                          })
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Keine Rollen</span>
+                        )}
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => saveRoles(user.id)} disabled={saving}>
-                          {saving ? "..." : "💾 Speichern"}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingUser(null)}>
-                          Abbrechen
-                        </Button>
+                    )}
+
+                    {editingUser === user.id && (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Wähle die Portal-Rollen für diesen Benutzer.
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {ALL_ROLES.map((role) => {
+                            const info = ROLE_INFO[role];
+                            const active = editRoles.includes(role);
+                            const disableAdminRemoval = role === "ADMIN" && isLastAdmin && active;
+
+                            return (
+                              <button
+                                key={role}
+                                onClick={() => toggleRole(role)}
+                                disabled={disableAdminRemoval || saving}
+                                className={joinClasses(
+                                  "flex items-center gap-2 rounded-lg border p-2 text-left text-xs transition-all",
+                                  active
+                                    ? "border-primary bg-primary/10 ring-1 ring-primary/30"
+                                    : "border-border/40 hover:border-border hover:bg-accent/50",
+                                  (disableAdminRemoval || saving) && "opacity-60"
+                                )}
+                              >
+                                <span>{info.icon}</span>
+                                <div>
+                                  <span className="font-medium">{role}</span>
+                                  <p className="text-[10px] text-muted-foreground">{info.desc}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {isLastAdmin && (
+                          <p className="text-xs text-muted-foreground">
+                            Dieser Benutzer ist aktuell der letzte Admin und kann diese Rolle deshalb nicht verlieren.
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => saveRoles(user.id)} disabled={saving}>
+                            {saving ? "..." : "💾 Speichern"}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingUser(null)}>
+                            Abbrechen
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                  </div>
+
+                  {editingUser !== user.id && (
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(user)} className="shrink-0">
+                      ✏️
+                    </Button>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        );
+      })}
 
-                {/* Edit-Button */}
-                {editingUser !== user.id && (
-                  <Button size="sm" variant="ghost" onClick={() => startEdit(user)} className="shrink-0">
-                    ✏️
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ))}
+      {filteredUsers.length === 0 && (
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            Keine Benutzer passend zur aktuellen Suche gefunden.
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -57,6 +57,8 @@ interface DashboardProps {
   ownerFilter?: string;
 }
 
+type DashboardViewMode = "cards" | "list";
+
 function formatDatePart(value?: string) {
   if (!value) return "Unbekannt";
   const date = new Date(value);
@@ -74,6 +76,63 @@ function formatTimePart(value?: string) {
   });
 }
 
+function escapeCsvValue(value: string | number | null | undefined) {
+  const normalized = value == null ? "" : String(value);
+  return '"' + normalized.replace(/"/g, '""') + '"';
+}
+
+function exportTeamsCsv(teams: Team[]) {
+  const headers = [
+    "Team",
+    "Klasse",
+    "Teamchef",
+    "Kontakt E-Mail",
+    "Owner E-Mail",
+    "Angelegt",
+    "Zuletzt geaendert",
+    "Teilnehmeranzahl",
+    "Teilnehmer",
+    "Disziplinen",
+  ];
+
+  const rows = teams.map((team) => {
+    const participantNames = (team.participants ?? [])
+      .map((participant) => (participant.firstName + " " + participant.lastName).trim())
+      .filter(Boolean)
+      .join(" | ");
+    const disciplines = (team.participants ?? [])
+      .map((participant) => participant.discipline || participant.disciplineCode || "TBD")
+      .join(" | ");
+
+    return [
+      team.name,
+      team.category,
+      team.contactName,
+      team.contactEmail,
+      team.ownerEmail || "",
+      team.createdAt ? new Date(team.createdAt).toLocaleString("de-DE") : "",
+      team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "",
+      team.participants?.length || 0,
+      participantNames,
+      disciplines,
+    ];
+  });
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map((value) => escapeCsvValue(value)).join(";"))
+    .join("\n");
+
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "teams-export-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function Dashboard({ ownerFilter: initialOwnerFilter }: DashboardProps = {}) {
   const { data: session } = useSession();
   const { can } = usePermissions();
@@ -84,6 +143,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
+  const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -156,7 +216,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   useEffect(() => {
     fetchTeams();
-  }, [activeCompetition?.id]);
+  }, [activeCompetition?.id, canViewAll]);
 
   useEffect(() => {
     // Listen for switchTab events to handle owner filter
@@ -344,9 +404,30 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               Filter zurücksetzen
             </Button>
           )}
-          <Button onClick={fetchTeams} variant="outline">
-            🔄
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={viewMode === "cards" ? "default" : "outline"}
+              onClick={() => setViewMode("cards")}
+            >
+              Kacheln
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "outline"}
+              onClick={() => setViewMode("list")}
+            >
+              Liste
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => exportTeamsCsv(filteredTeams)}
+              disabled={filteredTeams.length === 0}
+            >
+              CSV Export
+            </Button>
+            <Button onClick={fetchTeams} variant="outline">
+              🔄
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -375,7 +456,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         </Card>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className={viewMode === "cards" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" : "space-y-3"}>
             {filteredTeams.map((team) => (
               <div key={team.id} className="space-y-2">
                 {/* Team-Kachel mit Teilnehmern */}

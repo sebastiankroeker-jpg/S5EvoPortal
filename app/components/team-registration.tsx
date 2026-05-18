@@ -383,7 +383,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       const hasMailIssues = mailAttempts.some((attempt: { status?: string }) => attempt.status && attempt.status !== "sent");
       if (hasMailIssues) {
         setSubmissionWarning(
-          "Die Mannschaft ist angelegt, aber der Mailversand konnte nicht vollständig bestaetigt werden. Bitte Orga informieren."
+          "Die Mannschaft ist angelegt, aber der Mailversand konnte nicht vollstaendig bestaetigt werden. Bitte kurz Spam/Werbung pruefen und die Orga informieren, falls keine Mail ankommt."
         );
       }
 
@@ -512,8 +512,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
           {submitted ? (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center p-8 space-y-4">
               <div className="text-6xl">🏅</div>
-              <h3 className="text-xl font-semibold text-green-600">Anmeldung erfolgreich!</h3>
-              <p className="text-muted-foreground">Eure Mannschaft wurde erfolgreich übermittelt.</p>
+              <h3 className="text-xl font-semibold text-green-600">Anmeldung erfolgreich uebermittelt</h3>
+              <p className="text-muted-foreground">Die Mannschaft ist im Portal erfasst. Alles Weitere haengt jetzt davon ab, ob du mit oder ohne Login angemeldet hast.</p>
               {submissionWarning && (
                 <div className="max-w-xl mx-auto rounded-lg border border-amber-300 bg-amber-50 p-4 text-left text-sm text-amber-900">
                   {submissionWarning}
@@ -521,16 +521,16 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
               )}
               {isAnonymousRegistration ? (
                 <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
-                  <p className="text-sm font-medium">So geht's weiter</p>
+                  <p className="text-sm font-medium">So geht es jetzt weiter</p>
                   <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
-                    <li>Wir schicken den Claim-Link an <strong>{effectiveContactEmail}</strong>.</li>
-                    <li>Öffne den Link aus der Mail und melde dich dort mit derselben E-Mail im Portal an oder lege damit ein neues Konto an.</li>
-                    <li>Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.</li>
+                    <li>Wir schicken den Uebernahmelink an <strong>{effectiveContactEmail}</strong>.</li>
+                    <li>Oeffne den Link aus der Mail und melde dich dort mit derselben E-Mail im Portal an oder lege damit ein neues Konto an.</li>
+                    <li>Danach ist das Team deinem Account zugeordnet und du kannst Aenderungen direkt im Portal pflegen.</li>
                   </ol>
-                  <p className="text-xs text-muted-foreground">Wenn nichts ankommt, prüfe bitte auch Spam und Werbung. Wenn nach ein paar Minuten immer noch keine Mail da ist, melde dich direkt bei der Orga.</p>
+                  <p className="text-xs text-muted-foreground">Wenn nichts ankommt, pruefe bitte auch Spam und Werbung. Wenn nach ein paar Minuten immer noch keine Mail da ist, melde dich direkt bei der Orga.</p>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Du kannst jetzt wie gewohnt im Portal weiterarbeiten.</p>
+                <p className="text-sm text-muted-foreground">Du kannst jetzt direkt im Portal ins Mannschafts-Dashboard wechseln und dort weiterarbeiten.</p>
               )}
               <div className="flex justify-center pt-2">
                 <Button onClick={startAnotherRegistration}>Weitere Mannschaft anmelden</Button>
@@ -543,16 +543,16 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   {isAnonymousRegistration ? (
                     <>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 text-sm text-muted-foreground">
-                        Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Übernahmelink, mit dem du das Team später deinem Portal-Konto zuordnen kannst.
+                        Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Uebernahmelink, mit dem du das Team spaeter deinem Portal-Konto zuordnen kannst.
                       </div>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-4 space-y-4">
                         <div>
                           <p className="text-sm font-medium text-foreground">Kontakt</p>
-                          <p className="text-xs text-muted-foreground">An diese E-Mail senden wir später den Claim-Link zur Übernahme.</p>
+                          <p className="text-xs text-muted-foreground">An diese E-Mail senden wir spaeter den Uebernahmelink fuer die weitere Bearbeitung im Portal.</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div>
-                            <label htmlFor="contactLastName" className="text-sm font-medium">Name</label>
+                            <label htmlFor="contactLastName" className="text-sm font-medium">Nachname</label>
                             <input
                               id="contactLastName"
                               type="text"
@@ -622,7 +622,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       placeholder="z.B. Die Bergziegen"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Der Name ist Pflicht, kann auf der Folgeseite aber noch angepasst werden.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Der Mannschaftsname ist Pflicht, kann auf der Folgeseite aber noch angepasst werden.</p>
                     {formState.errors.teamName && (
                       <p className="text-xs text-red-500 mt-1">{formState.errors.teamName.message}</p>
                     )}
@@ -684,7 +684,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     )}
                   </div>
                   <Button onClick={handleNextFromTeam} disabled={!publicRegistrationStatus.canRegister || (isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName)} className="w-full">
-                    Zu Teilnehmern →
+                    Weiter zu Teilnehmern →
                   </Button>
                 </motion.div>
               )}
@@ -763,7 +763,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       ← Zurück
                     </Button>
                     <Button onClick={handleNextFromParticipants} className="flex-1" disabled={!publicRegistrationStatus.canRegister}>
-                      Zur finalen Prüfung →
+                      Weiter zur Pruefung →
                     </Button>
                   </div>
 
@@ -872,10 +872,10 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
               {step === 3 && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
                   <div className="text-center space-y-2">
-                    <h3 className="text-lg font-medium">Letzter Schritt, Anmeldung absenden</h3>
-                    <p className="text-muted-foreground">Prüfe hier alles ein letztes Mal. Erst mit dem Klick auf den blauen Button wird die Mannschaft wirklich angemeldet.</p>
+                    <h3 className="text-lg font-medium">Letzter Schritt: Angaben pruefen und absenden</h3>
+                    <p className="text-muted-foreground">Pruefe hier alles noch einmal in Ruhe. Erst mit dem letzten Klick wird die Mannschaft wirklich angemeldet.</p>
                     {isAnonymousRegistration && (
-                      <p className="text-xs text-muted-foreground">Der Übernahmelink für die spätere Weiterbearbeitung geht an {effectiveContactEmail || "deine Kontakt-E-Mail"}.</p>
+                      <p className="text-xs text-muted-foreground">Der Uebernahmelink fuer die spaetere Weiterbearbeitung geht an {effectiveContactEmail || "deine Kontakt-E-Mail"}.</p>
                     )}
                   </div>
 
@@ -946,7 +946,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       ← Zurück
                     </Button>
                     <Button onClick={onSubmit} className="flex-1" disabled={formState.isSubmitting || !publicRegistrationStatus.canRegister}>
-                      {formState.isSubmitting ? "Sende Anmeldung ab..." : "Mannschaft jetzt verbindlich anmelden 🏅"}
+                      {formState.isSubmitting ? "Sende Anmeldung ab..." : "Mannschaft jetzt anmelden 🏅"}
                     </Button>
                   </div>
                 </motion.div>

@@ -36,7 +36,7 @@ export default function RegisterPage() {
       try {
         await startPortalRegistration(callbackUrl);
       } catch {
-        setError("Die Weiterleitung zu Authentik konnte nicht vorbereitet werden.");
+        setError("Die Weiterleitung zu Authentik konnte gerade nicht vorbereitet werden. Bitte den Button noch einmal verwenden.");
         redirectStarted.current = false;
       }
     })();
@@ -48,7 +48,7 @@ export default function RegisterPage() {
     try {
       await startPortalRegistration(callbackUrl);
     } catch {
-      setError("Die Weiterleitung zu Authentik konnte nicht vorbereitet werden.");
+      setError("Die Weiterleitung zu Authentik konnte gerade nicht vorbereitet werden. Bitte den Button noch einmal verwenden.");
     }
   };
 
@@ -69,7 +69,7 @@ export default function RegisterPage() {
         <div className="text-center">
           <h1 className="text-3xl font-bold">🏅 Neues Konto anlegen</h1>
           <p className="text-muted-foreground mt-2">
-            Die Kontoerstellung muss im laufenden Portal-Login passieren, damit Authentik den Rückweg ins Portal sauber beibehält.
+            Die Kontoerstellung startet direkt in Authentik. Danach geht es automatisch wieder an die richtige Stelle im Portal zurueck.
           </p>
         </div>
 
@@ -77,7 +77,7 @@ export default function RegisterPage() {
           <CardHeader>
             <CardTitle>Konto erstellen</CardTitle>
             <CardDescription>
-              Du wirst direkt in den Authentik-Registrierungsflow weitergeleitet. Danach kommt der Rückweg sauber wieder im Portal an.
+              Du wirst direkt in den Authentik-Registrierungsflow weitergeleitet. Falls die automatische Weiterleitung nicht greift, kannst du sie hier manuell neu starten.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -91,11 +91,11 @@ export default function RegisterPage() {
               className="w-full"
               size="lg"
             >
-              Erneut zu Authentik weiterleiten
+              Zu Authentik weiter
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              Falls die automatische Weiterleitung nicht anspringt, löst der Button denselben Flow manuell aus.
+              Falls gerade nichts passiert, startet der Button denselben Registrierungsflow noch einmal.
             </p>
 
             <div className="grid gap-2">
@@ -104,7 +104,7 @@ export default function RegisterPage() {
               </Link>
               {callbackUrl !== "/" && (
                 <Link href={callbackUrl}>
-                  <Button variant="ghost" className="w-full">Zurück zum Übernahmelink</Button>
+                  <Button variant="ghost" className="w-full">Zurueck zum Uebernahmelink</Button>
                 </Link>
               )}
             </div>

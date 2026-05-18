@@ -4,6 +4,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
 import { prisma } from '@/lib/prisma';
+import { getScopedRoleFlags } from '@/lib/server-permissions';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -84,17 +85,24 @@ export async function GET(
       const team = await prisma.team.findFirst({
         where: {
           id: id,
-          owner: { email: userEmail },
           deletedAt: null
         },
         include: {
           participants: { where: { deletedAt: null } },
-          owner: { select: { email: true, name: true } }
+          owner: { select: { email: true, name: true } },
+          competition: { select: { tenantId: true } },
         }
       });
 
       if (!team) {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+
+      const access = await getScopedRoleFlags(userEmail, team.competition.tenantId);
+      const isOwner = team.owner?.email === userEmail || team.contactEmail === userEmail;
+
+      if (!access.canViewAllTeams && !isOwner) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
       return NextResponse.json({ team: serializeTeam(team) });
@@ -139,16 +147,24 @@ export async function PUT(
       const existingTeam = await prisma.team.findFirst({
         where: {
           id: id,
-          owner: { email: userEmail },
           deletedAt: null
         },
         include: {
-          participants: { where: { deletedAt: null } }
+          participants: { where: { deletedAt: null } },
+          owner: { select: { email: true, name: true } },
+          competition: { select: { tenantId: true } },
         }
       });
 
       if (!existingTeam) {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+
+      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId);
+      const isOwner = existingTeam.owner?.email === userEmail || existingTeam.contactEmail === userEmail;
+
+      if (!access.canEditAllTeams && !isOwner) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
       // Neue Klassifizierung berechnen
@@ -244,17 +260,27 @@ export async function DELETE(
       const existingTeam = await prisma.team.findFirst({
         where: {
           id: id,
-          owner: { email: userEmail },
           deletedAt: null
-        }
+        },
+        include: {
+          owner: { select: { email: true, name: true } },
+          competition: { select: { tenantId: true } },
+        },
       });
 
       if (!existingTeam) {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
+      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId);
+      const isOwner = existingTeam.owner?.email === userEmail || existingTeam.contactEmail === userEmail;
+
+      if (!access.canEditAllTeams && !isOwner) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
       // Soft delete: setze deletedAt
-      const deletedTeam = await prisma.team.update({
+      await prisma.team.update({
         where: { id: id },
         data: { 
           deletedAt: new Date()
