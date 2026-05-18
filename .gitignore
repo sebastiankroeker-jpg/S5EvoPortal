@@ -4,6 +4,7 @@ out/
 .env
 .env.local
 .env.*.local
+.env.*.live
 .ssh/
 .openclaw/
 *.pem

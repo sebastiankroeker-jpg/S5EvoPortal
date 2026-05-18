@@ -30,8 +30,91 @@ function resolveAuthentikIssuer(rawIssuer?: string) {
 const AUTHENTIK_ISSUER = resolveAuthentikIssuer(process.env.AUTHENTIK_ISSUER);
 const AUTHENTIK_CLIENT_ID = unquoteEnv(process.env.AUTHENTIK_CLIENT_ID);
 const AUTHENTIK_CLIENT_SECRET = unquoteEnv(process.env.AUTHENTIK_CLIENT_SECRET);
+const AUTH_LOG_PREFIX = "[auth]";
+const SENSITIVE_AUTH_KEY_PATTERN = /token|secret|password|assertion|cookie|session|authorization|clientsecret|access_token|refresh_token|id_token|code/i;
+
+type AuthLogger = {
+  error(code: string, ...message: unknown[]): void;
+  warn(code: string, ...message: unknown[]): void;
+  debug(code: string, ...message: unknown[]): void;
+};
+
+function redactAuthUrl(rawValue: string) {
+  try {
+    const url = new URL(rawValue);
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (SENSITIVE_AUTH_KEY_PATTERN.test(key)) {
+        url.searchParams.set(key, "[redacted]");
+      }
+    }
+    return url.toString();
+  } catch {
+    return rawValue;
+  }
+}
+
+function sanitizeAuthLogValue(value: unknown, key?: string): unknown {
+  if (value == null) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    if (key && SENSITIVE_AUTH_KEY_PATTERN.test(key)) {
+      return "[redacted]";
+    }
+
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+      return redactAuthUrl(value);
+    }
+
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeAuthLogValue(item, key));
+  }
+
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+    };
+  }
+
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+        entryKey,
+        sanitizeAuthLogValue(entryValue, entryKey),
+      ]),
+    );
+  }
+
+  return value;
+}
+
+function logAuth(level: "error" | "warn" | "info", code: string, details: unknown[]) {
+  const payload = details.length === 1 ? details[0] : details;
+  console[level](AUTH_LOG_PREFIX, code, sanitizeAuthLogValue(payload));
+}
+
+const authLogger: AuthLogger = {
+  error(code, ...message) {
+    logAuth("error", code, message);
+  },
+  warn(code, ...message) {
+    logAuth("warn", code, message);
+  },
+  debug(code, ...message) {
+    if (process.env.NODE_ENV !== "production") {
+      logAuth("info", code, message);
+    }
+  },
+};
 
 export const authOptions: NextAuthOptions = {
+  logger: authLogger,
   session: {
     strategy: "jwt",
   },
@@ -61,6 +144,19 @@ export const authOptions: NextAuthOptions = {
     },
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      console.info(AUTH_LOG_PREFIX, "SIGNIN_ALLOWED", sanitizeAuthLogValue({
+        provider: account?.provider,
+        providerAccountId: account?.providerAccountId,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+        profile,
+      }));
+      return true;
+    },
     async jwt({ token, account, profile }) {
       // Keep the session token lean so the auth cookie stays below browser limits.
       if (account) {
@@ -93,6 +189,9 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   events: {
+    async signIn(message) {
+      console.info(AUTH_LOG_PREFIX, "SIGNIN_EVENT", sanitizeAuthLogValue(message));
+    },
     // When signing out, redirect to Authentik logout to clear SSO session
     async signOut() {
       // Client-side signOut handles the redirect via the component

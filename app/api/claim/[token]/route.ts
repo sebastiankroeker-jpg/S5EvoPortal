@@ -14,12 +14,17 @@ function isExpired(expiresAt: Date) {
   return expiresAt.getTime() < Date.now();
 }
 
+function normalizeEmail(email?: string | null) {
+  return email?.trim().toLowerCase() ?? null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const session = await getServerSession(authOptions);
   const sessionEmail = session?.user?.email || null;
+  const normalizedSessionEmail = normalizeEmail(sessionEmail);
   const { token } = await params;
   const tokenHash = hashRegistrationClaimToken(token);
 
@@ -69,8 +74,11 @@ export async function GET(
     return NextResponse.json({ error: "Link ist abgelaufen" }, { status: 410 });
   }
 
-  const emailMatches = !!sessionEmail && sessionEmail === claim.suggestedEmail;
-  const alreadyClaimedBySessionUser = !!sessionEmail && claim.claimedByUser?.email === sessionEmail;
+  const normalizedSuggestedEmail = normalizeEmail(claim.suggestedEmail);
+  const normalizedClaimedByEmail = normalizeEmail(claim.claimedByUser?.email);
+  const emailMatches = !!normalizedSessionEmail && normalizedSessionEmail === normalizedSuggestedEmail;
+  const alreadyClaimedBySessionUser =
+    !!normalizedSessionEmail && normalizedClaimedByEmail === normalizedSessionEmail;
 
   await recordClaimAuditEvent({
     request,
@@ -81,7 +89,10 @@ export async function GET(
     tokenId: claim.id,
     teamId: claim.team.id,
     sessionEmail,
-    userId: claim.claimedByUser?.email === sessionEmail ? claim.claimedByUser.id : null,
+    userId:
+      normalizedClaimedByEmail === normalizedSessionEmail && claim.claimedByUser
+        ? claim.claimedByUser.id
+        : null,
   });
 
   return NextResponse.json({
@@ -106,7 +117,8 @@ export async function GET(
       emailMatches,
       alreadyClaimedBySessionUser,
       requiresLogin: !sessionEmail,
-      alreadyClaimedByOtherUser: !!claim.claimedByUser && claim.claimedByUser.email !== sessionEmail,
+      alreadyClaimedByOtherUser:
+        !!claim.claimedByUser && normalizedClaimedByEmail !== normalizedSessionEmail,
       suspicious: risk.suspicious,
     },
   });
@@ -118,6 +130,7 @@ export async function POST(
 ) {
   const session = await getServerSession(authOptions);
   const sessionEmail = session?.user?.email || null;
+  const normalizedSessionEmail = normalizeEmail(sessionEmail);
   const sessionUserName = session?.user?.name || null;
   const sessionUserImage = session?.user?.image || null;
   const { token } = await params;
@@ -194,7 +207,10 @@ export async function POST(
     return NextResponse.json({ error: "Link ist abgelaufen" }, { status: 410 });
   }
 
-  if (claim.suggestedEmail !== sessionEmail) {
+  const normalizedSuggestedEmail = normalizeEmail(claim.suggestedEmail);
+  const normalizedClaimedByEmail = normalizeEmail(claim.claimedByUser?.email);
+
+  if (normalizedSuggestedEmail !== normalizedSessionEmail) {
     await recordClaimAuditEvent({
       request,
       eventType: "CLAIM_SUBMIT",
@@ -208,7 +224,14 @@ export async function POST(
     return NextResponse.json({ error: "Dieser Link gehört zu einer anderen E-Mail-Adresse" }, { status: 403 });
   }
 
-  let user = await prisma.user.findUnique({ where: { email: sessionEmail } });
+  let user = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: sessionEmail,
+        mode: "insensitive",
+      },
+    },
+  });
   if (!user) {
     user = await prisma.user.create({
       data: {
@@ -219,7 +242,7 @@ export async function POST(
     });
   }
 
-  if (claim.claimedByUser && claim.claimedByUser.email !== sessionEmail) {
+  if (claim.claimedByUser && normalizedClaimedByEmail !== normalizedSessionEmail) {
     await recordClaimAuditEvent({
       request,
       eventType: "CLAIM_SUBMIT",

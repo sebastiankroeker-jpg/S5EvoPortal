@@ -4,6 +4,21 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
 
+function normalizeNotificationEmails(value: unknown) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = [...new Set(
+    value
+      .split(/[;,]/)
+      .map((recipient) => recipient.trim())
+      .filter(Boolean),
+  )].join(', ');
+
+  return normalized || null;
+}
+
 // GET aktuelle Competition
 export async function GET(request: NextRequest) {
   try {
@@ -99,7 +114,7 @@ export async function PUT(request: NextRequest) {
             date: body.date ? new Date(body.date) : null,
             dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : null,
-            registrationNotificationEmail: body.registrationNotificationEmail || null,
+            registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
             status: body.status || "DRAFT",
             maxTeams: parseInt(body.maxTeams) || null,
@@ -125,7 +140,7 @@ export async function PUT(request: NextRequest) {
             dateEnd: body.dateEnd !== undefined ? (body.dateEnd ? new Date(body.dateEnd) : null) : competition.dateEnd,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : competition.registrationDeadline,
             registrationNotificationEmail: body.registrationNotificationEmail !== undefined
-              ? body.registrationNotificationEmail || null
+              ? normalizeNotificationEmails(body.registrationNotificationEmail)
               : competition.registrationNotificationEmail,
             shirtOrderDeadline: body.shirtOrderDeadline !== undefined
               ? parseDateInputEndOfDay(body.shirtOrderDeadline)

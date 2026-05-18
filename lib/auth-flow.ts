@@ -6,6 +6,7 @@ const PENDING_AUTH_MAX_AGE_MS = 15 * 60 * 1000;
 
 type PendingAuthCallbackRecord = {
   callbackUrl: string;
+  intent: "login" | "registration";
   createdAt: number;
 };
 
@@ -16,17 +17,26 @@ export function normalizeCallbackUrl(value?: string | null) {
   return value;
 }
 
-export function storePendingAuthCallback(value?: string | null) {
+export function storePendingAuthCallback(
+  value?: string | null,
+  intent: "login" | "registration" = "login",
+) {
   if (typeof window === "undefined") return;
   const normalized = normalizeCallbackUrl(value);
   const record: PendingAuthCallbackRecord = {
     callbackUrl: normalized,
+    intent,
     createdAt: Date.now(),
   };
   window.sessionStorage.setItem(PENDING_AUTH_CALLBACK_KEY, JSON.stringify(record));
 }
 
 export function readPendingAuthCallback() {
+  const record = readPendingAuthContext();
+  return record?.callbackUrl ?? null;
+}
+
+export function readPendingAuthContext() {
   if (typeof window === "undefined") return null;
   const rawValue = window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_KEY);
   if (!rawValue) return null;
@@ -42,10 +52,18 @@ export function readPendingAuthCallback() {
       return null;
     }
 
-    return normalizeCallbackUrl(parsed.callbackUrl);
+    return {
+      callbackUrl: normalizeCallbackUrl(parsed.callbackUrl),
+      intent: parsed.intent === "registration" ? "registration" : "login",
+      createdAt: parsed.createdAt,
+    };
   } catch {
     // Backward compatibility for older plain-string values.
-    return normalizeCallbackUrl(rawValue);
+    return {
+      callbackUrl: normalizeCallbackUrl(rawValue),
+      intent: "login",
+      createdAt: Date.now(),
+    };
   }
 }
 
@@ -88,7 +106,7 @@ async function prepareAuthentikAuthorizationUrl(
 
 export async function startPortalLogin(callbackUrl?: string | null) {
   const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
-  storePendingAuthCallback(normalizedCallbackUrl);
+  storePendingAuthCallback(normalizedCallbackUrl, "login");
 
   const authorizationUrl = await prepareAuthentikAuthorizationUrl(normalizedCallbackUrl, {
     prompt: "login",
@@ -100,7 +118,7 @@ export async function startPortalLogin(callbackUrl?: string | null) {
 
 export async function startPortalRegistration(callbackUrl?: string | null) {
   const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
-  storePendingAuthCallback(normalizedCallbackUrl);
+  storePendingAuthCallback(normalizedCallbackUrl, "registration");
 
   const authorizationUrl = await prepareAuthentikAuthorizationUrl(normalizedCallbackUrl);
   const nextPath = `${authorizationUrl.pathname}${authorizationUrl.search}`;

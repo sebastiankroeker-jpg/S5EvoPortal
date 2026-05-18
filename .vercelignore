@@ -1,0 +1,8 @@
+.env*
+.openclaw
+node_modules
+.next
+out
+.ssh
+*.pem
+*.key

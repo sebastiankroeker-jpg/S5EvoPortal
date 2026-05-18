@@ -21,41 +21,34 @@ export async function GET() {
     });
 
     if (!user || user.tenantRoles.length === 0) {
-      // Eingeloggt aber noch keine DB-Rollen
-      // Bootstrap: Allererster User wird automatisch Admin
+      // Eingeloggt aber noch keine DB-Rollen:
+      // Neu-Registrierte bekommen nie automatisch ADMIN,
+      // sondern nur die Standardrollen für die Anmeldung.
       const tenant = await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } });
-      if (tenant) {
-        const existingAdmins = await prisma.tenantRole.count({
-          where: { tenantId: tenant.id, role: "ADMIN" },
-        });
 
-        if (existingAdmins === 0) {
-          // Kein Admin existiert — dieser User wird Admin (Bootstrap)
-          let dbUser = user;
-          if (!dbUser) {
-            dbUser = await prisma.user.create({
-              data: {
-                email: session.user.email,
-                name: session.user.name || null,
-                image: (session.user as any).image || null,
-              },
-              include: { tenantRoles: true },
-            });
-          }
-          await prisma.tenantRole.createMany({
-            data: [
-              { userId: dbUser.id, tenantId: tenant.id, role: "ADMIN" },
-              { userId: dbUser.id, tenantId: tenant.id, role: "TEAMCHEF" },
-            ],
-            skipDuplicates: true,
-          });
-          return NextResponse.json({ roles: ["ADMIN", "TEAMCHEF", "TEILNEHMER"] });
-        }
+      let dbUser = user;
+      if (!dbUser) {
+        dbUser = await prisma.user.create({
+          data: {
+            email: session.user.email,
+            name: session.user.name || null,
+            image: (session.user as any).image || null,
+          },
+          include: { tenantRoles: true },
+        });
       }
 
-      // TEMPORÄR: Alle neuen User bekommen Admin (für Testphase)
-      // TODO: Vor Go-Live zurücksetzen auf ["TEAMCHEF", "TEILNEHMER"]
-      return NextResponse.json({ roles: ["ADMIN", "TEAMCHEF", "TEILNEHMER"] });
+      if (tenant) {
+        await prisma.tenantRole.createMany({
+          data: [
+            { userId: dbUser.id, tenantId: tenant.id, role: "TEAMCHEF" },
+            { userId: dbUser.id, tenantId: tenant.id, role: "TEILNEHMER" },
+          ],
+          skipDuplicates: true,
+        });
+      }
+
+      return NextResponse.json({ roles: ["TEAMCHEF", "TEILNEHMER"] });
     }
 
     // Unique Rollen extrahieren

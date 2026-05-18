@@ -27,6 +27,12 @@ const disciplineLabels = Object.fromEntries(
 );
 
 const shirtLabels = Object.fromEntries(SHIRT_SIZES.map((size) => [size.id, size.label]));
+const paymentDetailsLines = [
+  "Bitte überweisen Sie die Startgebühr auf folgendes Konto:",
+  "ESV Bad Bayersoien e. V.",
+  "IBAN: DE76 7035 1030 0000 1022 77",
+  "Verwendungszweck: Mannschaftsnamen angeben",
+];
 
 function formatParticipant(participant: MailParticipant) {
   const discipline = disciplineLabels[participant.disciplineCode || "TBD"] || participant.disciplineCode || "Offen";
@@ -50,6 +56,39 @@ function shirtSizeLine(participant: MailParticipant) {
   return `${participant.firstName} ${participant.lastName}: ${shirtSize}`;
 }
 
+function participantRow(participant: MailParticipant) {
+  const discipline = disciplineLabels[participant.disciplineCode || "TBD"] || participant.disciplineCode || "Offen";
+  const shirtSize = participant.shirtSize ? shirtLabels[participant.shirtSize] || participant.shirtSize : "Keine Angabe";
+  const birthYear = participant.birthYear ? `Jg. ${participant.birthYear}` : "Jg. –";
+
+  return `
+    <tr>
+      <td style="padding:8px;border:1px solid #e5e7eb;vertical-align:top;">${participant.firstName} ${participant.lastName}</td>
+      <td style="padding:8px;border:1px solid #e5e7eb;vertical-align:top;">${birthYear}</td>
+      <td style="padding:8px;border:1px solid #e5e7eb;vertical-align:top;">${discipline}</td>
+      <td style="padding:8px;border:1px solid #e5e7eb;vertical-align:top;"><strong>${shirtSize}</strong></td>
+    </tr>
+  `.trim();
+}
+
+function participantTableHtml(participants: MailParticipant[]) {
+  return `
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr style="background:#f9fafb;">
+          <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Name</th>
+          <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Jahrgang</th>
+          <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Disziplin</th>
+          <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">T-Shirt</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${participants.map((participant) => participantRow(participant)).join("")}
+      </tbody>
+    </table>
+  `.trim();
+}
+
 function shirtSizeListHtml(participants: MailParticipant[]) {
   return participants
     .map((participant) => `<li>${shirtSizeLine(participant)}</li>`)
@@ -58,6 +97,22 @@ function shirtSizeListHtml(participants: MailParticipant[]) {
 
 function shirtSizeListText(participants: MailParticipant[]) {
   return participants.map((participant) => `- ${shirtSizeLine(participant)}`).join("\n");
+}
+
+function paymentDetailsHtml() {
+  return `
+    <div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;">
+      <p style="margin:0 0 10px 0;"><strong>Startgebühr überweisen</strong></p>
+      <p style="margin:0 0 6px 0;">Bitte überweisen Sie die Startgebühr auf folgendes Konto:</p>
+      <p style="margin:0 0 6px 0;"><strong>ESV Bad Bayersoien e. V.</strong></p>
+      <p style="margin:0 0 6px 0;"><strong>IBAN:</strong> DE76 7035 1030 0000 1022 77</p>
+      <p style="margin:0;"><strong>Verwendungszweck:</strong> Mannschaftsnamen angeben</p>
+    </div>
+  `.trim();
+}
+
+function paymentDetailsText() {
+  return paymentDetailsLines.join("\n");
 }
 
 export function buildRegistrantConfirmationMail(input: TemplateInput) {
@@ -73,11 +128,12 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
         <p><strong>Klasse:</strong> ${input.classificationCode}</p>
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
         <h3>Teilnehmer</h3>
-        <ul>${participantListHtml(input.participants)}</ul>
+        ${participantTableHtml(input.participants)}
         <h3>T-Shirt-Größen</h3>
         <ul>${shirtSizeListHtml(input.participants)}</ul>
-        <p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.</p>
-        ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>So geht's weiter</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Übernahme-Link.</li><li>Melde dich dort mit <strong>${input.contactEmail}</strong> im Portal an oder lege mit derselben E-Mail ein neues Konto an.</li><li>Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Team im Portal übernehmen</a></p><p style="margin:0;font-size:14px;color:#555;">Falls die Anmeldung oder der Login nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung.</p></div>` : ""}
+        <p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>
+        ${paymentDetailsHtml()}
+        ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>So geht's weiter</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Link.</li><li>Melde dich mit <strong>${input.contactEmail}</strong> im Portal an oder erstelle dort mit derselben E-Mail ein Konto.</li><li>Danach ist das Team deinem Konto zugeordnet.</li><li>Wenn sich später etwas ändert, kannst du die Angaben dort anpassen.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Team im Portal übernehmen</a></p><p style="margin:0 0 10px 0;font-size:14px;color:#555;">Wichtig: Alle Portal-Funktionen sind aktuell noch Beta. Einige Bereiche werden noch weiterentwickelt und sind noch nicht komplett abgeschlossen.</p><p style="margin:0;font-size:14px;color:#555;">Wenn etwas nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung. Falls du Unterstützung brauchst, melde dich einfach bei uns.</p></div>` : ""}
         <p>Viele Grüße<br />${input.tenantName}</p>
       </div>
     `.trim(),
@@ -94,15 +150,18 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
       "T-Shirt-Größen:",
       shirtSizeListText(input.participants),
       "",
-      "Wichtig: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.",
+      "Wichtig: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.",
+      paymentDetailsText(),
       ...(input.claimUrl
         ? [
             "",
             "So geht's weiter:",
-            `1. Übernahme-Link öffnen: ${input.claimUrl}`,
-            `2. Mit ${input.contactEmail} im Portal anmelden oder ein neues Konto mit derselben E-Mail anlegen`,
-            "3. Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.",
-            "Wenn nichts ankommt oder etwas hakt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung.",
+            `1. Link öffnen: ${input.claimUrl}`,
+            `2. Mit ${input.contactEmail} im Portal anmelden oder dort mit derselben E-Mail ein Konto erstellen`,
+            "3. Danach ist das Team deinem Konto zugeordnet.",
+            "4. Wenn sich später etwas ändert, kannst du die Angaben dort anpassen.",
+            "Wichtig: Alle Portal-Funktionen sind aktuell noch Beta. Einige Bereiche werden noch weiterentwickelt und sind noch nicht komplett abgeschlossen.",
+            "Wenn etwas nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung. Falls du Unterstützung brauchst, melde dich einfach bei uns.",
           ]
         : []),
       "",
@@ -124,10 +183,11 @@ export function buildOrgNotificationMail(input: TemplateInput) {
         <p><strong>Klasse:</strong> ${input.classificationCode}</p>
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
         <h3>Teilnehmer</h3>
-        <ul>${participantListHtml(input.participants)}</ul>
+        ${participantTableHtml(input.participants)}
         <h3>T-Shirt-Größen</h3>
         <ul>${shirtSizeListHtml(input.participants)}</ul>
-        <p><strong>Hinweis:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.</p>
+        <p><strong>Hinweis:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>
+        ${paymentDetailsHtml()}
       </div>
     `.trim(),
     text: [
@@ -144,7 +204,8 @@ export function buildOrgNotificationMail(input: TemplateInput) {
       "T-Shirt-Größen:",
       shirtSizeListText(input.participants),
       "",
-      "Hinweis: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr auf das in der Ausschreibung angegebene Konto gültig.",
+      "Hinweis: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.",
+      paymentDetailsText(),
     ].join("\n"),
   };
 }

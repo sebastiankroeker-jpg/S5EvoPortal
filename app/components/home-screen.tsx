@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/permissions-context";
@@ -253,36 +254,43 @@ export default function HomeScreen() {
 
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
           <CardContent className="space-y-4 pt-6">
+            <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200/80 bg-amber-50/70 px-3 py-2 text-left">
+              <Badge variant="outline" className="border-amber-300 bg-white/80 text-amber-900">
+                Beta-Release
+              </Badge>
+              <p className="text-xs text-amber-900/80">Erste Testphase mit echten Nutzern</p>
+            </div>
             <div className="text-sm text-muted-foreground text-left rounded-md border border-border/50 p-3 bg-muted/20">
               <p className="font-medium text-foreground mb-1">So kannst du starten</p>
               <p>Du kannst deine Mannschaft direkt anmelden oder optional zuerst einen Portal-Account erstellen und dich danach einloggen.</p>
             </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                variant="outline"
+                onClick={() => window.location.href = '/anmeldung'}
+                className="w-full bg-background/80"
+              >
+                📋 Mannschaft anmelden
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  setIsAuthActionPending(true);
+                  try {
+                    await startPortalLogin("/");
+                  } finally {
+                    setIsAuthActionPending(false);
+                  }
+                }}
+                className="w-full"
+                disabled={isAuthActionPending}
+              >
+                🔐 Ins Portal einloggen
+              </Button>
+            </div>
             <Button
-              size="lg"
-              onClick={() => window.location.href = '/anmeldung'}
-              className={`w-full ${theme === "bunt" ? "bunt-btn" : ""}`}
-            >
-              📋 Mannschaft anmelden
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={async () => {
-                setIsAuthActionPending(true);
-                try {
-                  await startPortalLogin("/");
-                } finally {
-                  setIsAuthActionPending(false);
-                }
-              }}
-              className="w-full"
-              disabled={isAuthActionPending}
-            >
-              🔐 Ins Portal einloggen
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
+              size="sm"
+              variant="ghost"
               className="w-full"
               onClick={async () => {
                 setIsAuthActionPending(true);
@@ -296,6 +304,10 @@ export default function HomeScreen() {
             >
               📝 Portal-Account erstellen
             </Button>
+            <div className="text-xs text-left text-muted-foreground rounded-md border border-border/50 p-3 bg-muted/10">
+              <p className="font-medium text-foreground mb-1">Hinweis zum Beta-Release</p>
+              <p>Das Portal ist testbereit, aber noch nicht komplett auspoliert. Wenn etwas schief läuft, ist das kein Charakterfehler von dir, sondern eher normaler Beta-Sport.</p>
+            </div>
             <div className="text-xs text-center text-muted-foreground space-y-1">
               <p>auth.s5evo.de</p>
               <p>Die Schaltfläche unten in der Ausschreibung führt zur ESV-Website, nicht ins Portal.</p>

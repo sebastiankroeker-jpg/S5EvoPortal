@@ -1,6 +1,23 @@
 import { z } from "zod";
 import { SHIRT_SIZE_IDS, type ShirtSizeId } from "@/lib/domain/shirts";
 
+export const MIN_BIRTH_YEAR = 1901;
+export const MAX_BIRTH_YEAR = 2018;
+export const MIN_BIRTHDATE = `${MIN_BIRTH_YEAR}-01-01`;
+export const MAX_BIRTHDATE = `${MAX_BIRTH_YEAR}-12-31`;
+
+export function extractBirthYearFromInput(birthDate: string): number | null {
+  const match = birthDate.match(/^(\d{4})-\d{2}-\d{2}$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  if (!Number.isInteger(year) || year < MIN_BIRTH_YEAR || year > MAX_BIRTH_YEAR) {
+    return null;
+  }
+
+  return year;
+}
+
 export const DISCIPLINE_PLACEHOLDER = "TBD" as const;
 
 export const DISCIPLINES = [
@@ -26,7 +43,10 @@ const shirtSizeEnum = z.enum(SHIRT_SIZE_IDS as [ShirtSizeId, ...ShirtSizeId[]]);
 export const ParticipantSchema = z.object({
   firstName: z.string().min(2, "Vorname zu kurz"),
   lastName: z.string().min(2, "Nachname zu kurz"),
-  birthDate: z.string().min(1, "Geburtsdatum fehlt"),
+  birthDate: z
+    .string()
+    .min(1, "Geburtsdatum fehlt")
+    .refine((value) => extractBirthYearFromInput(value) !== null, "Geburtsdatum unplausibel"),
   gender: z.enum(["M", "W", "D"]),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),

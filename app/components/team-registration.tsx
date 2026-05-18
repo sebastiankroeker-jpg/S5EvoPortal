@@ -7,20 +7,22 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
+  createEmptyParticipant,
   createDefaultTeamForm,
   DISCIPLINES,
   DISCIPLINE_PLACEHOLDER,
+  MIN_BIRTHDATE,
+  MAX_BIRTHDATE,
   summarizeDisciplines,
   TeamRegistrationInput,
   TeamRegistrationSchema,
   type DisciplineId,
   type ParticipantInput,
-  generateTeamName,
 } from "@/lib/domain/team";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { classifyTeam, validateDisciplineAssignment, CLASSIFICATIONS } from "@/lib/domain/classification";
+import { classifyTeam, validateDisciplineAssignment } from "@/lib/domain/classification";
 import { useCompetition } from "@/lib/competition-context";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
 
@@ -89,6 +91,87 @@ interface TeamRegistrationProps {
   allowAnonymous?: boolean;
 }
 
+type PublicCompetitionInfo = {
+  id: string;
+  name: string;
+  year: number;
+  status: string;
+  registrationDeadline: string | null;
+  shirtOrderDeadline: string | null;
+  maxTeams: number | null;
+  teamSize: number;
+  location: string | null;
+  teamCount: number;
+};
+
+function isRegistrationDeadlineReached(deadline?: string | null) {
+  if (!deadline) return false;
+  return new Date(deadline) < new Date();
+}
+
+function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) {
+  if (!competition) {
+    return {
+      phaseLabel: "Lade Status",
+      availabilityLabel: "prüfen",
+      canRegister: true,
+      detail: "Wettkampfparameter werden geladen.",
+    };
+  }
+
+  const deadlineReached = isRegistrationDeadlineReached(competition.registrationDeadline);
+  const teamLimitReached = Boolean(
+    competition.maxTeams && competition.maxTeams > 0 && competition.teamCount >= competition.maxTeams,
+  );
+  const statusAllowsRegistration = competition.status === "DRAFT" || competition.status === "OPEN";
+
+  const phaseLabel =
+    competition.status === "DRAFT"
+      ? "Simulation"
+      : competition.status === "OPEN"
+        ? "Live"
+        : competition.status === "RUNNING"
+          ? "Wettkampf läuft"
+          : "Geschlossen";
+
+  if (!statusAllowsRegistration) {
+    return {
+      phaseLabel,
+      availabilityLabel: "geschlossen",
+      canRegister: false,
+      detail: "Die Anmeldung ist in diesem Wettkampfstatus nicht mehr offen.",
+    };
+  }
+
+  if (deadlineReached) {
+    return {
+      phaseLabel,
+      availabilityLabel: "geschlossen",
+      canRegister: false,
+      detail: "Der Anmeldeschluss ist erreicht.",
+    };
+  }
+
+  if (teamLimitReached) {
+    return {
+      phaseLabel,
+      availabilityLabel: "voll",
+      canRegister: false,
+      detail: "Die maximale Teamzahl ist erreicht.",
+    };
+  }
+
+  return {
+    phaseLabel,
+    availabilityLabel: "offen",
+    canRegister: true,
+    detail:
+      competition.status === "DRAFT"
+        ? "Die Anmeldung ist aktuell als Simulation für Tests geöffnet."
+        : "Die Anmeldung ist aktuell geöffnet.",
+  };
+}
+
 export default function TeamRegistration({ allowAnonymous = false }: TeamRegistrationProps) {
   const { data: session } = useSession();
   const { active: activeCompetition } = useCompetition();
@@ -97,7 +180,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState("");
-  const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
+  const [submissionWarning, setSubmissionWarning] = useState("");
+  const [competitionInfo, setCompetitionInfo] = useState<PublicCompetitionInfo | null>(null);
 
 
 
@@ -173,13 +257,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   );
 
   const disciplineSummary = useMemo(() => summarizeDisciplines(participants), [participants]);
-  const shirtOrderClosed = useMemo(() => isShirtOrderClosed(shirtOrderDeadline), [shirtOrderDeadline]);
-
-  useEffect(() => {
-    if (!teamName) {
-      setValue("teamName", generateTeamName(), { shouldDirty: false, shouldTouch: false, shouldValidate: true });
-    }
-  }, [teamName, setValue]);
+  const shirtOrderClosed = useMemo(() => isShirtOrderClosed(competitionInfo?.shirtOrderDeadline), [competitionInfo?.shirtOrderDeadline]);
+  const publicRegistrationStatus = useMemo(() => getPublicRegistrationStatus(competitionInfo), [competitionInfo]);
 
   useEffect(() => {
     if (!userName) {
@@ -189,17 +268,13 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   }, [userName, contactFirstName, contactLastName, setValue]);
 
   useEffect(() => {
-    if (!activeCompetition?.id) {
-      setShirtOrderDeadline(null);
-      return;
-    }
-
     (async () => {
       try {
-        const res = await fetch(`/api/admin/competition?id=${activeCompetition.id}`);
+        const query = activeCompetition?.id ? `?id=${activeCompetition.id}` : "";
+        const res = await fetch(`/api/competition${query}`);
         if (!res.ok) return;
         const data = await res.json();
-        setShirtOrderDeadline(data.competition?.shirtOrderDeadline || null);
+        setCompetitionInfo(data.competition || null);
       } catch (err) {
         console.error("Failed to load competition details:", err);
       }
@@ -208,41 +283,43 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   const previousTeamLeadDiscipline = useRef<DisciplineId>(DISCIPLINES[0].id);
 
-  const updateParticipantFields = (discipline: DisciplineId, partial: Partial<ParticipantInput>) => {
+  const findParticipantIndexByDiscipline = (discipline: DisciplineId) => {
     const current = getValues("participants");
-    const index = current.findIndex((p) => p.discipline === discipline);
+    return current.findIndex((participant) => participant.discipline === discipline);
+  };
+
+  const replaceParticipantByDiscipline = (discipline: DisciplineId, participant: ParticipantInput) => {
+    const index = findParticipantIndexByDiscipline(discipline);
     if (index === -1) return;
 
-    Object.entries(partial).forEach(([key, value]) => {
-      if (value !== undefined) {
-        setValue(
-          (`participants.${index}.${key as keyof ParticipantInput}` as const),
-          value as ParticipantInput[keyof ParticipantInput],
-          {
-        shouldDirty: true,
-        shouldTouch: true,
-        shouldValidate: false,
-      });
-      }
+    setValue(`participants.${index}` as const, participant, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
     });
   };
 
   const clearTeamLeadSlot = (discipline: DisciplineId) => {
-    updateParticipantFields(discipline, {
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
+    replaceParticipantByDiscipline(discipline, {
+      ...createEmptyParticipant(),
+      discipline,
     });
   };
 
   const fillTeamLeadSlot = (discipline: DisciplineId) => {
-    updateParticipantFields(discipline, {
+    const index = findParticipantIndexByDiscipline(discipline);
+    const current = index === -1 ? undefined : getValues(`participants.${index}` as const);
+
+    replaceParticipantByDiscipline(discipline, {
+      ...createEmptyParticipant(),
       firstName: teamLeadFirstName || effectiveContactName || "Teamchef:in",
       lastName: teamLeadLastName || (!teamLeadFirstName && effectiveContactName ? effectiveContactName : ""),
       email: effectiveContactEmail,
+      phone: current?.phone || "",
       birthDate: teamLeadBirthDate,
       gender: teamLeadGender,
+      shirtSize: current?.shirtSize || "",
+      discipline,
     });
   };
 
@@ -279,6 +356,13 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError("");
+    setSubmissionWarning("");
+
+    if (!publicRegistrationStatus.canRegister) {
+      setServerError(publicRegistrationStatus.detail);
+      return;
+    }
+
     try {
       const response = await fetch("/api/teams", {
         method: "POST",
@@ -295,6 +379,14 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
         throw new Error(payload.error || "Anmeldung fehlgeschlagen");
       }
 
+      const mailAttempts = Array.isArray(payload.mail?.attempts) ? payload.mail.attempts : [];
+      const hasMailIssues = mailAttempts.some((attempt: { status?: string }) => attempt.status && attempt.status !== "sent");
+      if (hasMailIssues) {
+        setSubmissionWarning(
+          "Die Mannschaft ist angelegt, aber der Mailversand konnte nicht vollständig bestaetigt werden. Bitte Orga informieren."
+        );
+      }
+
       setSubmitted(true);
       reset(createDefaultTeamForm());
       setTeamLeadParticipates(false);
@@ -308,6 +400,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   const startAnotherRegistration = () => {
     setServerError("");
+    setSubmissionWarning("");
     setSubmitted(false);
     setStep(1);
   };
@@ -331,13 +424,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   const applyTestData = (selectedClass: TeamClassId) => {
     const config = CLASS_CONFIG[selectedClass];
-    const classLabel = TEAM_CLASSES.find((entry) => entry.id === selectedClass)?.label || "Team";
-
-    // Don't reset teamlead state — preserve if already set
-
-    // Immer neuen Mannschaftsnamen generieren aus dem Pool
-    const generatedName = generateTeamName(selectedClass);
-    setValue("teamName", generatedName, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
 
     // Shuffled name pools for maximum variance + no duplicate last names
     const malePool = shuffled(MALE_NAMES);
@@ -349,23 +435,18 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
     DISCIPLINES.forEach((discipline, index) => {
       const current = getValues(`participants.${index}` as const);
-      const hasFirstName = current?.firstName?.trim();
-      const hasLastName = current?.lastName?.trim();
-      const hasBirthDate = current?.birthDate?.trim();
 
       const participantGender =
         config.gender === "mixed"
           ? Math.random() > 0.5 ? "M" : "W"
           : config.gender;
 
-      // Participant 0 = team lead (pre-filled from session). Never touched by test data.
-      // Classification warnings show mismatches (age, gender) in real-time.
-      const isTeamLead = index === 0 && teamLeadParticipates;
+      const isTeamLead = teamLeadParticipates && discipline.id === teamLeadDiscipline;
       if (isTeamLead) {
+        fillTeamLeadSlot(discipline.id);
         return;
       }
 
-      // All other participants: always overwrite with fresh test data (even on re-roll)
       const firstName = participantGender === "W"
         ? femalePool[femaleIdx++ % femalePool.length]
         : malePool[maleIdx++ % malePool.length];
@@ -379,6 +460,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
         email: current?.email || "",
         phone: current?.phone || "",
         discipline: discipline.id,
+        shirtSize: current?.shirtSize || "",
       };
 
       setValue(`participants.${index}` as const, payload, {
@@ -399,17 +481,44 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 mb-6">
-            {[1, 2, 3].map((s) => (
-              <div key={s} className={`flex-1 h-1 rounded-full transition-colors ${s <= step ? "bg-primary/60" : "bg-muted/40"}`} />
-            ))}
-          </div>
+              <div className="flex gap-2 mb-6">
+                {[1, 2, 3].map((s) => (
+                  <div key={s} className={`flex-1 h-1 rounded-full transition-colors ${s <= step ? "bg-primary/60" : "bg-muted/40"}`} />
+                ))}
+              </div>
+
+              {allowAnonymous && (
+                <div className="mb-6 rounded-lg border border-border/60 bg-muted/20 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{publicRegistrationStatus.phaseLabel}</Badge>
+                    <Badge variant={publicRegistrationStatus.canRegister ? "default" : "secondary"}>
+                      {publicRegistrationStatus.availabilityLabel}
+                    </Badge>
+                    {competitionInfo?.maxTeams && competitionInfo.maxTeams > 0 && (
+                      <Badge variant="outline">
+                        {competitionInfo.teamCount}/{competitionInfo.maxTeams} Teams
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    <p>{publicRegistrationStatus.detail}</p>
+                    {competitionInfo?.registrationDeadline && (
+                      <p>Anmeldeschluss: {new Date(competitionInfo.registrationDeadline).toLocaleDateString("de-DE")}</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
           {submitted ? (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center p-8 space-y-4">
               <div className="text-6xl">🏅</div>
               <h3 className="text-xl font-semibold text-green-600">Anmeldung erfolgreich!</h3>
               <p className="text-muted-foreground">Eure Mannschaft wurde erfolgreich übermittelt.</p>
+              {submissionWarning && (
+                <div className="max-w-xl mx-auto rounded-lg border border-amber-300 bg-amber-50 p-4 text-left text-sm text-amber-900">
+                  {submissionWarning}
+                </div>
+              )}
               {isAnonymousRegistration ? (
                 <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
                   <p className="text-sm font-medium">So geht's weiter</p>
@@ -418,7 +527,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <li>Öffne den Link aus der Mail und melde dich dort mit derselben E-Mail im Portal an oder lege damit ein neues Konto an.</li>
                     <li>Danach ist das Team deinem Account zugeordnet und du kannst Änderungen im Portal machen.</li>
                   </ol>
-                  <p className="text-xs text-muted-foreground">Wenn nichts ankommt, prüfe bitte auch Spam und Werbung.</p>
+                  <p className="text-xs text-muted-foreground">Wenn nichts ankommt, prüfe bitte auch Spam und Werbung. Wenn nach ein paar Minuten immer noch keine Mail da ist, melde dich direkt bei der Orga.</p>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Du kannst jetzt wie gewohnt im Portal weiterarbeiten.</p>
@@ -536,6 +645,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                             <label className="text-xs text-muted-foreground">Geburtsdatum</label>
                             <input
                               type="date"
+                              min={MIN_BIRTHDATE}
+                              max={MAX_BIRTHDATE}
                               className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
                               value={teamLeadBirthDate}
                               onChange={(e) => setTeamLeadBirthDate(e.target.value)}
@@ -572,7 +683,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       </div>
                     )}
                   </div>
-                  <Button onClick={handleNextFromTeam} disabled={isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName} className="w-full">
+                  <Button onClick={handleNextFromTeam} disabled={!publicRegistrationStatus.canRegister || (isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName)} className="w-full">
                     Zu Teilnehmern →
                   </Button>
                 </motion.div>
@@ -651,7 +762,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← Zurück
                     </Button>
-                    <Button onClick={handleNextFromParticipants} className="flex-1">
+                    <Button onClick={handleNextFromParticipants} className="flex-1" disabled={!publicRegistrationStatus.canRegister}>
                       Zur finalen Prüfung →
                     </Button>
                   </div>
@@ -699,6 +810,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                             />
                             <input
                               type="date"
+                              min={MIN_BIRTHDATE}
+                              max={MAX_BIRTHDATE}
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.birthDate` as const)}
                             />
@@ -749,7 +862,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← Zurück
                     </Button>
-                    <Button onClick={handleNextFromParticipants} className="flex-1">
+                    <Button onClick={handleNextFromParticipants} className="flex-1" disabled={!publicRegistrationStatus.canRegister}>
                       Zur finalen Prüfung →
                     </Button>
                   </div>
@@ -832,7 +945,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <Button variant="outline" onClick={() => setStep(2)} className="flex-1" disabled={formState.isSubmitting}>
                       ← Zurück
                     </Button>
-                    <Button onClick={onSubmit} className="flex-1" disabled={formState.isSubmitting}>
+                    <Button onClick={onSubmit} className="flex-1" disabled={formState.isSubmitting || !publicRegistrationStatus.canRegister}>
                       {formState.isSubmitting ? "Sende Anmeldung ab..." : "Mannschaft jetzt verbindlich anmelden 🏅"}
                     </Button>
                   </div>

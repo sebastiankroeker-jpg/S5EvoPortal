@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, type TeamRegistrationInput } from '@/lib/domain/team';
+import { TeamRegistrationSchema, type TeamRegistrationInput, extractBirthYearFromInput } from '@/lib/domain/team';
+import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
 import { prisma } from '@/lib/prisma';
 
 // Map frontend gender ("M"/"W") to Prisma enum
@@ -15,44 +16,19 @@ function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | 
   return valid.includes(d) ? (d as any) : "TBD";
 }
 
-// Extract birth year from date string
-function extractBirthYear(birthDate: string): number {
-  return new Date(birthDate).getFullYear();
-}
-
-// 2026 Classification Logic
 function classifyTeam(participants: TeamRegistrationInput['participants']): string {
-  const participantsWithData = participants.filter(p => p.firstName && p.lastName && p.birthDate);
-  
-  if (participantsWithData.length === 0) {
-    return "unclassified";
-  }
+  const inputs = participants
+    .map((participant) => ({
+      participant,
+      birthYear: extractBirthYearFromInput(participant.birthDate),
+    }))
+    .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null)
+    .map(({ participant, birthYear }) => ({
+      birthYear: birthYear as number,
+      gender: participant.gender as "M" | "W" | "D",
+    }));
 
-  const birthYears = participantsWithData.map(p => new Date(p.birthDate).getFullYear());
-  const ages = birthYears.map(y => 2026 - y);
-  const totalAge = ages.reduce((sum, age) => sum + age, 0);
-  const isFemaleOnly = participantsWithData.every(p => p.gender === "W");
-  
-  // Jahrgänge-basierte Klassen (Schüler/Jugend)
-  if (birthYears.every(year => year >= 2016 && year <= 2018)) {
-    return "schueler-a";
-  } else if (birthYears.every(year => year >= 2013 && year <= 2015)) {
-    return "schueler-b";
-  } else if (birthYears.every(year => year >= 2009 && year <= 2012)) {
-    return "jugend";
-  }
-  // Altersklassen (Gesamtalter aller 5 Teilnehmer)
-  else if (isFemaleOnly && totalAge <= 150) {
-    return "damen-a";
-  } else if (isFemaleOnly && totalAge > 150) {
-    return "damen-b";
-  } else if (totalAge <= 125) {
-    return "jungsters";
-  } else if (totalAge >= 226) {
-    return "masters";
-  } else {
-    return "herren";
-  }
+  return classifyTeamShared(inputs).code;
 }
 
 function serializeParticipant(participant: any) {
@@ -185,8 +161,13 @@ export async function PUT(
         : existingTeam.name;
 
       // Berechne neues Gesamtalter
-      const validParticipants = teamData.participants.filter(p => p.firstName && p.lastName && p.birthDate);
-      const totalAge = validParticipants.reduce((sum, p) => sum + (2026 - extractBirthYear(p.birthDate)), 0);
+      const validParticipants = teamData.participants
+        .map((participant) => ({
+          participant,
+          birthYear: extractBirthYearFromInput(participant.birthDate),
+        }))
+        .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
+      const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
 
       // Lösche alte Participants (soft delete)
       await prisma.participant.updateMany({
@@ -204,16 +185,16 @@ export async function PUT(
           classificationCode: autoCategory,
           totalAge: totalAge || null,
           participants: {
-            create: validParticipants.map(p => ({
-              firstName: p.firstName,
-              lastName: p.lastName,
-              birthYear: extractBirthYear(p.birthDate),
-              gender: mapGender(p.gender),
-              disciplineCode: mapDiscipline(p.discipline),
-              shirtSize: p.shirtSize || null,
+            create: validParticipants.map(({ participant, birthYear }) => ({
+              firstName: participant.firstName,
+              lastName: participant.lastName,
+              birthYear: birthYear as number,
+              gender: mapGender(participant.gender),
+              disciplineCode: mapDiscipline(participant.discipline),
+              shirtSize: participant.shirtSize || null,
               consentGiven: true,
-              email: p.email || null,
-              phone: p.phone || null,
+              email: participant.email || null,
+              phone: participant.phone || null,
             }))
           }
         },

@@ -14,7 +14,7 @@ Kopiere `.env.local.example` nach `.env.local` und trage die Werte ein:
 - `NEXTAUTH_SECRET` – generiere mit `openssl rand -base64 32`
 - `AUTHENTIK_CLIENT_ID` – aus Authentik Provider
 - `AUTHENTIK_CLIENT_SECRET` – aus Authentik Provider
-- `AUTHENTIK_ISSUER` – `https://auth.s5evo.de/application/o/s5evo-portal`
+- `AUTHENTIK_ISSUER` – `https://auth.s5evo.de/application/o/s5-evo-portal`
 
 ### 2. Lokal testen
 ```bash
@@ -30,4 +30,5 @@ Environment Variables im Vercel Dashboard setzen.
 - Provider: OAuth2/OpenID
 - Redirect URI: `https://s5-evo-portal.vercel.app/api/auth/callback/authentik`
 - Scopes: openid, profile, email
+- Registrierung immer aus dem OIDC-Login der Anwendung heraus starten, nicht per direktem Sprung auf einen nackten `/if/flow/.../`-Link.
 # Force redeploy Sun Mar 22 08:28:25 AM UTC 2026

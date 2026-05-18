@@ -57,6 +57,23 @@ interface DashboardProps {
   ownerFilter?: string;
 }
 
+function formatDatePart(value?: string) {
+  if (!value) return "Unbekannt";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unbekannt";
+  return date.toLocaleDateString("de-DE");
+}
+
+function formatTimePart(value?: string) {
+  if (!value) return "Unbekannt";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unbekannt";
+  return date.toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function Dashboard({ ownerFilter: initialOwnerFilter }: DashboardProps = {}) {
   const { data: session } = useSession();
   const { can } = usePermissions();
@@ -65,6 +82,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -166,6 +185,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       // Category filter
       const matchesCategory = categoryFilter === "all" || team.category === categoryFilter;
       const matchesOwner = ownerFilter === "all" || team.ownerEmail === ownerFilter;
+      const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
+      const createdFromMs = createdFrom ? new Date(createdFrom).getTime() : null;
+      const createdToMs = createdTo ? new Date(createdTo).getTime() : null;
+      const matchesCreatedAt = Number.isNaN(createdAtMs)
+        ? createdFrom === "" && createdTo === ""
+        : (createdFromMs === null || createdAtMs >= createdFromMs) &&
+          (createdToMs === null || createdAtMs <= createdToMs);
       
       // Search filter (team name, contact name, participant names)
       const matchesSearch = searchQuery === "" || 
@@ -175,9 +201,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
-      return matchesCategory && matchesOwner && matchesSearch;
+      return matchesCategory && matchesOwner && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, createdFrom, createdTo]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -219,6 +245,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   const totalParticipants = filteredTeams.reduce((sum, team) => sum + (team.participants?.length || 0), 0);
   const incompleteTeams = teams.filter(t => !t.participants || t.participants.some(p => !p.firstName || !p.lastName)).length;
+  const hasActiveFilters =
+    searchQuery !== "" ||
+    categoryFilter !== "all" ||
+    ownerFilter !== "all" ||
+    createdFrom !== "" ||
+    createdTo !== "";
 
   return (
     <div className="space-y-6">
@@ -246,7 +278,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       )}
 
       {/* Suche & Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex-1">
           <Input
             placeholder="Suche in Teams und Teilnehmern..."
@@ -255,7 +287,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
             className="max-w-md"
           />
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 xl:flex-row xl:flex-wrap xl:items-center">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Alle Klassen" />
@@ -282,6 +314,36 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               ))}
             </SelectContent>
           </Select>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              type="datetime-local"
+              value={createdFrom}
+              onChange={(e) => setCreatedFrom(e.target.value)}
+              className="w-full sm:w-[240px]"
+              aria-label="Angelegt ab"
+            />
+            <Input
+              type="datetime-local"
+              value={createdTo}
+              onChange={(e) => setCreatedTo(e.target.value)}
+              className="w-full sm:w-[240px]"
+              aria-label="Angelegt bis"
+            />
+          </div>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setSearchQuery("");
+                setCategoryFilter("all");
+                setOwnerFilter(initialOwnerFilter || "all");
+                setCreatedFrom("");
+                setCreatedTo("");
+              }}
+            >
+              Filter zurücksetzen
+            </Button>
+          )}
           <Button onClick={fetchTeams} variant="outline">
             🔄
           </Button>
@@ -289,11 +351,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       </div>
 
       {/* Search Results Info */}
-      {(searchQuery || categoryFilter !== "all") && (
+      {hasActiveFilters && (
         <div className="text-sm text-muted-foreground">
           {filteredTeams.length} von {teams.length} Teams gefunden
           {searchQuery && ` für "${searchQuery}"`}
           {categoryFilter !== "all" && ` in Klasse "${categoryFilter}"`}
+          {ownerFilter !== "all" && ` von "${ownerFilter}"`}
+          {createdFrom && ` ab ${new Date(createdFrom).toLocaleString("de-DE")}`}
+          {createdTo && ` bis ${new Date(createdTo).toLocaleString("de-DE")}`}
         </div>
       )}
 
@@ -382,6 +447,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               <div><strong>Teamchef:in:</strong> ⭐ {team.contactName}</div>
                               <div><strong>E-Mail:</strong> {team.contactEmail}</div>
                               <div><strong>Klasse:</strong> {categoryEmojis[team.category] || "🏆"} {team.category}</div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-md border border-border/60 bg-muted/30 p-3">
+                            <div className="grid gap-2 text-xs sm:grid-cols-2">
+                              <div><strong>Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>
+                              <div><strong>Anlageuhrzeit:</strong> {formatTimePart(team.createdAt)}</div>
+                              <div><strong>Anlage-User:</strong> {team.ownerName || team.ownerEmail || team.contactName || "Unbekannt"}</div>
+                              <div><strong>Letzte Änderung:</strong> {team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "Unbekannt"}</div>
                             </div>
                           </div>
 
@@ -545,13 +619,16 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
           {showAdminInfo && showInfo && (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm space-y-1">
               {team.createdAt && (
-                <div><strong>Angelegt:</strong> {new Date(team.createdAt).toLocaleString('de-DE')}</div>
+                <>
+                  <div><strong>Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>
+                  <div><strong>Anlageuhrzeit:</strong> {formatTimePart(team.createdAt)}</div>
+                </>
+              )}
+              {(team.ownerName || team.ownerEmail) && (
+                <div><strong>Anlage-User:</strong> {team.ownerName || team.ownerEmail}</div>
               )}
               {team.updatedAt && (
                 <div><strong>Zuletzt geändert:</strong> {new Date(team.updatedAt).toLocaleString('de-DE')}</div>
-              )}
-              {team.ownerName && (
-                <div><strong>Angelegt von:</strong> {team.ownerName}</div>
               )}
               {team.ownerEmail && (
                 <div><strong>Owner-Mail:</strong> {team.ownerEmail}</div>

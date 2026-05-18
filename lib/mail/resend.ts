@@ -6,15 +6,30 @@ type ResendMailPayload = {
   replyTo?: string;
 };
 
+export type ResendMailResult =
+  | {
+      status: "sent";
+      response: unknown;
+    }
+  | {
+      status: "skipped";
+      reason: "missing_env";
+      missing: string[];
+    };
+
 const RESEND_API_URL = "https://api.resend.com/emails";
 
-export async function sendResendMail(payload: ResendMailPayload) {
+export async function sendResendMail(payload: ResendMailPayload): Promise<ResendMailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.MAIL_FROM;
 
   if (!apiKey || !from) {
-    console.warn("Mail skipped: RESEND_API_KEY or MAIL_FROM missing");
-    return { skipped: true as const };
+    const missing = [
+      ...(!apiKey ? ["RESEND_API_KEY"] : []),
+      ...(!from ? ["MAIL_FROM"] : []),
+    ];
+    console.warn("Mail skipped: missing mail env", { missing });
+    return { status: "skipped", reason: "missing_env", missing };
   }
 
   const response = await fetch(RESEND_API_URL, {
@@ -38,5 +53,8 @@ export async function sendResendMail(payload: ResendMailPayload) {
     throw new Error(`Resend error ${response.status}: ${body}`);
   }
 
-  return response.json();
+  return {
+    status: "sent",
+    response: await response.json(),
+  };
 }

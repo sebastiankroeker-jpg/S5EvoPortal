@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, type TeamRegistrationInput, generateTeamName } from '@/lib/domain/team';
+import { TeamRegistrationSchema, type TeamRegistrationInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, validateDisciplineAssignment } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
@@ -19,18 +19,22 @@ function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | 
   return valid.includes(d) ? (d as any) : "TBD";
 }
 
-// Extract birth year from date string
-function extractBirthYear(birthDate: string): number {
-  return new Date(birthDate).getFullYear();
+function isRegistrationDeadlineReached(deadline?: Date | null): boolean {
+  if (!deadline) return false;
+  return new Date(deadline) < new Date();
 }
 
 // 2026 Classification Logic
 function classifyTeam(participants: TeamRegistrationInput['participants']): string {
   const inputs = participants
-    .filter(p => p.firstName && p.lastName && p.birthDate)
-    .map(p => ({
-      birthYear: new Date(p.birthDate).getFullYear(),
-      gender: p.gender as "M" | "W" | "D",
+    .map((participant) => ({
+      participant,
+      birthYear: extractBirthYearFromInput(participant.birthDate),
+    }))
+    .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null)
+    .map(({ participant, birthYear }) => ({
+      birthYear: birthYear as number,
+      gender: participant.gender as "M" | "W" | "D",
     }));
   return classifyTeamShared(inputs).code;
 }
@@ -196,10 +200,11 @@ export async function POST(request: NextRequest) {
     }
 
     const autoCategory = classifyTeam(teamData.participants);
-    const normalizedTeamName = teamData.teamName?.trim();
-    const finalTeamName = normalizedTeamName && normalizedTeamName.length >= 3
-      ? normalizedTeamName
-      : generateTeamName(autoCategory);
+    const finalTeamName = teamData.teamName?.trim();
+
+    if (!finalTeamName || finalTeamName.length < 3) {
+      return NextResponse.json({ error: 'Mannschaftsname ist erforderlich.' }, { status: 400 });
+    }
 
     try {
       // Ensure default competition exists
@@ -210,8 +215,10 @@ export async function POST(request: NextRequest) {
           tenantId: true,
           name: true,
           year: true,
+          status: true,
           registrationDeadline: true,
           shirtOrderDeadline: true,
+          maxTeams: true,
           registrationNotificationEmail: true,
           tenant: {
             select: {
@@ -221,6 +228,43 @@ export async function POST(request: NextRequest) {
           },
         },
       });
+
+      if (!competition) {
+        return NextResponse.json({ error: 'Kein aktiver Wettkampf gefunden.' }, { status: 503 });
+      }
+
+      const registrationStatusAllowsSubmissions =
+        competition.status === "DRAFT" || competition.status === "OPEN";
+
+      if (!registrationStatusAllowsSubmissions) {
+        return NextResponse.json(
+          { error: 'Die Anmeldung ist für diesen Wettkampf aktuell geschlossen.' },
+          { status: 409 }
+        );
+      }
+
+      if (isRegistrationDeadlineReached(competition.registrationDeadline)) {
+        return NextResponse.json(
+          { error: 'Der Anmeldeschluss für diesen Wettkampf ist bereits erreicht.' },
+          { status: 409 }
+        );
+      }
+
+      if (competition.maxTeams && competition.maxTeams > 0) {
+        const existingTeams = await prisma.team.count({
+          where: {
+            competitionId,
+            deletedAt: null,
+          },
+        });
+
+        if (existingTeams >= competition.maxTeams) {
+          return NextResponse.json(
+            { error: 'Für diesen Wettkampf sind aktuell keine freien Startplätze mehr verfügbar.' },
+            { status: 409 }
+          );
+        }
+      }
 
       const canEditShirts = !isShirtOrderClosed(competition?.shirtOrderDeadline);
 
@@ -237,8 +281,13 @@ export async function POST(request: NextRequest) {
       }
 
       // Calculate total age
-      const validParticipants = teamData.participants.filter(p => p.firstName && p.lastName && p.birthDate);
-      const totalAge = validParticipants.reduce((sum, p) => sum + (2026 - extractBirthYear(p.birthDate)), 0);
+      const validParticipants = teamData.participants
+        .map((participant) => ({
+          participant,
+          birthYear: extractBirthYearFromInput(participant.birthDate),
+        }))
+        .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
+      const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
 
       // Create team with participants
       const team = await prisma.team.create({
@@ -252,16 +301,16 @@ export async function POST(request: NextRequest) {
           ownerId: user.id,
           teamChiefId: user.id,
           participants: {
-            create: validParticipants.map(p => ({
-              firstName: p.firstName,
-              lastName: p.lastName,
-              birthYear: extractBirthYear(p.birthDate),
-              gender: mapGender(p.gender),
-              disciplineCode: mapDiscipline(p.discipline),
-              shirtSize: canEditShirts && p.shirtSize ? p.shirtSize : null,
+            create: validParticipants.map(({ participant, birthYear }) => ({
+              firstName: participant.firstName,
+              lastName: participant.lastName,
+              birthYear: birthYear as number,
+              gender: mapGender(participant.gender),
+              disciplineCode: mapDiscipline(participant.discipline),
+              shirtSize: canEditShirts && participant.shirtSize ? participant.shirtSize : null,
               consentGiven: true,
-              email: p.email || null,
-              phone: p.phone || null,
+              email: participant.email || null,
+              phone: participant.phone || null,
             }))
           }
         },
@@ -288,12 +337,14 @@ export async function POST(request: NextRequest) {
 
       const claimUrl = buildRegistrationClaimUrl(claimToken.rawToken);
 
+      let mailSummary = null;
+
       if (competition) {
         await Promise.all([
           ensureTenantRole(user.id, competition.tenantId, "TEAMCHEF"),
         ]);
 
-        await sendTeamRegistrationEmails({
+        mailSummary = await sendTeamRegistrationEmails({
           competition,
           team: {
             name: finalTeamName,
@@ -311,11 +362,20 @@ export async function POST(request: NextRequest) {
             })),
           },
         });
+
+        if (!mailSummary.ok) {
+          console.warn("Team registration mail delivery incomplete", {
+            teamId: team.id,
+            competitionId,
+            attempts: mailSummary.attempts,
+          });
+        }
       }
 
       return NextResponse.json({ 
         success: true,
         message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
+        mail: mailSummary,
         team: serializeTeam(team)
       });
 

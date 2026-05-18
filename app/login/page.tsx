@@ -1,21 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { normalizeCallbackUrl, startPortalLogin, startPortalRegistration } from "@/lib/auth-flow";
+import { normalizeCallbackUrl, readPendingAuthContext, startPortalLogin, startPortalRegistration } from "@/lib/auth-flow";
 
 export default function LoginPage() {
   const { status } = useSession();
   const router = useRouter();
   const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const resumeAttempted = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setCallbackUrl(normalizeCallbackUrl(params.get("callbackUrl")));
+    const errorCode = params.get("error");
+    setAuthErrorCode(errorCode);
+    const errorMessages: Record<string, string> = {
+      OAuthCallback: "Authentik hat den Login oder die Registrierung nicht sauber abgeschlossen. Der Fehler wurde serverseitig protokolliert.",
+      Callback: "Der Rueckweg aus Authentik ins Portal ist fehlgeschlagen. Der Fehler wurde serverseitig protokolliert.",
+      OAuthSignin: "Authentik konnte den Anmeldeflow nicht starten. Der Fehler wurde serverseitig protokolliert.",
+      SessionRequired: "Deine Sitzung ist abgelaufen. Bitte den Login erneut starten.",
+    };
+    setAuthError(errorCode ? errorMessages[errorCode] ?? `Authentifizierung fehlgeschlagen (${errorCode}). Der Fehler wurde serverseitig protokolliert.` : null);
   }, []);
 
   useEffect(() => {
@@ -23,6 +35,40 @@ export default function LoginPage() {
       router.replace(callbackUrl);
     }
   }, [status, router, callbackUrl]);
+
+  useEffect(() => {
+    if (status !== "unauthenticated" || !callbackUrl || resumeAttempted.current) {
+      return;
+    }
+
+    const pendingAuth = readPendingAuthContext();
+    if (!pendingAuth || pendingAuth.intent !== "registration") {
+      return;
+    }
+
+    const cameBackFromAuthentik =
+      typeof document !== "undefined" &&
+      document.referrer.startsWith("https://auth.s5evo.de/");
+    const needsRecovery = authErrorCode === "OAuthCallback" || authErrorCode === "Callback";
+
+    if (!cameBackFromAuthentik && !needsRecovery) {
+      return;
+    }
+
+    resumeAttempted.current = true;
+    setAuthError(
+      "Authentik hat die Registrierung abgeschlossen. Das Portal startet jetzt einmalig den Rueckweg neu.",
+    );
+    setIsSubmitting(true);
+
+    void (async () => {
+      try {
+        await startPortalLogin(pendingAuth.callbackUrl);
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
+  }, [authErrorCode, callbackUrl, status]);
 
   const handleLogin = async () => {
     if (!callbackUrl) return;
@@ -65,6 +111,11 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {authError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {authError}
+            </div>
+          )}
           <Button onClick={handleLogin} className="w-full" disabled={isSubmitting}>
             Mit bestehendem Konto weiter
           </Button>

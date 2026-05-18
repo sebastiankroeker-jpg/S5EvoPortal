@@ -551,12 +551,12 @@ export default function AdminPage() {
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="Orga-Mail für Anmeldungen" hint="Wenn leer, wird die Tenant-Kontaktadresse genutzt">
+                    <FormField label="Orga-Mails für Anmeldungen" hint="Mehrere Empfänger mit Komma oder Semikolon trennen. Wenn leer, wird die Tenant-Kontaktadresse genutzt.">
                       <Input
-                        type="email"
+                        type="text"
                         value={competition.registrationNotificationEmail}
                         onChange={(e) => setCompetition({ ...competition, registrationNotificationEmail: e.target.value })}
-                        placeholder="anmeldung@s5evo.de"
+                        placeholder="anmeldung@s5evo.de, 5kampf@cross-communication.com"
                       />
                     </FormField>
                     <FormField label="Max. Teams" hint="0 = unbegrenzt">
