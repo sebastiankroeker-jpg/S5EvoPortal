@@ -198,7 +198,6 @@ export default function ParticipantEditDialog({
                 <SelectContent>
                   <SelectItem value="MALE">Männlich</SelectItem>
                   <SelectItem value="FEMALE">Weiblich</SelectItem>
-                  <SelectItem value="DIVERSE">Divers</SelectItem>
                 </SelectContent>
               </Select>
             </div>

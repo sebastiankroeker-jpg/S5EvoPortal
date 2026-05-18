@@ -9,6 +9,7 @@ import { useTheme } from "@/lib/theme-context";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import SearchOverlay from "./search-overlay";
+import { isClaimNavigationPath } from "@/lib/navigation-menu";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
@@ -53,11 +54,16 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { can } = usePermissions();
+  const { can, activeRole } = usePermissions();
   const { theme, setTheme } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<MainTab>("home");
+  const isClaimPath = isClaimNavigationPath(pathname);
+  const showOrgaSection = !isClaimPath && (can("team.view.all") || can("results.edit"));
+  const showTechSection = !isClaimPath;
+  const teamLabel = isClaimPath || activeRole === "TEILNEHMER" ? "Mein Team" : "Teams";
+  const teamIcon = isClaimPath || activeRole === "TEILNEHMER" ? "🏃" : "📋";
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
@@ -171,11 +177,11 @@ export default function Sidebar() {
       <div className="flex-1 py-1.5 px-1 space-y-0.5 overflow-y-auto">
         <SectionLabel label="Navigation" isCollapsed={isCollapsed} />
         <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} isCollapsed={isCollapsed} />
-        <SidebarItem icon="📋" label="Teams" onClick={() => switchToTab("registration")} isActive={pathname === "/" && activeTab === "registration"} isCollapsed={isCollapsed} />
+        <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} isCollapsed={isCollapsed} />
         <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} isCollapsed={isCollapsed} />
         <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
 
-        {(can("team.view.all") || can("results.edit")) && (
+        {showOrgaSection && (
           <>
             <SectionLabel label="Orga" isCollapsed={isCollapsed} />
             <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isActive={pathname === "/" && activeTab === "orga"} isCollapsed={isCollapsed} />
@@ -191,10 +197,14 @@ export default function Sidebar() {
           </>
         )}
 
-        <SectionLabel label="Tech" isCollapsed={isCollapsed} />
-        <SidebarItem icon="🔗" label="Architektur" onClick={() => window.open("/architecture", "_blank")} isCollapsed={isCollapsed} />
-        <SidebarItem icon="🖥️" label="Infrastruktur" onClick={() => router.push("/tech")} isActive={pathname === "/tech"} isCollapsed={isCollapsed} />
-        <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
+        {showTechSection && (
+          <>
+            <SectionLabel label="Tech" isCollapsed={isCollapsed} />
+            <SidebarItem icon="🔗" label="Architektur" onClick={() => window.open("/architecture", "_blank")} isCollapsed={isCollapsed} />
+            <SidebarItem icon="🖥️" label="Infrastruktur" onClick={() => router.push("/tech")} isActive={pathname === "/tech"} isCollapsed={isCollapsed} />
+            <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
+          </>
+        )}
 
         <SectionLabel label="Themes" isCollapsed={isCollapsed} />
         <div className={`${isCollapsed ? "flex flex-col items-center gap-1" : "flex gap-1 justify-center px-2"}`}>

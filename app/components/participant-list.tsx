@@ -38,7 +38,6 @@ const DISCIPLINE_LABELS: Record<string, { icon: string; label: string }> = {
 const GENDER_LABELS: Record<string, string> = {
   MALE: "♂️",
   FEMALE: "♀️",
-  DIVERSE: "⚧️",
   M: "♂️",
   W: "♀️",
 };

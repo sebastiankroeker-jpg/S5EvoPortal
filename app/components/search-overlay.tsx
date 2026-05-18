@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { usePermissions } from "@/lib/permissions-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { X, Search } from "lucide-react";
+import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
 
 interface SearchItem {
   type: "menu" | "team";
+  id?: string;
   label?: string;
   name?: string;
   keywords?: string[];
-  action?: () => void;
-  permission?: string;
   icon: string;
   discipline?: string;
   participants?: any[];
@@ -27,88 +28,67 @@ interface SearchOverlayProps {
 
 export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const router = useRouter();
-  const { can } = usePermissions();
+  const pathname = usePathname();
+  const { status } = useSession();
+  const { can, roles } = usePermissions();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
-
-  // Menu items for search
-  const MENU_ITEMS = [
-    { 
-      label: "Home", 
-      keywords: ["home", "start", "hauptseite"], 
-      action: () => switchToTab("home"), 
-      icon: "🏠"
-    },
-    { 
-      label: "Anmeldung", 
-      keywords: ["anmeldung", "registrierung", "team anmelden", "mannschaft"], 
-      action: () => switchToTab("registration"), 
-      permission: "team.create",
-      icon: "📋"
-    },
-    { 
-      label: "Meine Teams", 
-      keywords: ["teams", "dashboard", "meine teams", "übersicht"], 
-      action: () => switchToTab("registration"), 
-      permission: "team.view.own",
-      icon: "📋"
-    },
-    { 
-      label: "Live", 
-      keywords: ["live", "ergebnisse", "resultate", "punkte"], 
-      action: () => switchToTab("live"), 
-      icon: "🏆"
-    },
-    { 
-      label: "Profil", 
-      keywords: ["profil", "konto", "account", "benutzername"], 
-      action: () => router.push("/profile"),
-      icon: "👤"
-    },
-    { 
-      label: "Alle Teams", 
-      keywords: ["alle teams", "admin teams"], 
-      action: () => switchToTab("dashboard"), 
-      permission: "team.view.all",
-      icon: "👥"
-    },
-    { 
-      label: "Administration", 
-      keywords: ["admin", "einstellungen", "konfiguration", "config"], 
-      action: () => router.push("/admin"), 
-      permission: "config.edit",
-      icon: "🏢"
-    },
-    { 
-      label: "Architektur", 
-      keywords: ["architektur", "referenz", "technik"], 
-      action: () => window.open("/architecture", "_blank"),
-      icon: "🔗"
-    },
-    { 
-      label: "Infrastruktur", 
-      keywords: ["infrastruktur", "system", "sysadmin"], 
-      action: () => router.push("/tech"),
-      icon: "🖥️"
-    },
-    { 
-      label: "Changelog", 
-      keywords: ["changelog", "version", "historie", "änderungen"], 
-      action: () => router.push("/changelog"),
-      icon: "📋"
-    },
-  ];
+  const isClaimPath = isClaimNavigationPath(pathname);
 
   const switchToTab = (tabId: string) => {
+    if (pathname !== "/") {
+      router.push(tabId === "home" ? "/" : `/#${tabId}`);
+      return;
+    }
     const event = new CustomEvent("switchTab", { detail: { tabId } });
     window.dispatchEvent(event);
   };
 
-  // Get all permitted menu items
-  const permittedMenuItems = MENU_ITEMS.filter(item => {
-    if (item.permission && !can(item.permission as any)) return false;
-    return true;
+  const permittedMenuItems = getPermittedNavigationMenuItems({
+    authenticated: status === "authenticated",
+    can,
+    roles,
+    pathname,
   });
+
+  const handleMenuSelection = (item: NavigationMenuItem) => {
+    switch (item.id) {
+      case "home":
+        switchToTab("home");
+        break;
+      case "registration":
+        if (status === "authenticated") {
+          switchToTab("registration");
+        } else {
+          router.push("/anmeldung");
+        }
+        break;
+      case "my-teams":
+      case "all-teams":
+        switchToTab("dashboard");
+        break;
+      case "live":
+        switchToTab("live");
+        break;
+      case "profile":
+        router.push("/profile");
+        break;
+      case "administration":
+        router.push("/admin");
+        break;
+      case "architecture":
+        window.open("/architecture", "_blank", "noopener,noreferrer");
+        break;
+      case "infrastructure":
+        router.push("/tech");
+        break;
+      case "changelog":
+        router.push("/changelog");
+        break;
+      default:
+        break;
+    }
+  };
 
   // Search implementation
   const performSearch = async (query: string) => {
@@ -121,7 +101,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         return item.label.toLowerCase().includes(lowerQuery) ||
                item.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery));
       })
-      .map(item => ({ type: 'menu' as const, ...item }));
+      .map(item => ({ type: 'menu' as const, id: item.id, label: item.label, keywords: item.keywords, icon: item.icon }));
 
     // Search teams via API (only if query)
     let teamResults: SearchItem[] = [];
@@ -136,7 +116,6 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
             discipline: team.discipline,
             participants: team.participants || [],
             icon: "🏅",
-            action: () => switchToTab("registration"),
           }));
         }
       } catch (error) {
@@ -199,7 +178,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
               <div className="flex items-center gap-2 mb-4">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Teams, Navigation oder Teilnehmer suchen..."
+                  placeholder={isClaimPath ? "Navigation oder mein Team suchen..." : "Teams, Navigation oder Teilnehmer suchen..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="flex-1"
@@ -223,8 +202,11 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                         key={`${result.type}-${index}`}
                         className="p-2 rounded-md hover:bg-accent cursor-pointer"
                         onClick={() => {
-                          if (result.action) {
-                            result.action();
+                          if (result.type === "menu" && result.id) {
+                            const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
+                            if (item) {
+                              handleMenuSelection(item);
+                            }
                           }
                           onClose();
                         }}

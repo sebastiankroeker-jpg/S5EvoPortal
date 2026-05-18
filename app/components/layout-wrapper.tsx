@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import Sidebar from "./sidebar";
 import CommandPill from "./command-pill";
 import RoleSwitcher from "./role-switcher";
@@ -10,7 +11,9 @@ interface LayoutWrapperProps {
 }
 
 export default function LayoutWrapper({ children }: LayoutWrapperProps) {
+  const { status } = useSession();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const showDesktopSidebar = status === "authenticated";
 
   // Sidebar State synchronisieren
   useEffect(() => {
@@ -46,7 +49,7 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
       {/* Main content with responsive margin */}
       <div 
         className={`lg:transition-all lg:duration-300 ${
-          isCollapsed ? "lg:ml-12" : "lg:ml-52"
+          showDesktopSidebar ? (isCollapsed ? "lg:ml-12" : "lg:ml-52") : ""
         }`}
       >
         {children}

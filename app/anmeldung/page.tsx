@@ -1,11 +1,13 @@
 import Link from "next/link";
+import NavBar from "@/app/components/nav-bar";
 import TeamRegistration from "@/app/components/team-registration";
 
 export default function PublicRegistrationPage() {
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-        <div className="flex items-center justify-between">
+      <NavBar />
+      <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">📋 Öffentliche Mannschaftsanmeldung</h1>
             <p className="text-sm text-muted-foreground">Ohne Login anmelden, später per Übernahmelink im Portal weiterführen.</p>
@@ -15,7 +17,7 @@ export default function PublicRegistrationPage() {
           </Link>
         </div>
         <TeamRegistration allowAnonymous />
-      </div>
+      </main>
     </div>
   );
 }

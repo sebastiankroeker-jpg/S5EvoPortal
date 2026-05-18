@@ -216,7 +216,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       .filter((p: any) => p.birthDate && p.birthDate.length >= 4)
       .map((p: any) => ({
         birthYear: new Date(p.birthDate).getFullYear(),
-        gender: p.gender as "M" | "W" | "D",
+        gender: p.gender as "M" | "W",
       }));
     return classifyTeam(inputs);
   }, [watchedValues]);
@@ -239,7 +239,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const [teamLeadParticipates, setTeamLeadParticipates] = useState(false);
   const [teamLeadDiscipline, setTeamLeadDiscipline] = useState<DisciplineId>(DISCIPLINES[0].id);
   const [teamLeadBirthDate, setTeamLeadBirthDate] = useState("");
-  const [teamLeadGender, setTeamLeadGender] = useState<"M" | "W" | "D">("M");
+  const [teamLeadGender, setTeamLeadGender] = useState<"M" | "W">("M");
+  const [liabilityAccepted, setLiabilityAccepted] = useState(false);
   const [testDataClass, setTestDataClass] = useState<TeamClassId>("schueler-a");
 
   const [teamLeadFirstName, teamLeadLastName] = useMemo(() => {
@@ -363,6 +364,11 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       return;
     }
 
+    if (!liabilityAccepted) {
+      setServerError("Bitte bestätige zuerst den Haftungsausschluss und die Veranstaltungsinformationen.");
+      return;
+    }
+
     try {
       const response = await fetch("/api/teams", {
         method: "POST",
@@ -391,6 +397,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       reset(createDefaultTeamForm());
       setTeamLeadParticipates(false);
       setTeamLeadDiscipline(DISCIPLINES[0].id);
+      setLiabilityAccepted(false);
       previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
       setStep(1);
     } catch (err) {
@@ -402,6 +409,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     setServerError("");
     setSubmissionWarning("");
     setSubmitted(false);
+    setLiabilityAccepted(false);
     setStep(1);
   };
 
@@ -657,11 +665,10 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                             <select
                               className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
                               value={teamLeadGender}
-                              onChange={(e) => setTeamLeadGender(e.target.value as "M" | "W" | "D")}
+                              onChange={(e) => setTeamLeadGender(e.target.value as "M" | "W")}
                             >
                               <option value="M">♂️ Männlich</option>
                               <option value="W">♀️ Weiblich</option>
-                              <option value="D">⚧️ Divers</option>
                             </select>
                           </div>
                         </div>
@@ -821,7 +828,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                             >
                               <option value="M">Männlich</option>
                               <option value="W">Weiblich</option>
-                              <option value="D">Divers</option>
                             </select>
                             <input
                               placeholder="E-Mail (optional)"
@@ -941,11 +947,34 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     </div>
                   )}
 
+                  <div className="rounded-md border border-border/50 bg-muted/20 p-4">
+                    <label className="flex items-start gap-3 text-sm leading-relaxed">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 shrink-0"
+                        checked={liabilityAccepted}
+                        onChange={(event) => setLiabilityAccepted(event.target.checked)}
+                      />
+                      <span>
+                        Mit dem Klick auf den Button bestätigen Sie, dass Sie den{" "}
+                        <a
+                          href="https://www.esvbadbayersoien.de/veranstaltungen/5-kampf/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium text-primary underline underline-offset-2"
+                        >
+                          Haftungsausschluss und Informationen zur Veranstaltung
+                        </a>{" "}
+                        zur Kenntnis genommen haben und diesen zustimmen.
+                      </span>
+                    </label>
+                  </div>
+
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setStep(2)} className="flex-1" disabled={formState.isSubmitting}>
                       ← Zurück
                     </Button>
-                    <Button onClick={onSubmit} className="flex-1" disabled={formState.isSubmitting || !publicRegistrationStatus.canRegister}>
+                    <Button onClick={onSubmit} className="flex-1" disabled={formState.isSubmitting || !publicRegistrationStatus.canRegister || !liabilityAccepted}>
                       {formState.isSubmitting ? "Sende Anmeldung ab..." : "Mannschaft jetzt anmelden 🏅"}
                     </Button>
                   </div>

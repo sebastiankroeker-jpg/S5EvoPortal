@@ -268,7 +268,7 @@ export default function HomeScreen() {
               <p className="font-medium text-foreground mb-1">So kannst du starten</p>
               <p>Du kannst deine Mannschaft direkt anmelden oder optional zuerst einen Portal-Account erstellen und dich danach einloggen.</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-2">
               <Button
                 variant="outline"
                 onClick={() => window.location.href = '/anmeldung'}
@@ -276,38 +276,40 @@ export default function HomeScreen() {
               >
                 📋 Mannschaft anmelden
               </Button>
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  setIsAuthActionPending(true);
-                  try {
-                    await startPortalLogin("/");
-                  } finally {
-                    setIsAuthActionPending(false);
-                  }
-                }}
-                className="w-full"
-                disabled={isAuthActionPending}
-              >
-                🔐 Ins Portal einloggen
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={async () => {
+                    setIsAuthActionPending(true);
+                    try {
+                      await startPortalRegistration("/");
+                    } finally {
+                      setIsAuthActionPending(false);
+                    }
+                  }}
+                  disabled={isAuthActionPending}
+                >
+                  📝 Portal-Konto erstellen
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    setIsAuthActionPending(true);
+                    try {
+                      await startPortalLogin("/");
+                    } finally {
+                      setIsAuthActionPending(false);
+                    }
+                  }}
+                  className="w-full"
+                  disabled={isAuthActionPending}
+                >
+                  🔐 Ins Portal einloggen
+                </Button>
+              </div>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="w-full"
-              onClick={async () => {
-                setIsAuthActionPending(true);
-                try {
-                  await startPortalRegistration("/");
-                } finally {
-                  setIsAuthActionPending(false);
-                }
-              }}
-              disabled={isAuthActionPending}
-            >
-              📝 Portal-Account erstellen
-            </Button>
             <div className="text-xs text-left text-muted-foreground rounded-md border border-border/50 p-3 bg-muted/10">
               <p className="font-medium text-foreground mb-1">Hinweis zum Beta-Release</p>
               <p>Das Portal ist testbereit, aber noch nicht komplett auspoliert. Wenn etwas schief läuft, ist das kein Charakterfehler von dir, sondern eher normaler Beta-Sport.</p>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { X, Search, Menu, ExternalLink } from "lucide-react";
+import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
 
 export default function CommandPill() {
   const router = useRouter();
@@ -23,82 +24,14 @@ export default function CommandPill() {
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const isClaimPath = isClaimNavigationPath(pathname);
 
-  // Menu items for search
-  const MENU_ITEMS = [
-    { 
-      label: "Anmeldung", 
-      keywords: ["anmeldung", "registrierung", "team anmelden", "mannschaft"], 
-      action: () => switchToTab("registration"), 
-      permission: "team.create",
-      icon: "🔗"
-    },
-    { 
-      label: "Meine Teams", 
-      keywords: ["teams", "dashboard", "meine teams", "übersicht"], 
-      action: () => switchToTab("dashboard"), 
-      permission: "team.view.own",
-      icon: "🔗"
-    },
-    { 
-      label: "Ergebnisse", 
-      keywords: ["ergebnisse", "resultate", "punkte"], 
-      action: () => alert("Ergebnisse werden hier angezeigt sobald der Wettkampf läuft"), 
-      permission: "results.view",
-      icon: "🔗"
-    },
-    { 
-      label: "Ranglisten", 
-      keywords: ["ranglisten", "ranking", "platzierung"], 
-      action: () => alert("Ranglisten werden hier angezeigt sobald der Wettkampf läuft"), 
-      permission: "ranking.view",
-      icon: "🔗"
-    },
-    { 
-      label: "Alle Teams", 
-      keywords: ["alle teams", "admin teams"], 
-      action: () => switchToTab("dashboard"), 
-      permission: "team.view.all",
-      icon: "🔗"
-    },
-    { 
-      label: "Administration", 
-      keywords: ["admin", "einstellungen", "konfiguration", "config"], 
-      action: () => router.push("/admin"), 
-      permission: "config.edit",
-      icon: "🔗"
-    },
-    { 
-      label: "Architektur", 
-      keywords: ["architektur", "referenz", "technik"], 
-      action: () => window.open("/architecture", "_blank"),
-      icon: "🔗"
-    },
-    { 
-      label: "Infrastruktur", 
-      keywords: ["infrastruktur", "system", "sysadmin"], 
-      action: () => router.push("/tech"),
-      icon: "🖥️"
-    },
-    { 
-      label: "Profil", 
-      keywords: ["profil", "konto", "account", "benutzername"], 
-      action: () => router.push("/profile"),
-      icon: "🔗"
-    },
-    { 
-      label: "Changelog", 
-      keywords: ["changelog", "version", "historie", "änderungen"], 
-      action: () => router.push("/changelog"),
-      icon: "🔗"
-    },
-    { 
-      label: "Abmelden", 
-      keywords: ["abmelden", "logout", "ausloggen"], 
-      action: () => fullSignOut(),
-      icon: "🔗"
-    },
-  ];
+  const permittedMenuItems = getPermittedNavigationMenuItems({
+    authenticated: Boolean(session?.user),
+    can,
+    roles,
+    pathname,
+  });
 
   // Search implementation
   const performSearch = async (query: string) => {
@@ -110,20 +43,17 @@ export default function CommandPill() {
     const lowerQuery = query.toLowerCase();
     
     // Search menu items first
-    const menuResults = MENU_ITEMS
+    const menuResults = permittedMenuItems
       .filter(item => {
-        // Check permission if exists
-        if (item.permission && !can(item.permission as any)) {
-          return false;
-        }
-        
         // Check if query matches label or keywords
         return item.label.toLowerCase().includes(lowerQuery) ||
                item.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery));
       })
       .map(item => ({
         type: 'menu',
-        ...item
+        id: item.id,
+        label: item.label,
+        icon: item.icon,
       }));
 
     // Search teams via API
@@ -189,8 +119,55 @@ export default function CommandPill() {
     if (pathname === "/") {
       const event = new CustomEvent("switchTab", { detail: { tabId } });
       window.dispatchEvent(event);
+    } else {
+      router.push(tabId === "home" ? "/" : `/#${tabId}`);
     }
     closeBurger();
+  };
+
+  const handleMenuSelection = (item: NavigationMenuItem) => {
+    switch (item.id) {
+      case "home":
+        switchToTab("home");
+        break;
+      case "registration":
+        if (session?.user) {
+          switchToTab("registration");
+        } else {
+          router.push("/anmeldung");
+          closeBurger();
+        }
+        break;
+      case "my-teams":
+      case "all-teams":
+        switchToTab("dashboard");
+        break;
+      case "live":
+        switchToTab("live");
+        break;
+      case "profile":
+        navigateAndClose("/profile");
+        break;
+      case "administration":
+        navigateAndClose("/admin");
+        break;
+      case "architecture":
+        window.open("/architecture", "_blank", "noopener,noreferrer");
+        closeBurger();
+        break;
+      case "infrastructure":
+        navigateAndClose("/tech");
+        break;
+      case "changelog":
+        navigateAndClose("/changelog");
+        break;
+      case "sign-out":
+        closeBurger();
+        fullSignOut();
+        break;
+      default:
+        break;
+    }
   };
 
   const navigateAndClose = (path: string) => {
@@ -262,7 +239,7 @@ export default function CommandPill() {
                 <div className="flex items-center gap-2 mb-4">
                   <Search className="h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Teams oder Teilnehmer suchen..."
+                    placeholder={isClaimPath ? "Navigation oder mein Team suchen..." : "Teams, Navigation oder Teilnehmer suchen..."}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="flex-1"
@@ -284,13 +261,16 @@ export default function CommandPill() {
                       searchResults.map((result: any, index) => (
                         <div
                           key={`${result.type}-${result.id || index}`}
-                          className="p-2 rounded-md hover:bg-accent cursor-pointer"
-                          onClick={() => {
-                            if (result.type === 'menu') {
-                              result.action();
-                            }
-                            closeSearch();
-                          }}
+                        className="p-2 rounded-md hover:bg-accent cursor-pointer"
+                        onClick={() => {
+                          if (result.type === 'menu') {
+                              const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
+                              if (item) {
+                                handleMenuSelection(item);
+                              }
+                          }
+                          closeSearch();
+                        }}
                         >
                           <div className="flex items-center gap-2">
                             <span className="text-base">{result.icon}</span>
@@ -350,7 +330,7 @@ export default function CommandPill() {
                           <Button
                             variant="ghost"
                             className="w-full justify-start h-7 px-2 text-sm"
-                            onClick={() => switchToTab("register")}
+                            onClick={() => switchToTab("registration")}
                           >
                             📋 Anmeldung
                           </Button>

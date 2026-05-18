@@ -36,6 +36,7 @@ export default function NavBar() {
     { id: "bunt", icon: "🎨", label: "Bunt" },
   ];
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const showDesktopOffset = status === "authenticated";
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -54,7 +55,7 @@ export default function NavBar() {
   return (
     <nav 
       className={`flex items-center justify-between px-4 py-1 border-b border-border/30 bg-card/80 backdrop-blur-sm sticky top-0 z-30 lg:transition-all lg:duration-200 ${
-        isCollapsed ? "lg:ml-12" : "lg:ml-52"
+        showDesktopOffset ? (isCollapsed ? "lg:ml-12" : "lg:ml-52") : ""
       }`}
     >
       {/* Left: Logo + Version */}
