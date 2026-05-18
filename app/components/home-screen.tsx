@@ -193,23 +193,28 @@ export default function HomeScreen() {
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthActionPending, setIsAuthActionPending] = useState(false);
-  const { active: activeCompetition } = useCompetition();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
 
   // Load competition info and stats
   useEffect(() => {
-    // Wait until context has loaded (avoid race condition with null → real ID)
-    if (!activeCompetition?.id) return;
+    if (status === "loading" || competitionLoading) return;
 
     const loadData = async () => {
       try {
-        // Load competition info for selected competition
-        const compResponse = await fetch(`/api/admin/competition?id=${activeCompetition.id}`);
+        const competitionUrl = activeCompetition?.id
+          ? `/api/admin/competition?id=${activeCompetition.id}`
+          : "/api/competition";
+
+        // Load competition info for selected competition, with public fallback when no active competition is resolved
+        const compResponse = await fetch(competitionUrl);
         if (compResponse.ok) {
           const compData = await compResponse.json();
           setCompetitionInfo(compData.competition || compData);
+        } else {
+          setCompetitionInfo(null);
         }
 
-        if (canViewAllTeams) {
+        if (activeCompetition?.id && canViewAllTeams) {
           const params = new URLSearchParams({
             competitionId: activeCompetition.id,
             scope: 'all',
@@ -230,13 +235,15 @@ export default function HomeScreen() {
         }
       } catch (error) {
         console.error('Error loading competition data:', error);
+        setCompetitionInfo(null);
+        setTeamStats(null);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadData();
-  }, [activeCompetition?.id, canViewAllTeams]);
+  }, [activeCompetition?.id, canViewAllTeams, competitionLoading, status]);
 
   const handleQuickAction = (tabId: string, additionalData?: any) => {
     const event = new CustomEvent('switchTab', { detail: { tabId, ...additionalData } });
