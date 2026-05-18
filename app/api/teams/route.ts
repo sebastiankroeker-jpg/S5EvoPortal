@@ -7,6 +7,7 @@ import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { prisma } from '@/lib/prisma';
 import { buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
+import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
 
 // Map frontend gender ("M"/"W") to Prisma enum
@@ -152,7 +153,9 @@ export async function GET(request: NextRequest) {
             select: { tenantId: true },
           })
         : null;
-      const access = await getScopedRoleFlags(userEmail, competition?.tenantId);
+      const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+      const normalizedUserEmail = normalizeEmail(userEmail);
+      const access = await getScopedRoleFlags(userEmail, competition?.tenantId, session);
 
       if (wantsAllTeams && !access.canViewAllTeams) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -160,7 +163,21 @@ export async function GET(request: NextRequest) {
 
       const teams = await prisma.team.findMany({
         where: {
-          ...(wantsAllTeams ? {} : { owner: { email: userEmail } }),
+          ...(wantsAllTeams
+            ? {}
+            : {
+                OR: [
+                  ...(user ? [{ ownerId: user.id }] : []),
+                  ...(normalizedUserEmail
+                    ? [{
+                        contactEmail: {
+                          equals: normalizedUserEmail,
+                          mode: 'insensitive' as const,
+                        },
+                      }]
+                    : []),
+                ],
+              }),
           ...(competitionId ? { competitionId } : {}),
           deletedAt: null
         },
@@ -187,6 +204,10 @@ export async function POST(request: NextRequest) {
     const sessionUserEmail = session?.user?.email;
     const sessionUserName = session?.user?.name;
     const sessionUserImage = session?.user?.image;
+    const sessionAuthentikSub =
+      typeof (session?.user as { id?: unknown } | undefined)?.id === 'string'
+        ? ((session?.user as { id?: string }).id ?? null)
+        : null;
 
     const body = await request.json();
     
@@ -199,7 +220,7 @@ export async function POST(request: NextRequest) {
     }
 
     const teamData = validation.data;
-    const userEmail = sessionUserEmail || teamData.contactEmail?.trim();
+    const userEmail = normalizeEmail(sessionUserEmail || teamData.contactEmail?.trim());
     const userName = sessionUserName || teamData.contactName?.trim();
     const userImage = sessionUserImage;
 
@@ -277,13 +298,27 @@ export async function POST(request: NextRequest) {
       const canEditShirts = !isShirtOrderClosed(competition?.shirtOrderDeadline);
 
       // Upsert user
-      let user = await prisma.user.findUnique({ where: { email: userEmail } });
+      const resolved = await resolveCurrentUser(session, { createIfMissing: !!sessionUserEmail });
+      let user = resolved.user;
+      if (!user) {
+        user = await prisma.user.findFirst({
+          where: {
+            deletedAt: null,
+            email: {
+              equals: userEmail,
+              mode: 'insensitive',
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+      }
       if (!user) {
         user = await prisma.user.create({
           data: {
             email: userEmail,
             name: userName || null,
-            image: userImage || null
+            image: userImage || null,
+            authentikSub: sessionAuthentikSub,
           }
         });
       }

@@ -2,6 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +67,7 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -125,6 +137,33 @@ export default function UserManagement() {
       setErrorMessage("Fehler beim Speichern");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteUser = async (user: UserEntry) => {
+    setDeletingUserId(user.id);
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch("/api/admin/users/" + user.id, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMessage(data.error || "Fehler beim Löschen");
+        return;
+      }
+
+      setEditingUser((current) => (current === user.id ? null : current));
+      setStatusMessage(data.message || "Benutzer gelöscht");
+      await fetchUsers();
+    } catch (err) {
+      console.error("Fehler beim Löschen:", err);
+      setErrorMessage("Fehler beim Löschen");
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -213,6 +252,7 @@ export default function UserManagement() {
       {filteredUsers.map((user) => {
         const isCurrentUser = user.id === currentUserId;
         const isLastAdmin = adminCount === 1 && user.roles.some((role) => role.role === "ADMIN");
+        const isDeleting = deletingUserId === user.id;
 
         return (
           <motion.div key={user.id} layout>
@@ -312,12 +352,50 @@ export default function UserManagement() {
                     )}
                   </div>
 
-                  {editingUser !== user.id && (
-                    <Button size="sm" variant="ghost" onClick={() => startEdit(user)} className="shrink-0">
-                      ✏️
-                    </Button>
-                  )}
+                  <div className="flex shrink-0 flex-col gap-2">
+                    {editingUser !== user.id && (
+                      <Button size="sm" variant="outline" onClick={() => startEdit(user)}>
+                        Rollen ändern
+                      </Button>
+                    )}
+                    <AlertDialog>
+                      <AlertDialogTrigger
+                        render={(
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-700 hover:text-red-800"
+                            disabled={isCurrentUser || isLastAdmin || isDeleting || saving}
+                          />
+                        )}
+                      >
+                        {isDeleting ? "Löscht..." : "Benutzer löschen"}
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Benutzer wirklich löschen?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {user.name || user.email} wird im Portal deaktiviert. Eigene Teams und Teilnehmer werden
+                            dabei ebenfalls ausgeblendet.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteUser(user)}>
+                            Benutzer löschen
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
+                {(isCurrentUser || isLastAdmin) && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {isCurrentUser
+                      ? "Dein eigener Benutzer kann hier nicht gelöscht werden."
+                      : "Der letzte Admin kann nicht gelöscht werden."}
+                  </p>
+                )}
               </CardContent>
             </Card>
           </motion.div>

@@ -14,6 +14,19 @@ import BottomTabBar from "./components/bottom-tab-bar";
 import ApprovalQueue from "./components/approval-queue";
 import ParticipantList from "./components/participant-list";
 
+const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
+type MainTab = (typeof MAIN_TABS)[number];
+
+function isMainTab(value: string | null): value is MainTab {
+  return value !== null && MAIN_TABS.includes(value as MainTab);
+}
+
+function getTabFromHash() {
+  if (typeof window === "undefined") return null;
+  const hashValue = window.location.hash.replace(/^#/, "");
+  return isMainTab(hashValue) ? hashValue : null;
+}
+
 export default function Home() {
   const router = useRouter();
   const { status } = useSession();
@@ -23,9 +36,28 @@ export default function Home() {
 
   // Listen for tab switch events (from sidebar, bottom bar, etc.)
   useEffect(() => {
+    const initialTab = getTabFromHash();
+    if (initialTab) {
+      setActiveTab(initialTab);
+    } else if (typeof window !== "undefined") {
+      const storedTab = window.sessionStorage.getItem("s5evo-active-tab");
+      if (isMainTab(storedTab)) {
+        setActiveTab(storedTab);
+      }
+    }
+
     const handler = (e: CustomEvent) => setActiveTab(e.detail.tabId);
+    const handleHashChange = () => {
+      const nextTab = getTabFromHash();
+      setActiveTab(nextTab ?? "home");
+    };
+
     window.addEventListener("switchTab" as any, handler);
-    return () => window.removeEventListener("switchTab" as any, handler);
+    window.addEventListener("hashchange", handleHashChange);
+    return () => {
+      window.removeEventListener("switchTab" as any, handler);
+      window.removeEventListener("hashchange", handleHashChange);
+    };
   }, []);
 
   // Profile tab → navigate to /profile
@@ -33,6 +65,21 @@ export default function Home() {
     if (activeTab === "profile") {
       window.location.href = "/profile";
     }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem("s5evo-active-tab", activeTab);
+    if (window.location.pathname !== "/") return;
+
+    const nextHash = activeTab === "home" ? "" : `#${activeTab}`;
+    const nextUrl = nextHash ? `/${nextHash}` : "/";
+    const currentUrl = `${window.location.pathname}${window.location.hash}`;
+    if (currentUrl !== nextUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+
+    window.dispatchEvent(new CustomEvent("switchTab", { detail: { tabId: activeTab } }));
   }, [activeTab]);
 
   return (

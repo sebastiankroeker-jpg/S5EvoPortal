@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
+import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { prisma } from '@/lib/prisma';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
 
@@ -98,8 +99,13 @@ export async function GET(
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
-      const access = await getScopedRoleFlags(userEmail, team.competition.tenantId);
-      const isOwner = team.owner?.email === userEmail || team.contactEmail === userEmail;
+      const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+      const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session);
+      const normalizedUserEmail = normalizeEmail(userEmail);
+      const isOwner =
+        team.ownerId === user?.id ||
+        normalizeEmail(team.owner?.email) === normalizedUserEmail ||
+        normalizeEmail(team.contactEmail) === normalizedUserEmail;
 
       if (!access.canViewAllTeams && !isOwner) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -160,8 +166,13 @@ export async function PUT(
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
-      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId);
-      const isOwner = existingTeam.owner?.email === userEmail || existingTeam.contactEmail === userEmail;
+      const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId, session);
+      const normalizedUserEmail = normalizeEmail(userEmail);
+      const isOwner =
+        existingTeam.ownerId === user?.id ||
+        normalizeEmail(existingTeam.owner?.email) === normalizedUserEmail ||
+        normalizeEmail(existingTeam.contactEmail) === normalizedUserEmail;
 
       if (!access.canEditAllTeams && !isOwner) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -272,8 +283,13 @@ export async function DELETE(
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
-      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId);
-      const isOwner = existingTeam.owner?.email === userEmail || existingTeam.contactEmail === userEmail;
+      const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId, session);
+      const normalizedUserEmail = normalizeEmail(userEmail);
+      const isOwner =
+        existingTeam.ownerId === user?.id ||
+        normalizeEmail(existingTeam.owner?.email) === normalizedUserEmail ||
+        normalizeEmail(existingTeam.contactEmail) === normalizedUserEmail;
 
       if (!access.canEditAllTeams && !isOwner) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

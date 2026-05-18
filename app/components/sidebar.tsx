@@ -10,6 +10,19 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 
+const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
+type MainTab = (typeof MAIN_TABS)[number];
+
+function isMainTab(value: string | null): value is MainTab {
+  return value !== null && MAIN_TABS.includes(value as MainTab);
+}
+
+function getTabFromHash() {
+  if (typeof window === "undefined") return null;
+  const hashValue = window.location.hash.replace(/^#/, "");
+  return isMainTab(hashValue) ? hashValue : null;
+}
+
 function SidebarItem({ icon, label, onClick, isActive, isCollapsed }: {
   icon: string; label: string; onClick: () => void; isActive?: boolean; isCollapsed: boolean;
 }) {
@@ -44,11 +57,41 @@ export default function Sidebar() {
   const { theme, setTheme } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<MainTab>("home");
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     if (saved) setIsCollapsed(JSON.parse(saved));
   }, []);
+
+  useEffect(() => {
+    if (pathname !== "/") return;
+
+    const syncMainTab = () => {
+      const hashTab = getTabFromHash();
+      if (hashTab) {
+        setActiveTab(hashTab);
+        return;
+      }
+
+      const storedTab = window.sessionStorage.getItem("s5evo-active-tab");
+      setActiveTab(isMainTab(storedTab) ? storedTab : "home");
+    };
+
+    syncMainTab();
+    const handleSwitchTab = (event: CustomEvent) => {
+      if (isMainTab(event.detail?.tabId ?? null)) {
+        setActiveTab(event.detail.tabId);
+      }
+    };
+
+    window.addEventListener("switchTab" as any, handleSwitchTab);
+    window.addEventListener("hashchange", syncMainTab);
+    return () => {
+      window.removeEventListener("switchTab" as any, handleSwitchTab);
+      window.removeEventListener("hashchange", syncMainTab);
+    };
+  }, [pathname]);
 
   const toggleCollapsed = () => {
     const next = !isCollapsed;
@@ -58,7 +101,18 @@ export default function Sidebar() {
   };
 
   const switchToTab = (tabId: string) => {
-    if (pathname !== "/") router.push("/");
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("s5evo-active-tab", tabId);
+    }
+    setActiveTab(tabId as MainTab);
+
+    if (pathname !== "/") {
+      router.push(tabId === "home" ? "/" : `/#${tabId}`);
+    } else {
+      const nextUrl = tabId === "home" ? "/" : `/#${tabId}`;
+      window.history.replaceState(null, "", nextUrl);
+    }
+
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent("switchTab", { detail: { tabId } }));
     }, 50);
@@ -116,17 +170,17 @@ export default function Sidebar() {
       {/* Navigation — kompakt, kein Scroll nötig */}
       <div className="flex-1 py-1.5 px-1 space-y-0.5 overflow-y-auto">
         <SectionLabel label="Navigation" isCollapsed={isCollapsed} />
-        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && window.location.hash === ""} isCollapsed={isCollapsed} />
-        <SidebarItem icon="📋" label="Teams" onClick={() => switchToTab("registration")} isCollapsed={isCollapsed} />
-        <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isCollapsed={isCollapsed} />
+        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} isCollapsed={isCollapsed} />
+        <SidebarItem icon="📋" label="Teams" onClick={() => switchToTab("registration")} isActive={pathname === "/" && activeTab === "registration"} isCollapsed={isCollapsed} />
+        <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} isCollapsed={isCollapsed} />
         <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
 
         {(can("team.view.all") || can("results.edit")) && (
           <>
             <SectionLabel label="Orga" isCollapsed={isCollapsed} />
-            <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isCollapsed={isCollapsed} />
+            <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isActive={pathname === "/" && activeTab === "orga"} isCollapsed={isCollapsed} />
             {can("team.view.all") && (
-              <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard")} isCollapsed={isCollapsed} />
+              <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard")} isActive={pathname === "/" && activeTab === "dashboard"} isCollapsed={isCollapsed} />
             )}
             {can("results.edit") && (
               <SidebarItem icon="✏️" label="Erfassung" onClick={() => {}} isCollapsed={isCollapsed} />

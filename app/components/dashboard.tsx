@@ -23,6 +23,7 @@ import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ArrowDownUp, ChevronDown, ChevronUp, RotateCcw, SlidersHorizontal } from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface Team {
@@ -58,6 +59,38 @@ interface DashboardProps {
 }
 
 type DashboardViewMode = "cards" | "list";
+type TeamSortField = "name" | "category" | "contactName" | "ownerEmail" | "participantCount" | "createdAt" | "updatedAt";
+type SortDirection = "asc" | "desc";
+type TeamOptionalColumnKey =
+  | "category"
+  | "contactName"
+  | "contactEmail"
+  | "ownerEmail"
+  | "participantCount"
+  | "participants"
+  | "createdAt"
+  | "updatedAt";
+
+const SORT_OPTIONS: Array<{ value: TeamSortField; label: string }> = [
+  { value: "updatedAt", label: "Zuletzt geändert" },
+  { value: "createdAt", label: "Angelegt" },
+  { value: "name", label: "Mannschaftsname" },
+  { value: "category", label: "Klasse" },
+  { value: "contactName", label: "Teamchef:in" },
+  { value: "ownerEmail", label: "Angelegt von" },
+  { value: "participantCount", label: "Teilnehmerzahl" },
+];
+
+const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string }> = [
+  { key: "category", label: "Klasse" },
+  { key: "contactName", label: "Teamchef:in" },
+  { key: "contactEmail", label: "Kontakt E-Mail" },
+  { key: "ownerEmail", label: "Angelegt von" },
+  { key: "participantCount", label: "Teilnehmer" },
+  { key: "participants", label: "Mitglieder" },
+  { key: "createdAt", label: "Angelegt am" },
+  { key: "updatedAt", label: "Geändert" },
+];
 
 function formatDatePart(value?: string) {
   if (!value) return "Unbekannt";
@@ -79,6 +112,27 @@ function formatTimePart(value?: string) {
 function escapeCsvValue(value: string | number | null | undefined) {
   const normalized = value == null ? "" : String(value);
   return '"' + normalized.replace(/"/g, '""') + '"';
+}
+
+function normalizeEmail(value?: string | null) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function getParticipantCount(team: Team) {
+  return team.participants?.length || 0;
+}
+
+function getParticipantsSummary(team: Team) {
+  return (team.participants ?? [])
+    .map((participant) => `${participant.firstName} ${participant.lastName}`.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function compareDates(a?: string, b?: string) {
+  const aTime = a ? new Date(a).getTime() : 0;
+  const bTime = b ? new Date(b).getTime() : 0;
+  return aTime - bTime;
 }
 
 function exportTeamsCsv(teams: Team[]) {
@@ -148,6 +202,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>([
+    "category",
+    "ownerEmail",
+    "createdAt",
+  ]);
 
   const canEditAll = can("team.edit.all");
   const canViewAll = can("team.view.all");
@@ -219,6 +281,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   }, [activeCompetition?.id, canViewAll]);
 
   useEffect(() => {
+    if (viewMode === "list") {
+      setExpandedTeam(null);
+    }
+  }, [viewMode]);
+
+  useEffect(() => {
     // Listen for switchTab events to handle owner filter
     const handleSwitchTab = (e: CustomEvent) => {
       if (e.detail.ownerFilter && e.detail.tabId === "dashboard") {
@@ -244,7 +312,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     return teams.filter(team => {
       // Category filter
       const matchesCategory = categoryFilter === "all" || team.category === categoryFilter;
-      const matchesOwner = ownerFilter === "all" || team.ownerEmail === ownerFilter;
+      const matchesOwner =
+        ownerFilter === "all" ||
+        normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(ownerFilter);
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = createdFrom ? new Date(createdFrom).getTime() : null;
       const createdToMs = createdTo ? new Date(createdTo).getTime() : null;
@@ -271,6 +341,45 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     category: cat,
     count: teams.filter(t => t.category === cat).length
   }));
+  const sortedTeams = useMemo(() => {
+    const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+
+    return [...filteredTeams].sort((left, right) => {
+      let result = 0;
+
+      switch (sortField) {
+        case "name":
+          result = collator.compare(left.name, right.name);
+          break;
+        case "category":
+          result = collator.compare(left.category, right.category);
+          break;
+        case "contactName":
+          result = collator.compare(left.contactName || "", right.contactName || "");
+          break;
+        case "ownerEmail":
+          result = collator.compare(left.ownerEmail || left.contactEmail || "", right.ownerEmail || right.contactEmail || "");
+          break;
+        case "participantCount":
+          result = getParticipantCount(left) - getParticipantCount(right);
+          break;
+        case "createdAt":
+          result = compareDates(left.createdAt, right.createdAt);
+          break;
+        case "updatedAt":
+          result = compareDates(left.updatedAt, right.updatedAt);
+          break;
+      }
+
+      if (result === 0) {
+        result = collator.compare(left.name, right.name);
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [filteredTeams, sortField, sortDirection]);
+
+  const visibleColumnDefs = LIST_OPTIONAL_COLUMNS.filter((column) => visibleColumns.includes(column.key));
 
   const categoryEmojis: { [key: string]: string } = {
     "schueler-a": "🧒",
@@ -311,6 +420,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     ownerFilter !== "all" ||
     createdFrom !== "" ||
     createdTo !== "";
+  const activeFilterCount = [searchQuery !== "", categoryFilter !== "all", ownerFilter !== "all", createdFrom !== "", createdTo !== ""].filter(Boolean).length;
+  const canEditOwn = can("team.edit.own");
 
   return (
     <div className="space-y-6">
@@ -337,110 +448,239 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         </div>
       )}
 
-      {/* Suche & Filter */}
-      <div className="flex flex-col gap-4">
-        <div className="flex-1">
-          <Input
-            placeholder="Suche in Teams und Teilnehmern..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="max-w-md"
-          />
+      <Card size="sm">
+        <CardHeader className="border-b">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <SlidersHorizontal className="size-4" />
+                Filter & Suche
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Suche, Klasse, Anleger:in und Zeitraum eingrenzen
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={hasActiveFilters ? "default" : "outline"}>
+                {activeFilterCount} aktiv
+              </Badge>
+              {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+            </div>
+          </button>
+        </CardHeader>
+
+        {filtersOpen && (
+          <CardContent className="space-y-4 pt-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div className="space-y-1 xl:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Suche</label>
+                <Input
+                  placeholder="Teamname, Teamchef:in oder Teilnehmer:in"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Klasse</label>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Alle Klassen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Klassen</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {categoryEmojis[cat] || "🏆"} {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Anleger:in</label>
+                <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Alle Anleger" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Anleger</SelectItem>
+                    {ownerOptions.map((owner) => (
+                      <SelectItem key={owner} value={owner}>
+                        {owner}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Angelegt ab</label>
+                <Input
+                  type="datetime-local"
+                  value={createdFrom}
+                  onChange={(e) => setCreatedFrom(e.target.value)}
+                  aria-label="Angelegt ab"
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2 xl:col-span-1">
+                <label className="text-xs font-medium text-muted-foreground">Angelegt bis</label>
+                <Input
+                  type="datetime-local"
+                  value={createdTo}
+                  onChange={(e) => setCreatedTo(e.target.value)}
+                  aria-label="Angelegt bis"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                {hasActiveFilters ? "Aktive Filter können hier gesammelt zurückgesetzt werden." : "Noch keine zusätzlichen Filter aktiv."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setCategoryFilter("all");
+                    setOwnerFilter(initialOwnerFilter || "all");
+                    setCreatedFrom("");
+                    setCreatedTo("");
+                  }}
+                  disabled={!hasActiveFilters}
+                >
+                  Filter zurücksetzen
+                </Button>
+                <Button onClick={fetchTeams} variant="outline">
+                  <RotateCcw className="size-4" />
+                  Aktualisieren
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      <div className="text-sm text-muted-foreground">
+        {filteredTeams.length} von {teams.length} Teams gefunden
+        {hasActiveFilters ? " für die aktuellen Filter" : ""}
+      </div>
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={viewMode === "cards" ? "default" : "outline"}
+            onClick={() => setViewMode("cards")}
+          >
+            Kacheln
+          </Button>
+          <Button
+            variant={viewMode === "list" ? "default" : "outline"}
+            onClick={() => setViewMode("list")}
+          >
+            Liste
+          </Button>
         </div>
-        <div className="flex flex-col gap-2 xl:flex-row xl:flex-wrap xl:items-center">
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Alle Klassen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Klassen</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {categoryEmojis[cat] || "🏆"} {cat}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-            <SelectTrigger className="w-full sm:w-[280px]">
-              <SelectValue placeholder="Anleger" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Anleger</SelectItem>
-              {ownerOptions.map((owner) => (
-                <SelectItem key={owner} value={owner}>
-                  {owner}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              type="datetime-local"
-              value={createdFrom}
-              onChange={(e) => setCreatedFrom(e.target.value)}
-              className="w-full sm:w-[240px]"
-              aria-label="Angelegt ab"
-            />
-            <Input
-              type="datetime-local"
-              value={createdTo}
-              onChange={(e) => setCreatedTo(e.target.value)}
-              className="w-full sm:w-[240px]"
-              aria-label="Angelegt bis"
-            />
-          </div>
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setSearchQuery("");
-                setCategoryFilter("all");
-                setOwnerFilter(initialOwnerFilter || "all");
-                setCreatedFrom("");
-                setCreatedTo("");
-              }}
-            >
-              Filter zurücksetzen
-            </Button>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={viewMode === "cards" ? "default" : "outline"}
-              onClick={() => setViewMode("cards")}
-            >
-              Kacheln
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "outline"}
-              onClick={() => setViewMode("list")}
-            >
-              Liste
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => exportTeamsCsv(filteredTeams)}
-              disabled={filteredTeams.length === 0}
-            >
-              CSV Export
-            </Button>
-            <Button onClick={fetchTeams} variant="outline">
-              🔄
-            </Button>
-          </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportTeamsCsv(sortedTeams)}
+            disabled={sortedTeams.length === 0}
+          >
+            CSV Export
+          </Button>
         </div>
       </div>
 
-      {/* Search Results Info */}
-      {hasActiveFilters && (
-        <div className="text-sm text-muted-foreground">
-          {filteredTeams.length} von {teams.length} Teams gefunden
-          {searchQuery && ` für "${searchQuery}"`}
-          {categoryFilter !== "all" && ` in Klasse "${categoryFilter}"`}
-          {ownerFilter !== "all" && ` von "${ownerFilter}"`}
-          {createdFrom && ` ab ${new Date(createdFrom).toLocaleString("de-DE")}`}
-          {createdTo && ` bis ${new Date(createdTo).toLocaleString("de-DE")}`}
-        </div>
+      {viewMode === "list" && (
+        <Card size="sm">
+          <CardHeader className="border-b">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <ArrowDownUp className="size-4" />
+                Listenoptionen
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Sortierung festlegen und sichtbare Spalten anpassen
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_200px]">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Sortieren nach</label>
+                <Select value={sortField} onValueChange={(value) => setSortField(value as TeamSortField)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sortierfeld wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Reihenfolge</label>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => setSortDirection((direction) => direction === "asc" ? "desc" : "asc")}
+                >
+                  {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
+                  <ArrowDownUp className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten</p>
+              <div className="flex flex-wrap gap-2">
+                {LIST_OPTIONAL_COLUMNS.map((column) => {
+                  const selected = visibleColumns.includes(column.key);
+                  const disableRemoval = selected && visibleColumns.length === 1;
+
+                  return (
+                    <label
+                      key={column.key}
+                      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${selected ? "border-primary bg-primary/5" : "border-border/60 bg-background"} ${disableRemoval ? "opacity-70" : "cursor-pointer hover:bg-muted/40"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={selected}
+                        disabled={disableRemoval}
+                        onChange={() => {
+                          setVisibleColumns((current) => {
+                            if (current.includes(column.key)) {
+                              if (current.length === 1) return current;
+                              return current.filter((entry) => entry !== column.key);
+                            }
+
+                            return [...current, column.key];
+                          });
+                        }}
+                      />
+                      <span>{column.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">Die Teamspalte bleibt immer sichtbar.</p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Team-Kacheln (kompakt) */}
@@ -454,10 +694,145 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
             </p>
           </CardContent>
         </Card>
+      ) : viewMode === "list" ? (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-[980px] w-full text-sm">
+              <thead className="bg-muted/40 text-left">
+                <tr className="border-b border-border/60">
+                  <th className="px-4 py-3 font-medium">Mannschaftsname</th>
+                  {visibleColumnDefs.map((column) => (
+                    <th key={column.key} className="px-4 py-3 font-medium whitespace-nowrap">
+                      {column.label}
+                    </th>
+                  ))}
+                  {(canEditAll || canEditOwn) && (
+                    <th className="px-4 py-3 font-medium text-right">Aktionen</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedTeams.map((team) => {
+                  const isEditable = canEditAll || (normalizeEmail(team.ownerEmail) === normalizeEmail(userEmail) && canEditOwn);
+
+                  return (
+                    <tr key={team.id} className="border-b border-border/50 align-top transition-colors hover:bg-muted/20">
+                      <td className="px-4 py-3">
+                        <div className="space-y-1">
+                          <div className="font-medium">{team.name}</div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline" className="gap-1">
+                              <span>{categoryEmojis[team.category] || "🏆"}</span>
+                              {team.category}
+                            </Badge>
+                            <span>{getParticipantCount(team)} / 5 Teilnehmer:innen</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {visibleColumnDefs.map((column) => {
+                        let content: React.ReactNode = null;
+
+                        switch (column.key) {
+                          case "category":
+                            content = (
+                              <Badge variant="outline" className="gap-1">
+                                <span>{categoryEmojis[team.category] || "🏆"}</span>
+                                {team.category}
+                              </Badge>
+                            );
+                            break;
+                          case "contactName":
+                            content = team.contactName || "—";
+                            break;
+                          case "contactEmail":
+                            content = team.contactEmail || "—";
+                            break;
+                          case "ownerEmail":
+                            content = team.ownerEmail || team.contactEmail || "—";
+                            break;
+                          case "participantCount":
+                            content = getParticipantCount(team);
+                            break;
+                          case "participants":
+                            content = (
+                              <div className="max-w-sm whitespace-normal text-muted-foreground">
+                                {getParticipantsSummary(team) || "Keine Teilnehmer erfasst"}
+                              </div>
+                            );
+                            break;
+                          case "createdAt":
+                            content = team.createdAt ? new Date(team.createdAt).toLocaleString("de-DE") : "—";
+                            break;
+                          case "updatedAt":
+                            content = team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "—";
+                            break;
+                        }
+
+                        return (
+                          <td key={column.key} className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                            {content}
+                          </td>
+                        );
+                      })}
+
+                      {(canEditAll || canEditOwn) && (
+                        <td className="px-4 py-3">
+                          {isEditable ? (
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingTeam(team)}
+                              >
+                                ✏️ Bearbeiten
+                              </Button>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger>
+                                  <button
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-destructive px-3 py-1 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:pointer-events-none disabled:opacity-50"
+                                    disabled={deleting === team.id}
+                                  >
+                                    {deleting === team.id ? "..." : "🗑️ Löschen"}
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Team löschen?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Möchtest du das Team "{team.name}" wirklich löschen?
+                                      Diese Aktion kann nicht rückgängig gemacht werden.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteTeam(team.id, team.name)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Löschen
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          ) : (
+                            <div className="text-right text-xs text-muted-foreground">Keine Bearbeitung</div>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       ) : (
         <div className="space-y-4">
-          <div className={viewMode === "cards" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" : "space-y-3"}>
-            {filteredTeams.map((team) => (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {sortedTeams.map((team) => (
               <div key={team.id} className="space-y-2">
                 {/* Team-Kachel mit Teilnehmern */}
                 <Card 

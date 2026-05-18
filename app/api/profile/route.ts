@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildDeletedUserIdentity } from '@/lib/user-deletion';
 
 // GET: Profildaten laden
 export async function GET() {
@@ -73,6 +74,7 @@ export async function DELETE() {
     }
 
     const now = new Date();
+    const { archivedEmail, archivedAuthentikSub } = buildDeletedUserIdentity(user.email, user.id, now);
 
     // Soft-delete all owned teams + their participants
     for (const team of user.ownedTeams) {
@@ -89,10 +91,14 @@ export async function DELETE() {
     // Soft-delete user
     await prisma.user.update({
       where: { id: user.id },
-      data: { deletedAt: now },
+      data: {
+        deletedAt: now,
+        email: archivedEmail,
+        authentikSub: archivedAuthentikSub,
+      },
     });
 
-    return NextResponse.json({ success: true, message: 'Konto und alle zugehörigen Daten wurden gelöscht' });
+    return NextResponse.json({ success: true, message: 'Konto wurde deaktiviert und die Anmeldedaten wurden archiviert' });
   } catch (error) {
     console.error('Profile DELETE error:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

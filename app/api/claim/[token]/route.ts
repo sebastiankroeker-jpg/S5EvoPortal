@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { hashRegistrationClaimToken } from "@/lib/registration-claim";
 import {
@@ -14,10 +15,6 @@ function isExpired(expiresAt: Date) {
   return expiresAt.getTime() < Date.now();
 }
 
-function normalizeEmail(email?: string | null) {
-  return email?.trim().toLowerCase() ?? null;
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -25,6 +22,7 @@ export async function GET(
   const session = await getServerSession(authOptions);
   const sessionEmail = session?.user?.email || null;
   const normalizedSessionEmail = normalizeEmail(sessionEmail);
+  const { user: currentUser } = await resolveCurrentUser(session, { createIfMissing: true });
   const { token } = await params;
   const tokenHash = hashRegistrationClaimToken(token);
 
@@ -78,7 +76,8 @@ export async function GET(
   const normalizedClaimedByEmail = normalizeEmail(claim.claimedByUser?.email);
   const emailMatches = !!normalizedSessionEmail && normalizedSessionEmail === normalizedSuggestedEmail;
   const alreadyClaimedBySessionUser =
-    !!normalizedSessionEmail && normalizedClaimedByEmail === normalizedSessionEmail;
+    (!!currentUser && claim.claimedByUser?.id === currentUser.id) ||
+    (!!normalizedSessionEmail && normalizedClaimedByEmail === normalizedSessionEmail);
 
   await recordClaimAuditEvent({
     request,
@@ -133,6 +132,10 @@ export async function POST(
   const normalizedSessionEmail = normalizeEmail(sessionEmail);
   const sessionUserName = session?.user?.name || null;
   const sessionUserImage = session?.user?.image || null;
+  const sessionAuthentikSub =
+    typeof (session?.user as { id?: unknown } | undefined)?.id === "string"
+      ? ((session?.user as { id?: string }).id ?? null)
+      : null;
   const { token } = await params;
   const tokenHash = hashRegistrationClaimToken(token);
 
@@ -224,23 +227,17 @@ export async function POST(
     return NextResponse.json({ error: "Dieser Link gehört zu einer anderen E-Mail-Adresse" }, { status: 403 });
   }
 
-  let user = await prisma.user.findFirst({
-    where: {
-      email: {
-        equals: sessionEmail,
-        mode: "insensitive",
-      },
-    },
-  });
-  if (!user) {
-    user = await prisma.user.create({
+  const resolved = await resolveCurrentUser(session, { createIfMissing: true });
+  const user =
+    resolved.user ||
+    (await prisma.user.create({
       data: {
-        email: sessionEmail,
+        email: normalizedSessionEmail!,
         name: sessionUserName || claim.suggestedName || null,
         image: sessionUserImage || null,
+        authentikSub: sessionAuthentikSub,
       },
-    });
-  }
+    }));
 
   if (claim.claimedByUser && normalizedClaimedByEmail !== normalizedSessionEmail) {
     await recordClaimAuditEvent({
@@ -263,7 +260,7 @@ export async function POST(
       data: {
         ownerId: user.id,
         teamChiefId: user.id,
-        contactEmail: sessionEmail,
+        contactEmail: normalizedSessionEmail,
         contactName: sessionUserName || claim.suggestedName || claim.team.contactEmail || "",
       },
     }),
