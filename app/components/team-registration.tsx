@@ -13,6 +13,7 @@ import {
   DISCIPLINE_PLACEHOLDER,
   extractBirthYearFromInput,
   formatBirthDateInput,
+  resolveBirthDateInputKey,
   summarizeDisciplines,
   TeamRegistrationInput,
   TeamRegistrationSchema,
@@ -170,6 +171,27 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
         ? "Die Anmeldung ist aktuell als Simulation für Tests geöffnet."
         : "Die Anmeldung ist aktuell geöffnet.",
   };
+}
+
+function handleBirthDateKeyDown(
+  event: React.KeyboardEvent<HTMLInputElement>,
+  value: string,
+  onValueChange: (nextValue: string) => void,
+) {
+  const nextState = resolveBirthDateInputKey(
+    value,
+    event.key,
+    event.currentTarget.selectionStart,
+    event.currentTarget.selectionEnd,
+  );
+
+  if (!nextState) return;
+
+  event.preventDefault();
+  onValueChange(nextState.value);
+  requestAnimationFrame(() => {
+    event.currentTarget.setSelectionRange(nextState.caret, nextState.caret);
+  });
 }
 
 export default function TeamRegistration({ allowAnonymous = false }: TeamRegistrationProps) {
@@ -681,6 +703,9 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
                               value={teamLeadBirthDate}
                               onChange={(e) => setTeamLeadBirthDate(formatBirthDateInput(e.target.value))}
+                              onKeyDown={(event) =>
+                                handleBirthDateKeyDown(event, teamLeadBirthDate, setTeamLeadBirthDate)
+                              }
                             />
                           </div>
                           <div>
@@ -848,6 +873,13 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               value={participants[index]?.birthDate || ""}
                               onChange={(e) => handleParticipantBirthDateChange(index, e.target.value)}
+                              onKeyDown={(event) =>
+                                handleBirthDateKeyDown(
+                                  event,
+                                  participants[index]?.birthDate || "",
+                                  (nextValue) => handleParticipantBirthDateChange(index, nextValue),
+                                )
+                              }
                             />
                             <select
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"

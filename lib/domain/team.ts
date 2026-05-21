@@ -16,6 +16,69 @@ export function formatBirthDateInput(input: string): string {
   return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
 }
 
+function countBirthDateDigitsBeforeCursor(value: string, cursor: number) {
+  return value.slice(0, cursor).replace(/\D/g, "").length;
+}
+
+function getBirthDateCaretFromDigitIndex(value: string, digitIndex: number) {
+  if (digitIndex <= 0) return 0;
+
+  let digitsSeen = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (/\d/.test(value[index])) {
+      digitsSeen += 1;
+      if (digitsSeen === digitIndex) {
+        return index + 1;
+      }
+    }
+  }
+
+  return value.length;
+}
+
+export function resolveBirthDateInputKey(
+  value: string,
+  key: string,
+  selectionStart: number | null,
+  selectionEnd: number | null,
+) {
+  if (selectionStart == null || selectionEnd == null || selectionStart !== selectionEnd) {
+    return null;
+  }
+
+  const digits = value.replace(/\D/g, "");
+
+  if (key === "Backspace" && selectionStart > 0 && value[selectionStart - 1] === ".") {
+    const removeDigitIndex = countBirthDateDigitsBeforeCursor(value, selectionStart) - 1;
+    if (removeDigitIndex < 0) return null;
+
+    const nextValue = formatBirthDateInput(
+      digits.slice(0, removeDigitIndex) + digits.slice(removeDigitIndex + 1),
+    );
+
+    return {
+      value: nextValue,
+      caret: getBirthDateCaretFromDigitIndex(nextValue, removeDigitIndex),
+    };
+  }
+
+  if (key === "Delete" && selectionStart < value.length && value[selectionStart] === ".") {
+    const removeDigitIndex = countBirthDateDigitsBeforeCursor(value, selectionStart);
+    if (removeDigitIndex >= digits.length) return null;
+
+    const nextValue = formatBirthDateInput(
+      digits.slice(0, removeDigitIndex) + digits.slice(removeDigitIndex + 1),
+    );
+
+    return {
+      value: nextValue,
+      caret: getBirthDateCaretFromDigitIndex(nextValue, removeDigitIndex),
+    };
+  }
+
+  return null;
+}
+
 function isValidBirthDate(year: number, month: number, day: number) {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
   if (year < MIN_BIRTH_YEAR || year > MAX_BIRTH_YEAR) return false;

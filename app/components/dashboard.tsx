@@ -18,7 +18,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { DISCIPLINES, extractBirthYearFromInput, formatBirthDateInput } from "@/lib/domain/team";
+import {
+  DISCIPLINES,
+  extractBirthYearFromInput,
+  formatBirthDateInput,
+  resolveBirthDateInputKey,
+} from "@/lib/domain/team";
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -114,6 +119,27 @@ function formatDatePart(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unbekannt";
   return date.toLocaleDateString("de-DE");
+}
+
+function handleBirthDateKeyDown(
+  event: React.KeyboardEvent<HTMLInputElement>,
+  value: string,
+  onValueChange: (nextValue: string) => void,
+) {
+  const nextState = resolveBirthDateInputKey(
+    value,
+    event.key,
+    event.currentTarget.selectionStart,
+    event.currentTarget.selectionEnd,
+  );
+
+  if (!nextState) return;
+
+  event.preventDefault();
+  onValueChange(nextState.value);
+  requestAnimationFrame(() => {
+    event.currentTarget.setSelectionRange(nextState.caret, nextState.caret);
+  });
 }
 
 function formatTimePart(value?: string) {
@@ -1230,6 +1256,11 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                         autoComplete="bday"
                         value={participant.birthDate}
                         onChange={(e) => handleParticipantChange(index, 'birthDate', formatBirthDateInput(e.target.value))}
+                        onKeyDown={(event) =>
+                          handleBirthDateKeyDown(event, participant.birthDate, (nextValue) =>
+                            handleParticipantChange(index, "birthDate", nextValue),
+                          )
+                        }
                         className="h-8"
                       />
                     </div>
