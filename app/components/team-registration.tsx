@@ -241,6 +241,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const [teamLeadGender, setTeamLeadGender] = useState<"M" | "W">("M");
   const [liabilityAccepted, setLiabilityAccepted] = useState(false);
   const [testDataClass, setTestDataClass] = useState<TeamClassId>("schueler-a");
+  const [openModerationNotes, setOpenModerationNotes] = useState<Record<number, boolean>>({});
 
   const [teamLeadFirstName, teamLeadLastName] = useMemo(() => {
     if (!userName) {
@@ -260,6 +261,13 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const shirtOrderClosed = useMemo(() => isShirtOrderClosed(competitionInfo?.shirtOrderDeadline), [competitionInfo?.shirtOrderDeadline]);
   const publicRegistrationStatus = useMemo(() => getPublicRegistrationStatus(competitionInfo), [competitionInfo]);
   const showTestDataTools = !isAnonymousRegistration && competitionInfo?.status === "DRAFT";
+
+  const formatBirthDateInput = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+  };
 
   useEffect(() => {
     if (!userName) {
@@ -355,6 +363,29 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     }
   };
 
+  const handleParticipantBirthDateChange = (index: number, value: string) => {
+    setValue(`participants.${index}.birthDate` as const, formatBirthDateInput(value), {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: false,
+    });
+  };
+
+  const handleParticipantModerationNoteChange = (index: number, value: string) => {
+    setValue(`participants.${index}.moderationNote` as const, value, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: false,
+    });
+  };
+
+  const toggleModerationNote = (index: number) => {
+    setOpenModerationNotes((current) => ({
+      ...current,
+      [index]: !current[index],
+    }));
+  };
+
   const onSubmit = handleSubmit(async (values) => {
     setServerError("");
     setSubmissionWarning("");
@@ -398,6 +429,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       setTeamLeadParticipates(false);
       setTeamLeadDiscipline(DISCIPLINES[0].id);
       setLiabilityAccepted(false);
+      setOpenModerationNotes({});
       previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
       setStep(1);
     } catch (err) {
@@ -410,6 +442,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     setSubmissionWarning("");
     setSubmitted(false);
     setLiabilityAccepted(false);
+    setOpenModerationNotes({});
     setStep(1);
   };
 
@@ -653,7 +686,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               autoComplete="bday"
                               className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
                               value={teamLeadBirthDate}
-                              onChange={(e) => setTeamLeadBirthDate(e.target.value)}
+                              onChange={(e) => setTeamLeadBirthDate(formatBirthDateInput(e.target.value))}
                             />
                           </div>
                           <div>
@@ -819,7 +852,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               placeholder="TT.MM.JJJJ"
                               autoComplete="bday"
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
-                              {...register(`participants.${index}.birthDate` as const)}
+                              value={participants[index]?.birthDate || ""}
+                              onChange={(e) => handleParticipantBirthDateChange(index, e.target.value)}
                             />
                             <select
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
@@ -849,6 +883,30 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               ))}
                             </select>
                           </div>
+                          <div className="pt-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={participants[index]?.moderationNote?.trim() ? "secondary" : "outline"}
+                              onClick={() => toggleModerationNote(index)}
+                              className="text-[11px]"
+                            >
+                              {participants[index]?.moderationNote?.trim() ? "📝 Hinweis vorhanden" : "📝 Hinweis für Moderation"}
+                            </Button>
+                          </div>
+                          {openModerationNotes[index] && (
+                            <div>
+                              <label className="text-xs text-muted-foreground">Hinweis für Moderation (intern)</label>
+                              <textarea
+                                value={participants[index]?.moderationNote || ""}
+                                onChange={(e) => handleParticipantModerationNoteChange(index, e.target.value)}
+                                placeholder="Optionaler interner Hinweis für Startliste / Moderation"
+                                maxLength={280}
+                                className="mt-1 min-h-[84px] w-full rounded border border-input/60 bg-background px-2 py-1 text-sm"
+                              />
+                              <p className="mt-1 text-xs text-muted-foreground">{(participants[index]?.moderationNote || "").length}/280 Zeichen</p>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
