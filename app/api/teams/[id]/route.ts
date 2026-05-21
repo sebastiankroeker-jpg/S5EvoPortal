@@ -14,8 +14,8 @@ function mapGender(g: string): "MALE" | "FEMALE" {
 
 // Map frontend discipline to Prisma DisciplineAssignment enum
 function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | "TBD" {
-  const valid = ["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"];
-  return valid.includes(d) ? (d as any) : "TBD";
+  const valid = ["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"] as const;
+  return valid.includes(d as (typeof valid)[number]) ? (d as (typeof valid)[number]) : "TBD";
 }
 
 function classifyTeam(participants: TeamRegistrationInput['participants']): string {
@@ -33,7 +33,42 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
   return classifyTeamShared(inputs).code;
 }
 
-function serializeParticipant(participant: any) {
+type SerializedPendingChange = {
+  id: string;
+  status: string;
+  updatedAt?: Date | null;
+  reviewedAt?: Date | null;
+  reviewComment?: string | null;
+};
+
+type SerializableParticipant = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  gender: "MALE" | "FEMALE";
+  birthYear: number | null;
+  moderationNote?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  disciplineCode?: string | null;
+  shirtSize?: string | null;
+  pendingChanges?: SerializedPendingChange[];
+};
+
+type SerializableTeam = {
+  id: string;
+  name: string;
+  classificationCode?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  owner?: { email?: string | null; name?: string | null } | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  participants?: SerializableParticipant[];
+};
+
+function serializeParticipant(participant: SerializableParticipant | null | undefined) {
   if (!participant) return null;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
   return {
@@ -59,7 +94,7 @@ function serializeParticipant(participant: any) {
   };
 }
 
-function serializeTeam(team: any) {
+function serializeTeam(team: SerializableTeam | null | undefined) {
   if (!team) return null;
   return {
     id: team.id,

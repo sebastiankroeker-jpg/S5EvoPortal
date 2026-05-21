@@ -19,7 +19,7 @@ import {
   type DisciplineId,
   type ParticipantInput,
 } from "@/lib/domain/team";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { classifyTeam, validateDisciplineAssignment } from "@/lib/domain/classification";

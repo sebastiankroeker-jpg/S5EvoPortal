@@ -57,14 +57,6 @@ const CLASS_GROUP_TO_CODE: Record<string, string> = {
   "Damen Gruppe B (DB)": "DB",
 };
 
-const DISC_NAME_TO_CODE: Record<string, DisciplineCode> = {
-  "laufen": "RUN",
-  "bankdruecken": "BENCH",
-  "stock": "STOCK",
-  "rennrad": "ROAD",
-  "mountainbike": "MTB",
-};
-
 async function main() {
   console.log("🔬 Validating Scoring Engine against 2024 PDF results...\n");
 

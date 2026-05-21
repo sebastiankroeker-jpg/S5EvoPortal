@@ -249,7 +249,6 @@ async function main() {
 
   // ── 5. Create Disciplines ──────────────────────────────────────────────
   const disciplineRecords: Record<string, string> = {}; // code → id
-  let sortIdx = 0;
   for (const [, disc] of Object.entries(DISCIPLINE_MAP)) {
     const d = await prisma.discipline.create({
       data: {
@@ -262,7 +261,6 @@ async function main() {
       },
     });
     disciplineRecords[disc.code] = d.id;
-    sortIdx++;
   }
   console.log(`✅ Disciplines created: ${Object.keys(disciplineRecords).length}`);
 

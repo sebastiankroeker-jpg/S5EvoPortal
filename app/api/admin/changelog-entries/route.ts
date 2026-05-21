@@ -23,7 +23,7 @@ function parseDate(value: string | null) {
   return isNaN(date.getTime()) ? undefined : date;
 }
 
-async function getAdminUser(request: NextRequest) {
+async function getAdminUser() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
@@ -43,7 +43,7 @@ async function getAdminUser(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const user = await getAdminUser(request);
+  const user = await getAdminUser();
   if (user instanceof NextResponse) {
     return user;
   }
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getAdminUser(request);
+  const user = await getAdminUser();
   if (user instanceof NextResponse) {
     return user;
   }

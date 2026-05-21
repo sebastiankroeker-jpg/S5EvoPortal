@@ -42,12 +42,6 @@ function formatParticipant(participant: MailParticipant) {
   return `${participant.firstName} ${participant.lastName} (${birthYear}, ${discipline}, T-Shirt: ${shirtSize})`;
 }
 
-function participantListHtml(participants: MailParticipant[]) {
-  return participants
-    .map((participant) => `<li>${formatParticipant(participant)}</li>`)
-    .join("");
-}
-
 function participantListText(participants: MailParticipant[]) {
   return participants.map((participant) => `- ${formatParticipant(participant)}`).join("\n");
 }

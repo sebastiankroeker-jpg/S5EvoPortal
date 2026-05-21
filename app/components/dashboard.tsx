@@ -61,7 +61,15 @@ interface Participant {
     reviewedAt?: string | null;
     reviewComment?: string | null;
   } | null;
+  teamOwnerEmail?: string;
 }
+
+type TeamEditPayload = {
+  teamName: string;
+  participants: Participant[];
+};
+
+type EditableParticipant = Omit<Participant, "id"> & { id: string };
 
 interface DashboardProps {
   ownerFilter?: string;
@@ -215,7 +223,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [createdTo, setCreatedTo] = useState("");
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
-  const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
+  const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -247,7 +255,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     }
   };
 
-  const handleDeleteTeam = async (teamId: string, teamName: string) => {
+  const handleDeleteTeam = async (teamId: string) => {
     setDeleting(teamId);
     try {
       const response = await fetch(`/api/teams/${teamId}`, {
@@ -268,7 +276,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     }
   };
 
-  const handleEditTeam = async (teamData: any) => {
+  const handleEditTeam = async (teamData: TeamEditPayload) => {
     try {
       const response = await fetch(`/api/teams/${editingTeam!.id}`, {
         method: 'PUT',
@@ -311,8 +319,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       }
     };
     
-    window.addEventListener("switchTab" as any, handleSwitchTab);
-    return () => window.removeEventListener("switchTab" as any, handleSwitchTab);
+    const listener: EventListener = (event) => handleSwitchTab(event as CustomEvent);
+    window.addEventListener("switchTab", listener);
+    return () => window.removeEventListener("switchTab", listener);
   }, []);
 
   // Apply pending owner filter after teams are loaded
@@ -817,14 +826,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Team löschen?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Möchtest du das Team "{team.name}" wirklich löschen?
+                                      Möchtest du das Team &quot;{team.name}&quot; wirklich löschen?
                                       Diese Aktion kann nicht rückgängig gemacht werden.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Abbrechen</AlertDialogCancel>
                                     <AlertDialogAction
-                                      onClick={() => handleDeleteTeam(team.id, team.name)}
+                                      onClick={() => handleDeleteTeam(team.id)}
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
                                       Löschen
@@ -957,7 +966,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                           )}
                                           {canManageModerationNote && (
                                             <button
-                                              onClick={(e) => { e.stopPropagation(); setEditingParticipant({ ...p, teamOwnerEmail: team.ownerEmail || team.contactEmail }); }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!p.id) return;
+                                                setEditingParticipant({ ...p, id: p.id, teamOwnerEmail: team.ownerEmail || team.contactEmail });
+                                              }}
                                               className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
                                               title="Moderationshinweis bearbeiten"
                                             >
@@ -966,7 +979,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                           )}
                                           {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own")) || (p.email === userEmail && can("participant.edit.self"))) && (
                                             <button
-                                              onClick={(e) => { e.stopPropagation(); setEditingParticipant({ ...p, teamOwnerEmail: team.ownerEmail }); }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!p.id) return;
+                                                setEditingParticipant({ ...p, id: p.id, teamOwnerEmail: team.ownerEmail });
+                                              }}
                                               className="text-xs text-muted-foreground hover:text-primary transition-colors"
                                               title="Teilnehmer bearbeiten"
                                             >
@@ -1020,14 +1037,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Team löschen?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Möchtest du das Team "{team.name}" wirklich löschen? 
+                                    Möchtest du das Team &quot;{team.name}&quot; wirklich löschen? 
                                     Diese Aktion kann nicht rückgängig gemacht werden.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Abbrechen</AlertDialogCancel>
                                   <AlertDialogAction 
-                                    onClick={() => handleDeleteTeam(team.id, team.name)}
+                                    onClick={() => handleDeleteTeam(team.id)}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   >
                                     Löschen
@@ -1075,7 +1092,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 // Edit Team Modal Component
 function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
   team: Team;
-  onSave: (data: any) => void;
+  onSave: (data: TeamEditPayload) => void;
   onCancel: () => void;
   showAdminInfo?: boolean;
 }) {

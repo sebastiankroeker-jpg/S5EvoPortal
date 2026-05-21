@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, extractBirthYearFromInput } from '@/lib/domain/team';
-import { classifyTeam as classifyTeamShared, validateDisciplineAssignment } from '@/lib/domain/classification';
+import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { prisma } from '@/lib/prisma';
@@ -17,8 +17,8 @@ function mapGender(g: string): "MALE" | "FEMALE" {
 
 // Map frontend discipline to Prisma DisciplineAssignment enum
 function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | "TBD" {
-  const valid = ["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"];
-  return valid.includes(d) ? (d as any) : "TBD";
+  const valid = ["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"] as const;
+  return valid.includes(d as (typeof valid)[number]) ? (d as (typeof valid)[number]) : "TBD";
 }
 
 function isRegistrationDeadlineReached(deadline?: Date | null): boolean {
@@ -41,7 +41,42 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
   return classifyTeamShared(inputs).code;
 }
 
-function serializeParticipant(participant: any) {
+type SerializedPendingChange = {
+  id: string;
+  status: string;
+  updatedAt?: Date | null;
+  reviewedAt?: Date | null;
+  reviewComment?: string | null;
+};
+
+type SerializableParticipant = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  gender: "MALE" | "FEMALE";
+  birthYear: number | null;
+  moderationNote?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  disciplineCode?: string | null;
+  shirtSize?: string | null;
+  pendingChanges?: SerializedPendingChange[];
+};
+
+type SerializableTeam = {
+  id: string;
+  name: string;
+  classificationCode?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  owner?: { email?: string | null; name?: string | null } | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  participants?: SerializableParticipant[];
+};
+
+function serializeParticipant(participant: SerializableParticipant | null | undefined) {
   if (!participant) return null;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
   return {
@@ -67,7 +102,7 @@ function serializeParticipant(participant: any) {
   };
 }
 
-function serializeTeam(team: any) {
+function serializeTeam(team: SerializableTeam | null | undefined) {
   if (!team) return null;
   return {
     id: team.id,

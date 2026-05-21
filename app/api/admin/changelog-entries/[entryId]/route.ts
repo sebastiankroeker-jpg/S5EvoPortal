@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -18,7 +19,7 @@ const updateSchema = z
     message: "Keine Änderungen übermittelt",
   });
 
-async function getAdminUser(request: NextRequest) {
+async function getAdminUser() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
@@ -43,7 +44,7 @@ export async function PATCH(
 ) {
   const { entryId } = await params;
 
-  const user = await getAdminUser(request);
+  const user = await getAdminUser();
   if (user instanceof NextResponse) {
     return user;
   }
@@ -55,7 +56,7 @@ export async function PATCH(
   }
 
   const { type, status, description } = parsed.data;
-  const data: any = {};
+  const data: Prisma.ChangelogEntryUpdateInput = {};
 
   if (type) data.type = type;
   if (description) data.description = description;
@@ -81,7 +82,7 @@ export async function PATCH(
     });
 
     return NextResponse.json({ entry });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Eintrag nicht gefunden" }, { status: 404 });
   }
 }

@@ -12,7 +12,6 @@ import LiveScreen from "./components/live-screen";
 import BottomTabBar from "./components/bottom-tab-bar";
 import ApprovalQueue from "./components/approval-queue";
 import ParticipantList from "./components/participant-list";
-import ClaimLinkDashboard from "./components/claim-link-dashboard";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
