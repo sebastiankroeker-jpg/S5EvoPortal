@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
@@ -10,13 +11,12 @@ export async function GET() {
     return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
   }
 
-  // Nur Admin/Moderator
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     include: { tenantRoles: true },
   });
 
-  const isAdmin = user?.tenantRoles.some(r => r.role === "ADMIN" || r.role === "MODERATOR");
+  const isAdmin = user?.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
   if (!isAdmin) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
@@ -25,11 +25,23 @@ export async function GET() {
     where: { status: "PENDING" },
     include: {
       participant: {
-        select: { id: true, firstName: true, lastName: true, team: { select: { name: true } } },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          team: {
+            select: {
+              id: true,
+              name: true,
+              contactEmail: true,
+            },
+          },
+        },
       },
       requestedBy: { select: { name: true, email: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { updatedAt: "desc" },
   });
 
   return NextResponse.json({ changes });

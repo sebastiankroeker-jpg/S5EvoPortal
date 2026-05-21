@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
+
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { sendParticipantChangeSubmittedEmails } from "@/lib/mail/participant-change";
+import {
+  buildParticipantChangeData,
+  diffParticipantSnapshots,
+  mergeParticipantSnapshot,
+  recalculateTeamClassification,
+  serializeSnapshot,
+  toParticipantSnapshot,
+} from "@/lib/participant-change";
 import { prisma } from "@/lib/prisma";
-import { classifyTeam, compareClassification } from "@/lib/domain/classification";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
@@ -37,6 +47,7 @@ export async function GET(
         where: { status: "PENDING" },
         orderBy: { createdAt: "desc" },
         take: 1,
+        select: { id: true, status: true, updatedAt: true },
       },
     },
   });
@@ -45,13 +56,12 @@ export async function GET(
     return NextResponse.json({ error: "Teilnehmer nicht gefunden" }, { status: 404 });
   }
 
-  // Berechtigung prüfen: eigene Daten oder Team-Owner oder Admin
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     include: { tenantRoles: true },
   });
 
-  const isAdmin = user?.tenantRoles.some(r => r.role === "ADMIN" || r.role === "MODERATOR");
+  const isAdmin = user?.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
   const isTeamOwner = participant.team.contactEmail === session.user.email;
   const isSelf = participant.email === session.user.email;
 
@@ -74,19 +84,28 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
-  const { firstName, lastName, birthYear, gender, disciplineCode, shirtSize, moderationNote, email, phone } = body;
+  const changeData = buildParticipantChangeData(body as Record<string, unknown>);
 
-  // Teilnehmer laden
   const participant = await prisma.participant.findUnique({
     where: { id, deletedAt: null },
     include: {
       team: {
         select: {
           id: true,
+          name: true,
           contactEmail: true,
           competition: {
             select: {
+              name: true,
+              year: true,
               shirtOrderDeadline: true,
+              registrationNotificationEmail: true,
+              tenant: {
+                select: {
+                  name: true,
+                  contactEmail: true,
+                },
+              },
             },
           },
         },
@@ -98,7 +117,6 @@ export async function PUT(
     return NextResponse.json({ error: "Teilnehmer nicht gefunden" }, { status: 404 });
   }
 
-  // User + Rollen laden
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     include: { tenantRoles: true },
@@ -108,7 +126,7 @@ export async function PUT(
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
   }
 
-  const isAdmin = user.tenantRoles.some(r => r.role === "ADMIN" || r.role === "MODERATOR");
+  const isAdmin = user.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
   const isTeamOwner = participant.team.contactEmail === session.user.email;
   const isSelf = participant.email === session.user.email;
   const shirtOrderClosed = isShirtOrderClosed(participant.team.competition?.shirtOrderDeadline);
@@ -117,57 +135,58 @@ export async function PUT(
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
-  if (!isAdmin && shirtOrderClosed && shirtSize !== undefined && shirtSize !== participant.shirtSize) {
+  if (!isAdmin && shirtOrderClosed && changeData.shirtSize !== undefined && changeData.shirtSize !== participant.shirtSize) {
     return NextResponse.json({ error: "T-Shirt-Bestellfrist abgeschlossen" }, { status: 403 });
   }
 
-  const changeData = {
-    ...(firstName !== undefined && { firstName }),
-    ...(lastName !== undefined && { lastName }),
-    ...(birthYear !== undefined && { birthYear: Number(birthYear) }),
-    ...(gender !== undefined && { gender }),
-    ...(disciplineCode !== undefined && { disciplineCode }),
-    ...(shirtSize !== undefined && { shirtSize }),
-    ...(moderationNote !== undefined && { moderationNote: moderationNote?.trim() || null }),
-    ...(email !== undefined && { email }),
-    ...(phone !== undefined && { phone }),
-  };
+  const currentSnapshot = toParticipantSnapshot(participant);
+  const requestedSnapshot = mergeParticipantSnapshot(currentSnapshot, changeData);
+  const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
 
-  // Admin/Moderator + Teamchef: direkt ändern
-  if (isAdmin || isTeamOwner) {
-    const updated = await prisma.participant.update({
-      where: { id },
-      data: changeData,
+  if (Object.keys(changedFields).length === 0) {
+    return NextResponse.json({
+      applied: false,
+      message: "Keine Änderungen erkannt",
     });
+  }
 
-    // Reklassifikation prüfen wenn relevante Felder geändert wurden
-    let classificationWarnings: string[] = [];
-    if (changeData.birthYear !== undefined || changeData.gender !== undefined) {
-      const teamWithParticipants = await prisma.team.findUnique({
-        where: { id: participant.team.id },
-        include: { participants: { where: { deletedAt: null } } },
+  if (isAdmin || isTeamOwner) {
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedParticipant = await tx.participant.update({
+        where: { id },
+        data: changeData as Prisma.ParticipantUpdateInput,
       });
 
-      if (teamWithParticipants) {
-        const inputs = teamWithParticipants.participants.map(p => ({
-          birthYear: p.birthYear,
-          gender: p.gender as "M" | "W" | "D" | "MALE" | "FEMALE" | "DIVERSE",
-        }));
-        const newClassification = classifyTeam(inputs);
-        const oldCode = teamWithParticipants.classificationCode || "unclassified";
-        classificationWarnings = compareClassification(oldCode, newClassification);
+      await tx.pendingChange.updateMany({
+        where: {
+          participantId: id,
+          status: "PENDING",
+        },
+        data: {
+          status: "REJECTED",
+          reviewedAt: new Date(),
+          reviewedById: user.id,
+          reviewComment: "Durch direkte Änderung überholt",
+        },
+      });
 
-        // Klasse aktualisieren wenn geändert
-        if (newClassification.code !== oldCode) {
-          await prisma.team.update({
-            where: { id: participant.team.id },
-            data: {
-              classificationCode: newClassification.code,
-              totalAge: newClassification.totalAge,
-            },
-          });
-        }
-      }
+      await tx.participantAuditLog.create({
+        data: {
+          action: "DIRECT_CHANGE",
+          participantId: id,
+          actorId: user.id,
+          beforeData: serializeSnapshot(currentSnapshot),
+          afterData: serializeSnapshot(requestedSnapshot),
+          message: isAdmin ? "Direkte Änderung durch Admin/Moderator" : "Direkte Änderung durch Teamchef",
+        },
+      });
+
+      return updatedParticipant;
+    });
+
+    let classificationWarnings: string[] = [];
+    if (changeData.birthYear !== undefined || changeData.gender !== undefined) {
+      classificationWarnings = await recalculateTeamClassification(participant.team.id);
     }
 
     return NextResponse.json({
@@ -177,19 +196,89 @@ export async function PUT(
     });
   }
 
-  // Teilnehmer: PendingChange erstellen (Approval-Workflow)
-  const pendingChange = await prisma.pendingChange.create({
-    data: {
-      changeData: JSON.stringify(changeData),
-      status: "PENDING",
+  const existingPendingChange = await prisma.pendingChange.findFirst({
+    where: {
       participantId: id,
-      requestedById: user.id,
+      status: "PENDING",
     },
+    orderBy: { createdAt: "desc" },
   });
 
+  const savedPendingChange = existingPendingChange
+    ? await prisma.$transaction(async (tx) => {
+        const updatedPendingChange = await tx.pendingChange.update({
+          where: { id: existingPendingChange.id },
+          data: {
+            beforeData: serializeSnapshot(currentSnapshot),
+            changeData: serializeSnapshot(requestedSnapshot),
+            requestedById: user.id,
+            reviewComment: null,
+            reviewedAt: null,
+            reviewedById: null,
+          },
+        });
+
+        await tx.participantAuditLog.create({
+          data: {
+            action: "REQUEST_UPDATED",
+            participantId: id,
+            actorId: user.id,
+            pendingChangeId: updatedPendingChange.id,
+            beforeData: serializeSnapshot(currentSnapshot),
+            afterData: serializeSnapshot(requestedSnapshot),
+            message: "Offene Änderungsanfrage aktualisiert",
+          },
+        });
+
+        return updatedPendingChange;
+      })
+    : await prisma.$transaction(async (tx) => {
+        const createdPendingChange = await tx.pendingChange.create({
+          data: {
+            beforeData: serializeSnapshot(currentSnapshot),
+            changeData: serializeSnapshot(requestedSnapshot),
+            status: "PENDING",
+            participantId: id,
+            requestedById: user.id,
+          },
+        });
+
+        await tx.participantAuditLog.create({
+          data: {
+            action: "REQUEST_SUBMITTED",
+            participantId: id,
+            actorId: user.id,
+            pendingChangeId: createdPendingChange.id,
+            beforeData: serializeSnapshot(currentSnapshot),
+            afterData: serializeSnapshot(requestedSnapshot),
+            message: "Änderungsanfrage eingereicht",
+          },
+        });
+
+        return createdPendingChange;
+      });
+
+  if (!existingPendingChange) {
+    await sendParticipantChangeSubmittedEmails({
+      competition: participant.team.competition,
+      participant: {
+        name: participant.firstName + " " + participant.lastName,
+        email: participant.email,
+        teamName: participant.team.name,
+        teamContactEmail: participant.team.contactEmail,
+      },
+      requester: {
+        name: user.name || session.user.email || "Teilnehmer",
+        email: session.user.email,
+      },
+    });
+  }
+
   return NextResponse.json({
-    pendingChange,
+    pendingChange: savedPendingChange,
     applied: false,
-    message: "Änderung zur Genehmigung eingereicht",
+    message: existingPendingChange
+      ? "Offener Änderungsantrag aktualisiert"
+      : "Änderung zur Genehmigung eingereicht",
   });
 }

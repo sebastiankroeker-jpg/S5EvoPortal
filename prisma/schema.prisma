@@ -80,6 +80,14 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum ParticipantAuditAction {
+  REQUEST_SUBMITTED
+  REQUEST_UPDATED
+  REQUEST_APPROVED
+  REQUEST_REJECTED
+  DIRECT_CHANGE
+}
+
 enum ShirtSize {
   K116
   K128
@@ -148,6 +156,7 @@ model User {
   chiefOfTeams     Team[]          @relation("TeamChief")
   requestedChanges PendingChange[] @relation("ChangeRequester")
   reviewedChanges  PendingChange[] @relation("ChangeReviewer")
+  participantAuditLogs ParticipantAuditLog[] @relation("ParticipantAuditActor")
   changelogEntriesCreated ChangelogEntry[] @relation("EntryCreator")
   changelogEntriesResolved ChangelogEntry[] @relation("EntryResolver")
   claimedRegistrationTokens RegistrationClaimToken[] @relation("ClaimedRegistrationTokens")
@@ -304,6 +313,7 @@ model Participant {
   team           Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
   results        DisciplineResult[]
   pendingChanges PendingChange[]
+  auditLogs      ParticipantAuditLog[]
 
   @@map("participants")
 }
@@ -407,9 +417,12 @@ model CompetitionRanking {
 model PendingChange {
   id         String         @id @default(cuid())
   changeData String
+  beforeData String?
   status     ApprovalStatus @default(DRAFT)
   createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
   reviewedAt DateTime?
+  reviewComment String?
 
   // Relations
   participantId String
@@ -418,8 +431,29 @@ model PendingChange {
   requestedBy   User        @relation("ChangeRequester", fields: [requestedById], references: [id])
   reviewedById  String?
   reviewedBy    User?       @relation("ChangeReviewer", fields: [reviewedById], references: [id])
+  auditLogs     ParticipantAuditLog[]
 
   @@map("pending_changes")
+}
+
+model ParticipantAuditLog {
+  id              String                 @id @default(cuid())
+  action          ParticipantAuditAction
+  beforeData      String?
+  afterData       String?
+  message         String?
+  createdAt       DateTime               @default(now())
+
+  participantId   String
+  participant     Participant            @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  actorId         String?
+  actor           User?                  @relation("ParticipantAuditActor", fields: [actorId], references: [id])
+  pendingChangeId String?
+  pendingChange   PendingChange?         @relation(fields: [pendingChangeId], references: [id], onDelete: SetNull)
+
+  @@index([participantId, createdAt])
+  @@index([pendingChangeId])
+  @@map("participant_audit_logs")
 }
 
 // ==================== CHANGELOG ENTRY ====================

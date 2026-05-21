@@ -185,9 +185,9 @@ export default function ParticipantEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {hasPendingChange && (
+        {hasPendingChange && !directEdit && (
           <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 text-sm p-3 rounded-md">
-            ⏳ Es gibt bereits einen offenen Änderungsantrag. Bitte warte auf die Genehmigung.
+            ⏳ Es gibt bereits einen offenen Änderungsantrag. Wenn du erneut speicherst, wird dieser Antrag mit deinem neuesten Stand aktualisiert.
           </div>
         )}
 
@@ -325,7 +325,7 @@ export default function ParticipantEditDialog({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={saving || hasPendingChange || !!result}
+            disabled={saving || !!result}
           >
             {saving
               ? "Speichert..."
