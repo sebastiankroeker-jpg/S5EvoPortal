@@ -16,6 +16,11 @@ export function formatBirthDateInput(input: string): string {
   return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
 }
 
+export function birthYearToBirthDateInput(birthYear?: number | null): string {
+  if (!birthYear || !Number.isInteger(birthYear)) return "";
+  return formatBirthDateInput(`0101${birthYear}`);
+}
+
 function countBirthDateDigitsBeforeCursor(value: string, cursor: number) {
   return value.slice(0, cursor).replace(/\D/g, "").length;
 }

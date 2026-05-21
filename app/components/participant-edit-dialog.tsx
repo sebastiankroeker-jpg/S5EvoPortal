@@ -14,7 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DISCIPLINES } from "@/lib/domain/team";
+import {
+  DISCIPLINES,
+  birthYearToBirthDateInput,
+  extractBirthYearFromInput,
+  formatBirthDateInput,
+  resolveBirthDateInputKey,
+} from "@/lib/domain/team";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
 
 interface Participant {
@@ -99,7 +105,7 @@ export default function ParticipantEditDialog({
 }: ParticipantEditDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [birthYear, setBirthYear] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
   const [disciplineCode, setDisciplineCode] = useState("");
   const [shirtSize, setShirtSize] = useState("");
@@ -115,11 +121,28 @@ export default function ParticipantEditDialog({
   const hasPendingChange = latestChange?.status === "PENDING" || participant?.pendingChanges?.some(c => c.status === "PENDING");
   const statusMeta = getStatusMeta(latestChange?.status);
 
+  const handleBirthDateKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    const nextState = resolveBirthDateInputKey(
+      birthDate,
+      event.key,
+      event.currentTarget.selectionStart,
+      event.currentTarget.selectionEnd,
+    );
+
+    if (!nextState) return;
+
+    event.preventDefault();
+    setBirthDate(nextState.value);
+    requestAnimationFrame(() => {
+      event.currentTarget.setSelectionRange(nextState.caret, nextState.caret);
+    });
+  };
+
   useEffect(() => {
     if (participant) {
       setFirstName(participant.firstName);
       setLastName(participant.lastName);
-      setBirthYear(participant.birthYear ? String(participant.birthYear) : "");
+      setBirthDate(participant.birthDate || birthYearToBirthDateInput(participant.birthYear));
       setGender(normalizeGenderValue(participant.gender));
       setDisciplineCode(normalizeDisciplineValue(participant.disciplineCode || participant.discipline));
       setShirtSize(participant.shirtSize || "");
@@ -144,7 +167,7 @@ export default function ParticipantEditDialog({
         const data = await res.json();
         setFirstName(data.firstName || "");
         setLastName(data.lastName || "");
-        setBirthYear(data.birthYear ? String(data.birthYear) : "");
+        setBirthDate(data.birthDate || birthYearToBirthDateInput(data.birthYear));
         setGender(normalizeGenderValue(data.gender));
         setDisciplineCode(normalizeDisciplineValue(data.disciplineCode));
         setShirtSize(data.shirtSize || "");
@@ -168,13 +191,18 @@ export default function ParticipantEditDialog({
     setResult(null);
 
     try {
+      const extractedBirthYear = extractBirthYearFromInput(birthDate);
+      if (extractedBirthYear === null) {
+        throw new Error("Geburtsdatum unplausibel");
+      }
+
       const res = await fetch(`/api/participants/${participant.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName,
           lastName,
-          birthYear: Number(birthYear),
+          birthYear: extractedBirthYear,
           gender,
           disciplineCode,
           shirtSize: shirtSize || null,
@@ -262,13 +290,15 @@ export default function ParticipantEditDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Geburtsjahr</label>
+                <label className="text-xs font-medium text-muted-foreground">Geburtsdatum</label>
                 <Input
-                  type="number"
-                  value={birthYear}
-                  onChange={(e) => setBirthYear(e.target.value)}
-                  min={1940}
-                  max={2020}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="TT.MM.JJJJ"
+                  autoComplete="bday"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(formatBirthDateInput(e.target.value))}
+                  onKeyDown={handleBirthDateKeyDown}
                   className="mt-1"
                 />
               </div>

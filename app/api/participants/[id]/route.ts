@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { birthYearToBirthDateInput } from "@/lib/domain/team";
 import { sendParticipantChangeSubmittedEmails } from "@/lib/mail/participant-change";
 import {
   buildParticipantChangeData,
@@ -68,7 +69,10 @@ export async function GET(
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
-  return NextResponse.json(participant);
+  return NextResponse.json({
+    ...participant,
+    birthDate: birthYearToBirthDateInput(participant.birthYear),
+  });
 }
 
 // PUT /api/participants/[id] — Teilnehmerdaten ändern

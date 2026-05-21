@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, type TeamRegistrationInput, extractBirthYearFromInput } from '@/lib/domain/team';
+import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
@@ -84,7 +84,7 @@ function serializeParticipant(participant: SerializableParticipant | null | unde
     firstName: participant.firstName,
     lastName: participant.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
-    birthDate: participant.birthYear ? `${participant.birthYear}-01-01` : "",
+    birthDate: birthYearToBirthDateInput(participant.birthYear),
     moderationNote: participant.moderationNote ?? "",
     email: participant.email ?? "",
     phone: participant.phone ?? "",
