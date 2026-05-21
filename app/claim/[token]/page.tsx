@@ -30,6 +30,9 @@ type ClaimState = {
     requiresLogin: boolean;
     alreadyClaimedByOtherUser: boolean;
   };
+  settings: {
+    claimLinksEnabled: boolean;
+  };
 };
 
 export default function ClaimPage() {
@@ -157,7 +160,14 @@ export default function ClaimPage() {
                 </div>
               )}
 
-              {(data.state.emailMatches || data.state.alreadyClaimedBySessionUser) && !claimed && (
+              {!data.settings.claimLinksEnabled && !data.state.alreadyClaimedBySessionUser && (
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-2">
+                  <p>Die Einlösung von Claim-Links ist aktuell global deaktiviert.</p>
+                  <p className="text-sm">Bitte melde dich direkt bei der Orga, wenn das Team kurzfristig übernommen werden soll.</p>
+                </div>
+              )}
+
+              {(data.state.emailMatches || data.state.alreadyClaimedBySessionUser) && !claimed && data.settings.claimLinksEnabled && (
                 <div className="space-y-3">
                   <p>
                     Angemeldet als <strong>{sessionEmail}</strong>. Wenn du bestaetigst, wird diese Mannschaft mit deinem Account verknuepft.
