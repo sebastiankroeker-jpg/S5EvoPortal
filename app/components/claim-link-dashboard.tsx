@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type ClaimTokenInfo = {
   id: string;
@@ -50,8 +51,11 @@ export default function ClaimLinkDashboard() {
   const [items, setItems] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ClaimTokenInfo["status"] | "none" | "all">("all");
   const [busyTeamId, setBusyTeamId] = useState<string | null>(null);
   const [busyTokenId, setBusyTokenId] = useState<string | null>(null);
+  const [togglingGlobal, setTogglingGlobal] = useState(false);
+  const [claimLinksEnabled, setClaimLinksEnabled] = useState(true);
   const [generatedLinks, setGeneratedLinks] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -63,6 +67,7 @@ export default function ClaimLinkDashboard() {
       const res = await fetch(`/api/admin/claim-links?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Claim-Links konnten nicht geladen werden");
+      setClaimLinksEnabled(data.claimLinksEnabled !== false);
       setItems(data.items || []);
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Claim-Links konnten nicht geladen werden" });
@@ -85,6 +90,14 @@ export default function ClaimLinkDashboard() {
       item.ownerEmail.toLowerCase().includes(term),
     );
   }, [items, search]);
+
+  const visibleItems = useMemo(() => {
+    return filteredItems.filter((item) => {
+      if (statusFilter === "all") return true;
+      const currentStatus = item.token?.status || "none";
+      return currentStatus === statusFilter;
+    });
+  }, [filteredItems, statusFilter]);
 
   const copyToClipboard = async (value: string) => {
     try {
@@ -134,6 +147,25 @@ export default function ClaimLinkDashboard() {
     }
   };
 
+  const toggleGlobalClaimLinks = async (enabled: boolean) => {
+    setTogglingGlobal(true);
+    try {
+      const res = await fetch("/api/admin/claim-links", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "toggleGlobal", enabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Globaler Claim-Schalter konnte nicht aktualisiert werden");
+      setClaimLinksEnabled(data.claimLinksEnabled !== false);
+      setMessage({ type: "success", text: enabled ? "Claim-Einlösung global aktiviert" : "Claim-Einlösung global deaktiviert" });
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Globaler Claim-Schalter konnte nicht aktualisiert werden" });
+    } finally {
+      setTogglingGlobal(false);
+    }
+  };
+
   return (
     <Card id="claim-link-dashboard">
       <CardHeader>
@@ -150,28 +182,57 @@ export default function ClaimLinkDashboard() {
         )}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Suche Team, Kontakt oder Owner..."
-            className="sm:max-w-md"
-          />
-          <Button variant="outline" size="sm" onClick={() => void loadItems()} disabled={loading}>
-            🔄 Aktualisieren
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Suche Team, Kontakt oder Owner..."
+              className="sm:w-72"
+            />
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+              <SelectTrigger className="sm:w-44">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Status</SelectItem>
+                <SelectItem value="none">Kein Link</SelectItem>
+                <SelectItem value="active">Aktiv</SelectItem>
+                <SelectItem value="claimed">Eingelöst</SelectItem>
+                <SelectItem value="expired">Abgelaufen</SelectItem>
+                <SelectItem value="revoked">Gesperrt</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={claimLinksEnabled ? "outline" : "default"}
+              size="sm"
+              onClick={() => void toggleGlobalClaimLinks(!claimLinksEnabled)}
+              disabled={togglingGlobal}
+            >
+              {togglingGlobal ? "Speichere..." : claimLinksEnabled ? "Einlösung global deaktivieren" : "Einlösung global aktivieren"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void loadItems()} disabled={loading}>
+              🔄 Aktualisieren
+            </Button>
+          </div>
+        </div>
+
+        <div className={`rounded-md border px-3 py-2 text-sm ${claimLinksEnabled ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+          Claim-Einlösung ist aktuell <strong>{claimLinksEnabled ? "aktiv" : "deaktiviert"}</strong>.
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
           </div>
-        ) : filteredItems.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="rounded-md border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
             Keine Teams für Claim-Links gefunden.
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredItems.map((item) => {
+            {visibleItems.map((item) => {
               const tokenStatus = item.token?.status || "none";
               const statusMeta = STATUS_META[tokenStatus];
               const generatedLink = generatedLinks[item.teamId];

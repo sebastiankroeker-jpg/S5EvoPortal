@@ -46,6 +46,10 @@ export async function GET(request: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const competitionId = request.nextUrl.searchParams.get("competitionId");
+  const tenant = await prisma.tenant.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { claimLinksEnabled: true },
+  });
 
   const teams = await prisma.team.findMany({
     where: {
@@ -66,6 +70,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
+    claimLinksEnabled: tenant?.claimLinksEnabled ?? true,
     items: teams.map((team) => {
       const latestToken = team.registrationClaimTokens[0] ?? null;
       return {
@@ -167,6 +172,27 @@ export async function PATCH(request: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const body = await request.json().catch(() => ({}));
+  if (body.action === "toggleGlobal") {
+    const enabled = Boolean(body.enabled);
+    const tenant = await prisma.tenant.findFirst({
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!tenant) {
+      return NextResponse.json({ error: "Tenant nicht gefunden" }, { status: 404 });
+    }
+
+    const updatedTenant = await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { claimLinksEnabled: enabled },
+    });
+
+    return NextResponse.json({
+      success: true,
+      claimLinksEnabled: updatedTenant.claimLinksEnabled,
+    });
+  }
+
   const tokenId = typeof body.tokenId === "string" ? body.tokenId : null;
 
   if (!tokenId) {

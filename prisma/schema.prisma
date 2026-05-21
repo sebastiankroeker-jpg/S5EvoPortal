@@ -119,6 +119,7 @@ model Tenant {
   website          String?
   privacyText      String?
   defaultTheme     String   @default("DARK")
+  claimLinksEnabled Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

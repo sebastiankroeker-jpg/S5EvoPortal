@@ -107,7 +107,7 @@ export default function Home() {
                     <p className="text-xs text-muted-foreground">Alle Teilnehmer suchen & bearbeiten</p>
                   </button>
                   {can("team.view.all") && (
-                    <button onClick={() => { const el = document.getElementById('claim-link-dashboard'); el?.scrollIntoView({ behavior: 'smooth' }); }} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                    <button onClick={() => router.push('/claim-links')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">🔐</span>
                       <p className="font-medium text-sm">Claim-Links</p>
                       <p className="text-xs text-muted-foreground">Uebernahmelinks erzeugen & verwalten</p>
@@ -141,9 +141,6 @@ export default function Home() {
 
                 {/* Approval Queue */}
                 <ApprovalQueue />
-
-                {can("team.view.all") && <ClaimLinkDashboard />}
-
                 {/* Teilnehmerübersicht */}
                 <div id="participant-list">
                   <ParticipantList />

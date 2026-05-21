@@ -34,7 +34,17 @@ export async function GET(
           id: true,
           name: true,
           contactEmail: true,
-          competition: { select: { name: true, year: true } },
+          competition: {
+            select: {
+              name: true,
+              year: true,
+              tenant: {
+                select: {
+                  claimLinksEnabled: true,
+                },
+              },
+            },
+          },
         },
       },
       claimedByUser: { select: { id: true, email: true, name: true } },
@@ -120,6 +130,9 @@ export async function GET(
         !!claim.claimedByUser && normalizedClaimedByEmail !== normalizedSessionEmail,
       suspicious: risk.suspicious,
     },
+    settings: {
+      claimLinksEnabled: claim.team.competition.tenant.claimLinksEnabled,
+    },
   });
 }
 
@@ -146,6 +159,15 @@ export async function POST(
         select: {
           id: true,
           contactEmail: true,
+          competition: {
+            select: {
+              tenant: {
+                select: {
+                  claimLinksEnabled: true,
+                },
+              },
+            },
+          },
         },
       },
       claimedByUser: { select: { id: true, email: true } },
@@ -208,6 +230,20 @@ export async function POST(
       sessionEmail,
     });
     return NextResponse.json({ error: "Link ist abgelaufen" }, { status: 410 });
+  }
+
+  if (!claim.team.competition.tenant.claimLinksEnabled) {
+    await recordClaimAuditEvent({
+      request,
+      eventType: "CLAIM_SUBMIT",
+      outcome: "BLOCKED",
+      reason: "claim_links_disabled",
+      suspicious: false,
+      tokenId: claim.id,
+      teamId: claim.team.id,
+      sessionEmail,
+    });
+    return NextResponse.json({ error: "Die Einlösung von Claim-Links ist aktuell deaktiviert" }, { status: 423 });
   }
 
   const normalizedSuggestedEmail = normalizeEmail(claim.suggestedEmail);
