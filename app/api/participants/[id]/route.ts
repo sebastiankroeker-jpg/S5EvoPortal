@@ -74,7 +74,7 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
-  const { firstName, lastName, birthYear, gender, disciplineCode, shirtSize, email, phone } = body;
+  const { firstName, lastName, birthYear, gender, disciplineCode, shirtSize, moderationNote, email, phone } = body;
 
   // Teilnehmer laden
   const participant = await prisma.participant.findUnique({
@@ -128,6 +128,7 @@ export async function PUT(
     ...(gender !== undefined && { gender }),
     ...(disciplineCode !== undefined && { disciplineCode }),
     ...(shirtSize !== undefined && { shirtSize }),
+    ...(moderationNote !== undefined && { moderationNote: moderationNote?.trim() || null }),
     ...(email !== undefined && { email }),
     ...(phone !== undefined && { phone }),
   };

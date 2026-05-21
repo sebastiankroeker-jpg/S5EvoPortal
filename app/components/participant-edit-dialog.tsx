@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -20,10 +21,13 @@ interface Participant {
   id: string;
   firstName: string;
   lastName: string;
-  birthYear: number;
+  birthYear?: number;
+  birthDate?: string;
   gender: string;
-  disciplineCode: string;
+  disciplineCode?: string;
+  discipline?: string;
   shirtSize?: string | null;
+  moderationNote?: string | null;
   email?: string | null;
   phone?: string | null;
   pendingChanges?: { id: string; status: string }[];
@@ -36,6 +40,16 @@ interface ParticipantEditDialogProps {
   onSaved: () => void;
   directEdit: boolean; // true = Admin/Teamchef, false = Teilnehmer (Approval)
   isAdminEdit?: boolean;
+  showModerationNote?: boolean;
+}
+
+function normalizeGenderValue(value?: string | null) {
+  if (value === "W" || value === "FEMALE") return "FEMALE";
+  return "MALE";
+}
+
+function normalizeDisciplineValue(value?: string | null) {
+  return value || "TBD";
 }
 
 export default function ParticipantEditDialog({
@@ -45,6 +59,7 @@ export default function ParticipantEditDialog({
   onSaved,
   directEdit,
   isAdminEdit = false,
+  showModerationNote = false,
 }: ParticipantEditDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -52,6 +67,7 @@ export default function ParticipantEditDialog({
   const [gender, setGender] = useState("");
   const [disciplineCode, setDisciplineCode] = useState("");
   const [shirtSize, setShirtSize] = useState("");
+  const [moderationNote, setModerationNote] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
@@ -65,10 +81,11 @@ export default function ParticipantEditDialog({
     if (participant) {
       setFirstName(participant.firstName);
       setLastName(participant.lastName);
-      setBirthYear(String(participant.birthYear));
-      setGender(participant.gender);
-      setDisciplineCode(participant.disciplineCode);
+      setBirthYear(participant.birthYear ? String(participant.birthYear) : "");
+      setGender(normalizeGenderValue(participant.gender));
+      setDisciplineCode(normalizeDisciplineValue(participant.disciplineCode || participant.discipline));
       setShirtSize(participant.shirtSize || "");
+      setModerationNote(participant.moderationNote || "");
       setEmail(participant.email || "");
       setPhone(participant.phone || "");
       setShirtOrderDeadline(null);
@@ -86,7 +103,15 @@ export default function ParticipantEditDialog({
         if (!res.ok) return;
 
         const data = await res.json();
+        setFirstName(data.firstName || "");
+        setLastName(data.lastName || "");
+        setBirthYear(data.birthYear ? String(data.birthYear) : "");
+        setGender(normalizeGenderValue(data.gender));
+        setDisciplineCode(normalizeDisciplineValue(data.disciplineCode));
         setShirtSize(data.shirtSize || "");
+        setModerationNote(data.moderationNote || "");
+        setEmail(data.email || "");
+        setPhone(data.phone || "");
         setShirtOrderDeadline(data.team?.competition?.shirtOrderDeadline || null);
       } catch (err) {
         console.error("Failed to load participant details:", err);
@@ -113,6 +138,7 @@ export default function ParticipantEditDialog({
           gender,
           disciplineCode,
           shirtSize: shirtSize || null,
+          moderationNote: moderationNote || null,
           email: email || null,
           phone: phone || null,
         }),
@@ -239,6 +265,20 @@ export default function ParticipantEditDialog({
               <p className="mt-1 text-xs text-muted-foreground">Bestellfrist abgeschlossen, nur Admin kann noch ändern.</p>
             )}
           </div>
+
+          {showModerationNote && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Hinweis für Moderation (intern)</label>
+              <Textarea
+                value={moderationNote}
+                onChange={(e) => setModerationNote(e.target.value)}
+                placeholder="Optionaler interner Hinweis für Startliste / Moderation"
+                maxLength={280}
+                className="mt-1 min-h-[96px]"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{moderationNote.length}/280 Zeichen</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

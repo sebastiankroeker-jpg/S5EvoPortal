@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
       gender: p.gender,
       disciplineCode: p.disciplineCode,
       shirtSize: p.shirtSize,
+      moderationNote: p.moderationNote,
       email: p.email,
       phone: p.phone,
       teamId: p.team.id,

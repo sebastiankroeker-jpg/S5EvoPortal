@@ -18,6 +18,7 @@ interface ParticipantEntry {
   gender: string;
   disciplineCode: string;
   shirtSize?: string | null;
+  moderationNote?: string | null;
   email?: string | null;
   phone?: string | null;
   teamId: string;
@@ -194,14 +195,24 @@ export default function ParticipantList() {
                         </div>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setEditingParticipant(p)}
-                      className="shrink-0"
-                    >
-                      ✏️
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant={p.moderationNote?.trim() ? "secondary" : "outline"}
+                        onClick={() => setEditingParticipant(p)}
+                        className="shrink-0 text-[11px]"
+                      >
+                        {p.moderationNote?.trim() ? "📝 Hinweis" : "📝 Hinzufuegen"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingParticipant(p)}
+                        className="shrink-0"
+                      >
+                        ✏️
+                      </Button>
+                    </div>
                   </div>
                 </motion.div>
               );
@@ -218,6 +229,7 @@ export default function ParticipantList() {
         onSaved={() => { setEditingParticipant(null); fetchParticipants(); }}
         directEdit={true}
         isAdminEdit={true}
+        showModerationNote
       />
     </div>
   );

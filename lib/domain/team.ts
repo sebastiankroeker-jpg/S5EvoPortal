@@ -6,8 +6,52 @@ export const MAX_BIRTH_YEAR = 2018;
 export const MIN_BIRTHDATE = `${MIN_BIRTH_YEAR}-01-01`;
 export const MAX_BIRTHDATE = `${MAX_BIRTH_YEAR}-12-31`;
 
+function isValidBirthDate(year: number, month: number, day: number) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (year < MIN_BIRTH_YEAR || year > MAX_BIRTH_YEAR) return false;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  return (
+    candidate.getUTCFullYear() === year &&
+    candidate.getUTCMonth() === month - 1 &&
+    candidate.getUTCDate() === day
+  );
+}
+
+export function normalizeBirthDateInput(input: string): string {
+  const value = input.trim();
+  if (!value) return "";
+
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, yearText, monthText, dayText] = isoMatch;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    return isValidBirthDate(year, month, day) ? value : value;
+  }
+
+  const deMatch = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (deMatch) {
+    const [, dayText, monthText, yearText] = deMatch;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+
+    if (!isValidBirthDate(year, month, day)) {
+      return value;
+    }
+
+    return `${yearText}-${monthText.padStart(2, "0")}-${dayText.padStart(2, "0")}`;
+  }
+
+  return value;
+}
+
 export function extractBirthYearFromInput(birthDate: string): number | null {
-  const match = birthDate.match(/^(\d{4})-\d{2}-\d{2}$/);
+  const normalized = normalizeBirthDateInput(birthDate);
+  const match = normalized.match(/^(\d{4})-\d{2}-\d{2}$/);
   if (!match) return null;
 
   const year = Number(match[1]);
@@ -48,6 +92,7 @@ export const ParticipantSchema = z.object({
     .min(1, "Geburtsdatum fehlt")
     .refine((value) => extractBirthYearFromInput(value) !== null, "Geburtsdatum unplausibel"),
   gender: z.enum(["M", "W", "D"]),
+  moderationNote: z.string().max(280, "Moderationshinweis zu lang").optional().or(z.literal("")),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   discipline: disciplineEnum,
@@ -74,6 +119,7 @@ export function createEmptyParticipant(): ParticipantInput {
     lastName: "",
     birthDate: "",
     gender: "M",
+    moderationNote: "",
     email: "",
     phone: "",
     discipline: DISCIPLINE_PLACEHOLDER,

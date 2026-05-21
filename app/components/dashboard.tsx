@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { DISCIPLINES } from "@/lib/domain/team";
+import { DISCIPLINES, extractBirthYearFromInput } from "@/lib/domain/team";
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -49,6 +50,7 @@ interface Participant {
   discipline?: string;
   disciplineCode?: string;
   shirtSize?: string;
+  moderationNote?: string;
   email?: string | null;
   phone?: string | null;
   pendingChanges?: { id: string; status: string }[];
@@ -922,12 +924,24 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               <div className="space-y-2">
                                 {team.participants.map((p, i) => {
                                   const disciplineDisplay = getDisciplineDisplay(p.discipline);
-                                  const birthYear = p.birthDate ? new Date(p.birthDate).getFullYear() : null;
+                                  const birthYear = p.birthDate ? extractBirthYearFromInput(p.birthDate) : null;
+                                  const canManageModerationNote =
+                                    canEditAll ||
+                                    (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own"));
                                   return (
                                     <div key={i} className="text-sm border border-border/40 shadow-sm rounded p-2 space-y-1">
                                       <div className="flex items-center justify-between">
                                         <span className="font-medium">{p.firstName} {p.lastName}</span>
                                         <div className="flex items-center gap-2">
+                                          {canManageModerationNote && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setEditingParticipant({ ...p, teamOwnerEmail: team.ownerEmail || team.contactEmail }); }}
+                                              className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
+                                              title="Moderationshinweis bearbeiten"
+                                            >
+                                              {p.moderationNote?.trim() ? "📝 Hinweis" : "📝 Hinzufuegen"}
+                                            </button>
+                                          )}
                                           {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own")) || (p.email === userEmail && can("participant.edit.self"))) && (
                                             <button
                                               onClick={(e) => { e.stopPropagation(); setEditingParticipant({ ...p, teamOwnerEmail: team.ownerEmail }); }}
@@ -1030,6 +1044,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         onSaved={() => { setEditingParticipant(null); fetchTeams(); }}
         directEdit={canEditAll || (editingParticipant?.teamOwnerEmail === userEmail)}
         isAdminEdit={canEditAll}
+        showModerationNote={canEditAll || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
       />
     </div>
   );
@@ -1043,6 +1058,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
   showAdminInfo?: boolean;
 }) {
   const [showInfo, setShowInfo] = useState(false);
+  const [openModerationNotes, setOpenModerationNotes] = useState<Record<number, boolean>>({});
   const [formData, setFormData] = useState({
     teamName: team.name,
     participants: team.participants || []
@@ -1056,6 +1072,13 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
 
   const handleSubmit = () => {
     onSave(formData);
+  };
+
+  const toggleModerationNote = (index: number) => {
+    setOpenModerationNotes((current) => ({
+      ...current,
+      [index]: !current[index],
+    }));
   };
 
   return (
@@ -1162,7 +1185,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                     <div>
                       <label className="text-xs text-muted-foreground">Geburtsdatum</label>
                       <Input
-                        type="date"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="TT.MM.JJJJ"
+                        autoComplete="bday"
                         value={participant.birthDate}
                         onChange={(e) => handleParticipantChange(index, 'birthDate', e.target.value)}
                         className="h-8"
@@ -1188,6 +1214,30 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                       </Select>
                     </div>
                   </div>
+                  <div className="pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={participant.moderationNote?.trim() ? "secondary" : "outline"}
+                      onClick={() => toggleModerationNote(index)}
+                      className="text-[11px]"
+                    >
+                      {participant.moderationNote?.trim() ? "📝 Moderationshinweis vorhanden" : "📝 Moderationshinweis"}
+                    </Button>
+                  </div>
+                  {openModerationNotes[index] && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Hinweis für Moderation (intern)</label>
+                      <Textarea
+                        value={participant.moderationNote || ""}
+                        onChange={(e) => handleParticipantChange(index, 'moderationNote', e.target.value)}
+                        placeholder="Optionaler interner Hinweis für Startliste / Moderation"
+                        maxLength={280}
+                        className="mt-1 min-h-[84px]"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">{(participant.moderationNote || "").length}/280 Zeichen</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -288,6 +288,7 @@ model Participant {
   gender          Gender
   disciplineCode  DisciplineAssignment @default(TBD)
   shirtSize       ShirtSize?
+  moderationNote  String?
   consentGiven    Boolean              @default(false)
   email           String?
   phone           String?

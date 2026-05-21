@@ -11,8 +11,7 @@ import {
   createDefaultTeamForm,
   DISCIPLINES,
   DISCIPLINE_PLACEHOLDER,
-  MIN_BIRTHDATE,
-  MAX_BIRTHDATE,
+  extractBirthYearFromInput,
   summarizeDisciplines,
   TeamRegistrationInput,
   TeamRegistrationSchema,
@@ -213,11 +212,11 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   );
   const liveClassification = useMemo(() => {
     const inputs = (watchedParticipants || [])
-      .filter((p: any) => p.birthDate && p.birthDate.length >= 4)
       .map((p: any) => ({
-        birthYear: new Date(p.birthDate).getFullYear(),
+        birthYear: extractBirthYearFromInput(p.birthDate),
         gender: p.gender as "M" | "W",
-      }));
+      }))
+      .filter((p: any) => p.birthYear !== null) as Array<{ birthYear: number; gender: "M" | "W" }>;
     return classifyTeam(inputs);
   }, [watchedValues]);
 
@@ -260,6 +259,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const disciplineSummary = useMemo(() => summarizeDisciplines(participants), [participants]);
   const shirtOrderClosed = useMemo(() => isShirtOrderClosed(competitionInfo?.shirtOrderDeadline), [competitionInfo?.shirtOrderDeadline]);
   const publicRegistrationStatus = useMemo(() => getPublicRegistrationStatus(competitionInfo), [competitionInfo]);
+  const showTestDataTools = !isAnonymousRegistration && competitionInfo?.status === "DRAFT";
 
   useEffect(() => {
     if (!userName) {
@@ -502,11 +502,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <Badge variant={publicRegistrationStatus.canRegister ? "default" : "secondary"}>
                       {publicRegistrationStatus.availabilityLabel}
                     </Badge>
-                    {competitionInfo?.maxTeams && competitionInfo.maxTeams > 0 && (
-                      <Badge variant="outline">
-                        {competitionInfo.teamCount}/{competitionInfo.maxTeams} Teams
-                      </Badge>
-                    )}
                   </div>
                   <div className="mt-2 space-y-1 text-sm text-muted-foreground">
                     <p>{publicRegistrationStatus.detail}</p>
@@ -652,9 +647,10 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                           <div>
                             <label className="text-xs text-muted-foreground">Geburtsdatum</label>
                             <input
-                              type="date"
-                              min={MIN_BIRTHDATE}
-                              max={MAX_BIRTHDATE}
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="TT.MM.JJJJ"
+                              autoComplete="bday"
                               className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
                               value={teamLeadBirthDate}
                               onChange={(e) => setTeamLeadBirthDate(e.target.value)}
@@ -739,30 +735,32 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   </div>
 
                   {/* Testdaten-Generierung OBEN */}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium">Test-Klasse</label>
-                      <select
-                        className="px-3 py-1.5 bg-background border border-input/60 rounded-md text-sm"
-                        value={testDataClass}
-                        onChange={(event) => setTestDataClass(event.target.value as TeamClassId)}
-                      >
-                        {TEAM_CLASSES.map((entry) => (
-                          <option key={entry.id} value={entry.id}>
-                            {entry.label}
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => applyTestData(testDataClass)}
-                      >
-                        🎲 Testdaten
-                      </Button>
+                  {showTestDataTools && (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium">Test-Klasse</label>
+                        <select
+                          className="px-3 py-1.5 bg-background border border-input/60 rounded-md text-sm"
+                          value={testDataClass}
+                          onChange={(event) => setTestDataClass(event.target.value as TeamClassId)}
+                        >
+                          {TEAM_CLASSES.map((entry) => (
+                            <option key={entry.id} value={entry.id}>
+                              {entry.label}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyTestData(testDataClass)}
+                        >
+                          🎲 Testdaten
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Navigation Buttons OBEN */}
                   <div className="flex gap-2">
@@ -816,9 +814,10 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               {...register(`participants.${index}.lastName` as const)}
                             />
                             <input
-                              type="date"
-                              min={MIN_BIRTHDATE}
-                              max={MAX_BIRTHDATE}
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="TT.MM.JJJJ"
+                              autoComplete="bday"
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.birthDate` as const)}
                             />
