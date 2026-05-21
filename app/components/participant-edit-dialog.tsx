@@ -217,8 +217,8 @@ export default function ParticipantEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center gap-2">
             ✏️ Teilnehmer bearbeiten
             {!directEdit && (
@@ -234,148 +234,152 @@ export default function ParticipantEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {!directEdit && statusMeta && (
-          <div className={"text-sm p-3 rounded-md " + statusMeta.className}>
-            <div className="font-medium">{statusMeta.title}</div>
-            <div>{statusMeta.text}</div>
-            {latestChange?.reviewComment ? (
-              <div className="mt-1 text-xs opacity-90">Kommentar der Orga: {latestChange.reviewComment}</div>
-            ) : null}
-            {hasPendingChange ? (
-              <div className="mt-1 text-xs opacity-90">Wenn du erneut speicherst, wird der offene Antrag mit deinem neuesten Stand aktualisiert.</div>
-            ) : null}
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          {!directEdit && statusMeta && (
+            <div className={"text-sm p-3 rounded-md " + statusMeta.className}>
+              <div className="font-medium">{statusMeta.title}</div>
+              <div>{statusMeta.text}</div>
+              {latestChange?.reviewComment ? (
+                <div className="mt-1 text-xs opacity-90">Kommentar der Orga: {latestChange.reviewComment}</div>
+              ) : null}
+              {hasPendingChange ? (
+                <div className="mt-1 text-xs opacity-90">Wenn du erneut speicherst, wird der offene Antrag mit deinem neuesten Stand aktualisiert.</div>
+              ) : null}
+            </div>
+          )}
 
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Vorname</label>
-              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="mt-1" />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Vorname</label>
+                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Nachname</label>
+                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className="mt-1" />
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Nachname</label>
-              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className="mt-1" />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Geburtsjahr</label>
-              <Input
-                type="number"
-                value={birthYear}
-                onChange={(e) => setBirthYear(e.target.value)}
-                min={1940}
-                max={2020}
-                className="mt-1"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Geburtsjahr</label>
+                <Input
+                  type="number"
+                  value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value)}
+                  min={1940}
+                  max={2020}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Geschlecht</label>
+                <Select value={gender} onValueChange={setGender}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MALE">Männlich</SelectItem>
+                    <SelectItem value="FEMALE">Weiblich</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Geschlecht</label>
-              <Select value={gender} onValueChange={setGender}>
+              <label className="text-xs font-medium text-muted-foreground">Disziplin-Zuordnung</label>
+              <Select value={disciplineCode} onValueChange={setDisciplineCode}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MALE">Männlich</SelectItem>
-                  <SelectItem value="FEMALE">Weiblich</SelectItem>
+                  <SelectItem value="TBD">Noch offen</SelectItem>
+                  {DISCIPLINES.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.icon} {d.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Disziplin-Zuordnung</label>
-            <Select value={disciplineCode} onValueChange={setDisciplineCode}>
-              <SelectTrigger className="mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="TBD">Noch offen</SelectItem>
-                {DISCIPLINES.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.icon} {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">T-Shirt-Größe</label>
-            <Select value={shirtSize || "none"} onValueChange={(value) => setShirtSize(value === "none" ? "" : value)} disabled={shirtLocked}>
-              <SelectTrigger className="mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Keine Angabe</SelectItem>
-                {SHIRT_SIZES.map((size) => (
-                  <SelectItem key={size.id} value={size.id}>
-                    {size.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {shirtLocked && (
-              <p className="mt-1 text-xs text-muted-foreground">Bestellfrist abgeschlossen, nur Admin kann noch ändern.</p>
-            )}
-          </div>
-
-          {showModerationNote && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Hinweis für Moderation (intern)</label>
-              <Textarea
-                value={moderationNote}
-                onChange={(e) => setModerationNote(e.target.value)}
-                placeholder="Optionaler interner Hinweis für Startliste / Moderation"
-                maxLength={280}
-                className="mt-1 min-h-[96px]"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">{moderationNote.length}/280 Zeichen</p>
+              <label className="text-xs font-medium text-muted-foreground">T-Shirt-Größe</label>
+              <Select value={shirtSize || "none"} onValueChange={(value) => setShirtSize(value === "none" ? "" : value)} disabled={shirtLocked}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  {SHIRT_SIZES.map((size) => (
+                    <SelectItem key={size.id} value={size.id}>
+                      {size.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {shirtLocked && (
+                <p className="mt-1 text-xs text-muted-foreground">Bestellfrist abgeschlossen, nur Admin kann noch ändern.</p>
+              )}
+            </div>
+
+            <div>
+              {showModerationNote && (
+                <>
+                  <label className="text-xs font-medium text-muted-foreground">Hinweis für Moderation (intern)</label>
+                  <Textarea
+                    value={moderationNote}
+                    onChange={(e) => setModerationNote(e.target.value)}
+                    placeholder="Optionaler interner Hinweis für Startliste / Moderation"
+                    maxLength={280}
+                    className="mt-1 min-h-[96px]"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">{moderationNote.length}/280 Zeichen</p>
+                </>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">E-Mail (optional)</label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="teilnehmer@example.de"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Telefon (optional)</label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+49 ..."
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded">{error}</div>
+          )}
+
+          {result && !result.applied && (
+            <div className="text-green-700 dark:text-green-300 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
+              ✅ {result.message || "Änderungsantrag eingereicht!"}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">E-Mail (optional)</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="teilnehmer@example.de"
-                className="mt-1"
-              />
+          {result?.applied && (
+            <div className="text-green-700 dark:text-green-300 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
+              ✅ Gespeichert!
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Telefon (optional)</label>
-              <Input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+49 ..."
-                className="mt-1"
-              />
-            </div>
-          </div>
+          )}
         </div>
 
-        {error && (
-          <div className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded">{error}</div>
-        )}
-
-        {result && !result.applied && (
-          <div className="text-green-700 dark:text-green-300 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
-            ✅ {result.message || "Änderungsantrag eingereicht!"}
-          </div>
-        )}
-
-        {result?.applied && (
-          <div className="text-green-700 dark:text-green-300 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
-            ✅ Gespeichert!
-          </div>
-        )}
-
-        <DialogFooter>
+        <DialogFooter className="border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
           </Button>

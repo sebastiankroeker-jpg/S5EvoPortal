@@ -1148,7 +1148,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Card className="flex w-full max-w-2xl max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <CardTitle>Team bearbeiten: {team.name}</CardTitle>
@@ -1159,7 +1159,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex-1 space-y-4 overflow-y-auto pb-6">
           {showAdminInfo && showInfo && (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm space-y-1">
               {team.createdAt && (
@@ -1313,15 +1313,15 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={onCancel}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleSubmit}>
-              💾 Speichern
-            </Button>
-          </div>
         </CardContent>
+        <div className="flex justify-end gap-3 border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          <Button variant="outline" onClick={onCancel}>
+            Abbrechen
+          </Button>
+          <Button onClick={handleSubmit}>
+            💾 Speichern
+          </Button>
+        </div>
       </Card>
     </div>
   );
