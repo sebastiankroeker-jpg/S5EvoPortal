@@ -153,7 +153,7 @@ export async function PUT(
     });
   }
 
-  if (isAdmin || isTeamOwner) {
+  if (isAdmin) {
     const updated = await prisma.$transaction(async (tx) => {
       const updatedParticipant = await tx.participant.update({
         where: { id },
@@ -180,7 +180,7 @@ export async function PUT(
           actorId: user.id,
           beforeData: serializeSnapshot(currentSnapshot),
           afterData: serializeSnapshot(requestedSnapshot),
-          message: isAdmin ? "Direkte Änderung durch Admin/Moderator" : "Direkte Änderung durch Teamchef",
+          message: "Direkte Änderung durch Admin/Moderator",
         },
       });
 

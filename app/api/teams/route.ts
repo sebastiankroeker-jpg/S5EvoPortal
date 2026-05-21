@@ -230,6 +230,7 @@ export async function GET(request: NextRequest) {
         include: {
           participants: {
             where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
             include: {
               pendingChanges: {
                 orderBy: { updatedAt: 'desc' },

@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
+import { sendParticipantChangeSubmittedEmails } from '@/lib/mail/participant-change';
+import { diffParticipantSnapshots, serializeSnapshot, toParticipantSnapshot } from '@/lib/participant-change';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { prisma } from '@/lib/prisma';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
@@ -137,6 +139,7 @@ export async function GET(
         include: {
           participants: {
             where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
             include: {
               pendingChanges: {
                 orderBy: { updatedAt: 'desc' },
@@ -213,6 +216,7 @@ export async function PUT(
         include: {
           participants: {
             where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
             include: {
               pendingChanges: {
                 orderBy: { updatedAt: 'desc' },
@@ -222,7 +226,20 @@ export async function PUT(
             }
           },
           owner: { select: { email: true, name: true } },
-          competition: { select: { tenantId: true } },
+          competition: {
+            select: {
+              tenantId: true,
+              name: true,
+              year: true,
+              registrationNotificationEmail: true,
+              tenant: {
+                select: {
+                  name: true,
+                  contactEmail: true,
+                },
+              },
+            },
+          },
         }
       });
 
@@ -242,6 +259,8 @@ export async function PUT(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
+      const canDirectEdit = access.canEditAllTeams;
+
       // Neue Klassifizierung berechnen
       const autoCategory = classifyTeam(teamData.participants);
       const normalizedTeamName = teamData.teamName?.trim();
@@ -251,6 +270,13 @@ export async function PUT(
         ? normalizedTeamName
         : existingTeam.name;
 
+      if (!canDirectEdit && finalTeamName !== existingTeam.name) {
+        return NextResponse.json(
+          { error: 'Teamname-Aenderungen laufen fuer Teamchefs noch nicht ueber den Genehmigungsworkflow. Bitte nur Teilnehmerdaten aendern.' },
+          { status: 409 }
+        );
+      }
+
       // Berechne neues Gesamtalter
       const validParticipants = teamData.participants
         .map((participant) => ({
@@ -259,6 +285,157 @@ export async function PUT(
         }))
         .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
       const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
+
+      if (!canDirectEdit) {
+        let createdRequests = 0;
+        let updatedRequests = 0;
+
+        for (let index = 0; index < teamData.participants.length; index += 1) {
+          const submittedParticipant = teamData.participants[index];
+          const existingParticipant = existingTeam.participants[index];
+
+          if (!submittedParticipant || !existingParticipant) continue;
+
+          const requestedBirthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
+          const currentSnapshot = toParticipantSnapshot(existingParticipant);
+          const requestedSnapshot = toParticipantSnapshot({
+            firstName: submittedParticipant.firstName,
+            lastName: submittedParticipant.lastName,
+            birthYear: requestedBirthYear,
+            gender: mapGender(submittedParticipant.gender),
+            disciplineCode: mapDiscipline(submittedParticipant.discipline),
+            shirtSize: submittedParticipant.shirtSize || null,
+            moderationNote: submittedParticipant.moderationNote?.trim() || null,
+            email: submittedParticipant.email || null,
+            phone: submittedParticipant.phone || null,
+          });
+
+          const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
+          if (Object.keys(changedFields).length === 0) {
+            continue;
+          }
+
+          const existingPendingChange = await prisma.pendingChange.findFirst({
+            where: {
+              participantId: existingParticipant.id,
+              status: 'PENDING',
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          if (existingPendingChange) {
+            updatedRequests += 1;
+            await prisma.$transaction(async (tx) => {
+              const updatedPendingChange = await tx.pendingChange.update({
+                where: { id: existingPendingChange.id },
+                data: {
+                  beforeData: serializeSnapshot(currentSnapshot),
+                  changeData: serializeSnapshot(requestedSnapshot),
+                  requestedById: user!.id,
+                  reviewComment: null,
+                  reviewedAt: null,
+                  reviewedById: null,
+                },
+              });
+
+              await tx.participantAuditLog.create({
+                data: {
+                  action: 'REQUEST_UPDATED',
+                  participantId: existingParticipant.id,
+                  actorId: user!.id,
+                  pendingChangeId: updatedPendingChange.id,
+                  beforeData: serializeSnapshot(currentSnapshot),
+                  afterData: serializeSnapshot(requestedSnapshot),
+                  message: 'Offene Aenderungsanfrage durch Teamchef aktualisiert',
+                },
+              });
+            });
+          } else {
+            createdRequests += 1;
+            await prisma.$transaction(async (tx) => {
+              const createdPendingChange = await tx.pendingChange.create({
+                data: {
+                  beforeData: serializeSnapshot(currentSnapshot),
+                  changeData: serializeSnapshot(requestedSnapshot),
+                  status: 'PENDING',
+                  participantId: existingParticipant.id,
+                  requestedById: user!.id,
+                },
+              });
+
+              await tx.participantAuditLog.create({
+                data: {
+                  action: 'REQUEST_SUBMITTED',
+                  participantId: existingParticipant.id,
+                  actorId: user!.id,
+                  pendingChangeId: createdPendingChange.id,
+                  beforeData: serializeSnapshot(currentSnapshot),
+                  afterData: serializeSnapshot(requestedSnapshot),
+                  message: 'Aenderungsanfrage durch Teamchef eingereicht',
+                },
+              });
+            });
+
+            await sendParticipantChangeSubmittedEmails({
+              competition: existingTeam.competition,
+              participant: {
+                name: existingParticipant.firstName + ' ' + existingParticipant.lastName,
+                email: existingParticipant.email,
+                teamName: existingTeam.name,
+                teamContactEmail: existingTeam.contactEmail,
+              },
+              requester: {
+                name: user?.name || userEmail || 'Teamchef',
+                email: userEmail,
+              },
+            });
+          }
+        }
+
+        const refreshedTeam = await prisma.team.findFirst({
+          where: { id, deletedAt: null },
+          include: {
+            participants: {
+              where: { deletedAt: null },
+              orderBy: { createdAt: 'asc' },
+              include: {
+                pendingChanges: {
+                  orderBy: { updatedAt: 'desc' },
+                  take: 1,
+                  select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true },
+                },
+              },
+            },
+            owner: { select: { email: true, name: true } },
+          },
+        });
+
+        if (!refreshedTeam) {
+          return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+        }
+
+        if (createdRequests === 0 && updatedRequests === 0) {
+          return NextResponse.json({
+            success: true,
+            applied: false,
+            message: 'Keine Aenderungen erkannt',
+            team: serializeTeam(refreshedTeam),
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          applied: false,
+          message:
+            createdRequests > 0 && updatedRequests > 0
+              ? `${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert`
+              : createdRequests > 0
+                ? `${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht`
+                : `${updatedRequests} offene Aenderungsanfrage(n) aktualisiert`,
+          pendingCount: createdRequests + updatedRequests,
+          team: serializeTeam(refreshedTeam),
+        });
+      }
 
       // Lösche alte Participants (soft delete)
       await prisma.participant.updateMany({
@@ -291,13 +468,14 @@ export async function PUT(
           }
         },
         include: {
-          participants: { where: { deletedAt: null } },
+          participants: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
           owner: { select: { email: true, name: true } }
         }
       });
 
       return NextResponse.json({ 
         success: true,
+        applied: true,
         message: `Team "${finalTeamName}" erfolgreich aktualisiert! Klasse: ${autoCategory}`,
         team: serializeTeam(updatedTeam)
       });

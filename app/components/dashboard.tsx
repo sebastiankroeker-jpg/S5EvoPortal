@@ -311,8 +311,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       });
       
       if (response.ok) {
+        const data = await response.json();
         setEditingTeam(null);
         await fetchTeams(); // Refresh list
+        if (data.applied === false && data.message) {
+          alert(data.message);
+        }
       } else {
         const error = await response.json();
         alert(`Fehler beim Speichern: ${error.error}`);
@@ -1107,7 +1111,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         open={!!editingParticipant}
         onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
         onSaved={() => { setEditingParticipant(null); fetchTeams(); }}
-        directEdit={canEditAll || (editingParticipant?.teamOwnerEmail === userEmail)}
+        directEdit={canEditAll}
         isAdminEdit={canEditAll}
         showModerationNote={canEditAll || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
       />
@@ -1160,6 +1164,11 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
           </div>
         </CardHeader>
         <CardContent className="flex-1 space-y-4 overflow-y-auto pb-6">
+          {!showAdminInfo && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Aenderungen durch Teamchefs werden jetzt zur Genehmigung eingereicht. Teamname bleibt in diesem Schritt schreibgeschuetzt.
+            </div>
+          )}
           {showAdminInfo && showInfo && (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm space-y-1">
               {team.createdAt && (
@@ -1186,6 +1195,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
               value={formData.teamName}
               onChange={(e) => setFormData({ ...formData, teamName: e.target.value })}
               className="mt-1"
+              disabled={!showAdminInfo}
             />
           </div>
 
@@ -1319,7 +1329,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
             Abbrechen
           </Button>
           <Button onClick={handleSubmit}>
-            💾 Speichern
+            {showAdminInfo ? "💾 Speichern" : "📨 Zur Genehmigung einreichen"}
           </Button>
         </div>
       </Card>
