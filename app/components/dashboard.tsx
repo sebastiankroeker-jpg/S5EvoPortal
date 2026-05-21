@@ -54,6 +54,13 @@ interface Participant {
   email?: string | null;
   phone?: string | null;
   pendingChanges?: { id: string; status: string }[];
+  latestChange?: {
+    id: string;
+    status: string;
+    updatedAt?: string | null;
+    reviewedAt?: string | null;
+    reviewComment?: string | null;
+  } | null;
 }
 
 interface DashboardProps {
@@ -129,6 +136,13 @@ function getParticipantsSummary(team: Team) {
     .map((participant) => `${participant.firstName} ${participant.lastName}`.trim())
     .filter(Boolean)
     .join(", ");
+}
+
+function getLatestChangeMeta(status?: string | null) {
+  if (status === "PENDING") return { label: "In Prüfung", className: "border-amber-300 text-amber-700" };
+  if (status === "APPROVED") return { label: "Genehmigt", className: "border-green-300 text-green-700" };
+  if (status === "REJECTED") return { label: "Abgelehnt", className: "border-red-300 text-red-700" };
+  return null;
 }
 
 function compareDates(a?: string, b?: string) {
@@ -932,7 +946,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     <div key={i} className="text-sm border border-border/40 shadow-sm rounded p-2 space-y-1">
                                       <div className="flex items-center justify-between">
                                         <span className="font-medium">{p.firstName} {p.lastName}</span>
-                                        <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2">
+                                          {getLatestChangeMeta(p.latestChange?.status) && (
+                                            <Badge
+                                              variant="outline"
+                                              className={getLatestChangeMeta(p.latestChange?.status)?.className}
+                                            >
+                                              {getLatestChangeMeta(p.latestChange?.status)?.label}
+                                            </Badge>
+                                          )}
                                           {canManageModerationNote && (
                                             <button
                                               onClick={(e) => { e.stopPropagation(); setEditingParticipant({ ...p, teamOwnerEmail: team.ownerEmail || team.contactEmail }); }}

@@ -44,10 +44,9 @@ export async function GET(
         },
       },
       pendingChanges: {
-        where: { status: "PENDING" },
-        orderBy: { createdAt: "desc" },
+        orderBy: { updatedAt: "desc" },
         take: 1,
-        select: { id: true, status: true, updatedAt: true },
+        select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true },
       },
     },
   });

@@ -30,8 +30,16 @@ interface Participant {
   moderationNote?: string | null;
   email?: string | null;
   phone?: string | null;
-  pendingChanges?: { id: string; status: string }[];
+  pendingChanges?: { id: string; status: string; updatedAt?: string | null; reviewedAt?: string | null; reviewComment?: string | null }[];
 }
+
+type ParticipantChangeStatus = {
+  id: string;
+  status: string;
+  updatedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewComment?: string | null;
+};
 
 interface ParticipantEditDialogProps {
   participant: Participant | null;
@@ -50,6 +58,34 @@ function normalizeGenderValue(value?: string | null) {
 
 function normalizeDisciplineValue(value?: string | null) {
   return value || "TBD";
+}
+
+function getStatusMeta(status?: string | null) {
+  if (status === "PENDING") {
+    return {
+      title: "Änderung in Prüfung",
+      text: "Dein letzter Änderungsantrag ist aktuell bei der Orga in Prüfung.",
+      className: "bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200",
+    };
+  }
+
+  if (status === "APPROVED") {
+    return {
+      title: "Letzte Änderung genehmigt",
+      text: "Deine letzte Änderungsanfrage wurde genehmigt.",
+      className: "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200",
+    };
+  }
+
+  if (status === "REJECTED") {
+    return {
+      title: "Letzte Änderung abgelehnt",
+      text: "Deine letzte Änderungsanfrage wurde abgelehnt.",
+      className: "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200",
+    };
+  }
+
+  return null;
 }
 
 export default function ParticipantEditDialog({
@@ -74,8 +110,10 @@ export default function ParticipantEditDialog({
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ applied: boolean; message?: string } | null>(null);
   const [error, setError] = useState("");
+  const [latestChange, setLatestChange] = useState<ParticipantChangeStatus | null>(null);
 
-  const hasPendingChange = participant?.pendingChanges?.some(c => c.status === "PENDING");
+  const hasPendingChange = latestChange?.status === "PENDING" || participant?.pendingChanges?.some(c => c.status === "PENDING");
+  const statusMeta = getStatusMeta(latestChange?.status);
 
   useEffect(() => {
     if (participant) {
@@ -89,6 +127,7 @@ export default function ParticipantEditDialog({
       setEmail(participant.email || "");
       setPhone(participant.phone || "");
       setShirtOrderDeadline(null);
+      setLatestChange(participant.pendingChanges?.[0] || null);
       setResult(null);
       setError("");
     }
@@ -113,6 +152,7 @@ export default function ParticipantEditDialog({
         setEmail(data.email || "");
         setPhone(data.phone || "");
         setShirtOrderDeadline(data.team?.competition?.shirtOrderDeadline || null);
+        setLatestChange(data.pendingChanges?.[0] || null);
       } catch (err) {
         console.error("Failed to load participant details:", err);
       }
@@ -149,10 +189,19 @@ export default function ParticipantEditDialog({
         throw new Error(data.error || "Speichern fehlgeschlagen");
       }
 
-      const data = await res.json();
-      setResult({ applied: data.applied, message: data.message });
+        const data = await res.json();
+        setResult({ applied: data.applied, message: data.message });
+        if (!data.applied) {
+          setLatestChange({
+            id: data.pendingChange?.id || "latest",
+            status: "PENDING",
+            updatedAt: new Date().toISOString(),
+            reviewedAt: null,
+            reviewComment: null,
+          });
+        }
 
-      if (data.applied) {
+        if (data.applied) {
         // Direkt angewendet — Dialog nach kurzer Anzeige schließen
         setTimeout(() => {
           onOpenChange(false);
@@ -185,9 +234,16 @@ export default function ParticipantEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {hasPendingChange && !directEdit && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 text-sm p-3 rounded-md">
-            ⏳ Es gibt bereits einen offenen Änderungsantrag. Wenn du erneut speicherst, wird dieser Antrag mit deinem neuesten Stand aktualisiert.
+        {!directEdit && statusMeta && (
+          <div className={"text-sm p-3 rounded-md " + statusMeta.className}>
+            <div className="font-medium">{statusMeta.title}</div>
+            <div>{statusMeta.text}</div>
+            {latestChange?.reviewComment ? (
+              <div className="mt-1 text-xs opacity-90">Kommentar der Orga: {latestChange.reviewComment}</div>
+            ) : null}
+            {hasPendingChange ? (
+              <div className="mt-1 text-xs opacity-90">Wenn du erneut speicherst, wird der offene Antrag mit deinem neuesten Stand aktualisiert.</div>
+            ) : null}
           </div>
         )}
 

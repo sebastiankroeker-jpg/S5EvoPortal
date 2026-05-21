@@ -43,6 +43,7 @@ function classifyTeam(participants: TeamRegistrationInput['participants']): stri
 
 function serializeParticipant(participant: any) {
   if (!participant) return null;
+  const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
   return {
     id: participant.id,
     firstName: participant.firstName,
@@ -54,6 +55,15 @@ function serializeParticipant(participant: any) {
     phone: participant.phone ?? "",
     discipline: participant.disciplineCode ?? "TBD",
     shirtSize: participant.shirtSize ?? "",
+    latestChange: latestChange
+      ? {
+          id: latestChange.id,
+          status: latestChange.status,
+          updatedAt: latestChange.updatedAt?.toISOString?.() ?? null,
+          reviewedAt: latestChange.reviewedAt?.toISOString?.() ?? null,
+          reviewComment: latestChange.reviewComment ?? null,
+        }
+      : null,
   };
 }
 
@@ -183,7 +193,16 @@ export async function GET(request: NextRequest) {
           deletedAt: null
         },
         include: {
-          participants: { where: { deletedAt: null } },
+          participants: {
+            where: { deletedAt: null },
+            include: {
+              pendingChanges: {
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+                select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
+              }
+            }
+          },
           owner: { select: { email: true, name: true } }
         }
       });
