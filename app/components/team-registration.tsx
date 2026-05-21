@@ -12,6 +12,7 @@ import {
   DISCIPLINES,
   DISCIPLINE_PLACEHOLDER,
   extractBirthYearFromInput,
+  formatBirthDateInput,
   summarizeDisciplines,
   TeamRegistrationInput,
   TeamRegistrationSchema,
@@ -261,13 +262,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const shirtOrderClosed = useMemo(() => isShirtOrderClosed(competitionInfo?.shirtOrderDeadline), [competitionInfo?.shirtOrderDeadline]);
   const publicRegistrationStatus = useMemo(() => getPublicRegistrationStatus(competitionInfo), [competitionInfo]);
   const showTestDataTools = !isAnonymousRegistration && competitionInfo?.status === "DRAFT";
-
-  const formatBirthDateInput = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 8);
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
-    return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
-  };
 
   useEffect(() => {
     if (!userName) {

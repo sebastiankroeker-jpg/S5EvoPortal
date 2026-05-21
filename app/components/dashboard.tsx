@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { DISCIPLINES, extractBirthYearFromInput } from "@/lib/domain/team";
+import { DISCIPLINES, extractBirthYearFromInput, formatBirthDateInput } from "@/lib/domain/team";
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -1190,7 +1190,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                         placeholder="TT.MM.JJJJ"
                         autoComplete="bday"
                         value={participant.birthDate}
-                        onChange={(e) => handleParticipantChange(index, 'birthDate', e.target.value)}
+                        onChange={(e) => handleParticipantChange(index, 'birthDate', formatBirthDateInput(e.target.value))}
                         className="h-8"
                       />
                     </div>

@@ -6,6 +6,16 @@ export const MAX_BIRTH_YEAR = 2018;
 export const MIN_BIRTHDATE = `${MIN_BIRTH_YEAR}-01-01`;
 export const MAX_BIRTHDATE = `${MAX_BIRTH_YEAR}-12-31`;
 
+export function formatBirthDateInput(input: string): string {
+  const digits = input.replace(/\D/g, "").slice(0, 8);
+  if (!digits) return "";
+  if (digits.length < 2) return digits;
+  if (digits.length === 2) return `${digits}.`;
+  if (digits.length < 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length === 4) return `${digits.slice(0, 2)}.${digits.slice(2)}.`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+}
+
 function isValidBirthDate(year: number, month: number, day: number) {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
   if (year < MIN_BIRTH_YEAR || year > MAX_BIRTH_YEAR) return false;
