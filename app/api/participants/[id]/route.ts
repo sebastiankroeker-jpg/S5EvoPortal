@@ -11,8 +11,10 @@ import {
   mergeParticipantSnapshot,
   recalculateTeamClassification,
   serializeSnapshot,
+  summarizeParticipantChanges,
   toParticipantSnapshot,
 } from "@/lib/participant-change";
+import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 
@@ -97,6 +99,16 @@ export async function PUT(
           id: true,
           name: true,
           contactEmail: true,
+          classificationCode: true,
+          participants: {
+            where: { deletedAt: null },
+            select: {
+              id: true,
+              birthYear: true,
+              gender: true,
+              disciplineCode: true,
+            },
+          },
           competition: {
             select: {
               name: true,
@@ -145,12 +157,47 @@ export async function PUT(
   const currentSnapshot = toParticipantSnapshot(participant);
   const requestedSnapshot = mergeParticipantSnapshot(currentSnapshot, changeData);
   const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
+  const changeSummary = summarizeParticipantChanges(currentSnapshot, requestedSnapshot);
+  const projectedTeamState = evaluateTeamState(
+    participant.team.participants.map((teamParticipant) =>
+      teamParticipant.id === participant.id
+        ? {
+            birthYear: typeof requestedSnapshot.birthYear === "number" ? requestedSnapshot.birthYear : null,
+            gender:
+              requestedSnapshot.gender === "MALE" ||
+              requestedSnapshot.gender === "FEMALE" ||
+              requestedSnapshot.gender === "M" ||
+              requestedSnapshot.gender === "W" ||
+              requestedSnapshot.gender === "D" ||
+              requestedSnapshot.gender === "DIVERSE"
+                ? requestedSnapshot.gender
+                : null,
+            disciplineCode: typeof requestedSnapshot.disciplineCode === "string" ? requestedSnapshot.disciplineCode : null,
+          }
+        : {
+            birthYear: teamParticipant.birthYear,
+            gender: teamParticipant.gender,
+            disciplineCode: teamParticipant.disciplineCode,
+          }
+    ),
+    participant.team.classificationCode,
+  );
 
   if (Object.keys(changedFields).length === 0) {
     return NextResponse.json({
       applied: false,
       message: "Keine Änderungen erkannt",
     });
+  }
+
+  if (!projectedTeamState.discipline.valid) {
+    return NextResponse.json(
+      {
+        error: projectedTeamState.discipline.warnings.join(" · "),
+        disciplineWarnings: projectedTeamState.discipline.warnings,
+      },
+      { status: 409 },
+    );
   }
 
   if (isAdmin) {
@@ -195,7 +242,10 @@ export async function PUT(
     return NextResponse.json({
       participant: updated,
       applied: true,
-      classificationWarnings,
+      classificationWarnings:
+        projectedTeamState.classificationWarnings.length > 0
+          ? projectedTeamState.classificationWarnings
+          : classificationWarnings,
     });
   }
 
@@ -274,6 +324,7 @@ export async function PUT(
         name: user.name || session.user.email || "Teilnehmer",
         email: session.user.email,
       },
+      changeSummary,
     });
   }
 
@@ -283,5 +334,6 @@ export async function PUT(
     message: existingPendingChange
       ? "Offener Änderungsantrag aktualisiert"
       : "Änderung zur Genehmigung eingereicht",
+    classificationWarnings: projectedTeamState.classificationWarnings,
   });
 }

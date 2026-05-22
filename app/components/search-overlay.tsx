@@ -74,6 +74,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "all-teams":
         switchToTab("dashboard");
         break;
+      case "changes":
+        router.push("/aenderungen");
+        break;
       case "live":
         switchToTab("live");
         break;

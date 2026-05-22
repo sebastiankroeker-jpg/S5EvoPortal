@@ -8,6 +8,7 @@ import {
   recalculateTeamClassification,
   serializeSnapshot,
   snapshotToParticipantUpdateData,
+  summarizeParticipantChanges,
   toParticipantSnapshot,
 } from "@/lib/participant-change";
 import { prisma } from "@/lib/prisma";
@@ -82,7 +83,9 @@ export async function PUT(
   }
 
   const liveSnapshot = toParticipantSnapshot(pendingChange.participant);
+  const beforeSnapshot = pendingChange.beforeData ? parseSnapshot(pendingChange.beforeData) : liveSnapshot;
   const requestedSnapshot = parseSnapshot(pendingChange.changeData);
+  const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
 
   if (action === "approve") {
     await prisma.$transaction(async (tx) => {
@@ -132,6 +135,7 @@ export async function PUT(
       },
       approved: true,
       reviewComment: comment || null,
+      changeSummary,
     });
 
     return NextResponse.json({ status: "approved", message: "Änderung genehmigt und angewendet" });
@@ -175,6 +179,7 @@ export async function PUT(
     },
     approved: false,
     reviewComment: comment || null,
+    changeSummary,
   });
 
   return NextResponse.json({ status: "rejected", message: "Änderung abgelehnt" });

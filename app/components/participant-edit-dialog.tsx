@@ -114,7 +114,7 @@ export default function ParticipantEditDialog({
   const [phone, setPhone] = useState("");
   const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<{ applied: boolean; message?: string } | null>(null);
+  const [result, setResult] = useState<{ applied: boolean; message?: string; classificationWarnings?: string[] } | null>(null);
   const [error, setError] = useState("");
   const [latestChange, setLatestChange] = useState<ParticipantChangeStatus | null>(null);
 
@@ -218,7 +218,11 @@ export default function ParticipantEditDialog({
       }
 
         const data = await res.json();
-        setResult({ applied: data.applied, message: data.message });
+        setResult({
+          applied: data.applied,
+          message: data.message,
+          classificationWarnings: Array.isArray(data.classificationWarnings) ? data.classificationWarnings : [],
+        });
         if (!data.applied) {
           setLatestChange({
             id: data.pendingChange?.id || "latest",
@@ -229,7 +233,7 @@ export default function ParticipantEditDialog({
           });
         }
 
-        if (data.applied) {
+        if (data.applied && (!Array.isArray(data.classificationWarnings) || data.classificationWarnings.length === 0)) {
         // Direkt angewendet — Dialog nach kurzer Anzeige schließen
         setTimeout(() => {
           onOpenChange(false);
@@ -275,6 +279,14 @@ export default function ParticipantEditDialog({
               ) : null}
             </div>
           )}
+
+          {result?.classificationWarnings && result.classificationWarnings.length > 0 ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {result.classificationWarnings.map((warning) => (
+                <div key={warning}>⚠️ {warning}</div>
+              ))}
+            </div>
+          ) : null}
 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">

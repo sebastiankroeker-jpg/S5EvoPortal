@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
-import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
+import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { prisma } from '@/lib/prisma';
@@ -284,11 +284,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
     }
 
-    const autoCategory = classifyTeam(teamData.participants);
+    const teamEvaluation = evaluateTeamState(
+      teamData.participants.map((participant) => ({
+        birthYear: extractBirthYearFromInput(participant.birthDate),
+        gender: participant.gender,
+        disciplineCode: participant.discipline,
+      })),
+    );
+    const autoCategory = teamEvaluation.classification.code;
     const finalTeamName = teamData.teamName?.trim();
 
     if (!finalTeamName || finalTeamName.length < 3) {
       return NextResponse.json({ error: 'Mannschaftsname ist erforderlich.' }, { status: 400 });
+    }
+
+    if (!teamEvaluation.discipline.valid) {
+      return NextResponse.json(
+        {
+          error: teamEvaluation.discipline.warnings.join(' · '),
+          disciplineWarnings: teamEvaluation.discipline.warnings,
+        },
+        { status: 409 }
+      );
     }
 
     try {
@@ -475,6 +492,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: true,
         message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
+        classificationWarnings: teamEvaluation.classificationWarnings,
         mail: mailSummary,
         team: serializeTeam(team)
       });

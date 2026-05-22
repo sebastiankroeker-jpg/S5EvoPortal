@@ -199,6 +199,9 @@ export default function Sidebar() {
             {can("team.view.all") && (
               <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard")} isActive={pathname === "/" && activeTab === "dashboard"} isCollapsed={isCollapsed} />
             )}
+            {can("team.view.all") && (
+              <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} isCollapsed={isCollapsed} />
+            )}
             {can("results.edit") && (
               <SidebarItem icon="✏️" label="Erfassung" onClick={() => {}} isCollapsed={isCollapsed} />
             )}

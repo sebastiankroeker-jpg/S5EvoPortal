@@ -24,6 +24,7 @@ import {
   formatBirthDateInput,
   resolveBirthDateInputKey,
 } from "@/lib/domain/team";
+import { classifyTeam, validateDisciplineAssignment } from "@/lib/domain/classification";
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -314,8 +315,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         const data = await response.json();
         setEditingTeam(null);
         await fetchTeams(); // Refresh list
-        if (data.applied === false && data.message) {
-          alert(data.message);
+        const notices = [
+          ...(data.message ? [data.message] : []),
+          ...((Array.isArray(data.classificationWarnings) ? data.classificationWarnings : []) as string[]),
+        ];
+        if (notices.length > 0) {
+          alert(notices.join("\n"));
         }
       } else {
         const error = await response.json();
@@ -1132,6 +1137,19 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
     teamName: team.name,
     participants: team.participants || []
   });
+  const liveClassification = useMemo(() => {
+    const inputs = formData.participants
+      .map((participant) => ({
+        birthYear: extractBirthYearFromInput(participant.birthDate),
+        gender: participant.gender as "M" | "W",
+      }))
+      .filter((participant) => participant.birthYear !== null) as Array<{ birthYear: number; gender: "M" | "W" }>;
+    return classifyTeam(inputs);
+  }, [formData.participants]);
+  const disciplineCheck = useMemo(
+    () => validateDisciplineAssignment(formData.participants.map((participant) => participant.discipline || participant.disciplineCode || "TBD")),
+    [formData.participants],
+  );
 
   const handleParticipantChange = (index: number, field: string, value: string) => {
     const newParticipants = [...formData.participants];
@@ -1167,6 +1185,13 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
           {!showAdminInfo && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               Aenderungen durch Teamchefs werden jetzt zur Genehmigung eingereicht. Teamname bleibt in diesem Schritt schreibgeschuetzt.
+            </div>
+          )}
+          {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {[...liveClassification.warnings, ...disciplineCheck.warnings].map((warning, index) => (
+                <div key={index}>⚠️ {warning}</div>
+              ))}
             </div>
           )}
           {showAdminInfo && showInfo && (

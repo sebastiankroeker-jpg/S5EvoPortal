@@ -18,6 +18,12 @@ export const PARTICIPANT_CHANGE_FIELDS = [
 export type ParticipantChangeField = typeof PARTICIPANT_CHANGE_FIELDS[number];
 
 export type ParticipantSnapshot = Record<ParticipantChangeField, string | number | null>;
+export type ParticipantChangeSummaryItem = {
+  field: ParticipantChangeField;
+  label: string;
+  before: string;
+  after: string;
+};
 
 export const PARTICIPANT_FIELD_LABELS: Record<ParticipantChangeField, string> = {
   firstName: "Vorname",
@@ -29,6 +35,24 @@ export const PARTICIPANT_FIELD_LABELS: Record<ParticipantChangeField, string> = 
   moderationNote: "Moderationshinweis",
   email: "E-Mail",
   phone: "Telefon",
+};
+
+const PARTICIPANT_GENDER_LABELS: Record<string, string> = {
+  MALE: "Herr",
+  M: "Herr",
+  FEMALE: "Dame",
+  W: "Dame",
+  DIVERSE: "Divers",
+  D: "Divers",
+};
+
+const PARTICIPANT_DISCIPLINE_LABELS: Record<string, string> = {
+  RUN: "Laufen",
+  BENCH: "Bankdruecken",
+  STOCK: "Stockschiessen",
+  ROAD: "Rennrad",
+  MTB: "Mountainbike",
+  TBD: "Noch offen",
 };
 
 export function toParticipantSnapshot(source: Partial<Record<ParticipantChangeField, unknown>>): ParticipantSnapshot {
@@ -130,6 +154,40 @@ export function diffParticipantSnapshots(before: ParticipantSnapshot, after: Par
     }
     return diff;
   }, {} as Partial<Record<ParticipantChangeField, { before: string | number | null; after: string | number | null }>>);
+}
+
+export function formatParticipantFieldValue(field: ParticipantChangeField, value: string | number | null) {
+  if (value === null || value === "") {
+    return "leer";
+  }
+
+  if (field === "gender" && typeof value === "string") {
+    return PARTICIPANT_GENDER_LABELS[value] || value;
+  }
+
+  if (field === "disciplineCode" && typeof value === "string") {
+    return PARTICIPANT_DISCIPLINE_LABELS[value] || value;
+  }
+
+  return String(value);
+}
+
+export function summarizeParticipantChanges(before: ParticipantSnapshot, after: ParticipantSnapshot): ParticipantChangeSummaryItem[] {
+  const diff = diffParticipantSnapshots(before, after);
+
+  return PARTICIPANT_CHANGE_FIELDS.flatMap((field) => {
+    const change = diff[field];
+    if (!change) {
+      return [];
+    }
+
+    return [{
+      field,
+      label: PARTICIPANT_FIELD_LABELS[field],
+      before: formatParticipantFieldValue(field, change.before),
+      after: formatParticipantFieldValue(field, change.after),
+    }];
+  });
 }
 
 export async function recalculateTeamClassification(teamId: string) {

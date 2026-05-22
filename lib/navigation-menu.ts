@@ -8,6 +8,7 @@ export interface NavigationMenuItem {
     | "live"
     | "profile"
     | "all-teams"
+    | "changes"
     | "administration"
     | "architecture"
     | "infrastructure"
@@ -60,6 +61,14 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Alle Teams",
     keywords: ["alle teams", "admin teams"],
     icon: "👥",
+    permission: "team.view.all",
+    requiresAuth: true,
+  },
+  {
+    id: "changes",
+    label: "Aenderungen",
+    keywords: ["aenderungen", "freigaben", "approval", "antraege", "queue"],
+    icon: "📝",
     permission: "team.view.all",
     requiresAuth: true,
   },

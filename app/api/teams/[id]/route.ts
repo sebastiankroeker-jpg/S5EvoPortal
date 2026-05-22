@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
-import { classifyTeam as classifyTeamShared } from '@/lib/domain/classification';
+import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedEmails } from '@/lib/mail/participant-change';
-import { diffParticipantSnapshots, serializeSnapshot, toParticipantSnapshot } from '@/lib/participant-change';
+import { diffParticipantSnapshots, serializeSnapshot, summarizeParticipantChanges, toParticipantSnapshot } from '@/lib/participant-change';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { prisma } from '@/lib/prisma';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
@@ -260,9 +260,27 @@ export async function PUT(
       }
 
       const canDirectEdit = access.canEditAllTeams;
+      const requestedTeamState = evaluateTeamState(
+        teamData.participants.map((participant) => ({
+          birthYear: extractBirthYearFromInput(participant.birthDate),
+          gender: participant.gender,
+          disciplineCode: participant.discipline,
+        })),
+        existingTeam.classificationCode,
+      );
+
+      if (!requestedTeamState.discipline.valid) {
+        return NextResponse.json(
+          {
+            error: requestedTeamState.discipline.warnings.join(' · '),
+            disciplineWarnings: requestedTeamState.discipline.warnings,
+          },
+          { status: 409 }
+        );
+      }
 
       // Neue Klassifizierung berechnen
-      const autoCategory = classifyTeam(teamData.participants);
+      const autoCategory = requestedTeamState.classification.code;
       const normalizedTeamName = teamData.teamName?.trim();
       
       // Team-Name beibehalten wenn leer
@@ -311,6 +329,7 @@ export async function PUT(
           });
 
           const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
+          const changeSummary = summarizeParticipantChanges(currentSnapshot, requestedSnapshot);
           if (Object.keys(changedFields).length === 0) {
             continue;
           }
@@ -388,6 +407,7 @@ export async function PUT(
                 name: user?.name || userEmail || 'Teamchef',
                 email: userEmail,
               },
+              changeSummary,
             });
           }
         }
@@ -419,6 +439,7 @@ export async function PUT(
             success: true,
             applied: false,
             message: 'Keine Aenderungen erkannt',
+            classificationWarnings: requestedTeamState.classificationWarnings,
             team: serializeTeam(refreshedTeam),
           });
         }
@@ -432,6 +453,7 @@ export async function PUT(
               : createdRequests > 0
                 ? `${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht`
                 : `${updatedRequests} offene Aenderungsanfrage(n) aktualisiert`,
+          classificationWarnings: requestedTeamState.classificationWarnings,
           pendingCount: createdRequests + updatedRequests,
           team: serializeTeam(refreshedTeam),
         });
@@ -477,6 +499,7 @@ export async function PUT(
         success: true,
         applied: true,
         message: `Team "${finalTeamName}" erfolgreich aktualisiert! Klasse: ${autoCategory}`,
+        classificationWarnings: requestedTeamState.classificationWarnings,
         team: serializeTeam(updatedTeam)
       });
 

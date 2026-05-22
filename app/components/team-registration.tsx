@@ -416,6 +416,11 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       return;
     }
 
+    if (!disciplineCheck.valid) {
+      setServerError(disciplineCheck.warnings.join(" · "));
+      return;
+    }
+
     try {
       const response = await fetch("/api/teams", {
         method: "POST",
@@ -441,6 +446,9 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       }
 
       setSubmitted(true);
+      if (Array.isArray(payload.classificationWarnings) && payload.classificationWarnings.length > 0) {
+        setSubmissionWarning(payload.classificationWarnings.join(" · "));
+      }
       reset(createDefaultTeamForm());
       setTeamLeadParticipates(false);
       setTeamLeadDiscipline(DISCIPLINES[0].id);

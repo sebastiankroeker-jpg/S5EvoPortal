@@ -6,10 +6,59 @@ type ParticipantChangeMailInput = {
   requestedByName: string;
   requestedByEmail: string;
   reviewComment?: string | null;
+  changeSummary?: Array<{
+    label: string;
+    before: string;
+    after: string;
+  }>;
 };
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildChangeSummaryHtml(changeSummary?: ParticipantChangeMailInput["changeSummary"]) {
+  if (!changeSummary || changeSummary.length === 0) {
+    return "";
+  }
+
+  const items = changeSummary
+    .map(
+      (change) =>
+        "<li><strong>" +
+        escapeHtml(change.label) +
+        ":</strong> " +
+        escapeHtml(change.before) +
+        " -&gt; " +
+        escapeHtml(change.after) +
+        "</li>",
+    )
+    .join("");
+
+  return "<p><strong>Geaenderte Daten:</strong></p><ul>" + items + "</ul>";
+}
+
+function buildChangeSummaryText(changeSummary?: ParticipantChangeMailInput["changeSummary"]) {
+  if (!changeSummary || changeSummary.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    "Geaenderte Daten:",
+    ...changeSummary.map((change) => "- " + change.label + ": " + change.before + " -> " + change.after),
+  ];
+}
 
 export function buildParticipantChangeSubmittedTeamMail(input: ParticipantChangeMailInput) {
   const subject = "Aenderungsanfrage eingegangen: " + input.participantName;
+  const changeSummaryHtml = buildChangeSummaryHtml(input.changeSummary);
+  const changeSummaryText = buildChangeSummaryText(input.changeSummary);
   return {
     subject,
     html:
@@ -19,6 +68,7 @@ export function buildParticipantChangeSubmittedTeamMail(input: ParticipantChange
       "<p>fuer <strong>" + input.participantName + "</strong> wurde eine Aenderungsanfrage zur Mannschaft <strong>" + input.teamName + "</strong> eingereicht.</p>" +
       "<p>Wettkampf: <strong>" + input.competitionName + " " + input.competitionYear + "</strong></p>" +
       "<p>Beantragt von: <strong>" + input.requestedByName + "</strong> (" + input.requestedByEmail + ")</p>" +
+      changeSummaryHtml +
       "<p>Die Anfrage liegt jetzt bei der Orga zur Pruefung vor.</p>" +
       "</div>",
     text: [
@@ -27,6 +77,7 @@ export function buildParticipantChangeSubmittedTeamMail(input: ParticipantChange
       "fuer " + input.participantName + " wurde eine Aenderungsanfrage zur Mannschaft " + input.teamName + " eingereicht.",
       "Wettkampf: " + input.competitionName + " " + input.competitionYear,
       "Beantragt von: " + input.requestedByName + " (" + input.requestedByEmail + ")",
+      ...changeSummaryText,
       "Die Anfrage liegt jetzt bei der Orga zur Pruefung vor.",
     ].join("\\n"),
   };
@@ -34,6 +85,8 @@ export function buildParticipantChangeSubmittedTeamMail(input: ParticipantChange
 
 export function buildParticipantChangeSubmittedOrgMail(input: ParticipantChangeMailInput) {
   const subject = "Neue Aenderungsanfrage: " + input.teamName + " / " + input.participantName;
+  const changeSummaryHtml = buildChangeSummaryHtml(input.changeSummary);
+  const changeSummaryText = buildChangeSummaryText(input.changeSummary);
   return {
     subject,
     html:
@@ -43,6 +96,7 @@ export function buildParticipantChangeSubmittedOrgMail(input: ParticipantChangeM
       "<p>Mannschaft: <strong>" + input.teamName + "</strong></p>" +
       "<p>Wettkampf: <strong>" + input.competitionName + " " + input.competitionYear + "</strong></p>" +
       "<p>Beantragt von: <strong>" + input.requestedByName + "</strong> (" + input.requestedByEmail + ")</p>" +
+      changeSummaryHtml +
       "<p>Bitte im Orga-Bereich pruefen und entscheiden.</p>" +
       "</div>",
     text: [
@@ -52,6 +106,7 @@ export function buildParticipantChangeSubmittedOrgMail(input: ParticipantChangeM
       "Mannschaft: " + input.teamName,
       "Wettkampf: " + input.competitionName + " " + input.competitionYear,
       "Beantragt von: " + input.requestedByName + " (" + input.requestedByEmail + ")",
+      ...changeSummaryText,
       "Bitte im Orga-Bereich pruefen und entscheiden.",
     ].join("\\n"),
   };
@@ -75,6 +130,8 @@ export function buildParticipantChangeDecisionMail(
   const commentText = input.reviewComment
     ? ["", "Kommentar der Orga: " + input.reviewComment]
     : [];
+  const changeSummaryHtml = buildChangeSummaryHtml(input.changeSummary);
+  const changeSummaryText = buildChangeSummaryText(input.changeSummary);
 
   return {
     subject,
@@ -86,6 +143,7 @@ export function buildParticipantChangeDecisionMail(
       "<p>Teilnehmer: <strong>" + input.participantName + "</strong></p>" +
       "<p>Mannschaft: <strong>" + input.teamName + "</strong></p>" +
       "<p>Wettkampf: <strong>" + input.competitionName + " " + input.competitionYear + "</strong></p>" +
+      changeSummaryHtml +
       commentBlock +
       "</div>",
     text: [
@@ -95,6 +153,7 @@ export function buildParticipantChangeDecisionMail(
       "Teilnehmer: " + input.participantName,
       "Mannschaft: " + input.teamName,
       "Wettkampf: " + input.competitionName + " " + input.competitionYear,
+      ...changeSummaryText,
       ...commentText,
     ].join("\\n"),
   };

@@ -21,6 +21,21 @@ export interface ClassificationResult {
   info: string[];
 }
 
+export interface TeamStateParticipantInput {
+  birthYear: number | null;
+  gender?: "M" | "W" | "D" | "MALE" | "FEMALE" | "DIVERSE" | null;
+  disciplineCode?: string | null;
+}
+
+export interface TeamStateEvaluation {
+  classification: ClassificationResult;
+  classificationWarnings: string[];
+  discipline: {
+    valid: boolean;
+    warnings: string[];
+  };
+}
+
 export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; desc: string }> = {
   "schueler-a": { label: "Schüler A", emoji: "🧒", desc: "Jg. 2016–2018" },
   "schueler-b": { label: "Schüler B", emoji: "🧒", desc: "Jg. 2013–2015" },
@@ -174,6 +189,32 @@ export function compareClassification(
   }
 
   return warnings;
+}
+
+export function evaluateTeamState(
+  participants: TeamStateParticipantInput[],
+  oldClassificationCode?: string | null,
+): TeamStateEvaluation {
+  const classificationInputs = participants
+    .filter((participant) => typeof participant.birthYear === "number" && participant.birthYear > 1900)
+    .map((participant) => ({
+      birthYear: participant.birthYear as number,
+      gender: participant.gender ?? "MALE",
+    }));
+
+  const classification = classifyTeam(classificationInputs);
+  const classificationWarnings = oldClassificationCode
+    ? compareClassification(oldClassificationCode, classification)
+    : [...classification.warnings];
+  const discipline = validateDisciplineAssignment(
+    participants.map((participant) => participant.disciplineCode ?? "TBD"),
+  );
+
+  return {
+    classification,
+    classificationWarnings,
+    discipline,
+  };
 }
 
 /**

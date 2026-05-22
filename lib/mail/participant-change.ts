@@ -28,14 +28,22 @@ type RequesterConfig = {
   email: string;
 };
 
+type ChangeSummaryConfig = Array<{
+  label: string;
+  before: string;
+  after: string;
+}>;
+
 export async function sendParticipantChangeSubmittedEmails({
   competition,
   participant,
   requester,
+  changeSummary,
 }: {
   competition: CompetitionMailConfig;
   participant: ParticipantMailConfig;
   requester: RequesterConfig;
+  changeSummary?: ChangeSummaryConfig;
 }) {
   const orgRecipients = resolveRegistrationNotificationEmail(competition);
   const teamRecipient = participant.teamContactEmail;
@@ -46,6 +54,7 @@ export async function sendParticipantChangeSubmittedEmails({
     participantName: participant.name,
     requestedByName: requester.name,
     requestedByEmail: requester.email,
+    changeSummary,
   };
 
   const tasks: Promise<unknown>[] = [];
@@ -81,12 +90,14 @@ export async function sendParticipantChangeDecisionEmail({
   requester,
   approved,
   reviewComment,
+  changeSummary,
 }: {
   competition: CompetitionMailConfig;
   participant: ParticipantMailConfig;
   requester: RequesterConfig;
   approved: boolean;
   reviewComment?: string | null;
+  changeSummary?: ChangeSummaryConfig;
 }) {
   const decisionRecipient = participant.email || participant.teamContactEmail;
   if (!decisionRecipient) {
@@ -102,6 +113,7 @@ export async function sendParticipantChangeDecisionEmail({
     requestedByEmail: requester.email,
     approved,
     reviewComment,
+    changeSummary,
   };
   const mail = buildParticipantChangeDecisionMail(input);
   await sendResendMail({

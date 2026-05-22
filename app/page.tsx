@@ -106,6 +106,13 @@ export default function Home() {
                     <p className="text-xs text-muted-foreground">Alle Teilnehmer suchen & bearbeiten</p>
                   </button>
                   {can("team.view.all") && (
+                    <button onClick={() => router.push('/aenderungen')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                      <span className="text-lg">📝</span>
+                      <p className="font-medium text-sm">Aenderungen</p>
+                      <p className="text-xs text-muted-foreground">Offene Antraege pruefen & freigeben</p>
+                    </button>
+                  )}
+                  {can("team.view.all") && (
                     <button onClick={() => router.push('/claim-links')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">🔐</span>
                       <p className="font-medium text-sm">Claim-Links</p>
@@ -139,7 +146,7 @@ export default function Home() {
                 </div>
 
                 {/* Approval Queue */}
-                <ApprovalQueue />
+                <ApprovalQueue variant="embedded" />
                 {/* Teilnehmerübersicht */}
                 <div id="participant-list">
                   <ParticipantList />
