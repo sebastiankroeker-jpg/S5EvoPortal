@@ -163,6 +163,7 @@ const disciplineEnum = z.enum([
 const shirtSizeEnum = z.enum(SHIRT_SIZE_IDS as [ShirtSizeId, ...ShirtSizeId[]]);
 
 export const ParticipantSchema = z.object({
+  id: z.string().optional(),
   firstName: z.string().min(2, "Vorname zu kurz"),
   lastName: z.string().min(2, "Nachname zu kurz"),
   birthDate: z

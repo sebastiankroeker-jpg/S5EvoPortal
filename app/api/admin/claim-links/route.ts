@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { buildRegistrationClaimUrl, createRegistrationClaimToken } from "@/lib/registration-claim";
+import { requireTenantRoles } from "@/lib/server-permissions";
 
 function isExpired(value?: Date | string | null) {
   if (!value) return false;
@@ -24,21 +25,7 @@ function getTokenStatus(token?: {
 
 async function requireAdminAccess() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return { error: NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 }) };
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { tenantRoles: true },
-  });
-
-  const isAdmin = user?.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
-  if (!isAdmin) {
-    return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
-  }
-
-  return { session, user };
+  return requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
 }
 
 export async function GET(request: NextRequest) {
@@ -46,15 +33,18 @@ export async function GET(request: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const competitionId = request.nextUrl.searchParams.get("competitionId");
-  const tenant = await prisma.tenant.findFirst({
-    orderBy: { createdAt: "asc" },
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: auth.tenantId },
     select: { claimLinksEnabled: true },
   });
 
   const teams = await prisma.team.findMany({
     where: {
       deletedAt: null,
-      ...(competitionId ? { competitionId } : {}),
+      competition: {
+        tenantId: auth.tenantId,
+        ...(competitionId ? { id: competitionId } : {}),
+      },
     },
     include: {
       owner: { select: { email: true, name: true } },
@@ -110,7 +100,13 @@ export async function POST(request: NextRequest) {
   }
 
   const team = await prisma.team.findFirst({
-    where: { id: teamId, deletedAt: null },
+    where: {
+      id: teamId,
+      deletedAt: null,
+      competition: {
+        tenantId: auth.tenantId,
+      },
+    },
     include: {
       owner: { select: { email: true, name: true } },
       competition: { select: { registrationDeadline: true } },
@@ -174,8 +170,8 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   if (body.action === "toggleGlobal") {
     const enabled = Boolean(body.enabled);
-    const tenant = await prisma.tenant.findFirst({
-      orderBy: { createdAt: "asc" },
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: auth.tenantId },
     });
 
     if (!tenant) {
@@ -201,10 +197,23 @@ export async function PATCH(request: NextRequest) {
 
   const token = await prisma.registrationClaimToken.findUnique({
     where: { id: tokenId },
+    include: {
+      team: {
+        include: {
+          competition: {
+            select: { tenantId: true },
+          },
+        },
+      },
+    },
   });
 
   if (!token) {
     return NextResponse.json({ error: "Claim-Link nicht gefunden" }, { status: 404 });
+  }
+
+  if (token.team.competition.tenantId !== auth.tenantId) {
+    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
   const updated = await prisma.registrationClaimToken.update({

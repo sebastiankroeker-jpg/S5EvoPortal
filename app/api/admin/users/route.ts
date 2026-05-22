@@ -2,33 +2,24 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { requireTenantRoles } from "@/lib/server-permissions";
 
 // GET /api/admin/users — Alle User mit Rollen laden
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
-  }
-
-  // Nur Admin
-  const currentUser = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { tenantRoles: true },
-  });
-
-  if (!currentUser) {
-    return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
-  }
-
-  const isAdmin = currentUser?.tenantRoles.some(r => r.role === "ADMIN");
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Nur Admins" }, { status: 403 });
-  }
+  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  if ("error" in auth) return auth.error;
 
   const users = await prisma.user.findMany({
-    where: { deletedAt: null },
+    where: {
+      deletedAt: null,
+      tenantRoles: {
+        some: { tenantId: auth.tenantId },
+      },
+    },
     include: {
       tenantRoles: {
+        where: { tenantId: auth.tenantId },
         include: { tenant: { select: { name: true } } },
       },
       _count: { select: { ownedTeams: true } },
@@ -39,7 +30,8 @@ export async function GET() {
   const adminCount = users.filter((user) => user.tenantRoles.some((role) => role.role === "ADMIN")).length;
 
   return NextResponse.json({
-    currentUserId: currentUser.id,
+    currentUserId: auth.user.id,
+    tenantId: auth.tenantId,
     adminCount,
     users: users.map((u) => ({
       id: u.id,

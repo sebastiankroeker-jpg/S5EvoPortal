@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { requireTenantRoles } from "@/lib/server-permissions";
 
 const typeEnum = ["BUG", "REQUEST"] as const;
 const statusEnum = ["OPEN", "IN_PROGRESS", "DONE"] as const;
@@ -23,23 +24,14 @@ function parseDate(value: string | null) {
   return isNaN(date.getTime()) ? undefined : date;
 }
 
-async function getAdminUser() {
+async function getAdminUser(): Promise<{ id: string } | NextResponse> {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
+  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  if ("error" in auth) {
+    return auth.error;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { tenantRoles: true },
-  });
-
-  const isAdmin = user?.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
-  if (!user || !isAdmin) {
-    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
-  }
-
-  return user;
+  return auth.user;
 }
 
 export async function GET(request: NextRequest) {

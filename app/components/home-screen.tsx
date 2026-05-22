@@ -202,7 +202,7 @@ export default function HomeScreen() {
     const loadData = async () => {
       try {
         const competitionUrl = activeCompetition?.id
-          ? `/api/admin/competition?id=${activeCompetition.id}`
+          ? (canViewAllTeams ? `/api/admin/competition?id=${activeCompetition.id}` : `/api/competition?id=${activeCompetition.id}`)
           : "/api/competition";
 
         // Load competition info for selected competition, with public fallback when no active competition is resolved

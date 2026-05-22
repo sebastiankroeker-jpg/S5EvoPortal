@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
   rankDiscipline,
   calculateTeamScores,
@@ -29,6 +31,13 @@ export async function GET(request: NextRequest) {
 
     if (!competition) {
       return NextResponse.json({ error: "Competition not found" }, { status: 404 });
+    }
+
+    if (!competition.publicResults) {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.email) {
+        return NextResponse.json({ error: "Results are not public" }, { status: 403 });
+      }
     }
 
     // Load all teams with participants and discipline results

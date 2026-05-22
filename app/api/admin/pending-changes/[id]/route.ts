@@ -12,6 +12,7 @@ import {
   toParticipantSnapshot,
 } from "@/lib/participant-change";
 import { prisma } from "@/lib/prisma";
+import { requireTenantRoles } from "@/lib/server-permissions";
 
 // PUT /api/admin/pending-changes/[id] — Approve oder Reject
 export async function PUT(
@@ -19,19 +20,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { tenantRoles: true },
-  });
-
-  const isAdmin = user?.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
-  if (!isAdmin || !user) {
-    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
-  }
+  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
@@ -59,6 +49,7 @@ export async function PUT(
                   registrationNotificationEmail: true,
                   tenant: {
                     select: {
+                      id: true,
                       name: true,
                       contactEmail: true,
                     },
@@ -82,6 +73,11 @@ export async function PUT(
     return NextResponse.json({ error: "Änderungsantrag nicht gefunden oder bereits bearbeitet" }, { status: 404 });
   }
 
+  const pendingChangeTenantId = pendingChange.participant.team.competition?.tenant?.id;
+  if (pendingChangeTenantId && pendingChangeTenantId !== auth.tenantId) {
+    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+  }
+
   const liveSnapshot = toParticipantSnapshot(pendingChange.participant);
   const beforeSnapshot = pendingChange.beforeData ? parseSnapshot(pendingChange.beforeData) : liveSnapshot;
   const requestedSnapshot = parseSnapshot(pendingChange.changeData);
@@ -99,7 +95,7 @@ export async function PUT(
         data: {
           status: "APPROVED",
           reviewedAt: new Date(),
-          reviewedById: user.id,
+          reviewedById: auth.user.id,
           reviewComment: comment || null,
         },
       });
@@ -108,7 +104,7 @@ export async function PUT(
         data: {
           action: "REQUEST_APPROVED",
           participantId: pendingChange.participantId,
-          actorId: user.id,
+          actorId: auth.user.id,
           pendingChangeId: pendingChange.id,
           beforeData: serializeSnapshot(liveSnapshot),
           afterData: serializeSnapshot(requestedSnapshot),
@@ -145,21 +141,21 @@ export async function PUT(
     await tx.pendingChange.update({
       where: { id },
       data: {
-        status: "REJECTED",
-        reviewedAt: new Date(),
-        reviewedById: user.id,
-        reviewComment: comment || null,
-      },
-    });
+          status: "REJECTED",
+          reviewedAt: new Date(),
+          reviewedById: auth.user.id,
+          reviewComment: comment || null,
+        },
+      });
 
     await tx.participantAuditLog.create({
       data: {
-        action: "REQUEST_REJECTED",
-        participantId: pendingChange.participantId,
-        actorId: user.id,
-        pendingChangeId: pendingChange.id,
-        beforeData: pendingChange.beforeData || serializeSnapshot(liveSnapshot),
-        afterData: serializeSnapshot(requestedSnapshot),
+          action: "REQUEST_REJECTED",
+          participantId: pendingChange.participantId,
+          actorId: auth.user.id,
+          pendingChangeId: pendingChange.id,
+          beforeData: pendingChange.beforeData || serializeSnapshot(liveSnapshot),
+          afterData: serializeSnapshot(requestedSnapshot),
         message: comment || "Änderungsanfrage abgelehnt",
       },
     });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { requireTenantRoles } from "@/lib/server-permissions";
 import { buildDeletedUserIdentity } from "@/lib/user-deletion";
 
 export async function DELETE(
@@ -9,21 +10,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
-  }
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { tenantRoles: true },
-  });
-
-  if (!currentUser?.tenantRoles.some((role) => role.role === "ADMIN")) {
-    return NextResponse.json({ error: "Nur Admins" }, { status: 403 });
-  }
+  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  if (id === currentUser.id) {
+  if (id === auth.user.id) {
     return NextResponse.json({ error: "Du kannst deinen eigenen Benutzer hier nicht löschen" }, { status: 400 });
   }
 
@@ -31,7 +22,13 @@ export async function DELETE(
     where: { id },
     include: {
       tenantRoles: true,
-      ownedTeams: { select: { id: true } },
+      ownedTeams: {
+        include: {
+          competition: {
+            select: { tenantId: true },
+          },
+        },
+      },
     },
   });
 
@@ -39,14 +36,27 @@ export async function DELETE(
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
   }
 
-  const hadAdminRole = targetUser.tenantRoles.some((role) => role.role === "ADMIN");
+  const tenantScopedRoles = targetUser.tenantRoles.filter((role) => role.tenantId === auth.tenantId);
+  if (tenantScopedRoles.length === 0) {
+    return NextResponse.json({ error: "User gehört nicht zu deinem Tenant" }, { status: 404 });
+  }
+
+  const hasForeignTenantRoles = targetUser.tenantRoles.some((role) => role.tenantId !== auth.tenantId);
+  const hasForeignOwnedTeams = targetUser.ownedTeams.some((team) => team.competition.tenantId !== auth.tenantId && !team.deletedAt);
+
+  if (hasForeignTenantRoles || hasForeignOwnedTeams) {
+    return NextResponse.json(
+      { error: "User ist noch anderen Tenants zugeordnet und kann nicht tenant-lokal geloescht werden" },
+      { status: 409 },
+    );
+  }
+
+  const hadAdminRole = tenantScopedRoles.some((role) => role.role === "ADMIN");
   if (hadAdminRole) {
-    const activeAdminCount = await prisma.user.count({
+    const activeAdminCount = await prisma.tenantRole.count({
       where: {
-        deletedAt: null,
-        tenantRoles: {
-          some: { role: "ADMIN" },
-        },
+        tenantId: auth.tenantId,
+        role: "ADMIN",
       },
     });
 
@@ -56,7 +66,9 @@ export async function DELETE(
   }
 
   const now = new Date();
-  const teamIds = targetUser.ownedTeams.map((team) => team.id);
+  const teamIds = targetUser.ownedTeams
+    .filter((team) => team.competition.tenantId === auth.tenantId)
+    .map((team) => team.id);
   const { archivedEmail, archivedAuthentikSub } = buildDeletedUserIdentity(targetUser.email, targetUser.id, now);
 
   await prisma.$transaction([
@@ -69,7 +81,7 @@ export async function DELETE(
       data: { deletedAt: now },
     }),
     prisma.tenantRole.deleteMany({
-      where: { userId: id },
+      where: { userId: id, tenantId: auth.tenantId },
     }),
     prisma.user.update({
       where: { id },

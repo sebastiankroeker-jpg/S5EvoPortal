@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
+import { requireTenantRoles } from '@/lib/server-permissions';
 
 function normalizeNotificationEmails(value: unknown) {
   if (typeof value !== 'string') {
@@ -23,19 +24,16 @@ function normalizeNotificationEmails(value: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireTenantRoles(session, ['ADMIN']);
+    if ('error' in auth) return auth.error;
 
     try {
       // If ?id= is provided, load that specific competition (admin switcher)
       const competitionId = request.nextUrl.searchParams.get('id');
       
       const competition = competitionId
-        ? await prisma.competition.findUnique({ where: { id: competitionId } })
-        : await prisma.competition.findFirst({ orderBy: { year: 'desc' } });
+        ? await prisma.competition.findFirst({ where: { id: competitionId, tenantId: auth.tenantId } })
+        : await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
 
       if (!competition) {
         return NextResponse.json({ error: 'No competition found' }, { status: 404 });
@@ -56,11 +54,8 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireTenantRoles(session, ['ADMIN']);
+    if ('error' in auth) return auth.error;
 
     const body = await request.json();
 
@@ -90,20 +85,8 @@ export async function PUT(request: NextRequest) {
     try {
       // Load specific competition by id, or fall back to latest
       let competition = body.id
-        ? await prisma.competition.findUnique({ where: { id: body.id } })
-        : await prisma.competition.findFirst({ orderBy: { year: 'desc' } });
-
-      // Für Competition brauchen wir einen Tenant
-      let tenant = await prisma.tenant.findFirst();
-      if (!tenant) {
-        tenant = await prisma.tenant.create({
-          data: {
-            name: "ESV Rosenheim",
-            slug: "esv-rosenheim",
-            primaryColor: "#dc2626",
-          }
-        });
-      }
+        ? await prisma.competition.findFirst({ where: { id: body.id, tenantId: auth.tenantId } })
+        : await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
 
       if (!competition) {
         // Erstelle neue Competition wenn keine existiert
@@ -126,7 +109,7 @@ export async function PUT(request: NextRequest) {
             stockStrikeoutCount: parseInt(body.stockStrikeoutCount) || 1,
             location: body.location || null,
             publicResults: Boolean(body.publicResults),
-            tenantId: tenant.id
+            tenantId: auth.tenantId
           }
         });
       } else {

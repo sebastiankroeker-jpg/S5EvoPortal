@@ -13,6 +13,22 @@ type ParticipantChangeMailInput = {
   }>;
 };
 
+type ParticipantChangeBatchMailInput = {
+  competitionName: string;
+  competitionYear: number;
+  teamName: string;
+  requestedByName: string;
+  requestedByEmail: string;
+  participants: Array<{
+    participantName: string;
+    changeSummary?: Array<{
+      label: string;
+      before: string;
+      after: string;
+    }>;
+  }>;
+};
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -55,6 +71,31 @@ function buildChangeSummaryText(changeSummary?: ParticipantChangeMailInput["chan
   ];
 }
 
+function buildBatchSummaryHtml(participants: ParticipantChangeBatchMailInput["participants"]) {
+  return participants
+    .map((participant) => {
+      const changeSummaryHtml = buildChangeSummaryHtml(participant.changeSummary);
+
+      return (
+        '<li style="margin-bottom:12px;">' +
+        "<strong>" + escapeHtml(participant.participantName) + "</strong>" +
+        changeSummaryHtml +
+        "</li>"
+      );
+    })
+    .join("");
+}
+
+function buildBatchSummaryText(participants: ParticipantChangeBatchMailInput["participants"]) {
+  return participants.flatMap((participant) => [
+    "",
+    participant.participantName,
+    ...(participant.changeSummary && participant.changeSummary.length > 0
+      ? participant.changeSummary.map((change) => "- " + change.label + ": " + change.before + " -> " + change.after)
+      : ["- Keine Feldliste verfuegbar"]),
+  ]);
+}
+
 export function buildParticipantChangeSubmittedTeamMail(input: ParticipantChangeMailInput) {
   const subject = "Aenderungsanfrage eingegangen: " + input.participantName;
   const changeSummaryHtml = buildChangeSummaryHtml(input.changeSummary);
@@ -84,7 +125,7 @@ export function buildParticipantChangeSubmittedTeamMail(input: ParticipantChange
 }
 
 export function buildParticipantChangeSubmittedOrgMail(input: ParticipantChangeMailInput) {
-  const subject = "Neue Aenderungsanfrage: " + input.teamName + " / " + input.participantName;
+  const subject = "Neue Aenderungsanfrage: " + input.teamName + " - " + input.participantName;
   const changeSummaryHtml = buildChangeSummaryHtml(input.changeSummary);
   const changeSummaryText = buildChangeSummaryText(input.changeSummary);
   return {
@@ -107,6 +148,77 @@ export function buildParticipantChangeSubmittedOrgMail(input: ParticipantChangeM
       "Wettkampf: " + input.competitionName + " " + input.competitionYear,
       "Beantragt von: " + input.requestedByName + " (" + input.requestedByEmail + ")",
       ...changeSummaryText,
+      "Bitte im Orga-Bereich pruefen und entscheiden.",
+    ].join("\\n"),
+  };
+}
+
+export function buildParticipantChangeSubmittedTeamBatchMail(input: ParticipantChangeBatchMailInput) {
+  const subject =
+    "Aenderungsanfrage eingegangen: " +
+    input.teamName +
+    " (" +
+    input.participants.length +
+    " Teilnehmer)";
+  const batchSummaryHtml = buildBatchSummaryHtml(input.participants);
+  const batchSummaryText = buildBatchSummaryText(input.participants);
+
+  return {
+    subject,
+    html:
+      '<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">' +
+      "<h2>Aenderungsanfrage eingegangen</h2>" +
+      "<p>Hallo Team,</p>" +
+      "<p>fuer die Mannschaft <strong>" + input.teamName + "</strong> wurden mehrere Aenderungen eingereicht.</p>" +
+      "<p>Wettkampf: <strong>" + input.competitionName + " " + input.competitionYear + "</strong></p>" +
+      "<p>Beantragt von: <strong>" + input.requestedByName + "</strong> (" + input.requestedByEmail + ")</p>" +
+      "<p><strong>Geaenderte Teilnehmer:</strong></p><ul>" + batchSummaryHtml + "</ul>" +
+      "<p>Die Anfrage liegt jetzt bei der Orga zur Pruefung vor.</p>" +
+      "</div>",
+    text: [
+      "Aenderungsanfrage eingegangen",
+      "",
+      "fuer die Mannschaft " + input.teamName + " wurden mehrere Aenderungen eingereicht.",
+      "Wettkampf: " + input.competitionName + " " + input.competitionYear,
+      "Beantragt von: " + input.requestedByName + " (" + input.requestedByEmail + ")",
+      "",
+      "Geaenderte Teilnehmer:",
+      ...batchSummaryText,
+      "Die Anfrage liegt jetzt bei der Orga zur Pruefung vor.",
+    ].join("\\n"),
+  };
+}
+
+export function buildParticipantChangeSubmittedOrgBatchMail(input: ParticipantChangeBatchMailInput) {
+  const subject =
+    "Neue Aenderungsanfrage: " +
+    input.teamName +
+    " (" +
+    input.participants.length +
+    " Teilnehmer)";
+  const batchSummaryHtml = buildBatchSummaryHtml(input.participants);
+  const batchSummaryText = buildBatchSummaryText(input.participants);
+
+  return {
+    subject,
+    html:
+      '<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">' +
+      "<h2>Neue Aenderungsanfrage</h2>" +
+      "<p>Mannschaft: <strong>" + input.teamName + "</strong></p>" +
+      "<p>Wettkampf: <strong>" + input.competitionName + " " + input.competitionYear + "</strong></p>" +
+      "<p>Beantragt von: <strong>" + input.requestedByName + "</strong> (" + input.requestedByEmail + ")</p>" +
+      "<p><strong>Geaenderte Teilnehmer:</strong></p><ul>" + batchSummaryHtml + "</ul>" +
+      "<p>Bitte im Orga-Bereich pruefen und entscheiden.</p>" +
+      "</div>",
+    text: [
+      "Neue Aenderungsanfrage",
+      "",
+      "Mannschaft: " + input.teamName,
+      "Wettkampf: " + input.competitionName + " " + input.competitionYear,
+      "Beantragt von: " + input.requestedByName + " (" + input.requestedByEmail + ")",
+      "",
+      "Geaenderte Teilnehmer:",
+      ...batchSummaryText,
       "Bitte im Orga-Bereich pruefen und entscheiden.",
     ].join("\\n"),
   };

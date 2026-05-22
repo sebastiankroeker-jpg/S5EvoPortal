@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { Role } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { requireTenantRoles } from "@/lib/server-permissions";
 
 const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"];
 
@@ -12,20 +13,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
-  }
-
-  // Nur Admin
-  const currentUser = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { tenantRoles: true },
-  });
-
-  const isAdmin = currentUser?.tenantRoles.some(r => r.role === "ADMIN");
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Nur Admins" }, { status: 403 });
-  }
+  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
   const body = await request.json();
@@ -46,18 +35,12 @@ export async function PUT(
   }
 
   // Self-protection: Admin kann sich nicht selbst ADMIN entziehen
-  if (id === currentUser?.id && !filteredRoles.includes("ADMIN")) {
+  if (id === auth.user.id && !filteredRoles.includes("ADMIN")) {
     return NextResponse.json({ error: "Du kannst dir selbst die Admin-Rolle nicht entziehen" }, { status: 400 });
   }
 
-  // Default-Tenant holen (erster Tenant)
-  const tenant = await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } });
-  if (!tenant) {
-    return NextResponse.json({ error: "Kein Tenant vorhanden" }, { status: 500 });
-  }
-
   const currentTenantRoles = await prisma.tenantRole.findMany({
-    where: { userId: id, tenantId: tenant.id },
+    where: { userId: id, tenantId: auth.tenantId },
     select: { role: true },
   });
   const hadAdminRole = currentTenantRoles.some((tenantRole) => tenantRole.role === "ADMIN");
@@ -65,7 +48,7 @@ export async function PUT(
 
   if (hadAdminRole && !keepsAdminRole) {
     const adminCount = await prisma.tenantRole.count({
-      where: { tenantId: tenant.id, role: "ADMIN" },
+      where: { tenantId: auth.tenantId, role: "ADMIN" },
     });
 
     if (adminCount <= 1) {
@@ -76,18 +59,18 @@ export async function PUT(
   // Bestehende Rollen für diesen Tenant löschen und neue setzen
   await prisma.$transaction([
     prisma.tenantRole.deleteMany({
-      where: { userId: id, tenantId: tenant.id },
+      where: { userId: id, tenantId: auth.tenantId },
     }),
     ...filteredRoles.map((role) =>
       prisma.tenantRole.create({
         data: {
           userId: id,
-          tenantId: tenant.id,
+          tenantId: auth.tenantId,
           role,
         },
       })
     ),
   ]);
 
-  return NextResponse.json({ success: true, roles: filteredRoles });
+  return NextResponse.json({ success: true, roles: filteredRoles, tenantId: auth.tenantId });
 }

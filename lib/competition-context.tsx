@@ -45,6 +45,26 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
       try {
         const res = await fetch("/api/admin/competitions");
         if (!res.ok) {
+          const publicRes = await fetch("/api/competition");
+          if (!publicRes.ok) {
+            setLoading(false);
+            return;
+          }
+
+          const data = await publicRes.json();
+          const competition = data.competition;
+          const comps: CompetitionInfo[] = competition
+            ? [{
+                id: competition.id,
+                name: competition.name,
+                year: competition.year,
+                status: competition.status,
+                teamCount: competition.teamCount ?? 0,
+              }]
+            : [];
+
+          setAll(comps);
+          setActiveId(comps[0]?.id ?? null);
           setLoading(false);
           return;
         }

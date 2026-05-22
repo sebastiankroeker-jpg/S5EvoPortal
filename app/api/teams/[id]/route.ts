@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
-import { sendParticipantChangeSubmittedEmails } from '@/lib/mail/participant-change';
+import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
 import { diffParticipantSnapshots, serializeSnapshot, summarizeParticipantChanges, toParticipantSnapshot } from '@/lib/participant-change';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { prisma } from '@/lib/prisma';
@@ -18,6 +18,21 @@ function mapGender(g: string): "MALE" | "FEMALE" {
 function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | "TBD" {
   const valid = ["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"] as const;
   return valid.includes(d as (typeof valid)[number]) ? (d as (typeof valid)[number]) : "TBD";
+}
+
+function findExistingParticipantBySubmittedData(
+  submittedParticipant: TeamRegistrationInput["participants"][number],
+  existingParticipants: Array<SerializableParticipant>,
+  fallbackIndex: number,
+) {
+  if (submittedParticipant.id) {
+    const byId = existingParticipants.find((participant) => participant.id === submittedParticipant.id);
+    if (byId) {
+      return byId;
+    }
+  }
+
+  return existingParticipants[fallbackIndex];
 }
 
 function classifyTeam(participants: TeamRegistrationInput['participants']): string {
@@ -307,10 +322,18 @@ export async function PUT(
       if (!canDirectEdit) {
         let createdRequests = 0;
         let updatedRequests = 0;
+        const createdChangeMailItems: Array<{
+          participantName: string;
+          changeSummary: ReturnType<typeof summarizeParticipantChanges>;
+        }> = [];
 
         for (let index = 0; index < teamData.participants.length; index += 1) {
           const submittedParticipant = teamData.participants[index];
-          const existingParticipant = existingTeam.participants[index];
+          const existingParticipant = findExistingParticipantBySubmittedData(
+            submittedParticipant,
+            existingTeam.participants,
+            index,
+          );
 
           if (!submittedParticipant || !existingParticipant) continue;
 
@@ -395,21 +418,24 @@ export async function PUT(
               });
             });
 
-            await sendParticipantChangeSubmittedEmails({
-              competition: existingTeam.competition,
-              participant: {
-                name: existingParticipant.firstName + ' ' + existingParticipant.lastName,
-                email: existingParticipant.email,
-                teamName: existingTeam.name,
-                teamContactEmail: existingTeam.contactEmail,
-              },
-              requester: {
-                name: user?.name || userEmail || 'Teamchef',
-                email: userEmail,
-              },
+            createdChangeMailItems.push({
+              participantName: existingParticipant.firstName + ' ' + existingParticipant.lastName,
               changeSummary,
             });
           }
+        }
+
+        if (createdChangeMailItems.length > 0) {
+          await sendParticipantChangeSubmittedBatchEmails({
+            competition: existingTeam.competition,
+            teamName: finalTeamName,
+            teamContactEmail: existingTeam.contactEmail,
+            requester: {
+              name: user?.name || userEmail || 'Teamchef',
+              email: userEmail,
+            },
+            participants: createdChangeMailItems,
+          });
         }
 
         const refreshedTeam = await prisma.team.findFirst({

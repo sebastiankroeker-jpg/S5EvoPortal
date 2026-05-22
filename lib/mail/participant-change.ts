@@ -1,7 +1,9 @@
 import { sendResendMail } from "@/lib/mail/resend";
 import {
   buildParticipantChangeDecisionMail,
+  buildParticipantChangeSubmittedOrgBatchMail,
   buildParticipantChangeSubmittedOrgMail,
+  buildParticipantChangeSubmittedTeamBatchMail,
   buildParticipantChangeSubmittedTeamMail,
 } from "@/lib/mail/templates/participant-change";
 import { resolveRegistrationNotificationEmail } from "@/lib/mail/team-registration";
@@ -72,6 +74,63 @@ export async function sendParticipantChangeSubmittedEmails({
 
   if (orgRecipients.length > 0) {
     const mail = buildParticipantChangeSubmittedOrgMail(input);
+    tasks.push(sendResendMail({
+      to: orgRecipients,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      replyTo: requester.email,
+    }));
+  }
+
+  await Promise.allSettled(tasks);
+}
+
+export async function sendParticipantChangeSubmittedBatchEmails({
+  competition,
+  teamName,
+  teamContactEmail,
+  requester,
+  participants,
+}: {
+  competition: CompetitionMailConfig;
+  teamName: string;
+  teamContactEmail?: string | null;
+  requester: RequesterConfig;
+  participants: Array<{
+    participantName: string;
+    changeSummary?: ChangeSummaryConfig;
+  }>;
+}) {
+  if (participants.length === 0) {
+    return;
+  }
+
+  const orgRecipients = resolveRegistrationNotificationEmail(competition);
+  const input = {
+    competitionName: competition.name,
+    competitionYear: competition.year,
+    teamName,
+    requestedByName: requester.name,
+    requestedByEmail: requester.email,
+    participants,
+  };
+
+  const tasks: Promise<unknown>[] = [];
+
+  if (teamContactEmail) {
+    const mail = buildParticipantChangeSubmittedTeamBatchMail(input);
+    tasks.push(sendResendMail({
+      to: teamContactEmail,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      replyTo: process.env.MAIL_REPLY_TO || orgRecipients[0] || undefined,
+    }));
+  }
+
+  if (orgRecipients.length > 0) {
+    const mail = buildParticipantChangeSubmittedOrgBatchMail(input);
     tasks.push(sendResendMail({
       to: orgRecipients,
       subject: mail.subject,

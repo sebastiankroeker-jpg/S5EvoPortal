@@ -17,6 +17,7 @@ import {
 import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
+import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
 export async function GET(
@@ -42,6 +43,7 @@ export async function GET(
               id: true,
               status: true,
               shirtOrderDeadline: true,
+              tenantId: true,
             },
           },
         },
@@ -60,10 +62,12 @@ export async function GET(
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: { tenantRoles: true },
   });
 
-  const isAdmin = user?.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
+  const access = user
+    ? await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId)
+    : null;
+  const isAdmin = Boolean(access?.isAdmin || access?.isModerator);
   const isTeamOwner = participant.team.contactEmail === session.user.email;
   const isSelf = participant.email === session.user.email;
 
@@ -115,6 +119,7 @@ export async function PUT(
               year: true,
               shirtOrderDeadline: true,
               registrationNotificationEmail: true,
+              tenantId: true,
               tenant: {
                 select: {
                   name: true,
@@ -134,14 +139,14 @@ export async function PUT(
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: { tenantRoles: true },
   });
 
   if (!user) {
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
   }
 
-  const isAdmin = user.tenantRoles.some((role) => role.role === "ADMIN" || role.role === "MODERATOR");
+  const access = await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId);
+  const isAdmin = access.isAdmin || access.isModerator;
   const isTeamOwner = participant.team.contactEmail === session.user.email;
   const isSelf = participant.email === session.user.email;
   const shirtOrderClosed = isShirtOrderClosed(participant.team.competition?.shirtOrderDeadline);

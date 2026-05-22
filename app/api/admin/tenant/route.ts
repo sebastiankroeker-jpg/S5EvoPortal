@@ -2,21 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { requireTenantRoles } from '@/lib/server-permissions';
 
 // GET aktueller Tenant
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireTenantRoles(session, ['ADMIN']);
+    if ('error' in auth) return auth.error;
 
     try {
-      // Hole ersten/aktuellen Tenant
-      const tenant = await prisma.tenant.findFirst({
-        orderBy: { createdAt: 'asc' }
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: auth.tenantId },
       });
 
       if (!tenant) {
@@ -38,11 +35,8 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireTenantRoles(session, ['ADMIN']);
+    if ('error' in auth) return auth.error;
 
     const body = await request.json();
 
@@ -54,43 +48,28 @@ export async function PUT(request: NextRequest) {
     }
 
     try {
-      // Hole ersten/aktuellen Tenant
-      let tenant = await prisma.tenant.findFirst({
-        orderBy: { createdAt: 'asc' }
+      const existingTenant = await prisma.tenant.findUnique({
+        where: { id: auth.tenantId },
       });
 
-      if (!tenant) {
-        // Erstelle neuen Tenant wenn keiner existiert
-        tenant = await prisma.tenant.create({
-          data: {
-            name: body.name,
-            slug: body.slug,
-            primaryColor: body.primaryColor || "#dc2626",
-            logoUrl: body.logoUrl || null,
-            heroImageUrl: body.heroImageUrl || null,
-            contactEmail: body.contactEmail || null,
-            website: body.website || null,
-            privacyText: body.privacyText || null,
-            defaultTheme: body.defaultTheme || "DARK"
-          }
-        });
-      } else {
-        // Update existierenden Tenant
-        tenant = await prisma.tenant.update({
-          where: { id: tenant.id },
-          data: {
-            name: body.name,
-            slug: body.slug,
-            primaryColor: body.primaryColor || tenant.primaryColor,
-            logoUrl: body.logoUrl,
-            heroImageUrl: body.heroImageUrl,
-            contactEmail: body.contactEmail,
-            website: body.website,
-            privacyText: body.privacyText,
-            defaultTheme: body.defaultTheme || tenant.defaultTheme
-          }
-        });
+      if (!existingTenant) {
+        return NextResponse.json({ error: 'Tenant nicht gefunden' }, { status: 404 });
       }
+
+      const tenant = await prisma.tenant.update({
+        where: { id: existingTenant.id },
+        data: {
+          name: body.name,
+          slug: body.slug,
+          primaryColor: body.primaryColor || existingTenant.primaryColor,
+          logoUrl: body.logoUrl,
+          heroImageUrl: body.heroImageUrl,
+          contactEmail: body.contactEmail,
+          website: body.website,
+          privacyText: body.privacyText,
+          defaultTheme: body.defaultTheme || existingTenant.defaultTheme
+        }
+      });
 
       return NextResponse.json({ 
         success: true,
