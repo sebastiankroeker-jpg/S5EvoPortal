@@ -27,7 +27,7 @@
 |---|---|---|
 | **Administrator** | Vollzugriff: Wettkampf-Setup, User-Verwaltung, Approvals | Direktzugriff |
 | **Moderator** | Ergebnis-Erfassung, Startlisten, Export, Kommentare | Read + Erfassung |
-| **Teamchef** | Team anlegen, eigene Teilnehmer verwalten | Direkte Änderungen |
+| **Teamchef** | Team anlegen, eigene Teilnehmer verwalten | Änderungen → Approval-Queue |
 | **Teilnehmer** | Nur eigene Daten editieren | Änderungen → Approval-Queue |
 | **Zuschauer** | Öffentliche Ergebnistafel (kein Login nötig) | Read-only |
 
@@ -134,17 +134,19 @@
 - Teamchef kann **Teilnehmer oder reiner Betreuer** sein (z.B. Elternteil bei Kindermannschaften)
 - Wenn Teamchef selbst antritt, zählt er als einer der 5 Teilnehmer
 - **consentGiven = true** ist Pflicht pro Teilnehmer (DSGVO)
+- Pro Teilnehmer kann optional ein **interner Moderationshinweis** gepflegt werden; sichtbar nur intern im Portal und optional für Startlisten-Ausgaben nutzbar
 - Schüler/Jugend: Alle Teilnehmer müssen im gleichen Jahrgangsbereich liegen
 - **Mindestalter:** Jahrgänge jünger als Schüler A (nach 2018) sind nicht erlaubt
 - Erwachsene: Gesamtalter aller 5 Teilnehmer bestimmt Klasse
 - Reines Frauenteam (alle 5 weiblich) → Damen-Wertung
+- Orga/Admin kann ein **Claim-Link Dashboard** nutzen, um Übernahmelinks intern einzusehen, neue Links für Supportfälle zu erzeugen und aktive Links bei Bedarf zu sperren
 - Gemischtes oder reines Männerteam → Herren-Wertung (Jungsters/Herren/Masters nach Gesamtalter)
+- Sobald mindestens ein männlicher Teilnehmer in der Mannschaft ist, startet das Team in der Herren-Wertung
 
 ### Disziplin-Zuordnung (pro Team)
 - Jeder Teilnehmer wird **genau einer Disziplin** zugeordnet (Dropdown)
-- Doppelnennungen sind erlaubt (z.B. zwei Läufer im selben Team)
-- **"TBD"** als Platzhalter ist erlaubt — auch mehrfach innerhalb einer Mannschaft
-- TBD muss **vor Wettkampfbeginn** durch eine echte Disziplin ersetzt werden
+- Jede der 5 Disziplinen muss in einer Mannschaft **genau einmal** vergeben sein
+- **"TBD"** ist nur als kurzfristiger UI-Zwischenzustand während der Bearbeitung zulässig, darf aber **nicht gespeichert** werden
 - Ziel: Teamchef sieht jederzeit, welche Disziplinen bereits besetzt sind
 
 ### Default-Rollen (Neu-Registrierung)
@@ -154,13 +156,19 @@
 - Damit sehen Neu-Registrierte sofort den Anmelde-Tab (Fix vom 30.03.2026)
 
 ### Approval-Workflow
-- **Teamchef:** Direkte Änderungen an Team + Teilnehmern
+- **Teamchef:** Änderungen an Teilnehmerdaten laufen ebenfalls über die Approval-Queue
 - **Teilnehmer:** Nur eigene Daten → Approval-Queue
 - **Admin:** Alles + Approvals abarbeiten
 - **Klassenänderung durch Datenänderung:** Automatische Neuberechnung + Extra-Approval
+- Wenn Geburtsdatum oder Geschlecht zu einer anderen Mannschaftsklasse führen würden, muss der Änderungsflow das direkt als Hinweis anzeigen
 - Änderungsanträge sollen für Orga **auditierbar** bleiben (wer, was, wann, alter/neuer Wert, Review-Entscheid)
+- Änderungs-Mails an Team/Orga und Review-Entscheidungen sollen die konkret geänderten Felder mit altem und neuem Wert enthalten
 - Im UI soll der Status für Änderungsanträge klar sichtbar sein, mindestens **„in Prüfung“** und **„genehmigt“** (optional auch **„abgelehnt“**)
 - Folgeausbau nach Testfreigabe: Orga-Mail bei eingereichten Änderungen mit Deep-Link ins Mannschafts-/Admin-Dashboard zur Freigabe
+- Pro Teilnehmer ist in V1 **genau eine offene Änderungsanfrage** gleichzeitig erlaubt; weitere Eingaben aktualisieren den bestehenden offenen Antrag
+- Direkte Änderungen durch **Admin/Moderator** werden ohne Freigabe angewendet, aber auditierbar protokolliert
+- Änderungs-Mails an die Orga gehen an **alle** im Wettbewerb hinterlegten \`registrationNotificationEmail\`-Empfänger
+- Rückfragen erhalten in V1 **keinen eigenen Workflow-Status**; es gibt zunächst nur \`PENDING\`, \`APPROVED\`, \`REJECTED\`
 
 ### Anmelde- & Login-Modi
 - Mannschaftsanmeldung muss **ohne vorherigen Login** möglich bleiben
