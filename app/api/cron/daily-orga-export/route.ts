@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const competitionId = request.nextUrl.searchParams.get("competitionId") || undefined;
-    const competitions = await loadCompetitionsForDailyExport(competitionId);
+    const competitions = await loadCompetitionsForDailyExport({ competitionId });
 
     if (competitions.length === 0) {
       return NextResponse.json({

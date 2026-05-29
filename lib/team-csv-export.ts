@@ -74,10 +74,21 @@ export function resolveCompetitionExportRecipients(competition: {
   return normalizeRecipientList(competition.tenant?.contactEmail);
 }
 
-export async function loadCompetitionsForDailyExport(competitionId?: string) {
+type CompetitionExportQuery = {
+  competitionId?: string;
+  tenantId?: string;
+  openOnly?: boolean;
+};
+
+export async function loadCompetitionsForDailyExport({
+  competitionId,
+  tenantId,
+  openOnly = true,
+}: CompetitionExportQuery = {}) {
   return prisma.competition.findMany({
     where: {
-      status: "OPEN",
+      ...(openOnly ? { status: "OPEN" } : {}),
+      ...(tenantId ? { tenantId } : {}),
       ...(competitionId ? { id: competitionId } : {}),
     },
     orderBy: [{ year: "desc" }, { createdAt: "desc" }],

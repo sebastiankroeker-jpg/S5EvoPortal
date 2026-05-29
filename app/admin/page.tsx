@@ -225,6 +225,34 @@ export default function AdminPage() {
     }
   };
 
+  const handleSendCompetitionExport = async () => {
+    if (!activeCompetition?.id) {
+      showMessage('error', 'Kein aktiver Wettkampf ausgewählt');
+      return;
+    }
+
+    setSaving('competition-export');
+    try {
+      const response = await fetch('/api/admin/daily-orga-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitionId: activeCompetition.id }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        showMessage('success', data.message || 'CSV erfolgreich versendet');
+      } else {
+        showMessage('error', data.error || 'CSV konnte nicht versendet werden');
+      }
+    } catch (error) {
+      console.error('Failed to send daily orga export:', error);
+      showMessage('error', 'Netzwerkfehler beim CSV-Versand');
+    } finally {
+      setSaving(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -571,6 +599,34 @@ export default function AdminPage() {
                         onChange={(e) => setCompetition({ ...competition, teamSize: parseInt(e.target.value) || 5 })}
                       />
                     </FormField>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">CSV-Export</CardTitle>
+                  <CardDescription>
+                    Sende den aktuellen Mannschaftsstand des aktiven Wettkampfs sofort an den Orga-Verteiler.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+                    <p className="font-medium text-foreground">
+                      Aktiver Wettkampf: {activeCompetition?.name || "Kein Wettkampf ausgewählt"}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Empfänger kommen aus <code>Orga-Mails für Anmeldungen</code> und fallen sonst auf die Tenant-Kontaktadresse zurück.
+                    </p>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={handleSendCompetitionExport}
+                      disabled={saving === 'competition-export' || !activeCompetition?.id}
+                    >
+                      {saving === 'competition-export' ? "Versendet..." : "📨 Jetzt CSV senden"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
