@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-orga-export",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

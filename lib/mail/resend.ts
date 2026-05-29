@@ -4,6 +4,11 @@ type ResendMailPayload = {
   html: string;
   text: string;
   replyTo?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    contentType?: string;
+  }>;
 };
 
 export type ResendMailResult =
@@ -45,6 +50,7 @@ export async function sendResendMail(payload: ResendMailPayload): Promise<Resend
       html: payload.html,
       text: payload.text,
       ...(payload.replyTo ? { reply_to: payload.replyTo } : {}),
+      ...(payload.attachments?.length ? { attachments: payload.attachments } : {}),
     }),
   });
 

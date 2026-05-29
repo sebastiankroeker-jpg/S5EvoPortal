@@ -34,7 +34,7 @@ const nodes: InfraNode[] = [
   { id: "vm-authentik-local", label: "authentik (local)", type: "vm", status: "online", details: "192.168.10.250 • Identity Provider", icon: "🔐", x: 300, y: 380 },
   { id: "vm-playground", label: "playground", type: "vm", status: "standby", details: "Bumblebee / Test", icon: "🐝", x: 500, y: 380 },
   // External Services
-  { id: "vercel", label: "Vercel", type: "external", status: "online", details: "s5-evo-portal.vercel.app • Next.js", icon: "▲", x: 650, y: 50 },
+  { id: "vercel", label: "Vercel", type: "external", status: "online", details: "portal.s5evo.de • Next.js", icon: "▲", x: 650, y: 50 },
   { id: "github", label: "GitHub", type: "external", status: "online", details: "S5EvoPortal • CI/CD", icon: "🐙", x: 650, y: 150 },
   { id: "authentik-vps", label: "Authentik (IONOS)", type: "external", status: "online", details: "auth.s5evo.de • 217.154.65.203", icon: "🔑", x: 150, y: 150 },
   { id: "telegram", label: "Telegram", type: "external", status: "online", details: "@S5Evo_telegram_bot", icon: "📱", x: 50, y: 280 },

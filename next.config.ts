@@ -6,6 +6,22 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "header",
+            key: "host",
+            value: "s5-evo-portal.vercel.app",
+          },
+        ],
+        destination: "https://portal.s5evo.de/:path*",
+        permanent: true,
+      },
+    ];
+  },
   ...(isStaticExport
     ? {
         output: "export",
