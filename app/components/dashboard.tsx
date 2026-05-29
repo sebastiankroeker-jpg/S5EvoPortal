@@ -82,7 +82,7 @@ interface DashboardProps {
 }
 
 type DashboardViewMode = "cards" | "list";
-type TeamSortField = "name" | "category" | "contactName" | "ownerEmail" | "participantCount" | "createdAt" | "updatedAt";
+type TeamSortField = "name" | "category" | "contactName" | "contactEmail" | "ownerEmail" | "participantCount" | "createdAt" | "updatedAt";
 type SortDirection = "asc" | "desc";
 type TeamOptionalColumnKey =
   | "category"
@@ -94,12 +94,15 @@ type TeamOptionalColumnKey =
   | "createdAt"
   | "updatedAt";
 
+const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
+
 const SORT_OPTIONS: Array<{ value: TeamSortField; label: string }> = [
   { value: "updatedAt", label: "Zuletzt geändert" },
   { value: "createdAt", label: "Angelegt" },
   { value: "name", label: "Mannschaftsname" },
   { value: "category", label: "Klasse" },
   { value: "contactName", label: "Teamchef:in" },
+  { value: "contactEmail", label: "Kontakt E-Mail" },
   { value: "ownerEmail", label: "Angelegt von" },
   { value: "participantCount", label: "Teilnehmerzahl" },
 ];
@@ -166,6 +169,14 @@ function getParticipantCount(team: Team) {
   return team.participants?.length || 0;
 }
 
+function isTeamIncomplete(team: Team) {
+  if (getParticipantCount(team) < 5) {
+    return true;
+  }
+
+  return (team.participants ?? []).some((participant) => !participant.firstName || !participant.lastName);
+}
+
 function getParticipantsSummary(team: Team) {
   return (team.participants ?? [])
     .map((participant) => `${participant.firstName} ${participant.lastName}`.trim())
@@ -184,6 +195,33 @@ function compareDates(a?: string, b?: string) {
   const aTime = a ? new Date(a).getTime() : 0;
   const bTime = b ? new Date(b).getTime() : 0;
   return aTime - bTime;
+}
+
+function getStoredVisibleColumns() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY);
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+
+    const allowedKeys = new Set(LIST_OPTIONAL_COLUMNS.map((column) => column.key));
+    const sanitized = parsed.filter(
+      (value): value is TeamOptionalColumnKey => typeof value === "string" && allowedKeys.has(value as TeamOptionalColumnKey),
+    );
+
+    return sanitized.length > 0 ? sanitized : null;
+  } catch {
+    return null;
+  }
 }
 
 function exportTeamsCsv(teams: Team[]) {
@@ -248,6 +286,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
@@ -346,6 +385,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   }, [viewMode]);
 
   useEffect(() => {
+    const storedColumns = getStoredVisibleColumns();
+    if (storedColumns) {
+      setVisibleColumns(storedColumns);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  useEffect(() => {
     // Listen for switchTab events to handle owner filter
     const handleSwitchTab = (e: CustomEvent) => {
       if (e.detail.ownerFilter && e.detail.tabId === "dashboard") {
@@ -375,6 +429,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       const matchesOwner =
         ownerFilter === "all" ||
         normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(ownerFilter);
+      const matchesCompleteness = !incompleteOnly || isTeamIncomplete(team);
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = createdFrom ? new Date(createdFrom).getTime() : null;
       const createdToMs = createdTo ? new Date(createdTo).getTime() : null;
@@ -391,9 +446,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
-      return matchesCategory && matchesOwner && matchesCreatedAt && matchesSearch;
+      return matchesCategory && matchesOwner && matchesCompleteness && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, createdFrom, createdTo]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, incompleteOnly, createdFrom, createdTo]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -416,6 +471,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           break;
         case "contactName":
           result = collator.compare(left.contactName || "", right.contactName || "");
+          break;
+        case "contactEmail":
+          result = collator.compare(left.contactEmail || "", right.contactEmail || "");
           break;
         case "ownerEmail":
           result = collator.compare(left.ownerEmail || left.contactEmail || "", right.ownerEmail || right.contactEmail || "");
@@ -473,15 +531,52 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   }
 
   const totalParticipants = filteredTeams.reduce((sum, team) => sum + (team.participants?.length || 0), 0);
-  const incompleteTeams = teams.filter(t => !t.participants || t.participants.some(p => !p.firstName || !p.lastName)).length;
+  const incompleteTeams = teams.filter((team) => isTeamIncomplete(team)).length;
   const hasActiveFilters =
     searchQuery !== "" ||
     categoryFilter !== "all" ||
     ownerFilter !== "all" ||
+    incompleteOnly ||
     createdFrom !== "" ||
     createdTo !== "";
-  const activeFilterCount = [searchQuery !== "", categoryFilter !== "all", ownerFilter !== "all", createdFrom !== "", createdTo !== ""].filter(Boolean).length;
+  const activeFilterCount = [
+    searchQuery !== "",
+    categoryFilter !== "all",
+    ownerFilter !== "all",
+    incompleteOnly,
+    createdFrom !== "",
+    createdTo !== "",
+  ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
+
+  const handleHeaderSort = (field: TeamSortField) => {
+    if (sortField === field) {
+      setSortDirection((direction) => direction === "asc" ? "desc" : "asc");
+      return;
+    }
+
+    setSortField(field);
+    setSortDirection(field === "updatedAt" || field === "createdAt" ? "desc" : "asc");
+  };
+
+  const getHeaderSortState = (field: TeamSortField) => {
+    if (sortField !== field) {
+      return "inactive";
+    }
+
+    return sortDirection === "asc" ? "asc" : "desc";
+  };
+
+  const sortableHeaderFields: Partial<Record<"name" | TeamOptionalColumnKey, TeamSortField>> = {
+    name: "name",
+    category: "category",
+    contactName: "contactName",
+    contactEmail: "contactEmail",
+    ownerEmail: "ownerEmail",
+    participantCount: "participantCount",
+    createdAt: "createdAt",
+    updatedAt: "updatedAt",
+  };
 
   return (
     <div className="space-y-6">
@@ -521,7 +616,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 Filter & Suche
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Suche, Klasse, Anleger:in und Zeitraum eingrenzen
+                Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -535,7 +630,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
         {filtersOpen && (
           <CardContent className="space-y-4 pt-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
               <div className="space-y-1 xl:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">Suche</label>
                 <Input
@@ -580,6 +675,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </div>
 
               <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Vollständigkeit</label>
+                <Button
+                  variant={incompleteOnly ? "default" : "outline"}
+                  className="w-full justify-between"
+                  onClick={() => setIncompleteOnly((current) => !current)}
+                >
+                  {incompleteOnly ? "Nur unvollständige" : "Alle Teams"}
+                  <Badge variant={incompleteOnly ? "secondary" : "outline"}>{incompleteTeams}</Badge>
+                </Button>
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Angelegt ab</label>
                 <Input
                   type="datetime-local"
@@ -611,6 +718,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                     setSearchQuery("");
                     setCategoryFilter("all");
                     setOwnerFilter(initialOwnerFilter || "all");
+                    setIncompleteOnly(false);
                     setCreatedFrom("");
                     setCreatedTo("");
                   }}
@@ -669,7 +777,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 Listenoptionen
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Sortierung festlegen und sichtbare Spalten anpassen
+                Sortierung festlegen, per Tabellenkopf umschalten und sichtbare Spalten anpassen
               </p>
             </div>
           </CardHeader>
@@ -760,10 +868,42 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
             <table className="min-w-[980px] w-full text-sm">
               <thead className="bg-muted/40 text-left">
                 <tr className="border-b border-border/60">
-                  <th className="px-4 py-3 font-medium">Mannschaftsname</th>
+                  <th className="px-4 py-3 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleHeaderSort("name")}
+                      className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
+                    >
+                      <span>Mannschaftsname</span>
+                      {getHeaderSortState("name") === "inactive" ? (
+                        <ArrowDownUp className="size-4 text-muted-foreground" />
+                      ) : getHeaderSortState("name") === "asc" ? (
+                        <ChevronUp className="size-4 text-foreground" />
+                      ) : (
+                        <ChevronDown className="size-4 text-foreground" />
+                      )}
+                    </button>
+                  </th>
                   {visibleColumnDefs.map((column) => (
                     <th key={column.key} className="px-4 py-3 font-medium whitespace-nowrap">
-                      {column.label}
+                      {sortableHeaderFields[column.key] ? (
+                        <button
+                          type="button"
+                          onClick={() => handleHeaderSort(sortableHeaderFields[column.key]!)}
+                          className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
+                        >
+                          <span>{column.label}</span>
+                          {getHeaderSortState(sortableHeaderFields[column.key]!) === "inactive" ? (
+                            <ArrowDownUp className="size-4 text-muted-foreground" />
+                          ) : getHeaderSortState(sortableHeaderFields[column.key]!) === "asc" ? (
+                            <ChevronUp className="size-4 text-foreground" />
+                          ) : (
+                            <ChevronDown className="size-4 text-foreground" />
+                          )}
+                        </button>
+                      ) : (
+                        column.label
+                      )}
                     </th>
                   ))}
                   {(canEditAll || canEditOwn) && (
