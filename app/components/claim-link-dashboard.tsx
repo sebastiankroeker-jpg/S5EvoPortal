@@ -33,7 +33,7 @@ type ClaimItem = {
 
 const STATUS_META: Record<ClaimTokenInfo["status"] | "none", { label: string; variant: "default" | "secondary" | "outline" | "destructive"; }> = {
   none: { label: "Kein Link", variant: "outline" },
-  active: { label: "Aktiv", variant: "default" },
+  active: { label: "Offen", variant: "default" },
   claimed: { label: "Eingelöst", variant: "secondary" },
   expired: { label: "Abgelaufen", variant: "outline" },
   revoked: { label: "Gesperrt", variant: "destructive" },
@@ -171,7 +171,7 @@ export default function ClaimLinkDashboard() {
       <CardHeader>
         <CardTitle className="text-lg">🔐 Claim-Link Dashboard</CardTitle>
         <CardDescription>
-          Interne Übersicht für Uebernahmelinks. Bestehende Links sind aus Sicherheitsgründen nicht im Klartext lesbar. Für Supportfälle kannst du hier jederzeit einen neuen Link erzeugen.
+          Interne Übersicht für Uebernahmelinks. Status <strong>Offen</strong> bedeutet: Link existiert, ist noch nicht eingelöst, nicht gesperrt und nicht abgelaufen. Das angezeigte Portal-Konto kann bereits beim Team-Anlegen gesetzt worden sein und ist kein Beleg für eine erfolgte Einlösung.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -186,7 +186,7 @@ export default function ClaimLinkDashboard() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Suche Team, Kontakt oder Owner..."
+              placeholder="Suche Team, Kontakt oder Portal-Konto..."
               className="sm:w-72"
             />
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
@@ -196,7 +196,7 @@ export default function ClaimLinkDashboard() {
               <SelectContent>
                 <SelectItem value="all">Alle Status</SelectItem>
                 <SelectItem value="none">Kein Link</SelectItem>
-                <SelectItem value="active">Aktiv</SelectItem>
+                <SelectItem value="active">Offen / nicht eingelöst</SelectItem>
                 <SelectItem value="claimed">Eingelöst</SelectItem>
                 <SelectItem value="expired">Abgelaufen</SelectItem>
                 <SelectItem value="revoked">Gesperrt</SelectItem>
@@ -219,7 +219,7 @@ export default function ClaimLinkDashboard() {
         </div>
 
         <div className={`rounded-md border px-3 py-2 text-sm ${claimLinksEnabled ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
-          Claim-Einlösung ist aktuell <strong>{claimLinksEnabled ? "aktiv" : "deaktiviert"}</strong>.
+          Die globale Claim-Einlösung ist aktuell <strong>{claimLinksEnabled ? "freigeschaltet" : "deaktiviert"}</strong>.
         </div>
 
         {loading ? (
@@ -248,10 +248,11 @@ export default function ClaimLinkDashboard() {
                       </div>
                       <div className="text-xs text-muted-foreground space-y-1">
                         <p>Kontakt: {item.contactName || "—"} · {item.contactEmail || "—"}</p>
-                        <p>Owner: {item.ownerEmail || "—"}</p>
+                        <p>Portal-Konto: {item.ownerEmail || "—"}</p>
                         {item.token ? (
                           <>
                             <p>Erzeugt: {formatDateTime(item.token.createdAt)} · Gültig bis: {formatDateTime(item.token.expiresAt)}</p>
+                            {item.token.status === "active" ? <p>Link ist offen und wurde noch nicht eingelöst.</p> : null}
                             {item.token.claimedAt ? (
                               <p>Eingelöst: {formatDateTime(item.token.claimedAt)}{item.token.claimedBy?.email ? ` · von ${item.token.claimedBy.email}` : ""}</p>
                             ) : null}
