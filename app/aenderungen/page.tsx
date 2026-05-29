@@ -55,7 +55,7 @@ export default function ChangesPage() {
               <Badge variant="outline" className="text-xs">Aenderungen</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              Offene Aenderungsantraege pruefen, kommentieren und direkt freigeben.
+              Offene und bereits entschiedene Aenderungsantraege pruefen, kommentieren und nachvollziehen.
             </p>
           </div>
           <Link href="/#orga">
@@ -71,17 +71,17 @@ export default function ChangesPage() {
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Aenderungs-Dashboard</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight">Sauber pruefen statt Mails zusammensuchen.</h1>
               <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                Hier laufen alle offenen Teilnehmeraenderungen zusammen. Du siehst Antragsteller, Mannschaft,
-                Feldwechsel, Nachbesserungen und kannst direkt mit Kommentar entscheiden.
+                Hier laufen offene, genehmigte und abgelehnte Teilnehmeraenderungen zusammen. Du siehst Antragsteller,
+                Mannschaft, Feldwechsel, Nachbesserungen und bereits getroffene Entscheidungen an einer Stelle.
               </p>
             </CardContent>
           </Card>
           <Card className="border-border/60">
             <CardContent className="p-5 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">Was drin ist</p>
-              <p className="mt-2">Live-Liste aller offenen Antraege</p>
+              <p className="mt-2">Live-Liste aller offenen und erledigten Antraege</p>
               <p>Suche nach Team, Person und Aenderungsinhalt</p>
-              <p>Filter fuer aktualisierte Antraege</p>
+              <p>Statusfilter fuer offen, genehmigt, abgelehnt und alle</p>
               <p>Genehmigen oder ablehnen direkt aus dem Dashboard</p>
             </CardContent>
           </Card>

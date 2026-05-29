@@ -18,6 +18,8 @@ interface PendingChange {
   status: string;
   createdAt: string;
   updatedAt: string;
+  reviewedAt?: string | null;
+  reviewComment?: string | null;
   participant: {
     id: string;
     firstName: string;
@@ -29,6 +31,10 @@ interface PendingChange {
     name: string | null;
     email: string;
   };
+  reviewedBy?: {
+    name: string | null;
+    email: string;
+  } | null;
 }
 
 interface ApprovalQueueProps {
@@ -109,6 +115,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [comments, setComments] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [updatedOnly, setUpdatedOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "ALL">("PENDING");
   const [error, setError] = useState<string | null>(null);
 
   const dashboardMode = variant === "page";
@@ -123,7 +130,12 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     setError(null);
 
     try {
-      const res = await fetch("/api/admin/pending-changes");
+      const params = new URLSearchParams();
+      if (dashboardMode) {
+        params.set("scope", "all");
+      }
+
+      const res = await fetch("/api/admin/pending-changes" + (params.size ? `?${params}` : ""));
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Aenderungsantraege konnten nicht geladen werden");
@@ -158,6 +170,10 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     const query = searchQuery.trim().toLowerCase();
 
     return decoratedChanges.filter((change) => {
+      if (statusFilter !== "ALL" && change.status !== statusFilter) {
+        return false;
+      }
+
       if (updatedOnly && !change.wasUpdated) {
         return false;
       }
@@ -178,7 +194,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
 
       return haystack.includes(query);
     });
-  }, [decoratedChanges, searchQuery, updatedOnly]);
+  }, [decoratedChanges, searchQuery, statusFilter, updatedOnly]);
 
   const visibleChanges = useMemo(() => {
     return dashboardMode ? filteredChanges : filteredChanges.slice(0, 3);
@@ -189,9 +205,14 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     const updatedCount = decoratedChanges.filter((change) => change.wasUpdated).length;
     const fieldCount = decoratedChanges.reduce((sum, change) => sum + change.fields.length, 0);
     const lastUpdated = decoratedChanges[0]?.updatedAt || null;
+    const approvedCount = decoratedChanges.filter((change) => change.status === "APPROVED").length;
+    const rejectedCount = decoratedChanges.filter((change) => change.status === "REJECTED").length;
+    const openCount = decoratedChanges.filter((change) => change.status === "PENDING").length;
 
     return {
-      openCount: decoratedChanges.length,
+      openCount,
+      approvedCount,
+      rejectedCount,
       teamCount,
       updatedCount,
       fieldCount,
@@ -245,16 +266,16 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Teams</p>
-              <p className="mt-2 text-3xl font-semibold">{stats.teamCount}</p>
-              <p className="text-xs text-muted-foreground">Betroffene Mannschaften</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Genehmigt</p>
+              <p className="mt-2 text-3xl font-semibold">{stats.approvedCount}</p>
+              <p className="text-xs text-muted-foreground">Bereits erledigte Freigaben</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Aktualisiert</p>
-              <p className="mt-2 text-3xl font-semibold">{stats.updatedCount}</p>
-              <p className="text-xs text-muted-foreground">Offene Antraege mit Nachschliff</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Abgelehnt</p>
+              <p className="mt-2 text-3xl font-semibold">{stats.rejectedCount}</p>
+              <p className="text-xs text-muted-foreground">Bereits entschiedene Ablehnungen</p>
             </CardContent>
           </Card>
           <Card>
@@ -281,6 +302,38 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                 />
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant={statusFilter === "PENDING" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("PENDING")}
+                >
+                  Offen
+                </Button>
+                <Button
+                  type="button"
+                  variant={statusFilter === "APPROVED" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("APPROVED")}
+                >
+                  Genehmigt
+                </Button>
+                <Button
+                  type="button"
+                  variant={statusFilter === "REJECTED" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("REJECTED")}
+                >
+                  Abgelehnt
+                </Button>
+                <Button
+                  type="button"
+                  variant={statusFilter === "ALL" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("ALL")}
+                >
+                  Alle
+                </Button>
                 <Button
                   type="button"
                   variant={updatedOnly ? "default" : "outline"}
@@ -311,7 +364,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
               <p className="mt-3 text-lg font-medium">Keine offenen Treffer</p>
               <p className="text-sm text-muted-foreground">
                 {decoratedChanges.length === 0
-                  ? "Aktuell gibt es keine offenen Aenderungsantraege."
+                  ? "Aktuell gibt es keine Aenderungsantraege."
                   : "Zu den aktiven Filtern wurden keine passenden Antraege gefunden."}
               </p>
             </CardContent>
@@ -335,7 +388,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         <div>
           <h3 className="text-sm font-semibold">Aenderungsantraege</h3>
           <p className="text-xs text-muted-foreground">
-            {stats.openCount} offen, {stats.teamCount} Teams betroffen
+            {stats.openCount} offen, {stats.approvedCount} genehmigt, {stats.rejectedCount} abgelehnt
           </p>
         </div>
         <Link href="/aenderungen">
@@ -400,6 +453,18 @@ function ChangeList({
   onAction: (id: string, action: "approve" | "reject") => Promise<void>;
   compact?: boolean;
 }) {
+  const getStatusTone = (status: string) => {
+    if (status === "APPROVED") return "border-green-300 text-green-700 dark:text-green-200";
+    if (status === "REJECTED") return "border-red-300 text-red-700 dark:text-red-200";
+    return "border-amber-300 text-amber-700 dark:text-amber-200";
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === "APPROVED") return "Genehmigt";
+    if (status === "REJECTED") return "Abgelehnt";
+    return "In Pruefung";
+  };
+
   return (
     <AnimatePresence>
       {changes.map((change) => (
@@ -410,14 +475,22 @@ function ChangeList({
           exit={{ opacity: 0, x: -80 }}
           layout
         >
-          <Card className="border-amber-200/80 dark:border-amber-900/70">
+          <Card
+            className={
+              change.status === "APPROVED"
+                ? "border-green-200/80 dark:border-green-900/70"
+                : change.status === "REJECTED"
+                  ? "border-red-200/80 dark:border-red-900/70"
+                  : "border-amber-200/80 dark:border-amber-900/70"
+            }
+          >
             <CardHeader className={compact ? "pb-2" : "pb-3"}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className={compact ? "text-base" : "text-lg"}>{change.participantName}</CardTitle>
-                    <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-200">
-                      In Pruefung
+                    <Badge variant="outline" className={getStatusTone(change.status)}>
+                      {getStatusLabel(change.status)}
                     </Badge>
                     <Badge variant="secondary">{change.fields.length} Feldwechsel</Badge>
                     {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
@@ -428,6 +501,7 @@ function ChangeList({
                   <CardDescription>
                     Eingang {formatDateTime(change.createdAt)}
                     {change.wasUpdated ? " · Letztes Update " + formatDateTime(change.updatedAt) : ""}
+                    {change.reviewedAt ? " · Entscheiden am " + formatDateTime(change.reviewedAt) : ""}
                   </CardDescription>
                 </div>
                 {!compact && (
@@ -465,33 +539,46 @@ function ChangeList({
                 <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                   Kommentar der Orga
                 </label>
-                <Textarea
-                  value={comments[change.id] || ""}
-                  onChange={(event) => setComments((current) => ({ ...current, [change.id]: event.target.value }))}
-                  placeholder="Optionaler Kommentar fuer Genehmigung oder Ablehnung"
-                  className={compact ? "min-h-[84px]" : "min-h-[110px]"}
-                />
+                {change.status === "PENDING" ? (
+                  <Textarea
+                    value={comments[change.id] || ""}
+                    onChange={(event) => setComments((current) => ({ ...current, [change.id]: event.target.value }))}
+                    placeholder="Optionaler Kommentar fuer Genehmigung oder Ablehnung"
+                    className={compact ? "min-h-[84px]" : "min-h-[110px]"}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+                    {change.reviewComment || "Kein Kommentar hinterlegt"}
+                    {change.reviewedBy ? (
+                      <div className="mt-2 text-xs">
+                        Bearbeitet von {change.reviewedBy.name || change.reviewedBy.email}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  size="sm"
-                  onClick={() => void onAction(change.id, "approve")}
-                  disabled={processing === change.id}
-                  className="sm:flex-1"
-                >
-                  {processing === change.id ? "Bearbeite..." : "Genehmigen"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void onAction(change.id, "reject")}
-                  disabled={processing === change.id}
-                  className="sm:flex-1"
-                >
-                  {processing === change.id ? "Bearbeite..." : "Ablehnen"}
-                </Button>
-              </div>
+              {change.status === "PENDING" ? (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    size="sm"
+                    onClick={() => void onAction(change.id, "approve")}
+                    disabled={processing === change.id}
+                    className="sm:flex-1"
+                  >
+                    {processing === change.id ? "Bearbeite..." : "Genehmigen"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void onAction(change.id, "reject")}
+                    disabled={processing === change.id}
+                    className="sm:flex-1"
+                  >
+                    {processing === change.id ? "Bearbeite..." : "Ablehnen"}
+                  </Button>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </motion.div>
