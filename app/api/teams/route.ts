@@ -183,6 +183,19 @@ function serializeTeam(
       ?.filter((memberRole) => !memberRole.revokedAt)
       .map((memberRole) => memberRole.userId) ?? [],
   );
+  const isCurrentUserTeam =
+    (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
+    (!!options?.currentUserId && activeTeamManagerUserIds.has(options.currentUserId)) ||
+    (!!normalizedCurrentUserEmail &&
+      (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
+        normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail)) ||
+    ((team.participants ?? []).some((participant) => {
+      const normalizedParticipantEmail = normalizeEmail(participant.email);
+      return (
+        (!!options?.currentUserId && participant.userId === options.currentUserId) ||
+        (!!normalizedCurrentUserEmail && normalizedParticipantEmail === normalizedCurrentUserEmail)
+      );
+    }));
   const visibleTeamName = resolveVisibleTeamName({
     actualTeamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel,
@@ -198,6 +211,7 @@ function serializeTeam(
     contactPhone: canSeeFullPublication ? team.contactPhone ?? "" : "",
     ownerEmail: canSeeFullPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
     ownerName: canSeeFullPublication ? team.owner?.name ?? team.contactName ?? "" : "",
+    isCurrentUserTeam,
     canCurrentUserEdit:
       options?.canEditAllTeams === true ||
       (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||

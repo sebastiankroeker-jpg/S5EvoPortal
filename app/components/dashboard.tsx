@@ -34,7 +34,7 @@ import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowDownUp, ChevronDown, ChevronUp, Info, RotateCcw, Send, SlidersHorizontal, X } from "lucide-react";
+import { ArrowDownUp, ChevronDown, ChevronUp, Info, RotateCcw, Send, SlidersHorizontal, Star, X } from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface Team {
@@ -48,6 +48,7 @@ interface Team {
   ownerName?: string;
   createdAt?: string;
   updatedAt?: string;
+  isCurrentUserTeam?: boolean;
   canCurrentUserEdit?: boolean;
   canManageTeamManagers?: boolean;
   participants?: Participant[];
@@ -358,6 +359,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
+  const [ownTeamsOnly, setOwnTeamsOnly] = useState(false);
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
@@ -514,6 +516,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         !showOwnerFilter ||
         ownerFilter === "all" ||
         normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(ownerFilter);
+      const matchesOwnTeam = !ownTeamsOnly || team.isCurrentUserTeam === true;
       const matchesCompleteness = !incompleteOnly || isTeamIncomplete(team);
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = createdFrom ? new Date(createdFrom).getTime() : null;
@@ -531,9 +534,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
-      return matchesCategory && matchesOwner && matchesCompleteness && matchesCreatedAt && matchesSearch;
+      return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, incompleteOnly, createdFrom, createdTo, showOwnerFilter]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, createdFrom, createdTo, showOwnerFilter]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -621,6 +624,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     searchQuery !== "" ||
     categoryFilter !== "all" ||
     (showOwnerFilter && ownerFilter !== "all") ||
+    ownTeamsOnly ||
     incompleteOnly ||
     createdFrom !== "" ||
     createdTo !== "";
@@ -628,6 +632,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     searchQuery !== "",
     categoryFilter !== "all",
     showOwnerFilter && ownerFilter !== "all",
+    ownTeamsOnly,
     incompleteOnly,
     createdFrom !== "",
     createdTo !== "",
@@ -638,6 +643,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     setSearchQuery("");
     setCategoryFilter("all");
     setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
+    setOwnTeamsOnly(false);
     setIncompleteOnly(false);
     setCreatedFrom("");
     setCreatedTo("");
@@ -737,6 +743,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </div>
             </button>
             <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                type="button"
+                size="xs"
+                variant={ownTeamsOnly ? "default" : "outline"}
+                onClick={() => setOwnTeamsOnly((current) => !current)}
+                title="Eigene Mannschaften anzeigen"
+              >
+                <Star className="size-3" />
+                Meine
+              </Button>
               <Badge variant={hasActiveFilters ? "default" : "outline"}>
                 {activeFilterCount} aktiv
               </Badge>
