@@ -189,6 +189,16 @@ function getParticipantCount(team: Team) {
   return team.participants?.length || 0;
 }
 
+function getParticipantDisplayName(participant: Participant, index?: number) {
+  const name = `${participant.firstName} ${participant.lastName}`.trim();
+
+  if (name === "Teilnehmer:in" && typeof index === "number") {
+    return `Teilnehmer:in ${index + 1}`;
+  }
+
+  return name;
+}
+
 function isTeamIncomplete(team: Team) {
   if (getParticipantCount(team) < 5) {
     return true;
@@ -199,7 +209,7 @@ function isTeamIncomplete(team: Team) {
 
 function getParticipantsSummary(team: Team) {
   return (team.participants ?? [])
-    .map((participant) => `${participant.firstName} ${participant.lastName}`.trim())
+    .map((participant, index) => getParticipantDisplayName(participant, index))
     .filter(Boolean)
     .join(", ");
 }
@@ -1130,9 +1140,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                         {team.participants.map((p, i) => {
                           const disc = getDisciplineDisplay(p.discipline);
                           return (
-                            <div key={i} className="text-xs text-muted-foreground flex items-center justify-between">
-                              <span>{p.firstName} {p.lastName}</span>
-                              <span title={disc.label}>{disc.icon} {p.gender === "M" ? "♂" : "♀"}</span>
+                            <div key={i} className="flex items-start justify-between gap-2 text-xs text-muted-foreground">
+                              <span className="min-w-0 break-words pr-2">{getParticipantDisplayName(p, i)}</span>
+                              <span className="shrink-0" title={disc.label}>{disc.icon} {p.gender === "M" ? "♂" : "♀"}</span>
                             </div>
                           );
                         })}
@@ -1211,21 +1221,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   const canManageModerationNote = canEditAll || team.canCurrentUserEdit === true;
                                   return (
                                     <div key={i} className="rounded-md border border-border/40 bg-background px-2 py-1.5 text-xs">
-                                      <div className="flex items-center justify-between gap-2">
+                                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                         <div className="min-w-0">
                                           <div className="flex min-w-0 items-center gap-1.5">
-                                            <span title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
-                                            <span className="truncate font-medium">{p.firstName} {p.lastName}</span>
+                                            <span className="shrink-0" title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
+                                            <span className="break-words font-medium leading-snug">{getParticipantDisplayName(p, i)}</span>
                                           </div>
                                           <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-muted-foreground">
                                             <span>{disciplineDisplay.label}</span>
                                             <span>{p.gender === "M" ? "♂" : p.gender === "W" ? "♀" : "⚥"}</span>
                                             {birthYear && <span>Jg. {birthYear}</span>}
                                             {p.shirtSize && <span>👕 {p.shirtSize}</span>}
-                                            {(canEditAll || canManageModerationNote) && <span className="truncate">{p.email || "Keine E-Mail hinterlegt"}</span>}
+                                            {(canEditAll || canManageModerationNote) && <span className="break-all">{p.email || "Keine E-Mail hinterlegt"}</span>}
                                           </div>
                                         </div>
-                                        <div className="flex shrink-0 items-center gap-1">
+                                        <div className="flex flex-wrap items-center gap-1 sm:shrink-0 sm:justify-end">
                                           {getLatestChangeMeta(p.latestChange?.status) && (
                                             <Badge
                                               variant="outline"
