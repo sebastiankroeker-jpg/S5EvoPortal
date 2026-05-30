@@ -183,12 +183,15 @@
 - In V1 wird pro Teilnehmer **genau eine primäre Kontakt-/Invite-E-Mail-Adresse** gepflegt
 - Eine **Telefonnummer wird in V1 nicht pro Teilnehmer geführt**; sie gehört fachlich an den Team-/Teamchef-Kontakt, nicht an den einzelnen Teilnehmer
 - Beim erstmaligen Hinterlegen oder erneuten Versenden einer Teilnehmer-E-Mail kann das System eine **Einladungsmail mit Claim-Token** senden
+- Wenn für eine Teilnehmer:in eine neue/geänderte E-Mail-Einladung erzeugt wird, werden bestehende offene, nicht eingelöste Claim-Links für diese Teilnehmer:in widerrufen und auditierbar protokolliert
 - Das Portal zeigt pro Teilnehmer den Status der E-Mail-Einladung an (z.B. kein Link, versendet/offen, eingelöst, abgelaufen, gesperrt, Konto verknüpft)
 - Wenn ein Teilnehmer eine gültige E-Mail-Adresse hat, aber noch keine offene/eingelöste Einladung, kann Orga/Teamchef die **Einladung manuell erneut senden**
 - Ein solcher Claim ist fachlich an den konkreten Teilnehmer-Kontext gebunden und führt standardmäßig in eine **TEILNEHMER**-Berechtigung für genau diese Person
 - Wenn die eingeladene Person bereits ein Portal-Konto mit der Invite-E-Mail besitzt, kann sie dieses Konto verwenden; ein neues Konto ist dafür nicht erforderlich
 - Claim-Links müssen **widerrufbar**, **auditierbar** und mit bestehender Claim-Gültigkeitslogik kombinierbar bleiben
 - Falls eine eingeladene E-Mail nicht zur später verwendeten Login-Identität passt, braucht es einen klaren Support-/Admin-Prozess statt stillschweigender Zuordnung
+- Wenn eine falsche E-Mail bereits von der falschen Person eingelöst wurde, darf eine spätere E-Mail-Korrektur die Account-Zuordnung **nicht automatisch** ändern; Admin/Orga kann die bestehende Teilnehmer-Account-Verknüpfung explizit lösen, alle alten Tokens sperren und eine neue Einladung an die korrigierte E-Mail senden
+- V2-Idee: Teamchef kann eine solche Korrektur anfragen; die eigentliche Entkopplung bleibt bis zu einer bewussten Freigabe Admin/Orga-kontrolliert
 - Für die fachliche Teilnehmer-Zuordnung gilt: **E-Mail ist ein Kontakt-/Invite-Kanal, aber nicht die eigentliche Identität**
 - Die dauerhafte Zuordnung eines Portal-Accounts zu einem Teilnehmer soll über eine **stabile User-ID-Verknüpfung** erfolgen, nicht über die E-Mail-Adresse allein
 - Empfohlene Modellierung:
@@ -210,6 +213,7 @@
 - Direkte Änderungen durch **Admin/Moderator** werden ohne Freigabe angewendet, aber auditierbar protokolliert
 - Änderungs-Mails an die Orga gehen an **alle** im Wettbewerb hinterlegten \`registrationNotificationEmail\`-Empfänger
 - Änderungen an Teilnehmer-E-Mail-Adressen sind in V1 **nicht genehmigungspflichtig**, weil die E-Mail nur Kontakt-/Invite-Kanal ist; sie werden direkt gespeichert, aber weiterhin auditierbar protokolliert
+- Änderungen an der persönlichen **Namensveröffentlichung** (`NAME_VERBERGEN` / `NAME_VEROEFFENTLICHEN`) sind in V1 **nicht genehmigungspflichtig**; sie werden direkt gespeichert und auditierbar protokolliert
 - Rückfragen erhalten in V1 **keinen eigenen Workflow-Status**; es gibt zunächst nur \`PENDING\`, \`APPROVED\`, \`REJECTED\`
 - Wenn Teilnehmer innerhalb eines Teams die **Disziplin tauschen**, bleibt ihre **Teilnehmer-Identität** bestehen:
   - Moderationshinweis, Audit-Historie, offene Änderungsanträge und Account-Zuordnung hängen am **Teilnehmer**
