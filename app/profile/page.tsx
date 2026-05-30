@@ -4,13 +4,15 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { fullSignOut } from "@/lib/auth-helpers";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/lib/theme-context";
-import { APP_VERSION } from "@/lib/version";
+import NavBar from "@/app/components/nav-bar";
+import BottomTabBar from "@/app/components/bottom-tab-bar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +46,7 @@ type ProfileResponse = {
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
   const [name, setName] = useState("");
@@ -128,45 +131,53 @@ export default function ProfilePage() {
     }
   };
 
+  const navigateFromBottomTab = (tabId: string) => {
+    if (tabId === "profile") {
+      router.push("/profile");
+      return;
+    }
+
+    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+  };
+
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-background pb-24 lg:pb-0">
+        <NavBar />
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+        <div className="lg:hidden">
+          <BottomTabBar activeTab="profile" onTabChange={navigateFromBottomTab} />
+        </div>
       </div>
     );
   }
 
   if (!session?.user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">Bitte melde dich an um dein Profil zu sehen.</p>
-            <Link href="/">
-              <Button className="mt-4">Zur Startseite</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background pb-24 lg:pb-0">
+        <NavBar />
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <Card className="max-w-md">
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">Bitte melde dich an um dein Profil zu sehen.</p>
+              <Link href="/">
+                <Button className="mt-4">Zur Startseite</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:hidden">
+          <BottomTabBar activeTab="profile" onTabChange={navigateFromBottomTab} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="flex items-center justify-between px-6 py-2 border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <span className="text-2xl">🏅</span>
-            <span className="font-bold text-lg tracking-tight">S5Evo Portal</span>
-          </Link>
-          <Link href="/changelog">
-            <Badge variant="secondary" className="text-xs hover:bg-primary/20 cursor-pointer transition-colors">{APP_VERSION}</Badge>
-          </Link>
-        </div>
-        <Link href="/">
-          <Button variant="ghost" size="sm">← Zurück</Button>
-        </Link>
-      </nav>
+    <div className="min-h-screen bg-background pb-24 lg:pb-0">
+      <NavBar />
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <motion.div
@@ -365,6 +376,9 @@ export default function ProfilePage() {
           </Card>
         </motion.div>
       </main>
+      <div className="lg:hidden">
+        <BottomTabBar activeTab="profile" onTabChange={navigateFromBottomTab} />
+      </div>
     </div>
   );
 }
