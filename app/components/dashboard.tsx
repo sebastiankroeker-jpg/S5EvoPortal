@@ -1158,11 +1158,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       transition={{ duration: 0.2 }}
                     >
                       <Card className="border-l-4 border-l-primary shadow-sm">
-                        <CardContent className="p-4 space-y-4">
+                        <CardContent className="space-y-3 p-3">
                           {/* Team Details */}
-                          <div className="space-y-2">
-                            <h3 className="font-semibold flex items-center gap-2">
-                              {team.name}
+                          <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                                <span className="min-w-0 truncate font-semibold">{team.name}</span>
+                                <span className="shrink-0 text-muted-foreground">{categoryEmojis[team.category] || "🏆"} {team.category}</span>
+                                <span className="shrink-0 text-muted-foreground">{team.participants?.length || 0}/5 Teilnehmer</span>
+                              </div>
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -1170,42 +1174,35 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   e.stopPropagation();
                                   setExpandedTeam(null);
                                 }}
-                                className="h-6 w-6 p-0"
+                                className="h-6 w-6 shrink-0 p-0"
                               >
                                 ✕
                               </Button>
-                            </h3>
-                            <div className="text-sm space-y-1">
-                              <div><strong>Klasse:</strong> {categoryEmojis[team.category] || "🏆"} {team.category}</div>
-                              {hasVisibleContactInfo(team) ? (
-                                <>
-                                  {team.contactName && <div><strong>Teamchef:in:</strong> ⭐ {team.contactName}</div>}
-                                  {team.contactEmail && <div><strong>E-Mail:</strong> {team.contactEmail}</div>}
-                                </>
-                              ) : (
-                                <div className="text-muted-foreground">Kontaktdaten sind in dieser Ansicht nicht sichtbar.</div>
-                              )}
                             </div>
                           </div>
 
-                          <div className="rounded-md border border-border/60 bg-muted/30 p-3">
-                            <div className="grid gap-2 text-xs sm:grid-cols-2">
-                              <div><strong>Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>
-                              <div><strong>Anlageuhrzeit:</strong> {formatTimePart(team.createdAt)}</div>
-                              {(team.ownerName || team.ownerEmail) ? (
-                                <div><strong>Anlage-User:</strong> {team.ownerName || team.ownerEmail}</div>
+                          <details className="rounded-md border border-border/60 bg-muted/10 p-2 text-xs">
+                            <summary className="cursor-pointer font-medium">Metadaten & Kontakt Teamchef:in</summary>
+                            <div className="mt-2 grid gap-x-3 gap-y-1 text-muted-foreground sm:grid-cols-2">
+                              {hasVisibleContactInfo(team) ? (
+                                <>
+                                  {team.contactName && <div><strong className="text-foreground">Teamchef:in:</strong> ⭐ {team.contactName}</div>}
+                                  {team.contactEmail && <div><strong className="text-foreground">E-Mail:</strong> {team.contactEmail}</div>}
+                                </>
                               ) : (
-                                <div><strong>Anlage-User:</strong> Nicht sichtbar</div>
+                                <div>Kontaktdaten sind in dieser Ansicht nicht sichtbar.</div>
                               )}
-                              <div><strong>Letzte Änderung:</strong> {team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "Unbekannt"}</div>
+                              <div><strong className="text-foreground">Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>
+                              <div><strong className="text-foreground">Anlageuhrzeit:</strong> {formatTimePart(team.createdAt)}</div>
+                              <div><strong className="text-foreground">Anlage-User:</strong> {team.ownerName || team.ownerEmail || "Nicht sichtbar"}</div>
+                              <div><strong className="text-foreground">Letzte Änderung:</strong> {team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "Unbekannt"}</div>
                             </div>
-                          </div>
+                          </details>
 
                           {/* Participants */}
                           {team.participants && team.participants.length > 0 && (
-                            <div className="space-y-2">
-                              <h4 className="font-medium text-sm">Teilnehmer ({team.participants.length}/5):</h4>
-                              <div className="space-y-2">
+                            <div className="space-y-1.5">
+                              <div className="space-y-1">
                                 {team.participants.map((p, i) => {
                                   const disciplineDisplay = getDisciplineDisplay(p.discipline);
                                   const birthYear = p.birthDate ? extractBirthYearFromInput(p.birthDate) : null;
@@ -1214,14 +1211,26 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     canEditAll ||
                                     (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own"));
                                   return (
-                                    <div key={i} className="text-sm border border-border/40 shadow-sm rounded p-2 space-y-1">
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-medium">{p.firstName} {p.lastName}</span>
-                                <div className="flex items-center gap-2">
+                                    <div key={i} className="rounded-md border border-border/40 bg-background px-2 py-1.5 text-xs">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex min-w-0 items-center gap-1.5">
+                                            <span title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
+                                            <span className="truncate font-medium">{p.firstName} {p.lastName}</span>
+                                          </div>
+                                          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-muted-foreground">
+                                            <span>{disciplineDisplay.label}</span>
+                                            <span>{p.gender === "M" ? "♂" : p.gender === "W" ? "♀" : "⚥"}</span>
+                                            {birthYear && <span>Jg. {birthYear}</span>}
+                                            {p.shirtSize && <span>👕 {p.shirtSize}</span>}
+                                            {(canEditAll || canManageModerationNote) && <span className="truncate">{p.email || "Keine E-Mail hinterlegt"}</span>}
+                                          </div>
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-1">
                                           {getLatestChangeMeta(p.latestChange?.status) && (
                                             <Badge
                                               variant="outline"
-                                              className={getLatestChangeMeta(p.latestChange?.status)?.className}
+                                              className={`h-6 px-1.5 text-[10px] ${getLatestChangeMeta(p.latestChange?.status)?.className}`}
                                             >
                                               {getLatestChangeMeta(p.latestChange?.status)?.label}
                                             </Badge>
@@ -1233,10 +1242,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                                 if (!p.id) return;
                                                 setEditingParticipant({ ...p, id: p.id, teamOwnerEmail: team.ownerEmail || team.contactEmail });
                                               }}
-                                              className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
+                                              className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
                                               title="Moderationshinweis bearbeiten"
                                             >
-                                              {p.moderationNote?.trim() ? "📝 Hinweis" : "📝 Hinzufuegen"}
+                                              {p.moderationNote?.trim() ? "📝" : "📝+"}
                                             </button>
                                           )}
                                           {(canEditAll || (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own")) || (p.isCurrentUserParticipant && can("participant.edit.self"))) && (
@@ -1252,25 +1261,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                               ✏️
                                             </button>
                                           )}
-                                          <span title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
-                                          <span>{p.gender === "M" ? "♂" : p.gender === "W" ? "♀" : "⚥"}</span>
-                                        </div>
-                                      </div>
-                                      <div className="text-xs text-muted-foreground flex justify-between">
-                                        <span>{disciplineDisplay.label}</span>
-                                        <div className="flex items-center gap-2">
-                                          {p.shirtSize && <span>👕 {p.shirtSize}</span>}
-                                          {birthYear && <span>Jg. {birthYear}</span>}
-                                        </div>
-                                      </div>
-                                      {(canEditAll || canManageModerationNote) && (
-                                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                          <span className="truncate">{p.email || "Keine E-Mail hinterlegt"}</span>
-                                          <Badge variant="outline" className={emailInviteMeta.className}>
+                                          <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${emailInviteMeta.className}`}>
                                             {emailInviteMeta.label}
                                           </Badge>
                                         </div>
-                                      )}
+                                      </div>
                                     </div>
                                   );
                                 })}
