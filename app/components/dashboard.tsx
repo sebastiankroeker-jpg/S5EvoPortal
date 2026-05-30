@@ -356,7 +356,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");

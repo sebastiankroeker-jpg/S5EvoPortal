@@ -330,6 +330,16 @@ export async function GET(request: NextRequest) {
                   ...(user ? [{ ownerId: user.id }] : []),
                   ...(user
                     ? [{
+                        participants: {
+                          some: {
+                            userId: user.id,
+                            deletedAt: null,
+                          },
+                        },
+                      }]
+                    : []),
+                  ...(user
+                    ? [{
                         memberRoles: {
                           some: {
                             userId: user.id,
