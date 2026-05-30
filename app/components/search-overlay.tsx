@@ -42,12 +42,12 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const isClaimPath = isClaimNavigationPath(pathname);
 
-  const switchToTab = (tabId: string) => {
+  const switchToTab = (tabId: string, detail?: Record<string, string>) => {
     if (pathname !== "/") {
       router.push(tabId === "home" ? "/" : `/#${tabId}`);
       return;
     }
-    const event = new CustomEvent("switchTab", { detail: { tabId } });
+    const event = new CustomEvent("switchTab", { detail: { tabId, ...detail } });
     window.dispatchEvent(event);
   };
 
@@ -66,7 +66,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "registration":
         if (status === "authenticated") {
           window.sessionStorage.setItem("s5evo-team-view", "register");
-          switchToTab("registration");
+          switchToTab("registration", { teamView: "register" });
         } else {
           router.push("/anmeldung");
         }

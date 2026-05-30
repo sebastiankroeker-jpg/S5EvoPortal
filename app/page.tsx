@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
@@ -16,6 +16,11 @@ import ParticipantList from "./components/participant-list";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
+type SwitchTabDetail = {
+  tabId?: string;
+  teamView?: string;
+  ownerFilter?: string;
+};
 
 function isMainTab(value: string | null): value is MainTab {
   return value !== null && MAIN_TABS.includes(value as MainTab);
@@ -59,6 +64,7 @@ export default function Home() {
   const canViewOwnTeams = can("team.view.own");
   const canViewAllTeams = can("team.view.all");
   const canEditResults = can("results.edit");
+  const pendingSwitchTabDetail = useRef<SwitchTabDetail | null>(null);
   const [activeTab, setActiveTab] = useState<MainTab>(() => {
     if (typeof window === "undefined") return "home";
 
@@ -72,8 +78,10 @@ export default function Home() {
   // Listen for tab switch events (from sidebar, bottom bar, etc.)
   useEffect(() => {
     const handler = (event: Event) => {
-      const tabId = (event as CustomEvent<{ tabId?: string }>).detail?.tabId ?? null;
+      const detail = (event as CustomEvent<SwitchTabDetail>).detail;
+      const tabId = detail?.tabId ?? null;
       if (isMainTab(tabId)) {
+        pendingSwitchTabDetail.current = detail;
         setActiveTab(tabId);
       }
     };
@@ -124,7 +132,12 @@ export default function Home() {
       window.history.replaceState(null, "", nextUrl);
     }
 
-    window.dispatchEvent(new CustomEvent("switchTab", { detail: { tabId: activeTab } }));
+    const pendingDetail = pendingSwitchTabDetail.current?.tabId === activeTab
+      ? pendingSwitchTabDetail.current
+      : null;
+    pendingSwitchTabDetail.current = null;
+
+    window.dispatchEvent(new CustomEvent("switchTab", { detail: pendingDetail ?? { tabId: activeTab } }));
   }, [activeTab]);
 
   return (

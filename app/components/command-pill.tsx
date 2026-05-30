@@ -115,9 +115,9 @@ export default function CommandPill() {
     setIsBurgerOpen(false);
   };
 
-  const switchToTab = (tabId: string) => {
+  const switchToTab = (tabId: string, detail?: Record<string, string>) => {
     if (pathname === "/") {
-      const event = new CustomEvent("switchTab", { detail: { tabId } });
+      const event = new CustomEvent("switchTab", { detail: { tabId, ...detail } });
       window.dispatchEvent(event);
     } else {
       router.push(tabId === "home" ? "/" : `/#${tabId}`);
@@ -133,7 +133,7 @@ export default function CommandPill() {
       case "registration":
         if (session?.user) {
           window.sessionStorage.setItem("s5evo-team-view", "register");
-          switchToTab("registration");
+          switchToTab("registration", { teamView: "register" });
         } else {
           router.push("/anmeldung");
           closeBurger();
@@ -331,7 +331,10 @@ export default function CommandPill() {
                           <Button
                             variant="ghost"
                             className="w-full justify-start h-7 px-2 text-sm"
-                            onClick={() => switchToTab("registration")}
+                            onClick={() => {
+                              window.sessionStorage.setItem("s5evo-team-view", "register");
+                              switchToTab("registration", { teamView: "register" });
+                            }}
                           >
                             📋 Anmeldung
                           </Button>

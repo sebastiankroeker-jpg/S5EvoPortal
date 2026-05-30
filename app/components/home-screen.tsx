@@ -255,10 +255,14 @@ export default function HomeScreen() {
   }, [activeCompetition?.id, canViewAllTeams, competitionLoading, status]);
 
   const handleQuickAction = (tabId: string, additionalData?: any) => {
+    const detail = tabId === "registration"
+      ? { tabId, teamView: "register", ...additionalData }
+      : { tabId, ...additionalData };
+
     if (tabId === "registration") {
       window.sessionStorage.setItem("s5evo-team-view", "register");
     }
-    const event = new CustomEvent('switchTab', { detail: { tabId, ...additionalData } });
+    const event = new CustomEvent('switchTab', { detail });
     window.dispatchEvent(event);
   };
 
