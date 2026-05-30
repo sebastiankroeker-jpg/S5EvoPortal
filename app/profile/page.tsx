@@ -195,7 +195,7 @@ export default function ProfilePage() {
                   className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Wird als Teamchef:in-Name bei Anmeldungen verwendet
+                  Wird als Team-Manager-Name bei Anmeldungen verwendet
                 </p>
               </div>
               <div>

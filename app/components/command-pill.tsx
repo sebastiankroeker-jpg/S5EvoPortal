@@ -451,7 +451,7 @@ export default function CommandPill() {
                                 setSimulatedRole(activeRole === role ? null : role);
                               }}
                             >
-                              {role}
+                              {role === "TEAMCHEF" ? "Team Manager:in" : role}
                               {isSimulating && simulatedRole === role && (
                                 <Badge variant="secondary" className="ml-2 text-xs">
                                   Aktiv

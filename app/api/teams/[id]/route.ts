@@ -510,7 +510,7 @@ export async function PUT(
 
       if (!canDirectEdit && finalTeamName !== existingTeam.name) {
         return NextResponse.json(
-          { error: 'Teamname-Aenderungen laufen fuer Teamchefs noch nicht ueber den Genehmigungsworkflow. Bitte nur Teilnehmerdaten aendern.' },
+          { error: 'Teamname-Aenderungen laufen fuer Team Manager:innen noch nicht ueber den Genehmigungsworkflow. Bitte nur Teilnehmerdaten aendern.' },
           { status: 409 }
         );
       }
@@ -601,7 +601,7 @@ export async function PUT(
                   actorId: user!.id,
                   beforeData: serializeSnapshot(currentSnapshot),
                   afterData: serializeSnapshot(directAppliedSnapshot),
-                  message: directFieldLabels.join(', ') + ' direkt durch Teamchef aktualisiert',
+                  message: directFieldLabels.join(', ') + ' direkt durch Team Manager:in aktualisiert',
                 },
               });
             });
@@ -669,7 +669,7 @@ export async function PUT(
                   pendingChangeId: updatedPendingChange.id,
                   beforeData: serializeSnapshot(approvalBaseSnapshot),
                   afterData: serializeSnapshot(approvalRequestedSnapshot),
-                  message: 'Offene Aenderungsanfrage durch Teamchef aktualisiert',
+                  message: 'Offene Aenderungsanfrage durch Team Manager:in aktualisiert',
                 },
               });
             });
@@ -694,7 +694,7 @@ export async function PUT(
                   pendingChangeId: createdPendingChange.id,
                   beforeData: serializeSnapshot(approvalBaseSnapshot),
                   afterData: serializeSnapshot(approvalRequestedSnapshot),
-                  message: 'Aenderungsanfrage durch Teamchef eingereicht',
+                  message: 'Aenderungsanfrage durch Team Manager:in eingereicht',
                 },
               });
             });
@@ -712,7 +712,7 @@ export async function PUT(
             teamName: finalTeamName,
             teamContactEmail: existingTeam.contactEmail,
             requester: {
-              name: user?.name || userEmail || 'Teamchef',
+              name: user?.name || userEmail || 'Team Manager:in',
               email: userEmail,
             },
             participants: createdChangeMailItems,

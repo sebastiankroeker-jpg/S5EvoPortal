@@ -8,7 +8,7 @@ import { Microscope, X } from "lucide-react";
 const ROLE_LABELS = {
   ADMIN: "Admin",
   MODERATOR: "Moderator:in",
-  TEAMCHEF: "Teamchef:in",
+  TEAMCHEF: "Team Manager:in",
   TEILNEHMER: "Teilnehmer:in",
   ZUSCHAUER: "Zuschauer:in",
 };

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,8 @@ import { useCompetition } from "@/lib/competition-context";
 import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
 import UserManagement from "@/app/components/user-management";
+import NavBar from "@/app/components/nav-bar";
+import BottomTabBar from "@/app/components/bottom-tab-bar";
 
 type TenantConfig = {
   name: string;
@@ -162,6 +165,7 @@ function FormField({ label, children, hint }: { label: string; children: React.R
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const { data: session } = useSession();
   const { can } = usePermissions();
   const { active: activeCompetition, all: competitions, switchTo } = useCompetition();
@@ -216,6 +220,15 @@ export default function AdminPage() {
   const [resetFeedback, setResetFeedback] = useState<InlineFeedback | null>(null);
   const hasAdminAccess = !session || can("config.edit");
   const expectedResetConfirmationText = activeCompetition?.name || competition.name;
+
+  const navigateFromBottomTab = (tabId: string) => {
+    if (tabId === "profile") {
+      router.push("/profile");
+      return;
+    }
+
+    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+  };
 
   const loadCompetitionDetails = async (compId: string) => {
     const res = await fetch(`/api/admin/competition?id=${compId}`);
@@ -469,10 +482,16 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-          <p className="mt-4 text-muted-foreground">Lade Konfiguration...</p>
+      <div className="min-h-screen bg-background pb-24 lg:pb-0">
+        <NavBar />
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="mt-4 text-muted-foreground">Lade Konfiguration...</p>
+          </div>
+        </div>
+        <div className="lg:hidden">
+          <BottomTabBar activeTab="orga" onTabChange={navigateFromBottomTab} />
         </div>
       </div>
     );
@@ -480,40 +499,33 @@ export default function AdminPage() {
 
   if (!hasAdminAccess) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>🚫 Kein Zugriff</CardTitle>
-            <CardDescription>
-              Du hast keine Berechtigung für die Administration.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/">
-              <Button className="w-full">← Zurück zur Startseite</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background pb-24 lg:pb-0">
+        <NavBar />
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>🚫 Kein Zugriff</CardTitle>
+              <CardDescription>
+                Du hast keine Berechtigung für die Administration.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/">
+                <Button className="w-full">← Zurück zur Startseite</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:hidden">
+          <BottomTabBar activeTab="orga" onTabChange={navigateFromBottomTab} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <nav className="flex items-center justify-between px-6 py-3 border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <span className="text-2xl">🏅</span>
-            <span className="font-bold text-lg tracking-tight">S5Evo Portal</span>
-          </Link>
-          <Badge variant="secondary" className="text-xs">{APP_VERSION}</Badge>
-          <Badge variant="destructive" className="text-xs">Admin</Badge>
-        </div>
-        <Link href="/">
-          <Button variant="ghost" size="sm">← Zurück</Button>
-        </Link>
-      </nav>
+    <div className="min-h-screen bg-background pb-24 lg:pb-0">
+      <NavBar />
 
       {/* Success/Error Message */}
       {message && (
@@ -823,7 +835,7 @@ export default function AdminPage() {
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="Teamchef sieht Anleger-Filter">
+                    <FormField label="Team Manager:in sieht Anleger-Filter">
                       <div className="flex items-center gap-3 pt-2">
                         <button
                           onClick={() =>
@@ -1231,6 +1243,9 @@ export default function AdminPage() {
           S5Evo Portal {APP_VERSION} • Administration
         </motion.footer>
       </main>
+      <div className="lg:hidden">
+        <BottomTabBar activeTab="orga" onTabChange={navigateFromBottomTab} />
+      </div>
     </div>
   );
 }

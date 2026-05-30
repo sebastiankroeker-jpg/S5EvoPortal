@@ -65,7 +65,7 @@ interface ParticipantEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
-  directEdit: boolean; // true = Admin/Teamchef, false = Teilnehmer (Approval)
+  directEdit: boolean; // true = Admin/Team Manager, false = Teilnehmer (Approval)
   isAdminEdit?: boolean;
   showModerationNote?: boolean;
 }

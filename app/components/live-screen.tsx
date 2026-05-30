@@ -190,7 +190,7 @@ export default function LiveScreen() {
                           
                           {team.contactName ? (
                             <div className="text-xs text-muted-foreground border-t pt-2">
-                              ⭐ {team.contactName} (Teamchef:in)
+                              ⭐ {team.contactName} (Team Manager:in)
                             </div>
                           ) : null}
                         </div>

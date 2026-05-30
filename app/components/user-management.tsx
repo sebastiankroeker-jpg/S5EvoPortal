@@ -32,6 +32,11 @@ interface UserEntry {
   createdAt: string;
   roles: UserRole[];
   teamCount: number;
+  teamScopes: Array<{
+    id: string;
+    name: string;
+    relation: string;
+  }>;
 }
 
 interface UsersResponse {
@@ -42,11 +47,11 @@ interface UsersResponse {
 
 const ALL_ROLES = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"] as const;
 
-const ROLE_INFO: Record<string, { icon: string; color: string; desc: string }> = {
-  ADMIN: { icon: "👑", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300", desc: "Vollzugriff" },
-  MODERATOR: { icon: "🛡️", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300", desc: "Ergebnisse & Teams" },
-  TEAMCHEF: { icon: "📋", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", desc: "Eigenes Team" },
-  TEILNEHMER: { icon: "🏃", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300", desc: "Eigene Daten" },
+const ROLE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
+  ADMIN: { icon: "👑", label: "Admin", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300", desc: "Vollzugriff" },
+  MODERATOR: { icon: "🛡️", label: "Moderator:in", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300", desc: "Ergebnisse & Teams" },
+  TEAMCHEF: { icon: "📋", label: "Team Manager:in", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", desc: "Eigene Teams" },
+  TEILNEHMER: { icon: "🏃", label: "Teilnehmer:in", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300", desc: "Eigene Daten" },
 };
 
 function formatCreatedAt(value: string) {
@@ -172,16 +177,29 @@ export default function UserManagement() {
     if (!query) return users;
 
     return users.filter((user) => {
-      const haystacks = [user.name || "", user.email, ...user.roles.map((role) => role.role)];
+      const haystacks = [
+        user.name || "",
+        user.email,
+        ...user.roles.map((role) => ROLE_INFO[role.role]?.label || role.role),
+        ...(user.teamScopes || []).map((team) => team.name),
+      ];
       return haystacks.some((value) => value.toLowerCase().includes(query));
     });
   }, [searchQuery, users]);
 
-  const stats = useMemo(() => ({
-    admins: users.filter((user) => user.roles.some((role) => role.role === "ADMIN")).length,
-    moderators: users.filter((user) => user.roles.some((role) => role.role === "MODERATOR")).length,
-    teamOwners: users.filter((user) => user.teamCount > 0).length,
-  }), [users]);
+  const stats = useMemo(() => {
+    const summarize = (entries: UserEntry[]) => ({
+      users: entries.length,
+      admins: entries.filter((user) => user.roles.some((role) => role.role === "ADMIN")).length,
+      moderators: entries.filter((user) => user.roles.some((role) => role.role === "MODERATOR")).length,
+      teamManagers: entries.filter((user) => user.teamCount > 0 || user.roles.some((role) => role.role === "TEAMCHEF")).length,
+    });
+
+    return {
+      total: summarize(users),
+      filtered: summarize(filteredUsers),
+    };
+  }, [filteredUsers, users]);
 
   if (loading) {
     return (
@@ -196,44 +214,40 @@ export default function UserManagement() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <CardHeader className="space-y-3">
+          <div className="flex flex-col gap-2">
             <div className="space-y-1">
               <CardTitle>👥 Benutzer-Dashboard</CardTitle>
               <CardDescription>
                 Portal-Rollen für Admins verwalten. Fachliche Rollen bleiben in der App, nicht in Authentik.
               </CardDescription>
             </div>
-            <div className="w-full md:w-72">
-              <Input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Suche nach Name, Mail oder Rolle"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">Benutzer</p>
-              <p className="text-2xl font-semibold">{users.length}</p>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">Admins</p>
-              <p className="text-2xl font-semibold">{stats.admins}</p>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">Moderatoren</p>
-              <p className="text-2xl font-semibold">{stats.moderators}</p>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">mit Teams</p>
-              <p className="text-2xl font-semibold">{stats.teamOwners}</p>
-            </div>
           </div>
 
           <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-xs text-muted-foreground">
             Letzter Schutzmechanismus aktiv: Der letzte Admin kann serverseitig nicht entfernt werden.
+          </div>
+
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Suche nach Name, Mail, Rolle oder Team"
+          />
+
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {[
+              ["Benutzer", stats.filtered.users, stats.total.users],
+              ["Admins", stats.filtered.admins, stats.total.admins],
+              ["Moderatoren", stats.filtered.moderators, stats.total.moderators],
+              ["Team Manager:innen", stats.filtered.teamManagers, stats.total.teamManagers],
+            ].map(([label, filtered, total]) => (
+              <div key={label} className="rounded-md border border-border/50 bg-muted/25 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">{label}</p>
+                <p className="text-sm font-semibold">
+                  {filtered}<span className="text-xs font-normal text-muted-foreground"> / {total}</span>
+                </p>
+              </div>
+            ))}
           </div>
 
           {statusMessage && (
@@ -292,7 +306,7 @@ export default function UserManagement() {
                                   info?.color
                                 )}
                               >
-                                {info?.icon} {role.role}
+                                {info?.icon} {info?.label || role.role}
                               </span>
                             );
                           })
@@ -305,7 +319,7 @@ export default function UserManagement() {
                     {editingUser === user.id && (
                       <div className="mt-3 space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          Wähle die Portal-Rollen für diesen Benutzer.
+                          Wähle die Portal-Rollen für diesen Benutzer. Team Manager:in gilt als Portal-Kontext für eigene Teams; die konkrete Team-Zuordnung steht darunter.
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                           {ALL_ROLES.map((role) => {
@@ -328,7 +342,7 @@ export default function UserManagement() {
                               >
                                 <span>{info.icon}</span>
                                 <div>
-                                  <span className="font-medium">{role}</span>
+                                  <span className="font-medium">{info.label}</span>
                                   <p className="text-[10px] text-muted-foreground">{info.desc}</p>
                                 </div>
                               </button>
@@ -347,6 +361,19 @@ export default function UserManagement() {
                           <Button size="sm" variant="outline" onClick={() => setEditingUser(null)}>
                             Abbrechen
                           </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {user.teamScopes?.length > 0 && (
+                      <div className="mt-3 rounded-md border border-border/40 bg-muted/20 p-2 text-xs">
+                        <p className="font-medium text-muted-foreground">Eigene Teams / Team-Manager-Zuordnung</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {user.teamScopes.map((team) => (
+                            <Badge key={team.id} variant="outline" className="text-[11px]">
+                              {team.name} · {team.relation}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     )}

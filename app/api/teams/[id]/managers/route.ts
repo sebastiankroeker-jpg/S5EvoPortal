@@ -110,7 +110,7 @@ export async function POST(
         actorId: user.id,
       },
     });
-    return NextResponse.json({ error: "Keine Berechtigung zum Verwalten von Teamchef:innen" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung zum Verwalten von Team Manager:innen" }, { status: 403 });
   }
 
   if (!participantId) {
@@ -268,7 +268,7 @@ export async function DELETE(
         actorId: user.id,
       },
     });
-    return NextResponse.json({ error: "Keine Berechtigung zum Verwalten von Teamchef:innen" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung zum Verwalten von Team Manager:innen" }, { status: 403 });
   }
 
   const participant = participantId ? team.participants.find((entry) => entry.id === participantId) : null;

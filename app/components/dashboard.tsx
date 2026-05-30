@@ -122,7 +122,7 @@ const SORT_OPTIONS: Array<{ value: TeamSortField; label: string }> = [
   { value: "createdAt", label: "Angelegt" },
   { value: "name", label: "Mannschaftsname" },
   { value: "category", label: "Klasse" },
-  { value: "contactName", label: "Teamchef:in" },
+  { value: "contactName", label: "Team Manager:in" },
   { value: "contactEmail", label: "Kontakt E-Mail" },
   { value: "ownerEmail", label: "Angelegt von" },
   { value: "participantCount", label: "Teilnehmerzahl" },
@@ -130,7 +130,7 @@ const SORT_OPTIONS: Array<{ value: TeamSortField; label: string }> = [
 
 const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string }> = [
   { key: "category", label: "Klasse" },
-  { key: "contactName", label: "Teamchef:in" },
+  { key: "contactName", label: "Team Manager:in" },
   { key: "contactEmail", label: "Kontakt E-Mail" },
   { key: "ownerEmail", label: "Angelegt von" },
   { key: "participantCount", label: "Teilnehmer" },
@@ -736,7 +736,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               <div className="space-y-1 xl:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">Suche</label>
                 <Input
-                  placeholder="Teamname, Teamchef:in oder Teilnehmer:in"
+                  placeholder="Teamname, Team Manager:in oder Teilnehmer:in"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -1148,12 +1148,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                         })}
                       </div>
                     ) : null}
-                    {/* Teamchef:in extra Zeile wenn nicht Teilnehmer */}
+                    {/* Team Manager:in extra Zeile wenn nicht Teilnehmer */}
                     {team.contactName && (!team.participants || !team.participants.some(p => 
                       team.contactName?.includes(p.firstName) || team.contactName?.includes(p.lastName)
                     )) && (
                       <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
-                        ⭐ {team.contactName} <span className="text-muted-foreground/60">(Teamchef:in)</span>
+                        ⭐ {team.contactName} <span className="text-muted-foreground/60">(Team Manager:in)</span>
                       </div>
                     )}
                   </CardContent>
@@ -1193,11 +1193,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                           </div>
 
                           <details className="rounded-md border border-border/60 bg-muted/10 p-2 text-xs">
-                            <summary className="cursor-pointer font-medium">Metadaten & Kontakt Teamchef:in</summary>
+                            <summary className="cursor-pointer font-medium">Metadaten & Kontakt Team Manager:in</summary>
                             <div className="mt-2 grid gap-x-3 gap-y-1 text-muted-foreground sm:grid-cols-2">
                               {hasVisibleContactInfo(team) ? (
                                 <>
-                                  {team.contactName && <div><strong className="text-foreground">Teamchef:in:</strong> ⭐ {team.contactName}</div>}
+                                  {team.contactName && <div><strong className="text-foreground">Team Manager:in:</strong> ⭐ {team.contactName}</div>}
                                   {team.contactEmail && <div><strong className="text-foreground">E-Mail:</strong> {team.contactEmail}</div>}
                                 </>
                               ) : (
@@ -1574,7 +1574,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
       );
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || "Teamchef-Rechte konnten nicht geändert werden");
+        throw new Error(data.error || "Team-Manager-Rechte konnten nicht geändert werden");
       }
 
       const newParticipants = [...formData.participants];
@@ -1587,7 +1587,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
         ...current,
         [index]: {
           type: "success",
-          text: participant.isTeamManager ? "Teamchef-Rechte entfernt." : "Teamchef-Rechte vergeben.",
+          text: participant.isTeamManager ? "Team-Manager-Rechte entfernt." : "Team-Manager-Rechte vergeben.",
         },
       }));
     } catch (error) {
@@ -1595,7 +1595,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
         ...current,
         [index]: {
           type: "error",
-          text: error instanceof Error ? error.message : "Teamchef-Rechte konnten nicht geändert werden",
+          text: error instanceof Error ? error.message : "Team-Manager-Rechte konnten nicht geändert werden",
         },
       }));
     } finally {
@@ -1843,11 +1843,11 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
                     <div className="space-y-2 rounded-md border border-border/60 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="text-xs font-medium text-muted-foreground">Teamchef-Rechte</p>
+                          <p className="text-xs font-medium text-muted-foreground">Team-Manager-Rechte</p>
                           <p className="text-xs text-muted-foreground">Gilt nur für diese Mannschaft.</p>
                         </div>
                         <Badge variant="outline" className={participant.isTeamManager ? "border-green-300 text-green-700" : "border-muted text-muted-foreground"}>
-                          {participant.isTeamManager ? "Mit-Teamchef:in" : participant.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
+                          {participant.isTeamManager ? "Team Manager:in" : participant.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
                         </Badge>
                       </div>
                       <Button
@@ -1861,8 +1861,8 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
                         {updatingManagerIndex === index
                           ? "Speichert..."
                           : participant.isTeamManager
-                            ? "Mit-Teamchef:in entfernen"
-                            : "Als Mit-Teamchef:in freigeben"}
+                            ? "Team Manager:in entfernen"
+                            : "Als Team Manager:in freigeben"}
                       </Button>
                       {!participant.canBeTeamManager && (
                         <p className="text-xs text-muted-foreground">

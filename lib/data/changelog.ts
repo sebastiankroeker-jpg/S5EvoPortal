@@ -24,7 +24,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Command Pill Navigation (Vercel-inspiriert, Mobile-first)",
       "Permission-System mit rollenbasierten Berechtigungen",
       "Role-Switcher zum Testen verschiedener Ansichten",
-      "Rollenbasierte UI (Admin, Moderator, Teamchef, Teilnehmer, Zuschauer)",
+      "Rollenbasierte UI (Admin, Moderator, Team Manager:in, Teilnehmer, Zuschauer)",
       "Navbar verschlankt, Referenzarchitektur-Link entfernt",
       "Admin-Bereich nur für ADMIN-Rolle zugänglich",
       "Profil-Seite mit Konto-Verwaltung",
@@ -45,7 +45,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: "v0.2.0",
     date: "2026-03-22",
     items: [
-      "Disziplinbasierte Registrierung inkl. Teamchef-Autoübernahme",
+      "Disziplinbasierte Registrierung inkl. Team-Manager-Autoübernahme",
       "2026-Klassifizierung + Besitzer-Filter im Dashboard",
       "Referenzarchitektur-Seite veröffentlicht",
     ],

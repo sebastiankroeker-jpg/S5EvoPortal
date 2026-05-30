@@ -399,7 +399,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
     replaceParticipantByDiscipline(discipline, {
       ...createEmptyParticipant(),
-      firstName: teamLeadFirstName || effectiveContactName || "Teamchef:in",
+      firstName: teamLeadFirstName || effectiveContactName || "Team Manager:in",
       lastName: teamLeadLastName || (!teamLeadFirstName && effectiveContactName ? effectiveContactName : ""),
       email: effectiveContactEmail,
       birthDate: teamLeadBirthDate,
@@ -674,7 +674,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       </div>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-4 space-y-4">
                         <div>
-                          <p className="text-sm font-medium text-foreground">Kontakt Teamchef:in</p>
+                          <p className="text-sm font-medium text-foreground">Kontakt Team Manager:in</p>
                           <p className="text-xs text-muted-foreground">An diese E-Mail senden wir spaeter den Uebernahmelink fuer die weitere Bearbeitung im Portal.</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -712,7 +712,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                             type="email"
                             {...register("contactEmail")}
                             className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="teamchef@example.de"
+                            placeholder="teammanager@example.de"
                           />
                           {formState.errors.contactEmail && (
                             <p className="text-xs text-red-500 mt-1">{formState.errors.contactEmail.message}</p>
@@ -938,7 +938,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                           <div className="flex items-center justify-between text-sm font-medium">
                             <span>{disciplineMap[participants[index]?.discipline as DisciplineId]?.icon} {disciplineMap[participants[index]?.discipline as DisciplineId]?.label ?? `Teilnehmer:in ${index + 1}`}</span>
                             {teamLeadParticipates && participants[index]?.discipline === teamLeadDiscipline && (
-                              <Badge variant="secondary" className="text-[0.65rem]">Teamchef:in</Badge>
+                              <Badge variant="secondary" className="text-[0.65rem]">Team Manager:in</Badge>
                             )}
                           </div>
                           <div className="grid grid-cols-2 gap-2">
@@ -1105,7 +1105,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                             <span>{discipline?.label || `Teilnehmer:in ${index + 1}`}</span>
                             {participant.email && <span>{participant.email}</span>}
                             {shirtSize && <span>{shirtSize}</span>}
-                            {isTeamLead && <span>Teamchef:in</span>}
+                            {isTeamLead && <span>Team Manager:in</span>}
                             {participant.moderationNote?.trim() && <span>Hinweis vorhanden</span>}
                           </div>
                         </div>
@@ -1114,10 +1114,10 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   </div>
 
                   <details className="rounded-md border border-border/60 bg-muted/10 p-3 text-sm">
-                    <summary className="cursor-pointer font-medium">Metadaten & Kontakt Teamchef:in</summary>
+                    <summary className="cursor-pointer font-medium">Metadaten & Kontakt Team Manager:in</summary>
                     <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                       <div className="flex justify-between gap-3">
-                        <span>Teamchef:in</span>
+                        <span>Team Manager:in</span>
                         <span className="text-right font-medium text-foreground">{effectiveContactName || "-"}</span>
                       </div>
                       <div className="flex justify-between gap-3">

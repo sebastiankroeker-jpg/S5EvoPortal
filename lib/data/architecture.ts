@@ -45,7 +45,7 @@ export const personas: Persona[] = [
   },
   {
     id: "teamchef",
-    label: "Teamchef/Betreuer",
+    label: "Team Manager:in/Betreuer:in",
     icon: "🧢",
     description: "Meldet Mannschaften an, pflegt Teilnehmer & Disziplinen."
   },
@@ -76,7 +76,7 @@ export const diagramNodes: DiagramNode[] = [
   },
   {
     id: "teamchef",
-    label: "Teamchef",
+    label: "Team Manager:in",
     description: "Mannschaft & Disziplin",
     kind: "persona",
     x: 340,

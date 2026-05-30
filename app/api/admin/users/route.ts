@@ -22,7 +22,25 @@ export async function GET() {
         where: { tenantId: auth.tenantId },
         include: { tenant: { select: { name: true } } },
       },
-      _count: { select: { ownedTeams: true } },
+      ownedTeams: {
+        where: { deletedAt: null },
+        select: { id: true, name: true },
+      },
+      chiefOfTeams: {
+        where: { deletedAt: null },
+        select: { id: true, name: true },
+      },
+      teamMemberRoles: {
+        where: {
+          role: "TEAM_MANAGER",
+          revokedAt: null,
+          team: { deletedAt: null },
+        },
+        select: {
+          id: true,
+          team: { select: { id: true, name: true } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -33,18 +51,37 @@ export async function GET() {
     currentUserId: auth.user.id,
     tenantId: auth.tenantId,
     adminCount,
-    users: users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      createdAt: u.createdAt,
-      roles: u.tenantRoles.map((tr) => ({
-        id: tr.id,
-        role: tr.role,
-        tenantId: tr.tenantId,
-        tenantName: tr.tenant.name,
-      })),
-      teamCount: u._count.ownedTeams,
-    })),
+    users: users.map((u) => {
+      const teamScopes = new Map<string, { id: string; name: string; relation: string }>();
+
+      for (const team of u.ownedTeams) {
+        teamScopes.set(team.id, { id: team.id, name: team.name, relation: "Owner" });
+      }
+      for (const team of u.chiefOfTeams) {
+        teamScopes.set(team.id, { id: team.id, name: team.name, relation: "Team Manager:in" });
+      }
+      for (const memberRole of u.teamMemberRoles) {
+        teamScopes.set(memberRole.team.id, {
+          id: memberRole.team.id,
+          name: memberRole.team.name,
+          relation: "Team Manager:in",
+        });
+      }
+
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        createdAt: u.createdAt,
+        roles: u.tenantRoles.map((tr) => ({
+          id: tr.id,
+          role: tr.role,
+          tenantId: tr.tenantId,
+          tenantName: tr.tenant.name,
+        })),
+        teamCount: teamScopes.size,
+        teamScopes: Array.from(teamScopes.values()),
+      };
+    }),
   });
 }
