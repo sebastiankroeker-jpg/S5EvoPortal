@@ -11,25 +11,25 @@ type ParticipantClaimMailPayload = {
 };
 
 export async function sendParticipantClaimEmail(payload: ParticipantClaimMailPayload) {
-  const subject = `Dein Teilnehmer-Zugang für ${payload.competitionName} ${payload.competitionYear}`;
+  const subject = "Dein Teilnehmer-Zugang zum S5Evo Portal";
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
       <p>Hallo ${payload.participantName || "Teilnehmer:in"},</p>
-      <p>für <strong>${payload.competitionName} ${payload.competitionYear}</strong> wurde dir ein Teilnehmer-Zugang für das Team <strong>${payload.teamName}</strong> vorbereitet.</p>
-      <p>Über diesen Link kannst du deinen Teilnehmer-Datensatz mit deinem Portal-Konto verknüpfen:</p>
-      <p><a href="${payload.claimUrl}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;">Teilnehmer im Portal verknüpfen</a></p>
-      <p style="font-size:14px;color:#555">Wichtig: Bitte nutze dafür dieselbe E-Mail-Adresse wie diese Einladung an <strong>${payload.participantEmail}</strong>.</p>
-      <p style="font-size:14px;color:#555">Falls du noch kein Konto hast, kannst du es auf der verlinkten Seite direkt anlegen.</p>
+      <p>du bist für <strong>${payload.competitionName} ${payload.competitionYear}</strong> im Team <strong>${payload.teamName}</strong> eingetragen.</p>
+      <p>Über diesen Link verknüpfst du deinen Teilnehmer-Eintrag mit deinem S5Evo Portal-Konto:</p>
+      <p><a href="${payload.claimUrl}" style="display:inline-block;padding:10px 16px;background:#bbf7d0;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Zugang öffnen</a></p>
+      <p style="font-size:14px;color:#555">Melde dich dort mit <strong>${payload.participantEmail}</strong> an. Wenn du mit dieser E-Mail schon ein Konto hast, nutze einfach dieses Konto. Falls nicht, kannst du im selben Schritt ein neues Konto anlegen.</p>
     </div>
   `;
   const text = [
     `Hallo ${payload.participantName || "Teilnehmer:in"},`,
     "",
-    `für ${payload.competitionName} ${payload.competitionYear} wurde dir ein Teilnehmer-Zugang für das Team ${payload.teamName} vorbereitet.`,
+    `du bist für ${payload.competitionName} ${payload.competitionYear} im Team ${payload.teamName} eingetragen.`,
     "",
-    `Link: ${payload.claimUrl}`,
+    "Über diesen Link verknüpfst du deinen Teilnehmer-Eintrag mit deinem S5Evo Portal-Konto:",
+    payload.claimUrl,
     "",
-    `Bitte nutze dieselbe E-Mail-Adresse wie diese Einladung an ${payload.participantEmail}.`,
+    `Melde dich dort mit ${payload.participantEmail} an. Wenn du mit dieser E-Mail schon ein Konto hast, nutze einfach dieses Konto. Falls nicht, kannst du im selben Schritt ein neues Konto anlegen.`,
   ].join("\n");
 
   return sendResendMail({

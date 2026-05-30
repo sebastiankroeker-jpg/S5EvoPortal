@@ -90,6 +90,8 @@ export default function LoginPage() {
     }
   };
 
+  const isParticipantClaimFlow = callbackUrl?.startsWith("/participant-claim/");
+
   if (status === "loading" || !callbackUrl) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -105,9 +107,11 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>🔐 Ins Portal</CardTitle>
+          <CardTitle>{isParticipantClaimFlow ? "🔐 Teilnehmer-Zugang aktivieren" : "🔐 Ins Portal"}</CardTitle>
           <CardDescription>
-            Melde dich mit deinem bestehenden Konto an oder lege direkt ein neues an. Danach geht es automatisch im Portal weiter.
+            {isParticipantClaimFlow
+              ? "Melde dich mit dem Konto zur E-Mail-Adresse aus der Einladung an. Wenn du noch keines hast, kannst du es direkt anlegen."
+              : "Melde dich mit deinem bestehenden Konto an oder lege direkt ein neues an. Danach geht es automatisch im Portal weiter."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -118,17 +122,21 @@ export default function LoginPage() {
           )}
           {callbackUrl !== "/" && (
             <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-              Nach dem Login landest du wieder automatisch beim laufenden Portal-Schritt.
+              {isParticipantClaimFlow
+                ? "Nach der Anmeldung kommst du zurück zur Bestätigung des Teilnehmer-Zugangs."
+                : "Nach dem Login landest du wieder automatisch beim laufenden Portal-Schritt."}
             </div>
           )}
           <Button onClick={handleLogin} className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Leite zu Authentik weiter..." : "Mit bestehendem Konto anmelden"}
+            {isSubmitting ? "Leite zu Authentik weiter..." : isParticipantClaimFlow ? "Bestehendes Konto nutzen" : "Mit bestehendem Konto anmelden"}
           </Button>
           <Button variant="outline" className="w-full" onClick={handleRegister} disabled={isSubmitting}>
             {isSubmitting ? "Bitte kurz warten..." : "Neues Konto anlegen"}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Wenn du aus einer Anmeldemail oder von einem Uebernahmelink kommst, nutze bitte dieselbe E-Mail-Adresse wie dort.
+            {isParticipantClaimFlow
+              ? "Wichtig ist nur, dass die E-Mail-Adresse zum Einladungslink passt."
+              : "Wenn du aus einer Anmeldemail oder von einem Uebernahmelink kommst, nutze bitte dieselbe E-Mail-Adresse wie dort."}
           </p>
         </CardContent>
       </Card>

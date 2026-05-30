@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +34,7 @@ import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowDownUp, ChevronDown, ChevronUp, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { ArrowDownUp, ChevronDown, ChevronUp, Info, RotateCcw, Send, SlidersHorizontal } from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface Team {
@@ -222,6 +223,35 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   if (status === "revoked") return { label: "Einladung gesperrt", className: "border-red-300 text-red-700" };
   if (status === "missing_email") return { label: "Keine E-Mail", className: "border-muted text-muted-foreground" };
   return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("de-DE");
+}
+
+function InfoHint({ text }: { text: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          type="button"
+          className="inline-flex size-5 items-center justify-center rounded-full border border-border/70 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Info"
+          onClick={(event) => event.preventDefault()}
+        >
+          <Info className="size-3" />
+        </TooltipTrigger>
+        <TooltipContent side="top">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 function compareDates(a?: string, b?: string) {
@@ -1338,6 +1368,11 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
 }) {
   const [showInfo, setShowInfo] = useState(false);
   const [openModerationNotes, setOpenModerationNotes] = useState<Record<number, boolean>>({});
+  const [sendingInvitationIndex, setSendingInvitationIndex] = useState<number | null>(null);
+  const [inviteMessages, setInviteMessages] = useState<Record<number, { type: "success" | "error"; text: string }>>({});
+  const [savedInvitationEmails, setSavedInvitationEmails] = useState<Record<number, string>>(() =>
+    Object.fromEntries((team.participants || []).map((participant, index) => [index, participant.email || ""])),
+  );
   const [formData, setFormData] = useState({
     teamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel || "TEAM_ANONYM",
@@ -1361,6 +1396,13 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
     const newParticipants = [...formData.participants];
     newParticipants[index] = { ...newParticipants[index], [field]: value };
     setFormData({ ...formData, participants: newParticipants });
+    if (field === "email") {
+      setInviteMessages((current) => {
+        const next = { ...current };
+        delete next[index];
+        return next;
+      });
+    }
   };
 
   const handleSubmit = () => {
@@ -1374,8 +1416,67 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
     }));
   };
 
+  const updateParticipantInviteState = (index: number, nextValues: Partial<Participant>) => {
+    const newParticipants = [...formData.participants];
+    newParticipants[index] = { ...newParticipants[index], ...nextValues };
+    setFormData({ ...formData, participants: newParticipants });
+  };
+
+  const handleSendInvitation = async (index: number) => {
+    const participant = formData.participants[index];
+    if (!participant?.id) return;
+
+    setSendingInvitationIndex(index);
+    setInviteMessages((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+
+    try {
+      const response = await fetch(`/api/participants/${participant.id}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: participant.email || "" }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Einladung konnte nicht gesendet werden");
+      }
+
+      updateParticipantInviteState(index, {
+        email: participant.email,
+        emailInvitation: {
+          status: "active",
+          sentAt: new Date().toISOString(),
+          expiresAt: data.participantClaimMail?.expiresAt ?? participant.emailInvitation?.expiresAt ?? null,
+          claimedAt: null,
+          revokedAt: null,
+        },
+      });
+      setSavedInvitationEmails((current) => ({
+        ...current,
+        [index]: participant.email || "",
+      }));
+      setInviteMessages((current) => ({
+        ...current,
+        [index]: { type: "success", text: "Einladung wurde versendet." },
+      }));
+    } catch (error) {
+      setInviteMessages((current) => ({
+        ...current,
+        [index]: {
+          type: "error",
+          text: error instanceof Error ? error.message : "Einladung konnte nicht gesendet werden",
+        },
+      }));
+    } finally {
+      setSendingInvitationIndex(null);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
       <Card className="flex w-full max-w-2xl max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
@@ -1460,7 +1561,22 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
           <div>
             <label className="text-sm font-medium">Teilnehmer</label>
             <div className="space-y-3 mt-2">
-              {formData.participants.map((participant, index) => (
+              {formData.participants.map((participant, index) => {
+                const savedParticipantEmail = savedInvitationEmails[index] || "";
+                const emailDiffersFromSaved = normalizeEmail(participant.email) !== normalizeEmail(savedParticipantEmail);
+                const effectiveEmailInvitationStatus = emailDiffersFromSaved
+                  ? (participant.email ? "none" : "missing_email")
+                  : participant.emailInvitation?.status;
+                const emailInvitationMeta = getEmailInvitationMeta(
+                  effectiveEmailInvitationStatus || (participant.email ? "none" : "missing_email"),
+                );
+                const canSendInvitation =
+                  Boolean(participant.id) &&
+                  isValidEmail(participant.email || "") &&
+                  (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(participant.emailInvitation?.status || "none"));
+                const inviteMessage = inviteMessages[index];
+
+                return (
                 <div key={index} className="border border-border/50 shadow-sm rounded-md p-3 space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -1570,15 +1686,47 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">E-Mail (optional)</label>
-                    <Input
-                      type="email"
-                      value={participant.email || ""}
-                      onChange={(e) => handleParticipantChange(index, "email", e.target.value)}
-                      placeholder="teilnehmer@example.de"
-                      className="h-8 mt-1"
-                    />
+                  <div className="space-y-2 rounded-md border border-border/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-medium text-muted-foreground">E-Mail (optional)</label>
+                        <InfoHint text="Die E-Mail ist nur Kontakt- und Einladungskanal. Sie ist nicht die dauerhafte Identität des Portal-Accounts." />
+                      </div>
+                      <Badge variant="outline" className={emailInvitationMeta.className}>
+                        {emailInvitationMeta.label}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <Input
+                        type="email"
+                        value={participant.email || ""}
+                        onChange={(e) => handleParticipantChange(index, "email", e.target.value)}
+                        placeholder="teilnehmer@example.de"
+                        className="h-8"
+                      />
+                      {canSendInvitation ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSendInvitation(index)}
+                          disabled={sendingInvitationIndex === index}
+                          className="h-8"
+                        >
+                          <Send className="size-4" />
+                          {sendingInvitationIndex === index ? "Sendet..." : "Einladung senden"}
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {participant.emailInvitation?.sentAt ? <p>Versendet: {formatDateTime(participant.emailInvitation.sentAt)}</p> : null}
+                      {participant.emailInvitation?.expiresAt ? <p>Gültig bis: {formatDateTime(participant.emailInvitation.expiresAt)}</p> : null}
+                      {participant.emailInvitation?.claimedAt ? <p>Eingelöst: {formatDateTime(participant.emailInvitation.claimedAt)}</p> : null}
+                      {participant.email && !isValidEmail(participant.email) ? <p className="text-red-600">Bitte eine gültige E-Mail-Adresse eintragen.</p> : null}
+                      {inviteMessage ? (
+                        <p className={inviteMessage.type === "success" ? "text-green-700" : "text-red-600"}>{inviteMessage.text}</p>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="pt-1">
                     <Button
@@ -1605,7 +1753,8 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
 

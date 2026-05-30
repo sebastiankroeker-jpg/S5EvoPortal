@@ -76,6 +76,7 @@ export default function ParticipantClaimPage() {
         throw new Error(payload.error || "Claim fehlgeschlagen");
       }
       setClaimed(true);
+      router.replace("/profile");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Claim fehlgeschlagen");
     } finally {
@@ -101,9 +102,9 @@ export default function ParticipantClaimPage() {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>🔐 Teilnehmerprofil im Portal verknüpfen</CardTitle>
+          <CardTitle>🔐 Teilnehmer-Zugang aktivieren</CardTitle>
           <CardDescription>
-            Dieser Link ordnet genau einen Teilnehmer deinem Portal-Konto zu. Du brauchst dafür dieselbe E-Mail-Adresse wie in der Einladung.
+            Verbinde diesen Teilnehmer mit deinem Portal-Konto. Ein bestehendes Konto funktioniert genauso wie ein neu angelegtes.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -126,11 +127,11 @@ export default function ParticipantClaimPage() {
               {!data.session.authenticated && (
                 <div className="space-y-3">
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Bitte melde dich jetzt mit der vorgesehenen E-Mail im Portal an. Falls du noch kein Konto hast, kannst du es direkt damit anlegen. Hinterlegt ist aktuell <strong>{claimEmail}</strong>.
+                    Nutze <strong>{claimEmail}</strong>. Wenn du damit schon ein Konto hast, melde dich an. Falls nicht, lege ein neues Konto an.
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Link href={loginUrl}>
-                      <Button className="w-full">Mit bestehendem Konto anmelden</Button>
+                      <Button className="w-full">Bestehendes Konto nutzen</Button>
                     </Link>
                     <Link href={registerUrl}>
                       <Button variant="outline" className="w-full">Neues Konto anlegen</Button>
@@ -142,13 +143,13 @@ export default function ParticipantClaimPage() {
               {data.session.authenticated && !data.state.emailMatches && !data.state.alreadyClaimedByOtherUser && (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-3">
                   <p>Angemeldet bist du als <strong>{sessionEmail}</strong>, der Link ist aber für eine andere hinterlegte E-Mail gedacht.</p>
-                  <p className="text-sm">Bitte melde dich mit der richtigen E-Mail neu an oder lege damit ein Konto an.</p>
+                  <p className="text-sm">Bitte nutze das bestehende Konto zur E-Mail aus der Einladung oder lege genau dafür ein neues Konto an.</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Link href={loginUrl}>
-                      <Button className="w-full">Mit anderer E-Mail anmelden</Button>
+                      <Button className="w-full">Anderes Konto nutzen</Button>
                     </Link>
                     <Link href={registerUrl}>
-                      <Button variant="outline" className="w-full">Konto mit richtiger E-Mail anlegen</Button>
+                      <Button variant="outline" className="w-full">Neues Konto anlegen</Button>
                     </Link>
                   </div>
                 </div>
@@ -171,13 +172,13 @@ export default function ParticipantClaimPage() {
               {(data.state.emailMatches || data.state.alreadyClaimedBySessionUser) && !claimed && data.settings.claimLinksEnabled && (
                 <div className="space-y-3">
                   <p>
-                    Angemeldet als <strong>{sessionEmail}</strong>. Wenn du bestätigst, wird dieser Teilnehmer mit deinem Account verknüpft.
+                    Angemeldet als <strong>{sessionEmail}</strong>. Wenn du bestätigst, wird dieser Teilnehmer mit deinem Portal-Konto verknüpft.
                   </p>
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Danach kannst du deine eigenen Teilnehmerdaten im Portal pflegen. Das Team selbst wird dadurch nicht auf dich umgeschrieben.
+                    Danach findest du die Zuordnung in deinem Profil und kannst deine eigenen Teilnehmerdaten bearbeiten.
                   </div>
                   <Button onClick={handleClaim} disabled={claiming} className="w-full">
-                    {claiming ? "Verknüpfe Teilnehmer..." : data.state.alreadyClaimedBySessionUser ? "Teilnehmerprofil im Portal öffnen" : "Teilnehmer mit meinem Account verknüpfen"}
+                    {claiming ? "Verknüpfe..." : data.state.alreadyClaimedBySessionUser ? "Zum Profil" : "Teilnehmer-Zugang aktivieren"}
                   </Button>
                 </div>
               )}
