@@ -131,6 +131,10 @@ enum ParticipantPublicationPreference {
   NAME_VEROEFFENTLICHEN
 }
 
+enum TeamMemberRoleType {
+  TEAM_MANAGER
+}
+
 // ==================== TENANT ====================
 
 model Tenant {
@@ -173,6 +177,9 @@ model User {
   tenantRoles               TenantRole[]
   ownedTeams                Team[]                     @relation("TeamOwner")
   chiefOfTeams              Team[]                     @relation("TeamChief")
+  teamMemberRoles           TeamMemberRole[]           @relation("TeamMemberRoleUser")
+  teamMemberRolesGranted    TeamMemberRole[]           @relation("TeamMemberRoleGrantedBy")
+  teamMemberRolesRevoked    TeamMemberRole[]           @relation("TeamMemberRoleRevokedBy")
   linkedParticipants        Participant[]              @relation("ParticipantUser")
   requestedChanges          PendingChange[]            @relation("ChangeRequester")
   reviewedChanges           PendingChange[]            @relation("ChangeReviewer")
@@ -248,20 +255,20 @@ model Competition {
 // ==================== TEAM ====================
 
 model Team {
-  id                 String    @id @default(cuid())
-  name               String
-  contactName        String?
-  contactEmail       String?
-  contactPhone       String?
-  clubName           String?
-  notes              String?
+  id                   String               @id @default(cuid())
+  name                 String
+  contactName          String?
+  contactEmail         String?
+  contactPhone         String?
+  clubName             String?
+  notes                String?
   teamPublicationLevel TeamPublicationLevel @default(TEAM_ANONYM)
-  approved           Boolean   @default(false)
-  totalAge           Int?
-  classificationCode String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  deletedAt          DateTime?
+  approved             Boolean              @default(false)
+  totalAge             Int?
+  classificationCode   String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  deletedAt            DateTime?
 
   // Relations
   competitionId           String
@@ -270,11 +277,38 @@ model Team {
   owner                   User                     @relation("TeamOwner", fields: [ownerId], references: [id])
   teamChiefId             String?
   teamChief               User?                    @relation("TeamChief", fields: [teamChiefId], references: [id])
+  memberRoles             TeamMemberRole[]
   participants            Participant[]
   rankings                CompetitionRanking[]
   registrationClaimTokens RegistrationClaimToken[]
 
   @@map("teams")
+}
+
+model TeamMemberRole {
+  id        String             @id @default(cuid())
+  role      TeamMemberRoleType @default(TEAM_MANAGER)
+  reason    String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  revokedAt DateTime?
+
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("TeamMemberRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  grantedByUserId String?
+  grantedByUser   User?   @relation("TeamMemberRoleGrantedBy", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+
+  revokedByUserId String?
+  revokedByUser   User?   @relation("TeamMemberRoleRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, userId, role])
+  @@index([userId, role, revokedAt])
+  @@index([teamId, role, revokedAt])
+  @@map("team_member_roles")
 }
 
 model RegistrationClaimToken {
@@ -366,23 +400,23 @@ model ParticipantClaimAuditEvent {
 // ==================== PARTICIPANT ====================
 
 model Participant {
-  id             String               @id @default(cuid())
-  firstName      String
-  lastName       String
-  birthYear      Int
-  gender         Gender
-  disciplineCode DisciplineAssignment @default(TBD)
+  id                               String                           @id @default(cuid())
+  firstName                        String
+  lastName                         String
+  birthYear                        Int
+  gender                           Gender
+  disciplineCode                   DisciplineAssignment             @default(TBD)
   participantPublicationPreference ParticipantPublicationPreference @default(NAME_VERBERGEN)
-  shirtSize      ShirtSize?
-  moderationNote String?
-  consentGiven   Boolean              @default(false)
-  email          String?
-  phone          String?
-  overallRank    Int?
-  overallPoints  Int?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  deletedAt      DateTime?
+  shirtSize                        ShirtSize?
+  moderationNote                   String?
+  consentGiven                     Boolean                          @default(false)
+  email                            String?
+  phone                            String?
+  overallRank                      Int?
+  overallPoints                    Int?
+  createdAt                        DateTime                         @default(now())
+  updatedAt                        DateTime                         @updatedAt
+  deletedAt                        DateTime?
 
   // Relations
   userId         String?

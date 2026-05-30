@@ -28,6 +28,7 @@ import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
 import { normalizeEmail } from "@/lib/current-user";
+import { resolveTeamAccess } from "@/lib/team-manager-access";
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
 export async function GET(
@@ -48,6 +49,13 @@ export async function GET(
           id: true,
           name: true,
           contactEmail: true,
+          ownerId: true,
+          teamChiefId: true,
+          owner: { select: { email: true } },
+          memberRoles: {
+            where: { role: "TEAM_MANAGER", revokedAt: null },
+            select: { userId: true, revokedAt: true },
+          },
           competition: {
             select: {
               id: true,
@@ -82,14 +90,18 @@ export async function GET(
   const access = user
     ? await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId)
     : null;
-  const isAdmin = Boolean(access?.isAdmin || access?.isModerator);
   const normalizedSessionEmail = normalizeEmail(session.user.email);
-  const isTeamOwner = normalizeEmail(participant.team.contactEmail) === normalizedSessionEmail;
+  const teamAccess = resolveTeamAccess({
+    team: participant.team,
+    user,
+    userEmail: session.user.email,
+    canEditAllTeams: access?.canEditAllTeams,
+  });
   const isSelf = participant.userId
     ? participant.userId === user?.id
     : normalizeEmail(participant.email) === normalizedSessionEmail;
 
-  if (!isAdmin && !isTeamOwner && !isSelf) {
+  if (!teamAccess.canEditTeam && !isSelf) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
@@ -135,7 +147,14 @@ export async function PUT(
           id: true,
           name: true,
           contactEmail: true,
+          ownerId: true,
+          teamChiefId: true,
+          owner: { select: { email: true } },
           classificationCode: true,
+          memberRoles: {
+            where: { role: "TEAM_MANAGER", revokedAt: null },
+            select: { userId: true, revokedAt: true },
+          },
           participants: {
             where: { deletedAt: null },
             select: {
@@ -185,13 +204,18 @@ export async function PUT(
   const access = await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId);
   const isAdmin = access.isAdmin || access.isModerator;
   const normalizedSessionEmail = normalizeEmail(session.user.email);
-  const isTeamOwner = normalizeEmail(participant.team.contactEmail) === normalizedSessionEmail;
+  const teamAccess = resolveTeamAccess({
+    team: participant.team,
+    user,
+    userEmail: session.user.email,
+    canEditAllTeams: access.canEditAllTeams,
+  });
   const isSelf = participant.userId
     ? participant.userId === user.id
     : normalizeEmail(participant.email) === normalizedSessionEmail;
   const shirtOrderClosed = isShirtOrderClosed(participant.team.competition?.shirtOrderDeadline);
 
-  if (!isAdmin && !isTeamOwner && !isSelf) {
+  if (!teamAccess.canEditTeam && !isSelf) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 

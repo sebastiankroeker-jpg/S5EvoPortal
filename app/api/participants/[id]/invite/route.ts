@@ -7,6 +7,7 @@ import { createParticipantClaimInvitation } from "@/lib/participant-claim-invita
 import { serializeSnapshot, toParticipantSnapshot } from "@/lib/participant-change";
 import { prisma } from "@/lib/prisma";
 import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
+import { resolveTeamAccess } from "@/lib/team-manager-access";
 
 function isValidEmail(value?: string | null) {
   return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()));
@@ -32,6 +33,13 @@ export async function POST(
           id: true,
           name: true,
           contactEmail: true,
+          ownerId: true,
+          teamChiefId: true,
+          owner: { select: { email: true } },
+          memberRoles: {
+            where: { role: "TEAM_MANAGER", revokedAt: null },
+            select: { userId: true, revokedAt: true },
+          },
           competition: {
             select: {
               name: true,
@@ -69,10 +77,14 @@ export async function POST(
   }
 
   const access = await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId);
-  const isAdmin = access.isAdmin || access.isModerator;
-  const isTeamOwner = normalizeEmail(participant.team.contactEmail) === normalizeEmail(session.user.email);
+  const teamAccess = resolveTeamAccess({
+    team: participant.team,
+    user,
+    userEmail: session.user.email,
+    canEditAllTeams: access.canEditAllTeams,
+  });
 
-  if (!isAdmin && !isTeamOwner) {
+  if (!teamAccess.canEditTeam) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 

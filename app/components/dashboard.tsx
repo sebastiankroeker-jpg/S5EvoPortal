@@ -48,6 +48,8 @@ interface Team {
   ownerName?: string;
   createdAt?: string;
   updatedAt?: string;
+  canCurrentUserEdit?: boolean;
+  canManageTeamManagers?: boolean;
   participants?: Participant[];
 }
 
@@ -66,6 +68,8 @@ interface Participant {
   emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN";
   isCurrentUserParticipant?: boolean;
+  isTeamManager?: boolean;
+  canBeTeamManager?: boolean;
   pendingChanges?: { id: string; status: string }[];
   latestChange?: {
     id: string;
@@ -75,6 +79,7 @@ interface Participant {
     reviewComment?: string | null;
   } | null;
   teamOwnerEmail?: string;
+  teamCanEdit?: boolean;
 }
 
 type EmailInvitationStatus = {
@@ -984,7 +989,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </thead>
               <tbody>
                 {sortedTeams.map((team) => {
-                  const isEditable = canEditAll || (normalizeEmail(team.ownerEmail) === normalizeEmail(userEmail) && canEditOwn);
+                  const isEditable = team.canCurrentUserEdit === true;
 
                   return (
                     <tr key={team.id} className="border-b border-border/50 align-top transition-colors hover:bg-muted/20">
@@ -1059,34 +1064,36 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 ✏️ Bearbeiten
                               </Button>
 
-                              <AlertDialog>
-                                <AlertDialogTrigger>
-                                  <button
-                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-destructive px-3 py-1 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:pointer-events-none disabled:opacity-50"
-                                    disabled={deleting === team.id}
-                                  >
-                                    {deleting === team.id ? "..." : "🗑️ Löschen"}
-                                  </button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Team löschen?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Möchtest du das Team &quot;{team.name}&quot; wirklich löschen?
-                                      Diese Aktion kann nicht rückgängig gemacht werden.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleDeleteTeam(team.id)}
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              {team.canManageTeamManagers && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger>
+                                    <button
+                                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-destructive px-3 py-1 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:pointer-events-none disabled:opacity-50"
+                                      disabled={deleting === team.id}
                                     >
-                                      Löschen
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                                      {deleting === team.id ? "..." : "🗑️ Löschen"}
+                                    </button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Team löschen?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Möchtest du das Team &quot;{team.name}&quot; wirklich löschen?
+                                        Diese Aktion kann nicht rückgängig gemacht werden.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteTeam(team.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Löschen
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
                             </div>
                           ) : (
                             <div className="text-right text-xs text-muted-foreground">Keine Bearbeitung</div>
@@ -1201,9 +1208,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   const disciplineDisplay = getDisciplineDisplay(p.discipline);
                                   const birthYear = p.birthDate ? extractBirthYearFromInput(p.birthDate) : null;
                                   const emailInviteMeta = getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"));
-                                  const canManageModerationNote =
-                                    canEditAll ||
-                                    (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own"));
+                                  const canManageModerationNote = canEditAll || team.canCurrentUserEdit === true;
                                   return (
                                     <div key={i} className="rounded-md border border-border/40 bg-background px-2 py-1.5 text-xs">
                                       <div className="flex items-center justify-between gap-2">
@@ -1234,7 +1239,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (!p.id) return;
-                                                setEditingParticipant({ ...p, id: p.id, teamOwnerEmail: team.ownerEmail || team.contactEmail });
+                                                setEditingParticipant({
+                                                  ...p,
+                                                  id: p.id,
+                                                  teamOwnerEmail: team.ownerEmail || team.contactEmail,
+                                                  teamCanEdit: team.canCurrentUserEdit,
+                                                });
                                               }}
                                               className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
                                               title="Moderationshinweis bearbeiten"
@@ -1242,12 +1252,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                               {p.moderationNote?.trim() ? "📝" : "📝+"}
                                             </button>
                                           )}
-                                          {(canEditAll || (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own")) || (p.isCurrentUserParticipant && can("participant.edit.self"))) && (
+                                          {(team.canCurrentUserEdit || (p.isCurrentUserParticipant && can("participant.edit.self"))) && (
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (!p.id) return;
-                                                setEditingParticipant({ ...p, id: p.id, teamOwnerEmail: team.ownerEmail || team.contactEmail });
+                                                setEditingParticipant({
+                                                  ...p,
+                                                  id: p.id,
+                                                  teamOwnerEmail: team.ownerEmail || team.contactEmail,
+                                                  teamCanEdit: team.canCurrentUserEdit,
+                                                });
                                               }}
                                               className="text-xs text-muted-foreground hover:text-primary transition-colors"
                                               title="Teilnehmer bearbeiten"
@@ -1268,7 +1283,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                           )}
 
                           {/* Actions */}
-                          {(canEditAll || (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own"))) && (
+                          {team.canCurrentUserEdit && (
                             <div className="flex gap-2 pt-2">
                               <Button 
                                 size="sm" 
@@ -1282,6 +1297,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 ✏️ Bearbeiten
                               </Button>
                               
+                              {team.canManageTeamManagers && (
                               <AlertDialog>
                                 <AlertDialogTrigger>
                                   <button 
@@ -1311,6 +1327,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
+                              )}
                             </div>
                           )}
                         </CardContent>
@@ -1331,6 +1348,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           onSave={handleEditTeam}
           onCancel={() => setEditingTeam(null)}
           showAdminInfo={canEditAll}
+          canManageTeamManagers={editingTeam.canManageTeamManagers === true}
         />
       )}
 
@@ -1342,23 +1360,26 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         onSaved={() => { setEditingParticipant(null); fetchTeams(); }}
         directEdit={canEditAll}
         isAdminEdit={canEditAll}
-        showModerationNote={canEditAll || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
+        showModerationNote={canEditAll || editingParticipant?.teamCanEdit === true || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
       />
     </div>
   );
 }
 
 // Edit Team Modal Component
-function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
+function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManageTeamManagers = false }: {
   team: Team;
   onSave: (data: TeamEditPayload) => void;
   onCancel: () => void;
   showAdminInfo?: boolean;
+  canManageTeamManagers?: boolean;
 }) {
   const [showInfo, setShowInfo] = useState(false);
   const [openModerationNotes, setOpenModerationNotes] = useState<Record<number, boolean>>({});
   const [sendingInvitationIndex, setSendingInvitationIndex] = useState<number | null>(null);
+  const [updatingManagerIndex, setUpdatingManagerIndex] = useState<number | null>(null);
   const [inviteMessages, setInviteMessages] = useState<Record<number, { type: "success" | "error"; text: string }>>({});
+  const [managerMessages, setManagerMessages] = useState<Record<number, { type: "success" | "error"; text: string }>>({});
   const [savedInvitationEmails, setSavedInvitationEmails] = useState<Record<number, string>>(() =>
     Object.fromEntries((team.participants || []).map((participant, index) => [index, participant.email || ""])),
   );
@@ -1519,6 +1540,59 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
     }
   };
 
+  const handleToggleTeamManager = async (index: number) => {
+    const participant = formData.participants[index];
+    if (!participant?.id) return;
+
+    setUpdatingManagerIndex(index);
+    setManagerMessages((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+
+    try {
+      const response = await fetch(
+        participant.isTeamManager
+          ? `/api/teams/${team.id}/managers?participantId=${encodeURIComponent(participant.id)}`
+          : `/api/teams/${team.id}/managers`,
+        {
+          method: participant.isTeamManager ? "DELETE" : "POST",
+          headers: participant.isTeamManager ? undefined : { "Content-Type": "application/json" },
+          body: participant.isTeamManager ? undefined : JSON.stringify({ participantId: participant.id }),
+        },
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Teamchef-Rechte konnten nicht geändert werden");
+      }
+
+      const newParticipants = [...formData.participants];
+      newParticipants[index] = {
+        ...newParticipants[index],
+        isTeamManager: !participant.isTeamManager,
+      };
+      setFormData({ ...formData, participants: newParticipants });
+      setManagerMessages((current) => ({
+        ...current,
+        [index]: {
+          type: "success",
+          text: participant.isTeamManager ? "Teamchef-Rechte entfernt." : "Teamchef-Rechte vergeben.",
+        },
+      }));
+    } catch (error) {
+      setManagerMessages((current) => ({
+        ...current,
+        [index]: {
+          type: "error",
+          text: error instanceof Error ? error.message : "Teamchef-Rechte konnten nicht geändert werden",
+        },
+      }));
+    } finally {
+      setUpdatingManagerIndex(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
       <Card className="flex w-full max-w-2xl max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
@@ -1622,6 +1696,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                   isValidEmail(participant.email || "") &&
                   (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(participant.emailInvitation?.status || "none"));
                 const inviteMessage = inviteMessages[index];
+                const managerMessage = managerMessages[index];
 
                 return (
                 <div key={index} className="border border-border/50 shadow-sm rounded-md p-3 space-y-2">
@@ -1754,6 +1829,43 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                       </SelectContent>
                     </Select>
                   </div>
+                  {canManageTeamManagers && (
+                    <div className="space-y-2 rounded-md border border-border/60 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Teamchef-Rechte</p>
+                          <p className="text-xs text-muted-foreground">Gilt nur für diese Mannschaft.</p>
+                        </div>
+                        <Badge variant="outline" className={participant.isTeamManager ? "border-green-300 text-green-700" : "border-muted text-muted-foreground"}>
+                          {participant.isTeamManager ? "Mit-Teamchef:in" : participant.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
+                        </Badge>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={participant.isTeamManager ? "outline" : "secondary"}
+                        onClick={() => handleToggleTeamManager(index)}
+                        disabled={!participant.canBeTeamManager || updatingManagerIndex === index}
+                        className="h-8 w-full sm:w-auto"
+                      >
+                        {updatingManagerIndex === index
+                          ? "Speichert..."
+                          : participant.isTeamManager
+                            ? "Mit-Teamchef:in entfernen"
+                            : "Als Mit-Teamchef:in freigeben"}
+                      </Button>
+                      {!participant.canBeTeamManager && (
+                        <p className="text-xs text-muted-foreground">
+                          Erst eine Einladung senden und vom Teilnehmer einlösen lassen, danach kann die Rolle vergeben werden.
+                        </p>
+                      )}
+                      {managerMessage ? (
+                        <p className={managerMessage.type === "success" ? "text-xs text-green-700" : "text-xs text-red-600"}>
+                          {managerMessage.text}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                   <div className="space-y-2 rounded-md border border-border/60 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">

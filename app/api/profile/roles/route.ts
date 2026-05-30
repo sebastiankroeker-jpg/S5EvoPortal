@@ -21,6 +21,15 @@ export async function GET() {
           select: { role: true },
         })
       : [];
+    const activeTeamManagerRole = await prisma.teamMemberRole.findFirst({
+      where: {
+        userId: user.id,
+        role: "TEAM_MANAGER",
+        revokedAt: null,
+        team: { deletedAt: null },
+      },
+      select: { id: true },
+    });
 
     if (tenantRoles.length === 0) {
       // Eingeloggt aber noch keine DB-Rollen:
@@ -43,6 +52,9 @@ export async function GET() {
 
     // Unique Rollen extrahieren - keine implizite Hochstufung
     const roles = [...new Set(tenantRoles.map(tr => tr.role))] as string[];
+    if (activeTeamManagerRole && !roles.includes("TEAMCHEF")) {
+      roles.push("TEAMCHEF");
+    }
 
     return NextResponse.json({ roles: roles.length ? roles : ["TEILNEHMER"] });
 

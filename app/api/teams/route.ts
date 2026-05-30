@@ -19,6 +19,7 @@ import {
 } from '@/lib/publication-visibility';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
 import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
+import { resolveTeamAccess } from '@/lib/team-manager-access';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -71,6 +72,8 @@ type SerializableParticipant = {
   email?: string | null;
   disciplineCode?: string | null;
   shirtSize?: string | null;
+  isTeamManager?: boolean;
+  canBeTeamManager?: boolean;
   pendingChanges?: SerializedPendingChange[];
   claimTokens?: Array<{
     id: string;
@@ -90,6 +93,8 @@ type SerializableTeam = {
   contactEmail?: string | null;
   contactPhone?: string | null;
   owner?: { email?: string | null; name?: string | null } | null;
+  ownerId?: string | null;
+  teamChiefId?: string | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
   participants?: SerializableParticipant[];
@@ -102,6 +107,7 @@ function serializeParticipant(
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
     teamPublicationLevel?: string | null;
+    activeTeamManagerUserIds?: Set<string>;
   },
 ) {
   if (!participant) return null;
@@ -142,6 +148,8 @@ function serializeParticipant(
     participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
     shirtSize: participant.shirtSize ?? "",
+    isTeamManager: !!participant.userId && options?.activeTeamManagerUserIds?.has(participant.userId) === true,
+    canBeTeamManager: !!participant.userId,
     isCurrentUserParticipant:
       (!!options?.currentUserId && participant.userId === options.currentUserId) ||
       (!!normalizedParticipantEmail && normalizedParticipantEmail === normalizedCurrentUserEmail),
@@ -163,10 +171,17 @@ function serializeTeam(
     currentUserId?: string | null;
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
+    canEditAllTeams?: boolean;
   },
 ) {
   if (!team) return null;
   const canSeeFullPublication = options?.canSeeFullPublication !== false;
+  const normalizedCurrentUserEmail = normalizeEmail(options?.currentUserEmail);
+  const activeTeamManagerUserIds = new Set(
+    (team as SerializableTeam & { memberRoles?: Array<{ userId: string; revokedAt?: Date | null }> }).memberRoles
+      ?.filter((memberRole) => !memberRole.revokedAt)
+      .map((memberRole) => memberRole.userId) ?? [],
+  );
   const visibleTeamName = resolveVisibleTeamName({
     actualTeamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel,
@@ -182,6 +197,19 @@ function serializeTeam(
     contactPhone: canSeeFullPublication ? team.contactPhone ?? "" : "",
     ownerEmail: canSeeFullPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
     ownerName: canSeeFullPublication ? team.owner?.name ?? team.contactName ?? "" : "",
+    canCurrentUserEdit:
+      options?.canEditAllTeams === true ||
+      (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
+      (!!options?.currentUserId && activeTeamManagerUserIds.has(options.currentUserId)) ||
+      (!!normalizedCurrentUserEmail &&
+        (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
+          normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail)),
+    canManageTeamManagers:
+      options?.canEditAllTeams === true ||
+      (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
+      (!!normalizedCurrentUserEmail &&
+        (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
+          normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail)),
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updatedAt: team.updatedAt?.toISOString?.() ?? team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     participants: Array.isArray(team.participants)
@@ -190,6 +218,7 @@ function serializeTeam(
             serializeParticipant(participant, {
               ...options,
               teamPublicationLevel: team.teamPublicationLevel,
+              activeTeamManagerUserIds,
             }),
           )
           .filter(Boolean)
@@ -288,13 +317,6 @@ export async function GET(request: NextRequest) {
       const competitionTeamAccess = normalizeCompetitionTeamAccessConfig(competition);
       const canViewRequestedScope =
         access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess);
-      const canSeeFullPublication =
-        !wantsAllTeams ||
-        canViewerSeeFullPublication({
-          isPrivilegedViewer: effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR",
-          ownsTeam: false,
-        });
-
       if (wantsAllTeams && !canViewRequestedScope) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
@@ -306,6 +328,17 @@ export async function GET(request: NextRequest) {
             : {
                 OR: [
                   ...(user ? [{ ownerId: user.id }] : []),
+                  ...(user
+                    ? [{
+                        memberRoles: {
+                          some: {
+                            userId: user.id,
+                            role: "TEAM_MANAGER" as const,
+                            revokedAt: null,
+                          },
+                        },
+                      }]
+                    : []),
                   ...(normalizedUserEmail
                     ? [{
                         contactEmail: {
@@ -336,18 +369,36 @@ export async function GET(request: NextRequest) {
               }
             }
           },
-          owner: { select: { email: true, name: true } }
+          owner: { select: { email: true, name: true } },
+          memberRoles: {
+            where: { role: "TEAM_MANAGER", revokedAt: null },
+            select: { userId: true, revokedAt: true },
+          },
         }
       });
 
       return NextResponse.json({
-        teams: teams.map((team) =>
-          serializeTeam(team, {
+        teams: teams.map((team) => {
+          const teamAccess = resolveTeamAccess({
+            team,
+            user,
+            userEmail,
+            canEditAllTeams: access.canEditAllTeams,
+          });
+          const canSeeFullPublication =
+            !wantsAllTeams ||
+            canViewerSeeFullPublication({
+              isPrivilegedViewer: effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR",
+              ownsTeam: teamAccess.canEditTeam,
+            });
+
+          return serializeTeam(team, {
             currentUserId: user?.id ?? null,
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,
-          }),
-        ),
+            canEditAllTeams: access.canEditAllTeams,
+          });
+        }),
       });
     } catch (dbError) {
       console.error('Database error on GET:', dbError);
