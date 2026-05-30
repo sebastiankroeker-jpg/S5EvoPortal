@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -225,9 +225,23 @@ export default function ParticipantEditDialog({
   const [result, setResult] = useState<{ applied: boolean; message?: string; classificationWarnings?: string[] } | null>(null);
   const [error, setError] = useState("");
   const [latestChange, setLatestChange] = useState<ParticipantChangeStatus | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 
   const hasPendingChange = latestChange?.status === "PENDING" || participant?.pendingChanges?.some(c => c.status === "PENDING");
   const statusMeta = getStatusMeta(latestChange?.status);
+  const saveFeedback = error
+    ? { type: "error" as const, text: error }
+    : result?.applied
+      ? { type: "success" as const, text: "Gespeichert!" }
+      : result
+        ? { type: "success" as const, text: result.message || "Änderungsantrag eingereicht!" }
+        : null;
+
+  const revealSaveFeedback = () => {
+    requestAnimationFrame(() => {
+      scrollAreaRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  };
 
   const handleBirthDateKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     const nextState = resolveBirthDateInputKey(
@@ -414,6 +428,7 @@ export default function ParticipantEditDialog({
           message: data.message,
           classificationWarnings: Array.isArray(data.classificationWarnings) ? data.classificationWarnings : [],
         });
+        revealSaveFeedback();
         if (!data.applied) {
           setLatestChange({
             id: data.pendingChange?.id || "latest",
@@ -433,6 +448,7 @@ export default function ParticipantEditDialog({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      revealSaveFeedback();
     } finally {
       setSaving(false);
     }
@@ -457,7 +473,21 @@ export default function ParticipantEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-6 pb-6">
+          {saveFeedback && (
+            <div
+              className={
+                saveFeedback.type === "error"
+                  ? "mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200"
+                  : "mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-200"
+              }
+              role={saveFeedback.type === "error" ? "alert" : "status"}
+            >
+              {saveFeedback.type === "success" ? "✅ " : ""}
+              {saveFeedback.text}
+            </div>
+          )}
+
           {!directEdit && statusMeta && (
             <div className={"text-sm p-3 rounded-md " + statusMeta.className}>
               <div className="font-medium">{statusMeta.title}</div>
@@ -650,33 +680,35 @@ export default function ParticipantEditDialog({
             </div>
           </div>
 
-          {error && (
-            <div className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded">{error}</div>
-          )}
-
-          {result && !result.applied && (
-            <div className="text-green-700 dark:text-green-300 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
-              ✅ {result.message || "Änderungsantrag eingereicht!"}
-            </div>
-          )}
-
-          {result?.applied && (
-            <div className="text-green-700 dark:text-green-300 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
-              ✅ Gespeichert!
-            </div>
-          )}
         </div>
 
-        <DialogFooter className="border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !!result}
-          >
-            {participantSaveLabel}
-          </Button>
+        <DialogFooter className="border-t bg-background/95 px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          <div className="flex w-full flex-col gap-2">
+            {saveFeedback && (
+              <div
+                className={
+                  saveFeedback.type === "error"
+                    ? "rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-200"
+                    : "rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-200"
+                }
+                role={saveFeedback.type === "error" ? "alert" : "status"}
+              >
+                {saveFeedback.type === "success" ? "✅ " : ""}
+                {saveFeedback.text}
+              </div>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Abbrechen
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving || !!result}
+              >
+                {participantSaveLabel}
+              </Button>
+            </div>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
