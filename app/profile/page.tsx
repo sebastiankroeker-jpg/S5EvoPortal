@@ -54,6 +54,7 @@ export default function ProfilePage() {
   const [deleting, setDeleting] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [error, setError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     if (session?.user) {
@@ -114,13 +115,15 @@ export default function ProfilePage() {
   const handleDelete = async () => {
     setDeleting(true);
     setError("");
+    setDeleteError("");
     try {
       const res = await fetch("/api/profile", { method: "DELETE" });
-      if (!res.ok) throw new Error("Löschen fehlgeschlagen");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Löschen fehlgeschlagen");
       // Sign out after deletion
       fullSignOut();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      setDeleteError(err instanceof Error ? err.message : "Unbekannter Fehler");
       setDeleting(false);
     }
   };
@@ -319,13 +322,26 @@ export default function ProfilePage() {
               <CardDescription>Diese Aktionen können nicht rückgängig gemacht werden</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
+              {deleteError && (
+                <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                  {deleteError}
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium">Konto löschen</p>
                   <p className="text-xs text-muted-foreground">Alle deine Daten und Teams werden unwiderruflich gelöscht</p>
                 </div>
                 <AlertDialog>
-                  <AlertDialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 h-8 px-3 transition-colors">
+                  <AlertDialogTrigger
+                    render={(
+                      <Button
+                        type="button"
+                        disabled={deleting}
+                        className="h-8 bg-red-600 px-3 text-white hover:bg-red-700"
+                      />
+                    )}
+                  >
                     {deleting ? "Lösche..." : "Konto löschen"}
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -338,8 +354,8 @@ export default function ProfilePage() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-                        Ja, Konto löschen
+                      <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700">
+                        {deleting ? "Löscht..." : "Ja, Konto löschen"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

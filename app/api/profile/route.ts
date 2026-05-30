@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { resolveCurrentUser } from '@/lib/current-user';
 import { buildDeletedUserIdentity } from '@/lib/user-deletion';
 
 // GET: Profildaten laden
@@ -12,8 +13,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const resolved = await resolveCurrentUser(session, { createIfMissing: true });
+    if (!resolved.user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: { id: resolved.user.id },
       select: {
         id: true,
         name: true,
@@ -69,8 +75,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Name muss mindestens 2 Zeichen lang sein' }, { status: 400 });
     }
 
+    const resolved = await resolveCurrentUser(session, { createIfMissing: true });
+    if (!resolved.user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     const user = await prisma.user.update({
-      where: { email: session.user.email },
+      where: { id: resolved.user.id },
       data: { name: name.trim() },
       select: { id: true, name: true, email: true },
     });
@@ -90,8 +101,13 @@ export async function DELETE() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const resolved = await resolveCurrentUser(session, { createIfMissing: true });
+    if (!resolved.user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: { id: resolved.user.id },
       include: {
         ownedTeams: { select: { id: true } },
         linkedParticipants: { select: { id: true } },
