@@ -34,7 +34,7 @@ import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowDownUp, ChevronDown, ChevronUp, Info, RotateCcw, Send, SlidersHorizontal } from "lucide-react";
+import { ArrowDownUp, ChevronDown, ChevronUp, Info, RotateCcw, Send, SlidersHorizontal, X } from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface Team {
@@ -634,6 +634,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
 
+  const resetFilters = () => {
+    setSearchQuery("");
+    setCategoryFilter("all");
+    setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
+    setIncompleteOnly(false);
+    setCreatedFrom("");
+    setCreatedTo("");
+  };
+
   const handleHeaderSort = (field: TeamSortField) => {
     if (sortField === field) {
       setSortDirection((direction) => direction === "asc" ? "desc" : "asc");
@@ -664,70 +673,90 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   };
 
   return (
-    <div className="space-y-6">
-      {/* Kompakte Stats-Leiste */}
-      <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-2">
-        <span><span className="font-semibold text-primary">{filteredTeams.length}</span> Teams</span>
-        <span>·</span>
-        <span><span className="font-semibold text-primary">{totalParticipants}</span> Teilnehmer:innen</span>
-        <span>·</span>
-        <span><span className="font-semibold text-primary">{categories.length}</span> Klassen</span>
-        <span>·</span>
-        <span><span className="font-semibold text-primary">{incompleteTeams}</span> unvollständig</span>
-      </div>
-
-      {/* Kategorien-Badges (flache Zeile) */}
-      {categories.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {categoryStats.map((cat) => (
-            <Badge key={cat.category} variant="outline" className="flex items-center gap-1">
-              <span>{categoryEmojis[cat.category] || "🏆"}</span>
-              {cat.category} ({cat.count})
-            </Badge>
-          ))}
+    <div className="space-y-4">
+      <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span><span className="font-semibold text-primary">{filteredTeams.length}</span>/{teams.length} Teams</span>
+          <span>·</span>
+          <span><span className="font-semibold text-primary">{totalParticipants}</span> Teilnehmer:innen</span>
+          <span>·</span>
+          <span><span className="font-semibold text-primary">{categories.length}</span> Klassen</span>
+          <span>·</span>
+          <span><span className="font-semibold text-primary">{incompleteTeams}</span> unvollständig</span>
         </div>
-      )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant={viewMode === "cards" ? "default" : "outline"}
-          onClick={() => setViewMode("cards")}
-        >
-          Kacheln
-        </Button>
-        <Button
-          variant={viewMode === "list" ? "default" : "outline"}
-          onClick={() => setViewMode("list")}
-        >
-          Liste
-        </Button>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          {categories.length > 0 && (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {categoryStats.map((cat) => (
+                <Badge key={cat.category} variant="outline" className="h-6 gap-1">
+                  <span>{categoryEmojis[cat.category] || "🏆"}</span>
+                  {cat.category} ({cat.count})
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          <div className="flex shrink-0 gap-1.5">
+            <Button
+              size="sm"
+              variant={viewMode === "cards" ? "default" : "outline"}
+              onClick={() => setViewMode("cards")}
+            >
+              Kacheln
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === "list" ? "default" : "outline"}
+              onClick={() => setViewMode("list")}
+            >
+              Liste
+            </Button>
+          </div>
+        </div>
       </div>
 
       <Card size="sm">
-        <CardHeader className="border-b">
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 text-left"
-          >
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <SlidersHorizontal className="size-4" />
-                Filter & Suche
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                {showOwnerFilter
-                  ? "Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen"
-                  : "Suche, Klasse, Vollständigkeit und Zeitraum eingrenzen"}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
+        <CardHeader className="border-b pb-3">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((open) => !open)}
+              className="min-w-0 flex-1 text-left"
+            >
+              <div className="space-y-0.5">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <SlidersHorizontal className="size-4" />
+                  Filter & Suche
+                </CardTitle>
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  {showOwnerFilter
+                    ? "Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen"
+                    : "Suche, Klasse, Vollständigkeit und Zeitraum eingrenzen"}
+                </p>
+              </div>
+            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
               <Badge variant={hasActiveFilters ? "default" : "outline"}>
                 {activeFilterCount} aktiv
               </Badge>
-              {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+              {hasActiveFilters && (
+                <Button size="xs" variant="outline" onClick={resetFilters}>
+                  <X className="size-3" />
+                  Filter löschen
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
+              >
+                {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+              </Button>
             </div>
-          </button>
+          </div>
         </CardHeader>
 
         {filtersOpen && (
@@ -818,14 +847,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="ghost"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setCategoryFilter("all");
-                    setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
-                    setIncompleteOnly(false);
-                    setCreatedFrom("");
-                    setCreatedTo("");
-                  }}
+                  onClick={resetFilters}
                   disabled={!hasActiveFilters}
                 >
                   Filter zurücksetzen
@@ -839,11 +861,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           </CardContent>
         )}
       </Card>
-
-      <div className="text-sm text-muted-foreground">
-        {filteredTeams.length} von {teams.length} Teams gefunden
-        {hasActiveFilters ? " für die aktuellen Filter" : ""}
-      </div>
 
       {viewMode === "list" && (
         <Card size="sm">
