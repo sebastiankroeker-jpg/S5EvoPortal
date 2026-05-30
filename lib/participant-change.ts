@@ -17,6 +17,8 @@ export const PARTICIPANT_CHANGE_FIELDS = [
 
 export type ParticipantChangeField = typeof PARTICIPANT_CHANGE_FIELDS[number];
 export const DIRECT_PARTICIPANT_CHANGE_FIELDS = [
+  "shirtSize",
+  "moderationNote",
   "email",
   "participantPublicationPreference",
 ] as const satisfies readonly ParticipantChangeField[];

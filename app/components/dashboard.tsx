@@ -1402,9 +1402,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
           participant.lastName !== original.lastName ||
           participant.birthDate !== original.birthDate ||
           participant.gender !== original.gender ||
-          (participant.shirtSize || "") !== (original.shirtSize || "") ||
-          (participant.discipline || participant.disciplineCode || "TBD") !== (original.discipline || original.disciplineCode || "TBD") ||
-          (participant.moderationNote || "") !== (original.moderationNote || "")
+          (participant.discipline || participant.disciplineCode || "TBD") !== (original.discipline || original.disciplineCode || "TBD")
         );
       }),
     [formData.participants, team.participants],
@@ -1419,6 +1417,8 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
 
         return (
           normalizeEmail(participant.email) !== normalizeEmail(original.email) ||
+          (participant.shirtSize || "") !== (original.shirtSize || "") ||
+          (participant.moderationNote || "") !== (original.moderationNote || "") ||
           (participant.participantPublicationPreference || "NAME_VERBERGEN") !==
             (original.participantPublicationPreference || "NAME_VERBERGEN")
         );
@@ -1531,7 +1531,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
         <CardContent className="flex-1 space-y-4 overflow-y-auto pb-6">
           {!showAdminInfo && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              Mit Prüfung markierte Teilnehmerdaten werden zur Genehmigung eingereicht. E-Mail, Einladung und Veröffentlichung werden direkt gespeichert.
+              Mit Prüfung markierte Teilnehmerdaten werden zur Genehmigung eingereicht. Direkt markierte Felder wie E-Mail, T-Shirt, Moderationshinweis und Veröffentlichung werden direkt gespeichert.
             </div>
           )}
           {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
@@ -1667,7 +1667,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                     <div>
                       <div className="flex items-center gap-2">
                         <label className="text-xs text-muted-foreground">T-Shirt</label>
-                        {!showAdminInfo && <ApprovalFieldBadge />}
+                        {!showAdminInfo && <DirectFieldBadge />}
                       </div>
                       <Select
                         value={participant.shirtSize || "none"}
@@ -1808,7 +1808,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                     <div>
                       <div className="flex items-center gap-2">
                         <label className="text-xs text-muted-foreground">Hinweis für Moderation (intern)</label>
-                        {!showAdminInfo && <ApprovalFieldBadge />}
+                        {!showAdminInfo && <DirectFieldBadge />}
                       </div>
                       <Textarea
                         value={participant.moderationNote || ""}

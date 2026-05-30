@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, ShirtSize } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
@@ -42,6 +42,14 @@ function toDirectParticipantUpdateInput(changeData: Record<string, unknown>): Pr
 
   if (Object.prototype.hasOwnProperty.call(changeData, "email")) {
     data.email = typeof changeData.email === "string" ? changeData.email : null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(changeData, "shirtSize")) {
+    data.shirtSize = typeof changeData.shirtSize === "string" ? (changeData.shirtSize as ShirtSize) : null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(changeData, "moderationNote")) {
+    data.moderationNote = typeof changeData.moderationNote === "string" ? changeData.moderationNote : null;
   }
 
   if (Object.prototype.hasOwnProperty.call(changeData, "participantPublicationPreference")) {

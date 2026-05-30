@@ -310,12 +310,12 @@ export default function ParticipantEditDialog({
       lastName !== participant.lastName ||
       extractBirthYearFromInput(birthDate) !== extractBirthYearFromInput(participant.birthDate || birthYearToBirthDateInput(participant.birthYear)) ||
       gender !== normalizeGenderValue(participant.gender) ||
-      disciplineCode !== normalizeDisciplineValue(participant.disciplineCode || participant.discipline) ||
-      (shirtSize || "") !== (participant.shirtSize || "") ||
-      (moderationNote || "") !== (participant.moderationNote || "")
+      disciplineCode !== normalizeDisciplineValue(participant.disciplineCode || participant.discipline)
     : false;
   const directChanges = participant
     ? emailDiffersFromSaved ||
+      (shirtSize || "") !== (participant.shirtSize || "") ||
+      (moderationNote || "") !== (participant.moderationNote || "") ||
       participantPublicationPreference !== (participant.participantPublicationPreference || "NAME_VERBERGEN")
     : false;
   const participantSaveLabel = getParticipantSaveButtonLabel({
@@ -449,7 +449,7 @@ export default function ParticipantEditDialog({
           <DialogDescription>
             {directEdit
               ? "Änderungen werden direkt gespeichert."
-              : "Mit Prüfung markierte Felder werden genehmigt. E-Mail und Namensveröffentlichung werden direkt gespeichert."}
+              : "Mit Prüfung markierte Felder werden genehmigt. Direkt markierte Felder wie E-Mail, T-Shirt, Moderationshinweis und Namensveröffentlichung werden direkt gespeichert."}
           </DialogDescription>
         </DialogHeader>
 
@@ -570,7 +570,7 @@ export default function ParticipantEditDialog({
             <div>
               <div className="flex items-center gap-2">
                 <label className="text-xs font-medium text-muted-foreground">T-Shirt-Größe</label>
-                {!directEdit && <ApprovalFieldBadge />}
+                {!directEdit && <DirectFieldBadge />}
               </div>
               <Select value={shirtSize || "none"} onValueChange={(value) => setShirtSize(value === "none" ? "" : value)} disabled={shirtLocked}>
                 <SelectTrigger className="mt-1">
@@ -595,7 +595,7 @@ export default function ParticipantEditDialog({
                 <>
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-medium text-muted-foreground">Hinweis für Moderation (intern)</label>
-                    {!directEdit && <ApprovalFieldBadge />}
+                    {!directEdit && <DirectFieldBadge />}
                   </div>
                   <Textarea
                     value={moderationNote}
