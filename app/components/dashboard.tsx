@@ -348,6 +348,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>([
@@ -828,83 +829,92 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       {viewMode === "list" && (
         <Card size="sm">
           <CardHeader className="border-b">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <ArrowDownUp className="size-4" />
-                Listenoptionen
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Sortierung festlegen, per Tabellenkopf umschalten und sichtbare Spalten anpassen
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-4">
-            <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_200px]">
+            <button
+              type="button"
+              onClick={() => setListOptionsOpen((open) => !open)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+            >
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Sortieren nach</label>
-                <Select value={sortField} onValueChange={(value) => setSortField(value as TeamSortField)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sortierfeld wählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SORT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Reihenfolge</label>
-                <Button
-                  variant="outline"
-                  className="w-full justify-between"
-                  onClick={() => setSortDirection((direction) => direction === "asc" ? "desc" : "asc")}
-                >
-                  {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
+                <CardTitle className="flex items-center gap-2 text-sm">
                   <ArrowDownUp className="size-4" />
-                </Button>
+                  Listenoptionen
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Sortierung festlegen, per Tabellenkopf umschalten und sichtbare Spalten anpassen
+                </p>
               </div>
-            </div>
+              {listOptionsOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+            </button>
+          </CardHeader>
+          {listOptionsOpen && (
+            <CardContent className="space-y-4 pt-4">
+              <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_200px]">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Sortieren nach</label>
+                  <Select value={sortField} onValueChange={(value) => setSortField(value as TeamSortField)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sortierfeld wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SORT_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten</p>
-              <div className="flex flex-wrap gap-2">
-                {LIST_OPTIONAL_COLUMNS.map((column) => {
-                  const selected = visibleColumns.includes(column.key);
-                  const disableRemoval = selected && visibleColumns.length === 1;
-
-                  return (
-                    <label
-                      key={column.key}
-                      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${selected ? "border-primary bg-primary/5" : "border-border/60 bg-background"} ${disableRemoval ? "opacity-70" : "cursor-pointer hover:bg-muted/40"}`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={selected}
-                        disabled={disableRemoval}
-                        onChange={() => {
-                          setVisibleColumns((current) => {
-                            if (current.includes(column.key)) {
-                              if (current.length === 1) return current;
-                              return current.filter((entry) => entry !== column.key);
-                            }
-
-                            return [...current, column.key];
-                          });
-                        }}
-                      />
-                      <span>{column.label}</span>
-                    </label>
-                  );
-                })}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Reihenfolge</label>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between"
+                    onClick={() => setSortDirection((direction) => direction === "asc" ? "desc" : "asc")}
+                  >
+                    {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
+                    <ArrowDownUp className="size-4" />
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Die Teamspalte bleibt immer sichtbar.</p>
-            </div>
-          </CardContent>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten</p>
+                <div className="flex flex-wrap gap-2">
+                  {LIST_OPTIONAL_COLUMNS.map((column) => {
+                    const selected = visibleColumns.includes(column.key);
+                    const disableRemoval = selected && visibleColumns.length === 1;
+
+                    return (
+                      <label
+                        key={column.key}
+                        className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${selected ? "border-primary bg-primary/5" : "border-border/60 bg-background"} ${disableRemoval ? "opacity-70" : "cursor-pointer hover:bg-muted/40"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={selected}
+                          disabled={disableRemoval}
+                          onChange={() => {
+                            setVisibleColumns((current) => {
+                              if (current.includes(column.key)) {
+                                if (current.length === 1) return current;
+                                return current.filter((entry) => entry !== column.key);
+                              }
+
+                              return [...current, column.key];
+                            });
+                          }}
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">Die Teamspalte bleibt immer sichtbar.</p>
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 
