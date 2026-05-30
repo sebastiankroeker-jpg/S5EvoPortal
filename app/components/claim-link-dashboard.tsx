@@ -32,6 +32,7 @@ type ClaimItem = {
   ownerEmail: string;
   participantId: string | null;
   participantName: string | null;
+  linkedUser?: { id: string; email?: string | null; name?: string | null } | null;
   token: ClaimTokenInfo | null;
 };
 
@@ -58,6 +59,7 @@ export default function ClaimLinkDashboard() {
   const [statusFilter, setStatusFilter] = useState<ClaimTokenInfo["status"] | "none" | "all">("all");
   const [busyTeamId, setBusyTeamId] = useState<string | null>(null);
   const [busyTokenId, setBusyTokenId] = useState<string | null>(null);
+  const [busyResetParticipantId, setBusyResetParticipantId] = useState<string | null>(null);
   const [togglingGlobal, setTogglingGlobal] = useState(false);
   const [claimLinksEnabled, setClaimLinksEnabled] = useState(true);
   const [generatedLinks, setGeneratedLinks] = useState<Record<string, string>>({});
@@ -154,6 +156,37 @@ export default function ClaimLinkDashboard() {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Claim-Link konnte nicht gesperrt werden" });
     } finally {
       setBusyTokenId(null);
+    }
+  };
+
+  const resetParticipantLink = async (item: ClaimItem) => {
+    if (!item.participantId) return;
+    const confirmed = window.confirm(
+      `Account-Verknüpfung für ${item.participantName || item.contactName} lösen und eine neue Einladung an ${item.contactEmail || "die hinterlegte E-Mail"} senden?`,
+    );
+    if (!confirmed) return;
+
+    setBusyResetParticipantId(item.participantId);
+    try {
+      const res = await fetch("/api/admin/claim-links", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resetParticipantLink", participantId: item.participantId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verknüpfung konnte nicht gelöst werden");
+      const mailStatus = data.participantClaimMail?.status;
+      setMessage({
+        type: "success",
+        text: mailStatus === "sent" || mailStatus === "queued"
+          ? "Verknüpfung gelöst und neue Einladung versendet"
+          : "Verknüpfung gelöst und neue Einladung erzeugt",
+      });
+      await loadItems();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Verknüpfung konnte nicht gelöst werden" });
+    } finally {
+      setBusyResetParticipantId(null);
     }
   };
 
@@ -263,6 +296,7 @@ export default function ClaimLinkDashboard() {
                           <>
                             <p>Teilnehmer: {item.contactName || "—"} · {item.contactEmail || "—"}</p>
                             <p>Team: {item.teamName}</p>
+                            <p>Portal-Konto: {item.linkedUser?.email || "—"}</p>
                           </>
                         ) : (
                           <>
@@ -309,6 +343,16 @@ export default function ClaimLinkDashboard() {
                           disabled={busyTokenId === item.token.id}
                         >
                           {busyTokenId === item.token.id ? "Sperre..." : "Link sperren"}
+                        </Button>
+                      ) : null}
+                      {item.itemType === "participant" && item.linkedUser ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => void resetParticipantLink(item)}
+                          disabled={busyResetParticipantId === item.participantId}
+                        >
+                          {busyResetParticipantId === item.participantId ? "Löse..." : "Verknüpfung lösen & neu einladen"}
                         </Button>
                       ) : null}
                     </div>

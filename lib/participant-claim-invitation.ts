@@ -112,16 +112,43 @@ export async function createParticipantClaimInvitation({
     maxExpiresAt: null,
   });
 
-  await prismaClient.participantClaimToken.updateMany({
+  const activeTokensToRevoke = await prismaClient.participantClaimToken.findMany({
     where: {
       participantId: participant.id,
       claimedAt: null,
       revokedAt: null,
     },
-    data: {
-      revokedAt: new Date(),
+    select: {
+      id: true,
     },
   });
+  const revokeReason = previousEmail ? "participant_email_changed" : "participant_invitation_replaced";
+  const revokedAt = new Date();
+
+  await prismaClient.participantClaimToken.updateMany({
+    where: {
+      id: { in: activeTokensToRevoke.map((token) => token.id) },
+    },
+    data: {
+      revokedAt,
+    },
+  });
+
+  await Promise.all(
+    activeTokensToRevoke.map((token) =>
+      recordParticipantClaimAuditEvent({
+        request,
+        eventType: "CLAIM_REVOKE",
+        outcome: "SUCCESS",
+        reason: revokeReason,
+        tokenId: token.id,
+        participantId: participant.id,
+        teamId: team.id,
+        userId: actorUserId || null,
+        sessionEmail: sessionEmail || null,
+      }),
+    ),
+  );
 
   const createdToken = await prismaClient.participantClaimToken.create({
     data: {

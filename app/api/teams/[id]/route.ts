@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { Prisma } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
-import { diffParticipantSnapshots, serializeSnapshot, summarizeParticipantChanges, toParticipantSnapshot } from '@/lib/participant-change';
+import {
+  diffParticipantSnapshots,
+  hasParticipantChangeData,
+  pickDirectParticipantChangeData,
+  serializeSnapshot,
+  summarizeDirectParticipantChangeFields,
+  summarizeParticipantChanges,
+  toParticipantSnapshot,
+} from '@/lib/participant-change';
+import { createParticipantClaimInvitation, shouldInviteParticipantClaim } from '@/lib/participant-claim-invitation';
 import {
   canViewerSeeFullPublication,
   resolveVisibleParticipantName,
@@ -25,6 +35,23 @@ function mapGender(g: string): "MALE" | "FEMALE" {
 function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | "TBD" {
   const valid = ["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"] as const;
   return valid.includes(d as (typeof valid)[number]) ? (d as (typeof valid)[number]) : "TBD";
+}
+
+function toDirectParticipantUpdateInput(changeData: Record<string, unknown>): Prisma.ParticipantUpdateInput {
+  const data: Prisma.ParticipantUpdateInput = {};
+
+  if (Object.prototype.hasOwnProperty.call(changeData, "email")) {
+    data.email = typeof changeData.email === "string" ? changeData.email : null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(changeData, "participantPublicationPreference")) {
+    data.participantPublicationPreference =
+      changeData.participantPublicationPreference === "NAME_VEROEFFENTLICHEN"
+        ? "NAME_VEROEFFENTLICHEN"
+        : "NAME_VERBERGEN";
+  }
+
+  return data;
 }
 
 function resolveSubmittedParticipants(
@@ -363,7 +390,12 @@ export async function PUT(
               tenantId: true,
               name: true,
               year: true,
+              date: true,
+              dateEnd: true,
+              registrationDeadline: true,
               registrationNotificationEmail: true,
+              claimTokenExpiryMode: true,
+              claimTokenTtlDays: true,
               tenant: {
                 select: {
                   name: true,
@@ -445,10 +477,19 @@ export async function PUT(
       if (!canDirectEdit) {
         let createdRequests = 0;
         let updatedRequests = 0;
+        let directlyAppliedParticipants = 0;
         let updatedTeamPublication = false;
         const createdChangeMailItems: Array<{
           participantName: string;
           changeSummary: ReturnType<typeof summarizeParticipantChanges>;
+        }> = [];
+        const participantInviteCandidates: Array<{
+          participantId: string;
+          previousEmail?: string | null;
+          nextEmail?: string | null;
+          firstName: string;
+          lastName: string;
+          userId?: string | null;
         }> = [];
 
         if (requestedTeamPublicationLevel !== existingTeam.teamPublicationLevel) {
@@ -477,8 +518,68 @@ export async function PUT(
           });
 
           const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
-          const changeSummary = summarizeParticipantChanges(currentSnapshot, requestedSnapshot);
           if (Object.keys(changedFields).length === 0) {
+            continue;
+          }
+
+          const directlyAppliedChangeData = pickDirectParticipantChangeData(changedFields, requestedSnapshot);
+          let approvalBaseSnapshot = currentSnapshot;
+          let approvalRequestedSnapshot = requestedSnapshot;
+
+          if (hasParticipantChangeData(directlyAppliedChangeData)) {
+            const directAppliedSnapshot = {
+              ...currentSnapshot,
+              ...directlyAppliedChangeData,
+            };
+            const directFieldLabels = summarizeDirectParticipantChangeFields(directlyAppliedChangeData);
+
+            await prisma.$transaction(async (tx) => {
+              await tx.participant.update({
+                where: { id: existingParticipant.id },
+                data: toDirectParticipantUpdateInput(directlyAppliedChangeData),
+              });
+
+              await tx.participantAuditLog.create({
+                data: {
+                  action: 'DIRECT_CHANGE',
+                  participantId: existingParticipant.id,
+                  actorId: user!.id,
+                  beforeData: serializeSnapshot(currentSnapshot),
+                  afterData: serializeSnapshot(directAppliedSnapshot),
+                  message: directFieldLabels.join(', ') + ' direkt durch Teamchef aktualisiert',
+                },
+              });
+            });
+
+            directlyAppliedParticipants += 1;
+
+            if (
+              Object.prototype.hasOwnProperty.call(directlyAppliedChangeData, 'email') &&
+              shouldInviteParticipantClaim({
+                previousEmail: existingParticipant.email,
+                nextEmail: submittedParticipant.email,
+                participantUserId: existingParticipant.userId,
+              })
+            ) {
+              participantInviteCandidates.push({
+                participantId: existingParticipant.id,
+                previousEmail: existingParticipant.email,
+                nextEmail: normalizeEmail(submittedParticipant.email),
+                firstName: submittedParticipant.firstName,
+                lastName: submittedParticipant.lastName,
+                userId: existingParticipant.userId,
+              });
+            }
+
+            approvalBaseSnapshot = directAppliedSnapshot;
+            approvalRequestedSnapshot = {
+              ...requestedSnapshot,
+              ...directlyAppliedChangeData,
+            };
+          }
+
+          const changeSummary = summarizeParticipantChanges(approvalBaseSnapshot, approvalRequestedSnapshot);
+          if (changeSummary.length === 0) {
             continue;
           }
 
@@ -496,8 +597,8 @@ export async function PUT(
               const updatedPendingChange = await tx.pendingChange.update({
                 where: { id: existingPendingChange.id },
                 data: {
-                  beforeData: serializeSnapshot(currentSnapshot),
-                  changeData: serializeSnapshot(requestedSnapshot),
+                  beforeData: serializeSnapshot(approvalBaseSnapshot),
+                  changeData: serializeSnapshot(approvalRequestedSnapshot),
                   requestedById: user!.id,
                   reviewComment: null,
                   reviewedAt: null,
@@ -511,8 +612,8 @@ export async function PUT(
                   participantId: existingParticipant.id,
                   actorId: user!.id,
                   pendingChangeId: updatedPendingChange.id,
-                  beforeData: serializeSnapshot(currentSnapshot),
-                  afterData: serializeSnapshot(requestedSnapshot),
+                  beforeData: serializeSnapshot(approvalBaseSnapshot),
+                  afterData: serializeSnapshot(approvalRequestedSnapshot),
                   message: 'Offene Aenderungsanfrage durch Teamchef aktualisiert',
                 },
               });
@@ -522,8 +623,8 @@ export async function PUT(
             await prisma.$transaction(async (tx) => {
               const createdPendingChange = await tx.pendingChange.create({
                 data: {
-                  beforeData: serializeSnapshot(currentSnapshot),
-                  changeData: serializeSnapshot(requestedSnapshot),
+                  beforeData: serializeSnapshot(approvalBaseSnapshot),
+                  changeData: serializeSnapshot(approvalRequestedSnapshot),
                   status: 'PENDING',
                   participantId: existingParticipant.id,
                   requestedById: user!.id,
@@ -536,8 +637,8 @@ export async function PUT(
                   participantId: existingParticipant.id,
                   actorId: user!.id,
                   pendingChangeId: createdPendingChange.id,
-                  beforeData: serializeSnapshot(currentSnapshot),
-                  afterData: serializeSnapshot(requestedSnapshot),
+                  beforeData: serializeSnapshot(approvalBaseSnapshot),
+                  afterData: serializeSnapshot(approvalRequestedSnapshot),
                   message: 'Aenderungsanfrage durch Teamchef eingereicht',
                 },
               });
@@ -562,6 +663,52 @@ export async function PUT(
             participants: createdChangeMailItems,
           });
         }
+
+        const participantClaimMailResults: Array<unknown> = [];
+        for (const inviteCandidate of participantInviteCandidates) {
+          try {
+            const participantClaimMail = await createParticipantClaimInvitation({
+              request,
+              participant: {
+                id: inviteCandidate.participantId,
+                firstName: inviteCandidate.firstName,
+                lastName: inviteCandidate.lastName,
+                email: inviteCandidate.nextEmail,
+                userId: inviteCandidate.userId,
+              },
+              team: {
+                id: existingTeam.id,
+                name: finalTeamName,
+              },
+              competition: existingTeam.competition,
+              actorUserId: user?.id ?? null,
+              sessionEmail: userEmail,
+              previousEmail: inviteCandidate.previousEmail,
+            });
+            participantClaimMailResults.push(participantClaimMail);
+          } catch (error) {
+            console.error("Participant claim invitation failed after direct team-owner participant update", {
+              participantId: inviteCandidate.participantId,
+              error,
+            });
+            participantClaimMailResults.push({
+              status: "failed",
+              participantId: inviteCandidate.participantId,
+              error: error instanceof Error ? error.message : "Einladung konnte nicht gesendet werden",
+            });
+          }
+        }
+
+        const invitationStatuses = participantClaimMailResults.map((result) =>
+          result && typeof result === "object" && "status" in result ? result.status : null,
+        );
+        const sentInvitationCount = invitationStatuses.filter((status) => status !== null && status !== "failed" && status !== "skipped").length;
+        const failedInvitationCount = invitationStatuses.filter((status) => status === "failed").length;
+        const invitationNoun = sentInvitationCount === 1 ? "Einladung" : "Einladungen";
+        const invitationMessage =
+          sentInvitationCount > 0 || failedInvitationCount > 0
+            ? `, ${sentInvitationCount} ${invitationNoun} versendet${failedInvitationCount > 0 ? `, ${failedInvitationCount} fehlgeschlagen` : ''}`
+            : '';
 
         const refreshedTeam = await prisma.team.findFirst({
           where: { id, deletedAt: null },
@@ -588,27 +735,49 @@ export async function PUT(
         if (createdRequests === 0 && updatedRequests === 0) {
           return NextResponse.json({
             success: true,
-            applied: updatedTeamPublication,
-            message: updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert' : 'Keine Aenderungen erkannt',
+            applied: updatedTeamPublication || directlyAppliedParticipants > 0,
+            message:
+              updatedTeamPublication || directlyAppliedParticipants > 0
+                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert' : ''}${updatedTeamPublication && directlyAppliedParticipants > 0 ? ', ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}` : ''}`
+                : 'Keine Aenderungen erkannt',
             classificationWarnings: requestedTeamState.classificationWarnings,
+            participantClaimMails: participantClaimMailResults,
             team: serializeTeam(refreshedTeam, { currentUserId: user?.id ?? null, currentUserEmail: normalizedUserEmail }),
           });
         }
 
         return NextResponse.json({
           success: true,
-          applied: updatedTeamPublication,
+          applied: updatedTeamPublication || directlyAppliedParticipants > 0,
           message:
             createdRequests > 0 && updatedRequests > 0
-              ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert`
+              ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert`
               : createdRequests > 0
-                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht`
-                : `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${updatedRequests} offene Aenderungsanfrage(n) aktualisiert`,
+                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht`
+                : `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${updatedRequests} offene Aenderungsanfrage(n) aktualisiert`,
           classificationWarnings: requestedTeamState.classificationWarnings,
           pendingCount: createdRequests + updatedRequests,
+          participantClaimMails: participantClaimMailResults,
           team: serializeTeam(refreshedTeam, { currentUserId: user?.id ?? null, currentUserEmail: normalizedUserEmail }),
         });
       }
+
+      const participantInviteCandidates = matchedParticipantsResult.matches
+        .filter(({ submittedParticipant, existingParticipant }) =>
+          shouldInviteParticipantClaim({
+            previousEmail: existingParticipant.email,
+            nextEmail: submittedParticipant.email,
+            participantUserId: existingParticipant.userId,
+          }),
+        )
+        .map(({ submittedParticipant, existingParticipant }) => ({
+          participantId: existingParticipant.id,
+          previousEmail: existingParticipant.email,
+          nextEmail: normalizeEmail(submittedParticipant.email),
+          firstName: submittedParticipant.firstName,
+          lastName: submittedParticipant.lastName,
+          userId: existingParticipant.userId,
+        }));
 
       await prisma.$transaction(async (tx) => {
         await tx.team.update({
@@ -646,6 +815,41 @@ export async function PUT(
         }
       });
 
+      const participantClaimMailResults: Array<unknown> = [];
+      for (const inviteCandidate of participantInviteCandidates) {
+        try {
+          const participantClaimMail = await createParticipantClaimInvitation({
+            request,
+            participant: {
+              id: inviteCandidate.participantId,
+              firstName: inviteCandidate.firstName,
+              lastName: inviteCandidate.lastName,
+              email: inviteCandidate.nextEmail,
+              userId: inviteCandidate.userId,
+            },
+            team: {
+              id: existingTeam.id,
+              name: finalTeamName,
+            },
+            competition: existingTeam.competition,
+            actorUserId: user?.id ?? null,
+            sessionEmail: userEmail,
+            previousEmail: inviteCandidate.previousEmail,
+          });
+          participantClaimMailResults.push(participantClaimMail);
+        } catch (error) {
+          console.error("Participant claim invitation failed after team update", {
+            participantId: inviteCandidate.participantId,
+            error,
+          });
+          participantClaimMailResults.push({
+            status: "failed",
+            participantId: inviteCandidate.participantId,
+            error: error instanceof Error ? error.message : "Einladung konnte nicht gesendet werden",
+          });
+        }
+      }
+
       const updatedTeam = await prisma.team.findFirst({
         where: { id, deletedAt: null },
         include: {
@@ -658,11 +862,23 @@ export async function PUT(
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
+      const invitationStatuses = participantClaimMailResults.map((result) =>
+        result && typeof result === "object" && "status" in result ? result.status : null,
+      );
+      const sentInvitationCount = invitationStatuses.filter((status) => status !== null && status !== "failed" && status !== "skipped").length;
+      const failedInvitationCount = invitationStatuses.filter((status) => status === "failed").length;
+      const invitationNoun = sentInvitationCount === 1 ? "Einladung" : "Einladungen";
+      const invitationMessage =
+        sentInvitationCount > 0 || failedInvitationCount > 0
+          ? ` ${sentInvitationCount} ${invitationNoun} versendet${failedInvitationCount > 0 ? `, ${failedInvitationCount} fehlgeschlagen` : ''}.`
+          : '';
+
       return NextResponse.json({ 
         success: true,
         applied: true,
-        message: `Team "${finalTeamName}" erfolgreich aktualisiert! Klasse: ${autoCategory}`,
+        message: `Team "${finalTeamName}" erfolgreich aktualisiert!${invitationMessage} Klasse: ${autoCategory}`,
         classificationWarnings: requestedTeamState.classificationWarnings,
+        participantClaimMails: participantClaimMailResults,
         team: serializeTeam(updatedTeam, { currentUserId: user?.id ?? null, currentUserEmail: normalizedUserEmail })
       });
 

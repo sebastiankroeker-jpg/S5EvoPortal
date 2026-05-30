@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { createParticipantClaimInvitation } from "@/lib/participant-claim-invitation";
 import { buildParticipantClaimUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from "@/lib/registration-claim";
 import { recordParticipantClaimAuditEvent } from "@/lib/participant-claim-audit";
 import { recordClaimAuditEvent } from "@/lib/registration-claim-audit";
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
           claimedByUser: { select: { email: true, name: true } },
         },
       },
+      user: { select: { id: true, email: true, name: true } },
     },
     orderBy: [
       { team: { updatedAt: "desc" } },
@@ -134,9 +136,10 @@ export async function GET(request: NextRequest) {
       category: participant.team.classificationCode || "–",
       contactEmail: participant.email || "",
       contactName: `${participant.firstName} ${participant.lastName}`.trim(),
-      ownerEmail: "",
+      ownerEmail: participant.user?.email || "",
       participantId: participant.id,
       participantName: `${participant.firstName} ${participant.lastName}`.trim(),
+      linkedUser: participant.user,
       token: latestToken
         ? {
             id: latestToken.id,
@@ -375,6 +378,139 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       claimLinksEnabled: updatedTenant.claimLinksEnabled,
+    });
+  }
+
+  if (body.action === "resetParticipantLink") {
+    const participantId = typeof body.participantId === "string" ? body.participantId : null;
+    if (!participantId) {
+      return NextResponse.json({ error: "participantId fehlt" }, { status: 400 });
+    }
+
+    const participant = await prisma.participant.findFirst({
+      where: {
+        id: participantId,
+        deletedAt: null,
+        team: {
+          deletedAt: null,
+          competition: {
+            tenantId: auth.tenantId,
+          },
+        },
+      },
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+        team: {
+          include: {
+            competition: {
+              select: {
+                name: true,
+                year: true,
+                date: true,
+                dateEnd: true,
+                registrationDeadline: true,
+                registrationNotificationEmail: true,
+                claimTokenExpiryMode: true,
+                claimTokenTtlDays: true,
+                tenant: {
+                  select: {
+                    name: true,
+                    contactEmail: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        claimTokens: {
+          where: { revokedAt: null },
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!participant) {
+      return NextResponse.json({ error: "Teilnehmer nicht gefunden" }, { status: 404 });
+    }
+
+    if (!participant.email) {
+      return NextResponse.json({ error: "Für diesen Teilnehmer ist keine Kontakt-E-Mail hinterlegt" }, { status: 400 });
+    }
+
+    if (!participant.userId) {
+      return NextResponse.json({ error: "Teilnehmer ist aktuell mit keinem Portal-Konto verknüpft" }, { status: 400 });
+    }
+
+    const revokedAt = new Date();
+    const previousUserId = participant.userId;
+    const previousUserEmail = participant.user?.email || null;
+
+    await prisma.$transaction([
+      prisma.participantClaimToken.updateMany({
+        where: {
+          participantId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt,
+        },
+      }),
+      prisma.participant.update({
+        where: { id: participantId },
+        data: { userId: null },
+      }),
+    ]);
+
+    await Promise.all([
+      recordParticipantClaimAuditEvent({
+        request,
+        eventType: "PARTICIPANT_ACCOUNT_UNLINK",
+        outcome: "SUCCESS",
+        reason: previousUserEmail ? `previous_user:${previousUserId}` : "previous_user_removed",
+        participantId: participant.id,
+        teamId: participant.teamId,
+        userId: auth.user.id,
+        sessionEmail: auth.user.email,
+      }),
+      ...participant.claimTokens.map((token) =>
+        recordParticipantClaimAuditEvent({
+          request,
+          eventType: "CLAIM_REVOKE",
+          outcome: "SUCCESS",
+          reason: "participant_account_unlinked",
+          tokenId: token.id,
+          participantId: participant.id,
+          teamId: participant.teamId,
+          userId: auth.user.id,
+          sessionEmail: auth.user.email,
+        }),
+      ),
+    ]);
+
+    const participantClaimMail = await createParticipantClaimInvitation({
+      request,
+      participant: {
+        id: participant.id,
+        firstName: participant.firstName,
+        lastName: participant.lastName,
+        email: participant.email,
+        userId: null,
+      },
+      team: {
+        id: participant.team.id,
+        name: participant.team.name,
+      },
+      competition: participant.team.competition,
+      actorUserId: auth.user.id,
+      sessionEmail: auth.user.email,
+      previousEmail: participant.email,
+    });
+
+    return NextResponse.json({
+      success: true,
+      tokenType: "participant",
+      previousUser: participant.user,
+      participantClaimMail,
     });
   }
 

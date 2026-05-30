@@ -1391,6 +1391,26 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
     () => validateDisciplineAssignment(formData.participants.map((participant) => participant.discipline || participant.disciplineCode || "TBD")),
     [formData.participants],
   );
+  const pendingInvitationCount = useMemo(
+    () =>
+      formData.participants.filter((participant, index) => {
+        const normalizedCurrentEmail = normalizeEmail(participant.email);
+        const normalizedSavedEmail = normalizeEmail(savedInvitationEmails[index] || "");
+        return (
+          Boolean(participant.id) &&
+          Boolean(normalizedCurrentEmail) &&
+          isValidEmail(participant.email || "") &&
+          normalizedCurrentEmail !== normalizedSavedEmail &&
+          participant.emailInvitation?.status !== "linked"
+        );
+      }).length,
+    [formData.participants, savedInvitationEmails],
+  );
+  const saveButtonLabel = showAdminInfo
+    ? pendingInvitationCount > 0
+      ? `💾 Speichern & ${pendingInvitationCount === 1 ? "Einladung" : "Einladungen"} senden`
+      : "💾 Speichern"
+    : "📨 Zur Genehmigung einreichen";
 
   const handleParticipantChange = (index: number, field: string, value: string) => {
     const newParticipants = [...formData.participants];
@@ -1759,12 +1779,12 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
           </div>
 
         </CardContent>
-        <div className="flex justify-end gap-3 border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
-          <Button variant="outline" onClick={onCancel}>
+        <div className="flex flex-col-reverse gap-3 border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={onCancel} className="sm:w-auto">
             Abbrechen
           </Button>
-          <Button onClick={handleSubmit}>
-            {showAdminInfo ? "💾 Speichern" : "📨 Zur Genehmigung einreichen"}
+          <Button onClick={handleSubmit} className="min-h-10 whitespace-normal text-center leading-tight sm:w-auto">
+            {saveButtonLabel}
           </Button>
         </div>
       </Card>

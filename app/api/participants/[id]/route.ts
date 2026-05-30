@@ -14,9 +14,12 @@ import {
 import {
   buildParticipantChangeData,
   diffParticipantSnapshots,
+  hasParticipantChangeData,
   mergeParticipantSnapshot,
+  pickDirectParticipantChangeData,
   recalculateTeamClassification,
   serializeSnapshot,
+  summarizeDirectParticipantChangeFields,
   summarizeParticipantChanges,
   toParticipantSnapshot,
 } from "@/lib/participant-change";
@@ -330,29 +333,27 @@ export async function PUT(
   let approvalBaseSnapshot = currentSnapshot;
   let approvalRequestedSnapshot = requestedSnapshot;
   let approvalChangeSummary = summarizeParticipantChanges(approvalBaseSnapshot, approvalRequestedSnapshot);
-  let directEmailParticipantClaimMail: unknown = null;
-  let updatedParticipantAfterDirectEmail: unknown = null;
-  const emailChangedDirectly =
-    Object.prototype.hasOwnProperty.call(changedFields, "email") &&
-    currentSnapshot.email !== requestedSnapshot.email;
+  let directParticipantClaimMail: unknown = null;
+  let updatedParticipantAfterDirectChanges: unknown = null;
+  const directlyAppliedChangeData = pickDirectParticipantChangeData(changedFields, requestedSnapshot);
+  const emailChangedDirectly = Object.prototype.hasOwnProperty.call(directlyAppliedChangeData, "email");
 
-  if (emailChangedDirectly) {
-    const emailAppliedSnapshot = {
+  if (hasParticipantChangeData(directlyAppliedChangeData)) {
+    const directAppliedSnapshot = {
       ...currentSnapshot,
-      email: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+      ...directlyAppliedChangeData,
     };
     const shouldSendParticipantClaim = shouldInviteParticipantClaim({
       previousEmail: typeof currentSnapshot.email === "string" ? currentSnapshot.email : null,
       nextEmail: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
       participantUserId: participant.userId,
     });
+    const directFieldLabels = summarizeDirectParticipantChangeFields(directlyAppliedChangeData);
 
-    updatedParticipantAfterDirectEmail = await prisma.$transaction(async (tx) => {
+    updatedParticipantAfterDirectChanges = await prisma.$transaction(async (tx) => {
       const updatedParticipant = await tx.participant.update({
         where: { id },
-        data: {
-          email: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
-        },
+        data: directlyAppliedChangeData as Prisma.ParticipantUpdateInput,
       });
 
       await tx.participantAuditLog.create({
@@ -361,8 +362,8 @@ export async function PUT(
           participantId: id,
           actorId: user.id,
           beforeData: serializeSnapshot(currentSnapshot),
-          afterData: serializeSnapshot(emailAppliedSnapshot),
-          message: "E-Mail direkt aktualisiert",
+          afterData: serializeSnapshot(directAppliedSnapshot),
+          message: directFieldLabels.join(", ") + " direkt aktualisiert",
         },
       });
 
@@ -371,7 +372,7 @@ export async function PUT(
 
     if (shouldSendParticipantClaim) {
       try {
-        directEmailParticipantClaimMail = await createParticipantClaimInvitation({
+        directParticipantClaimMail = await createParticipantClaimInvitation({
           request,
           participant: {
             id: participant.id,
@@ -387,7 +388,7 @@ export async function PUT(
           previousEmail: typeof currentSnapshot.email === "string" ? currentSnapshot.email : null,
         });
       } catch (error) {
-        directEmailParticipantClaimMail = {
+        directParticipantClaimMail = {
           status: "failed" as const,
           reason: error instanceof Error ? error.message : String(error),
         };
@@ -398,19 +399,19 @@ export async function PUT(
       }
     }
 
-    approvalBaseSnapshot = emailAppliedSnapshot;
+    approvalBaseSnapshot = directAppliedSnapshot;
     approvalRequestedSnapshot = {
       ...requestedSnapshot,
-      email: emailAppliedSnapshot.email,
+      ...directlyAppliedChangeData,
     };
     approvalChangeSummary = summarizeParticipantChanges(approvalBaseSnapshot, approvalRequestedSnapshot);
 
     if (approvalChangeSummary.length === 0) {
       return NextResponse.json({
-        participant: updatedParticipantAfterDirectEmail,
+        participant: updatedParticipantAfterDirectChanges,
         applied: true,
-        message: "E-Mail direkt gespeichert",
-        participantClaimMail: directEmailParticipantClaimMail,
+        message: directFieldLabels.join(" und ") + " direkt gespeichert",
+        participantClaimMail: directParticipantClaimMail,
         classificationWarnings: [],
       });
     }
@@ -505,7 +506,7 @@ export async function PUT(
       : emailChangedDirectly
         ? "E-Mail direkt gespeichert, weitere Änderung zur Genehmigung eingereicht"
       : "Änderung zur Genehmigung eingereicht",
-    participantClaimMail: directEmailParticipantClaimMail,
+    participantClaimMail: directParticipantClaimMail,
     classificationWarnings: projectedTeamState.classificationWarnings,
   });
 }

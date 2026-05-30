@@ -16,6 +16,13 @@ export const PARTICIPANT_CHANGE_FIELDS = [
 ] as const;
 
 export type ParticipantChangeField = typeof PARTICIPANT_CHANGE_FIELDS[number];
+export const DIRECT_PARTICIPANT_CHANGE_FIELDS = [
+  "email",
+  "participantPublicationPreference",
+] as const satisfies readonly ParticipantChangeField[];
+export type DirectParticipantChangeField = typeof DIRECT_PARTICIPANT_CHANGE_FIELDS[number];
+
+const DIRECT_PARTICIPANT_CHANGE_FIELD_SET = new Set<ParticipantChangeField>(DIRECT_PARTICIPANT_CHANGE_FIELDS);
 
 export type ParticipantSnapshot = Record<ParticipantChangeField, string | number | null>;
 export type ParticipantChangeSummaryItem = {
@@ -159,6 +166,28 @@ export function diffParticipantSnapshots(before: ParticipantSnapshot, after: Par
     }
     return diff;
   }, {} as Partial<Record<ParticipantChangeField, { before: string | number | null; after: string | number | null }>>);
+}
+
+export function pickDirectParticipantChangeData(
+  changedFields: Partial<Record<ParticipantChangeField, { before: string | number | null; after: string | number | null }>>,
+  requestedSnapshot: ParticipantSnapshot,
+) {
+  return PARTICIPANT_CHANGE_FIELDS.reduce((data, field) => {
+    if (changedFields[field] && DIRECT_PARTICIPANT_CHANGE_FIELD_SET.has(field)) {
+      data[field as DirectParticipantChangeField] = requestedSnapshot[field];
+    }
+    return data;
+  }, {} as Partial<Record<DirectParticipantChangeField, string | number | null>>);
+}
+
+export function hasParticipantChangeData(changeData: Record<string, unknown>) {
+  return Object.keys(changeData).length > 0;
+}
+
+export function summarizeDirectParticipantChangeFields(changeData: Record<string, unknown>) {
+  return DIRECT_PARTICIPANT_CHANGE_FIELDS
+    .filter((field) => Object.prototype.hasOwnProperty.call(changeData, field))
+    .map((field) => PARTICIPANT_FIELD_LABELS[field]);
 }
 
 export function formatParticipantFieldValue(field: ParticipantChangeField, value: string | number | null) {
