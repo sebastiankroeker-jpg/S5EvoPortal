@@ -114,26 +114,45 @@ enum ChangelogEntryStatus {
   DONE
 }
 
+enum ClaimTokenExpiryMode {
+  FIXED_DAYS
+  REGISTRATION_DEADLINE
+  COMPETITION_END
+}
+
+enum TeamPublicationLevel {
+  TEAM_ANONYM
+  TEAMNAME_OEFFENTLICH
+  ALLES_OEFFENTLICH
+}
+
+enum ParticipantPublicationPreference {
+  NAME_VERBERGEN
+  NAME_VEROEFFENTLICHEN
+}
+
 // ==================== TENANT ====================
 
 model Tenant {
-  id               String   @id @default(cuid())
-  name             String
-  slug             String   @unique
-  primaryColor     String   @default("#dc2626")
-  logoUrl          String?
-  heroImageUrl     String?
-  contactEmail     String?
-  website          String?
-  privacyText      String?
-  defaultTheme     String   @default("DARK")
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  primaryColor      String   @default("#dc2626")
+  logoUrl           String?
+  heroImageUrl      String?
+  contactEmail      String?
+  website           String?
+  privacyText       String?
+  defaultTheme      String   @default("DARK")
   claimLinksEnabled Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relations
-  competitions Competition[]
-  tenantRoles  TenantRole[]
+  competitions   Competition[]
+  tenantRoles    TenantRole[]
+  resetSnapshots CompetitionResetSnapshot[]
+  auditEvents    AuditEvent[]
 
   @@map("tenants")
 }
@@ -151,15 +170,19 @@ model User {
   deletedAt    DateTime?
 
   // Relations
-  tenantRoles      TenantRole[]
-  ownedTeams       Team[]          @relation("TeamOwner")
-  chiefOfTeams     Team[]          @relation("TeamChief")
-  requestedChanges PendingChange[] @relation("ChangeRequester")
-  reviewedChanges  PendingChange[] @relation("ChangeReviewer")
-  participantAuditLogs ParticipantAuditLog[] @relation("ParticipantAuditActor")
-  changelogEntriesCreated ChangelogEntry[] @relation("EntryCreator")
-  changelogEntriesResolved ChangelogEntry[] @relation("EntryResolver")
-  claimedRegistrationTokens RegistrationClaimToken[] @relation("ClaimedRegistrationTokens")
+  tenantRoles               TenantRole[]
+  ownedTeams                Team[]                     @relation("TeamOwner")
+  chiefOfTeams              Team[]                     @relation("TeamChief")
+  linkedParticipants        Participant[]              @relation("ParticipantUser")
+  requestedChanges          PendingChange[]            @relation("ChangeRequester")
+  reviewedChanges           PendingChange[]            @relation("ChangeReviewer")
+  participantAuditLogs      ParticipantAuditLog[]      @relation("ParticipantAuditActor")
+  changelogEntriesCreated   ChangelogEntry[]           @relation("EntryCreator")
+  changelogEntriesResolved  ChangelogEntry[]           @relation("EntryResolver")
+  claimedRegistrationTokens RegistrationClaimToken[]   @relation("ClaimedRegistrationTokens")
+  claimedParticipantTokens  ParticipantClaimToken[]    @relation("ClaimedParticipantTokens")
+  resetSnapshotsCreated     CompetitionResetSnapshot[] @relation("CompetitionResetSnapshotCreator")
+  auditEventsCreated        AuditEvent[]               @relation("AuditEventActor")
 
   @@map("users")
 }
@@ -184,33 +207,40 @@ model TenantRole {
 // ==================== COMPETITION ====================
 
 model Competition {
-  id                    String            @id @default(cuid())
-  name                  String
-  year                  Int
-  date                  DateTime?
-  dateEnd               DateTime?
-  registrationDeadline  DateTime?
-  registrationNotificationEmail String?
-  shirtOrderDeadline    DateTime?
-  status                CompetitionStatus @default(DRAFT)
-  maxTeams              Int?
-  teamSize              Int               @default(5)
-  ageReferenceDate      DateTime?
-  benchPressTara        Float             @default(20.0)
-  benchPressMode        BenchPressMode    @default(GROSS)
-  stockShotsCount       Int               @default(11)
-  stockStrikeoutCount   Int               @default(1)
-  location              String?
-  publicResults         Boolean           @default(true)
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  id                                String               @id @default(cuid())
+  name                              String
+  year                              Int
+  date                              DateTime?
+  dateEnd                           DateTime?
+  registrationDeadline              DateTime?
+  claimTokenExpiryMode              ClaimTokenExpiryMode @default(COMPETITION_END)
+  claimTokenTtlDays                 Int                  @default(7)
+  teamOwnerFilterVisibleForTeamchef Boolean              @default(false)
+  participantsCanViewAllTeams       Boolean              @default(false)
+  spectatorsCanViewAllTeams         Boolean              @default(false)
+  registrationNotificationEmail     String?
+  shirtOrderDeadline                DateTime?
+  status                            CompetitionStatus    @default(DRAFT)
+  maxTeams                          Int?
+  teamSize                          Int                  @default(5)
+  ageReferenceDate                  DateTime?
+  benchPressTara                    Float                @default(20.0)
+  benchPressMode                    BenchPressMode       @default(GROSS)
+  stockShotsCount                   Int                  @default(11)
+  stockStrikeoutCount               Int                  @default(1)
+  location                          String?
+  publicResults                     Boolean              @default(true)
+  createdAt                         DateTime             @default(now())
+  updatedAt                         DateTime             @updatedAt
 
   // Relations
   tenantId        String
-  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant          Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   teams           Team[]
   disciplines     Discipline[]
   classifications Classification[]
+  resetSnapshots  CompetitionResetSnapshot[]
+  auditEvents     AuditEvent[]
 
   @@map("competitions")
 }
@@ -218,48 +248,49 @@ model Competition {
 // ==================== TEAM ====================
 
 model Team {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   name               String
   contactName        String?
   contactEmail       String?
   contactPhone       String?
   clubName           String?
   notes              String?
-  approved           Boolean  @default(false)
+  teamPublicationLevel TeamPublicationLevel @default(TEAM_ANONYM)
+  approved           Boolean   @default(false)
   totalAge           Int?
   classificationCode String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
   // Relations
-  competitionId String
-  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
-  ownerId       String
-  owner         User        @relation("TeamOwner", fields: [ownerId], references: [id])
-  teamChiefId   String?
-  teamChief     User?       @relation("TeamChief", fields: [teamChiefId], references: [id])
-  participants  Participant[]
-  rankings      CompetitionRanking[]
+  competitionId           String
+  competition             Competition              @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  ownerId                 String
+  owner                   User                     @relation("TeamOwner", fields: [ownerId], references: [id])
+  teamChiefId             String?
+  teamChief               User?                    @relation("TeamChief", fields: [teamChiefId], references: [id])
+  participants            Participant[]
+  rankings                CompetitionRanking[]
   registrationClaimTokens RegistrationClaimToken[]
 
   @@map("teams")
 }
 
 model RegistrationClaimToken {
-  id             String   @id @default(cuid())
-  tokenHash      String   @unique
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique
   suggestedEmail String
   suggestedName  String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
   expiresAt      DateTime
   claimedAt      DateTime?
   revokedAt      DateTime?
 
-  teamId         String
-  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId          String
+  team            Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   claimedByUserId String?
-  claimedByUser   User?    @relation("ClaimedRegistrationTokens", fields: [claimedByUserId], references: [id])
+  claimedByUser   User?   @relation("ClaimedRegistrationTokens", fields: [claimedByUserId], references: [id])
 
   @@index([teamId])
   @@index([suggestedEmail])
@@ -288,33 +319,82 @@ model RegistrationClaimAuditEvent {
   @@map("registration_claim_audit_events")
 }
 
+model ParticipantClaimToken {
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique
+  suggestedEmail String
+  suggestedName  String?
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  claimedAt      DateTime?
+  revokedAt      DateTime?
+
+  participantId   String
+  participant     Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  claimedByUserId String?
+  claimedByUser   User?       @relation("ClaimedParticipantTokens", fields: [claimedByUserId], references: [id])
+
+  @@index([participantId])
+  @@index([suggestedEmail])
+  @@map("participant_claim_tokens")
+}
+
+model ParticipantClaimAuditEvent {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  eventType     String
+  outcome       String?
+  reason        String?
+  suspicious    Boolean  @default(false)
+  ipAddress     String?
+  userAgent     String?
+  sessionEmail  String?
+  tokenId       String?
+  participantId String?
+  teamId        String?
+  userId        String?
+
+  @@index([createdAt])
+  @@index([tokenId])
+  @@index([participantId])
+  @@index([teamId])
+  @@index([ipAddress])
+  @@index([suspicious])
+  @@map("participant_claim_audit_events")
+}
+
 // ==================== PARTICIPANT ====================
 
 model Participant {
-  id              String               @id @default(cuid())
-  firstName       String
-  lastName        String
-  birthYear       Int
-  gender          Gender
-  disciplineCode  DisciplineAssignment @default(TBD)
-  shirtSize       ShirtSize?
-  moderationNote  String?
-  consentGiven    Boolean              @default(false)
-  email           String?
-  phone           String?
-  overallRank     Int?
-  overallPoints   Int?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  deletedAt       DateTime?
+  id             String               @id @default(cuid())
+  firstName      String
+  lastName       String
+  birthYear      Int
+  gender         Gender
+  disciplineCode DisciplineAssignment @default(TBD)
+  participantPublicationPreference ParticipantPublicationPreference @default(NAME_VERBERGEN)
+  shirtSize      ShirtSize?
+  moderationNote String?
+  consentGiven   Boolean              @default(false)
+  email          String?
+  phone          String?
+  overallRank    Int?
+  overallPoints  Int?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  deletedAt      DateTime?
 
   // Relations
+  userId         String?
+  user           User?                   @relation("ParticipantUser", fields: [userId], references: [id], onDelete: SetNull)
   teamId         String
-  team           Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team           Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  claimTokens    ParticipantClaimToken[]
   results        DisciplineResult[]
   pendingChanges PendingChange[]
   auditLogs      ParticipantAuditLog[]
 
+  @@index([userId])
   @@map("participants")
 }
 
@@ -330,7 +410,7 @@ model Discipline {
 
   // Relations
   competitionId String
-  competition   Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  competition   Competition        @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   results       DisciplineResult[]
 
   @@unique([competitionId, code])
@@ -361,9 +441,9 @@ model DisciplineResult {
 // ==================== SHOT (Stockschießen) ====================
 
 model Shot {
-  id         String  @id @default(cuid())
-  shotNumber Int
-  value      Int
+  id          String  @id @default(cuid())
+  shotNumber  Int
+  value       Int
   isStrikeout Boolean @default(false)
 
   // Relations
@@ -415,45 +495,91 @@ model CompetitionRanking {
 // ==================== PENDING CHANGE (Approval-Workflow) ====================
 
 model PendingChange {
-  id         String         @id @default(cuid())
-  changeData String
-  beforeData String?
-  status     ApprovalStatus @default(DRAFT)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  reviewedAt DateTime?
+  id            String         @id @default(cuid())
+  changeData    String
+  beforeData    String?
+  status        ApprovalStatus @default(DRAFT)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  reviewedAt    DateTime?
   reviewComment String?
 
   // Relations
   participantId String
-  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participant   Participant           @relation(fields: [participantId], references: [id], onDelete: Cascade)
   requestedById String
-  requestedBy   User        @relation("ChangeRequester", fields: [requestedById], references: [id])
+  requestedBy   User                  @relation("ChangeRequester", fields: [requestedById], references: [id])
   reviewedById  String?
-  reviewedBy    User?       @relation("ChangeReviewer", fields: [reviewedById], references: [id])
+  reviewedBy    User?                 @relation("ChangeReviewer", fields: [reviewedById], references: [id])
   auditLogs     ParticipantAuditLog[]
 
   @@map("pending_changes")
 }
 
 model ParticipantAuditLog {
-  id              String                 @id @default(cuid())
-  action          ParticipantAuditAction
-  beforeData      String?
-  afterData       String?
-  message         String?
-  createdAt       DateTime               @default(now())
+  id         String                 @id @default(cuid())
+  action     ParticipantAuditAction
+  beforeData String?
+  afterData  String?
+  message    String?
+  createdAt  DateTime               @default(now())
 
   participantId   String
-  participant     Participant            @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participant     Participant    @relation(fields: [participantId], references: [id], onDelete: Cascade)
   actorId         String?
-  actor           User?                  @relation("ParticipantAuditActor", fields: [actorId], references: [id])
+  actor           User?          @relation("ParticipantAuditActor", fields: [actorId], references: [id])
   pendingChangeId String?
-  pendingChange   PendingChange?         @relation(fields: [pendingChangeId], references: [id], onDelete: SetNull)
+  pendingChange   PendingChange? @relation(fields: [pendingChangeId], references: [id], onDelete: SetNull)
 
   @@index([participantId, createdAt])
   @@index([pendingChangeId])
   @@map("participant_audit_logs")
+}
+
+model CompetitionResetSnapshot {
+  id        String   @id @default(cuid())
+  reason    String
+  summary   Json
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  createdById   String?
+  createdBy     User?       @relation("CompetitionResetSnapshotCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([competitionId, createdAt])
+  @@map("competition_reset_snapshots")
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  action     String
+  scopeType  String
+  scopeId    String
+  entityType String?
+  entityId   String?
+  reason     String?
+  beforeData Json?
+  afterData  Json?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  actorId       String?
+  actor         User?        @relation("AuditEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([competitionId, createdAt])
+  @@index([scopeType, scopeId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_events")
 }
 
 // ==================== CHANGELOG ENTRY ====================
@@ -468,10 +594,10 @@ model ChangelogEntry {
   resolvedAt  DateTime?
 
   createdById String
-  createdBy   User @relation("EntryCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy   User   @relation("EntryCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
   resolvedById String?
-  resolvedBy   User? @relation("EntryResolver", fields: [resolvedById], references: [id])
+  resolvedBy   User?   @relation("EntryResolver", fields: [resolvedById], references: [id])
 
   @@index([status])
   @@index([type])

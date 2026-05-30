@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   DISCIPLINES,
+  PARTICIPANT_PUBLICATION_OPTIONS,
+  TEAM_PUBLICATION_OPTIONS,
   extractBirthYearFromInput,
   formatBirthDateInput,
   resolveBirthDateInputKey,
@@ -28,6 +30,7 @@ import { classifyTeam, validateDisciplineAssignment } from "@/lib/domain/classif
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
+import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowDownUp, ChevronDown, ChevronUp, RotateCcw, SlidersHorizontal } from "lucide-react";
@@ -36,6 +39,7 @@ import ParticipantEditDialog from "./participant-edit-dialog";
 interface Team {
   id: string;
   name: string;
+  teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH";
   category: string;
   contactName: string;
   contactEmail: string;
@@ -58,7 +62,8 @@ interface Participant {
   shirtSize?: string;
   moderationNote?: string;
   email?: string | null;
-  phone?: string | null;
+  participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN";
+  isCurrentUserParticipant?: boolean;
   pendingChanges?: { id: string; status: string }[];
   latestChange?: {
     id: string;
@@ -72,6 +77,7 @@ interface Participant {
 
 type TeamEditPayload = {
   teamName: string;
+  teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH";
   participants: Participant[];
 };
 
@@ -184,6 +190,14 @@ function getParticipantsSummary(team: Team) {
     .join(", ");
 }
 
+function hasVisibleContactInfo(team: Team) {
+  return Boolean(team.contactName || team.contactEmail);
+}
+
+function getContactFallbackLabel(team: Team) {
+  return hasVisibleContactInfo(team) ? "—" : "Nicht sichtbar";
+}
+
 function getLatestChangeMeta(status?: string | null) {
   if (status === "PENDING") return { label: "In Prüfung", className: "border-amber-300 text-amber-700" };
   if (status === "APPROVED") return { label: "Genehmigt", className: "border-green-300 text-green-700" };
@@ -278,7 +292,7 @@ function exportTeamsCsv(teams: Team[]) {
 
 export default function Dashboard({ ownerFilter: initialOwnerFilter }: DashboardProps = {}) {
   const { data: session } = useSession();
-  const { can } = usePermissions();
+  const { can, activeRole } = usePermissions();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -305,12 +319,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const canViewAll = can("team.view.all");
   const userEmail = session?.user?.email;
   const { active: activeCompetition } = useCompetition();
+  const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
+  const canBrowseAllTeams = canViewAll || canRoleViewAllTeams(activeRole, activeCompetition);
 
   const fetchTeams = async () => {
     try {
       const params = new URLSearchParams();
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
-      if (canViewAll) params.set('scope', 'all');
+      if (canBrowseAllTeams) params.set('scope', 'all');
+      params.set("roleContext", activeRole);
       const response = await fetch(`/api/teams?${params}`);
       const data = await response.json();
       setTeams(data.teams || []);
@@ -376,7 +393,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   useEffect(() => {
     fetchTeams();
-  }, [activeCompetition?.id, canViewAll]);
+  }, [activeCompetition?.id, canBrowseAllTeams, activeRole]);
+
+  useEffect(() => {
+    if (!showOwnerFilter) {
+      setOwnerFilter("all");
+    }
+  }, [showOwnerFilter]);
 
   useEffect(() => {
     if (viewMode === "list") {
@@ -402,7 +425,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   useEffect(() => {
     // Listen for switchTab events to handle owner filter
     const handleSwitchTab = (e: CustomEvent) => {
-      if (e.detail.ownerFilter && e.detail.tabId === "dashboard") {
+      if (showOwnerFilter && e.detail.ownerFilter && e.detail.tabId === "dashboard") {
         setOwnerFilter(e.detail.ownerFilter);
         setPendingOwnerFilter(e.detail.ownerFilter);
       }
@@ -411,7 +434,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     const listener: EventListener = (event) => handleSwitchTab(event as CustomEvent);
     window.addEventListener("switchTab", listener);
     return () => window.removeEventListener("switchTab", listener);
-  }, []);
+  }, [showOwnerFilter]);
 
   // Apply pending owner filter after teams are loaded
   useEffect(() => {
@@ -427,6 +450,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       // Category filter
       const matchesCategory = categoryFilter === "all" || team.category === categoryFilter;
       const matchesOwner =
+        !showOwnerFilter ||
         ownerFilter === "all" ||
         normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(ownerFilter);
       const matchesCompleteness = !incompleteOnly || isTeamIncomplete(team);
@@ -441,14 +465,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       // Search filter (team name, contact name, participant names)
       const matchesSearch = searchQuery === "" || 
         team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        team.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (team.contactName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         (team.participants?.some(p => 
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
       return matchesCategory && matchesOwner && matchesCompleteness && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, incompleteOnly, createdFrom, createdTo]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, incompleteOnly, createdFrom, createdTo, showOwnerFilter]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -535,14 +559,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const hasActiveFilters =
     searchQuery !== "" ||
     categoryFilter !== "all" ||
-    ownerFilter !== "all" ||
+    (showOwnerFilter && ownerFilter !== "all") ||
     incompleteOnly ||
     createdFrom !== "" ||
     createdTo !== "";
   const activeFilterCount = [
     searchQuery !== "",
     categoryFilter !== "all",
-    ownerFilter !== "all",
+    showOwnerFilter && ownerFilter !== "all",
     incompleteOnly,
     createdFrom !== "",
     createdTo !== "",
@@ -616,7 +640,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 Filter & Suche
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen
+                {showOwnerFilter
+                  ? "Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen"
+                  : "Suche, Klasse, Vollständigkeit und Zeitraum eingrenzen"}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -630,7 +656,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
         {filtersOpen && (
           <CardContent className="space-y-4 pt-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <div className={`grid gap-4 md:grid-cols-2 ${showOwnerFilter ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
               <div className="space-y-1 xl:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">Suche</label>
                 <Input
@@ -657,22 +683,24 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 </Select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Anleger:in</label>
-                <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Alle Anleger" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Anleger</SelectItem>
-                    {ownerOptions.map((owner) => (
-                      <SelectItem key={owner} value={owner}>
-                        {owner}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {showOwnerFilter && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Anleger:in</label>
+                  <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Alle Anleger" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Anleger</SelectItem>
+                      {ownerOptions.map((owner) => (
+                        <SelectItem key={owner} value={owner}>
+                          {owner}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Vollständigkeit</label>
@@ -717,7 +745,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                   onClick={() => {
                     setSearchQuery("");
                     setCategoryFilter("all");
-                    setOwnerFilter(initialOwnerFilter || "all");
+                    setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
                     setIncompleteOnly(false);
                     setCreatedFrom("");
                     setCreatedTo("");
@@ -943,13 +971,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             );
                             break;
                           case "contactName":
-                            content = team.contactName || "—";
+                            content = team.contactName || getContactFallbackLabel(team);
                             break;
                           case "contactEmail":
-                            content = team.contactEmail || "—";
+                            content = team.contactEmail || getContactFallbackLabel(team);
                             break;
                           case "ownerEmail":
-                            content = team.ownerEmail || team.contactEmail || "—";
+                            content = team.ownerEmail || "Nicht sichtbar";
                             break;
                           case "participantCount":
                             content = getParticipantCount(team);
@@ -1051,10 +1079,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       <div className="space-y-0.5">
                         {team.participants.map((p, i) => {
                           const disc = getDisciplineDisplay(p.discipline);
-                          const isChief = p.firstName === team.contactName?.split(" ")[0];
                           return (
                             <div key={i} className="text-xs text-muted-foreground flex items-center justify-between">
-                              <span>{p.firstName} {p.lastName} {isChief ? "⭐" : ""}</span>
+                              <span>{p.firstName} {p.lastName}</span>
                               <span title={disc.label}>{disc.icon} {p.gender === "M" ? "♂" : "♀"}</span>
                             </div>
                           );
@@ -1100,9 +1127,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               </Button>
                             </h3>
                             <div className="text-sm space-y-1">
-                              <div><strong>Teamchef:in:</strong> ⭐ {team.contactName}</div>
-                              <div><strong>E-Mail:</strong> {team.contactEmail}</div>
                               <div><strong>Klasse:</strong> {categoryEmojis[team.category] || "🏆"} {team.category}</div>
+                              {hasVisibleContactInfo(team) ? (
+                                <>
+                                  {team.contactName && <div><strong>Teamchef:in:</strong> ⭐ {team.contactName}</div>}
+                                  {team.contactEmail && <div><strong>E-Mail:</strong> {team.contactEmail}</div>}
+                                </>
+                              ) : (
+                                <div className="text-muted-foreground">Kontaktdaten sind in dieser Ansicht nicht sichtbar.</div>
+                              )}
                             </div>
                           </div>
 
@@ -1110,7 +1143,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             <div className="grid gap-2 text-xs sm:grid-cols-2">
                               <div><strong>Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>
                               <div><strong>Anlageuhrzeit:</strong> {formatTimePart(team.createdAt)}</div>
-                              <div><strong>Anlage-User:</strong> {team.ownerName || team.ownerEmail || team.contactName || "Unbekannt"}</div>
+                              {(team.ownerName || team.ownerEmail) ? (
+                                <div><strong>Anlage-User:</strong> {team.ownerName || team.ownerEmail}</div>
+                              ) : (
+                                <div><strong>Anlage-User:</strong> Nicht sichtbar</div>
+                              )}
                               <div><strong>Letzte Änderung:</strong> {team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "Unbekannt"}</div>
                             </div>
                           </div>
@@ -1152,12 +1189,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                               {p.moderationNote?.trim() ? "📝 Hinweis" : "📝 Hinzufuegen"}
                                             </button>
                                           )}
-                                          {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own")) || (p.email === userEmail && can("participant.edit.self"))) && (
+                                          {(canEditAll || (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own")) || (p.isCurrentUserParticipant && can("participant.edit.self"))) && (
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (!p.id) return;
-                                                setEditingParticipant({ ...p, id: p.id, teamOwnerEmail: team.ownerEmail });
+                                                setEditingParticipant({ ...p, id: p.id, teamOwnerEmail: team.ownerEmail || team.contactEmail });
                                               }}
                                               className="text-xs text-muted-foreground hover:text-primary transition-colors"
                                               title="Teilnehmer bearbeiten"
@@ -1184,7 +1221,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                           )}
 
                           {/* Actions */}
-                          {(canEditAll || (team.ownerEmail === userEmail && can("team.edit.own"))) && (
+                          {(canEditAll || (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own"))) && (
                             <div className="flex gap-2 pt-2">
                               <Button 
                                 size="sm" 
@@ -1275,6 +1312,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
   const [openModerationNotes, setOpenModerationNotes] = useState<Record<number, boolean>>({});
   const [formData, setFormData] = useState({
     teamName: team.name,
+    teamPublicationLevel: team.teamPublicationLevel || "TEAM_ANONYM",
     participants: team.participants || []
   });
   const liveClassification = useMemo(() => {
@@ -1362,6 +1400,33 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
               className="mt-1"
               disabled={!showAdminInfo}
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Team veröffentlichen</label>
+            <Select
+              value={formData.teamPublicationLevel}
+              onValueChange={(value) =>
+                setFormData({
+                  ...formData,
+                  teamPublicationLevel: value as "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH",
+                })
+              }
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEAM_PUBLICATION_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Steuert, wie das Team später für andere Rollen oder öffentlich erscheinen darf.
+            </p>
           </div>
 
           <div>
@@ -1458,6 +1523,34 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Namensveröffentlichung</label>
+                    <Select
+                      value={participant.participantPublicationPreference || "NAME_VERBERGEN"}
+                      onValueChange={(value) => handleParticipantChange(index, "participantPublicationPreference", value)}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PARTICIPANT_PUBLICATION_OPTIONS.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">E-Mail (optional)</label>
+                    <Input
+                      type="email"
+                      value={participant.email || ""}
+                      onChange={(e) => handleParticipantChange(index, "email", e.target.value)}
+                      placeholder="teilnehmer@example.de"
+                      className="h-8 mt-1"
+                    />
                   </div>
                   <div className="pt-1">
                     <Button

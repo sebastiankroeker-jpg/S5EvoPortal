@@ -3,6 +3,12 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
+  canViewerSeeFullPublication,
+  resolveVisibleParticipantName,
+  resolveVisibleTeamName,
+} from "@/lib/publication-visibility";
+import { getScopedRoleFlags } from "@/lib/server-permissions";
+import {
   rankDiscipline,
   calculateTeamScores,
   type DisciplineCode,
@@ -26,19 +32,26 @@ export async function GET(request: NextRequest) {
     // Load competition
     const competition = await prisma.competition.findUnique({
       where: { id: competitionId },
-      select: { id: true, name: true, year: true, publicResults: true, status: true },
+      select: { id: true, name: true, year: true, publicResults: true, status: true, tenantId: true },
     });
 
     if (!competition) {
       return NextResponse.json({ error: "Competition not found" }, { status: 404 });
     }
 
+    const session = await getServerSession(authOptions);
     if (!competition.publicResults) {
-      const session = await getServerSession(authOptions);
       if (!session?.user?.email) {
         return NextResponse.json({ error: "Results are not public" }, { status: 403 });
       }
     }
+
+    const access = session?.user?.email
+      ? await getScopedRoleFlags(session.user.email, competition.tenantId, session)
+      : null;
+    const canSeeFullPublication = canViewerSeeFullPublication({
+      isPrivilegedViewer: Boolean(access?.isAdmin || access?.isModerator),
+    });
 
     // Load all teams with participants and discipline results
     const teams = await prisma.team.findMany({
@@ -87,10 +100,22 @@ export async function GET(request: NextRequest) {
           const discCode = result.discipline.code as DisciplineCode;
           if (!classEntries[discCode]) continue;
 
+          const visibleTeamName = resolveVisibleTeamName({
+            actualTeamName: team.name,
+            teamPublicationLevel: team.teamPublicationLevel,
+            canSeeFullPublication,
+          });
+          const visibleParticipantName = resolveVisibleParticipantName({
+            actualName: `${participant.firstName} ${participant.lastName}`,
+            teamPublicationLevel: team.teamPublicationLevel,
+            participantPublicationPreference: participant.participantPublicationPreference,
+            canSeeFullPublication,
+          });
+
           classEntries[discCode].push({
             teamId: team.id,
-            teamName: team.name,
-            participantName: `${participant.firstName} ${participant.lastName}`,
+            teamName: visibleTeamName,
+            participantName: visibleParticipantName,
             rawValue: result.rawValue,
             classCode,
           });

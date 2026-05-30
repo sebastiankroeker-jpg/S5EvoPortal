@@ -105,7 +105,7 @@ export default function LiveScreen() {
       const matchingTeams = categoryTeams.filter(team => {
         const matchesSearch = searchQuery === "" || 
           team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          team.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (team.contactName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
           (team.participants?.some(p => 
             `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
           ) ?? false);
@@ -188,9 +188,11 @@ export default function LiveScreen() {
                             </div>
                           )}
                           
-                          <div className="text-xs text-muted-foreground border-t pt-2">
-                            ⭐ {team.contactName} (Teamchef:in)
-                          </div>
+                          {team.contactName ? (
+                            <div className="text-xs text-muted-foreground border-t pt-2">
+                              ⭐ {team.contactName} (Teamchef:in)
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </CardContent>

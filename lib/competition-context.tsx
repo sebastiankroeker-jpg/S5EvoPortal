@@ -8,6 +8,9 @@ type CompetitionInfo = {
   year: number;
   status: string;
   teamCount: number;
+  teamOwnerFilterVisibleForTeamchef: boolean;
+  participantsCanViewAllTeams: boolean;
+  spectatorsCanViewAllTeams: boolean;
 };
 
 type CompetitionContextType = {
@@ -60,6 +63,9 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
                 year: competition.year,
                 status: competition.status,
                 teamCount: competition.teamCount ?? 0,
+                teamOwnerFilterVisibleForTeamchef: competition.teamOwnerFilterVisibleForTeamchef ?? false,
+                participantsCanViewAllTeams: competition.participantsCanViewAllTeams ?? false,
+                spectatorsCanViewAllTeams: competition.spectatorsCanViewAllTeams ?? false,
               }]
             : [];
 
@@ -75,6 +81,9 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
           year: c.year,
           status: c.status,
           teamCount: c._count?.teams ?? 0,
+          teamOwnerFilterVisibleForTeamchef: c.teamOwnerFilterVisibleForTeamchef ?? false,
+          participantsCanViewAllTeams: c.participantsCanViewAllTeams ?? false,
+          spectatorsCanViewAllTeams: c.spectatorsCanViewAllTeams ?? false,
         }));
         setAll(comps);
 

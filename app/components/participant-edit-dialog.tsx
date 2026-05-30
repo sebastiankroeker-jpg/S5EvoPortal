@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DISCIPLINES,
+  PARTICIPANT_PUBLICATION_OPTIONS,
   birthYearToBirthDateInput,
   extractBirthYearFromInput,
   formatBirthDateInput,
@@ -35,7 +36,7 @@ interface Participant {
   shirtSize?: string | null;
   moderationNote?: string | null;
   email?: string | null;
-  phone?: string | null;
+  participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   pendingChanges?: { id: string; status: string; updatedAt?: string | null; reviewedAt?: string | null; reviewComment?: string | null }[];
 }
 
@@ -111,7 +112,7 @@ export default function ParticipantEditDialog({
   const [shirtSize, setShirtSize] = useState("");
   const [moderationNote, setModerationNote] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [participantPublicationPreference, setParticipantPublicationPreference] = useState<"NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN">("NAME_VERBERGEN");
   const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ applied: boolean; message?: string; classificationWarnings?: string[] } | null>(null);
@@ -148,7 +149,7 @@ export default function ParticipantEditDialog({
       setShirtSize(participant.shirtSize || "");
       setModerationNote(participant.moderationNote || "");
       setEmail(participant.email || "");
-      setPhone(participant.phone || "");
+      setParticipantPublicationPreference(participant.participantPublicationPreference || "NAME_VERBERGEN");
       setShirtOrderDeadline(null);
       setLatestChange(participant.pendingChanges?.[0] || null);
       setResult(null);
@@ -173,7 +174,7 @@ export default function ParticipantEditDialog({
         setShirtSize(data.shirtSize || "");
         setModerationNote(data.moderationNote || "");
         setEmail(data.email || "");
-        setPhone(data.phone || "");
+        setParticipantPublicationPreference(data.participantPublicationPreference || "NAME_VERBERGEN");
         setShirtOrderDeadline(data.team?.competition?.shirtOrderDeadline || null);
         setLatestChange(data.pendingChanges?.[0] || null);
       } catch (err) {
@@ -208,7 +209,7 @@ export default function ParticipantEditDialog({
           shirtSize: shirtSize || null,
           moderationNote: moderationNote || null,
           email: email || null,
-          phone: phone || null,
+          participantPublicationPreference,
         }),
       });
 
@@ -329,6 +330,22 @@ export default function ParticipantEditDialog({
             </div>
 
             <div>
+              <label className="text-xs font-medium text-muted-foreground">Namensveröffentlichung</label>
+              <Select value={participantPublicationPreference} onValueChange={(value) => setParticipantPublicationPreference(value as "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN")}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PARTICIPANT_PUBLICATION_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <label className="text-xs font-medium text-muted-foreground">Disziplin-Zuordnung</label>
               <Select value={disciplineCode} onValueChange={setDisciplineCode}>
                 <SelectTrigger className="mt-1">
@@ -389,15 +406,6 @@ export default function ParticipantEditDialog({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="teilnehmer@example.de"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Telefon (optional)</label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+49 ..."
                   className="mt-1"
                 />
               </div>

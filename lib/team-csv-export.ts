@@ -34,7 +34,6 @@ type CompetitionExportRecord = {
       shirtSize: string | null;
       moderationNote: string | null;
       email: string | null;
-      phone: string | null;
       updatedAt: Date;
     }>;
   }>;
@@ -136,7 +135,6 @@ export async function loadCompetitionsForDailyExport({
               shirtSize: true,
               moderationNote: true,
               email: true,
-              phone: true,
               updatedAt: true,
             },
           },
@@ -171,7 +169,6 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
     "disziplin",
     "shirt_groesse",
     "teilnehmer_email",
-    "teilnehmer_telefon",
     "moderationshinweis",
     "teilnehmer_updated_at",
   ];
@@ -195,7 +192,6 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
         team.notes,
         formatDateTime(team.createdAt),
         formatDateTime(team.updatedAt),
-        null,
         null,
         null,
         null,
@@ -235,7 +231,6 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
         participant.disciplineCode,
         participant.shirtSize,
         participant.email,
-        participant.phone,
         participant.moderationNote,
         formatDateTime(participant.updatedAt),
       ]);

@@ -20,6 +20,8 @@ type TemplateInput = {
   tenantName: string;
   participants: MailParticipant[];
   claimUrl?: string;
+  portalUrl?: string;
+  alreadyLinked?: boolean;
 };
 
 const disciplineLabels = Object.fromEntries(
@@ -112,6 +114,14 @@ function paymentDetailsText() {
 
 export function buildRegistrantConfirmationMail(input: TemplateInput) {
   const subject = `Soier 5kampf Anmeldung erhalten: ${input.teamName}`;
+  const portalBlockHtml =
+    input.alreadyLinked && input.portalUrl
+      ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Deine Mannschaft ist bereits verknüpft</strong></p><p style="margin:0 0 10px 0;">Die Anmeldung ist schon mit deinem Portal-Konto verbunden. Weitere Änderungen kannst du direkt im Portal vornehmen.</p><p style="margin:0 0 14px 0;"><a href="${input.portalUrl}" style="display:inline-block;padding:10px 16px;background:#dcfce7;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Portal öffnen</a></p><p style="margin:0;font-size:14px;color:#555;">Dort kannst du deine Mannschaft prüfen und Änderungen bis zum Anmeldeschluss direkt online einreichen.</p></div>`
+      : "";
+  const claimBlockHtml =
+    !input.alreadyLinked && input.claimUrl
+      ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Bei Änderungen zur Mannschaft</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Link. Dieser ist vertraulich und kann nur mit der E-Mail-Adresse aus Punkt 2 verwendet werden.</li><li>Erstelle mit <strong>${input.contactEmail}</strong> ein Konto im Portal und melde dich dort mit dieser an.</li><li>Danach ist das Team deinem Konto zugeordnet.</li><li>Änderungen innerhalb der Mannschaft können dort bis zum Anmeldeschluss vorgenommen werden.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#bbf7d0;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Mannschaft im Portal bearbeiten</a></p><p style="margin:0 0 10px 0;font-size:14px;color:#555;">Wichtig: Alle Portal-Funktionen sind aktuell noch Beta. Einige Bereiche werden noch weiterentwickelt und sind noch nicht komplett abgeschlossen.</p><p style="margin:0;font-size:14px;color:#555;">Wenn etwas nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung. Falls du Unterstützung brauchst, melde dich einfach bei uns.</p></div>`
+      : "";
 
   return {
     subject,
@@ -126,7 +136,8 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
         ${participantTableHtml(input.participants)}
         <p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>
         ${paymentDetailsHtml()}
-        ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Bei Änderungen zur Mannschaft</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Link. Dieser ist vertraulich und kann nur mit der E-Mail-Adresse aus Punkt 2 verwendet werden.</li><li>Erstelle mit <strong>${input.contactEmail}</strong> ein Konto im Portal und melde dich dort mit dieser an.</li><li>Danach ist das Team deinem Konto zugeordnet.</li><li>Änderungen innerhalb der Mannschaft können dort bis zum Anmeldeschluss vorgenommen werden.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#bbf7d0;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Mannschaft im Portal bearbeiten</a></p><p style="margin:0 0 10px 0;font-size:14px;color:#555;">Wichtig: Alle Portal-Funktionen sind aktuell noch Beta. Einige Bereiche werden noch weiterentwickelt und sind noch nicht komplett abgeschlossen.</p><p style="margin:0;font-size:14px;color:#555;">Wenn etwas nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung. Falls du Unterstützung brauchst, melde dich einfach bei uns.</p></div>` : ""}
+        ${portalBlockHtml}
+        ${claimBlockHtml}
         <p>Viele Grüße<br />${input.tenantName}</p>
       </div>
     `.trim(),
@@ -142,7 +153,16 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
       "",
       "Wichtig: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.",
       paymentDetailsText(),
-      ...(input.claimUrl
+      ...(input.alreadyLinked && input.portalUrl
+        ? [
+            "",
+            "Deine Mannschaft ist bereits verknüpft.",
+            "Die Anmeldung ist schon mit deinem Portal-Konto verbunden. Weitere Änderungen kannst du direkt im Portal vornehmen.",
+            `Portal öffnen: ${input.portalUrl}`,
+            "Dort kannst du deine Mannschaft prüfen und Änderungen bis zum Anmeldeschluss direkt online einreichen.",
+          ]
+        : []),
+      ...(!input.alreadyLinked && input.claimUrl
         ? [
             "",
             "Bei Änderungen zur Mannschaft:",

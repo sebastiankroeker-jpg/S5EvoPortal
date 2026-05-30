@@ -41,15 +41,10 @@ export async function GET() {
       return NextResponse.json({ roles: ["TEAMCHEF", "TEILNEHMER"] });
     }
 
-    // Unique Rollen extrahieren
+    // Unique Rollen extrahieren - keine implizite Hochstufung
     const roles = [...new Set(tenantRoles.map(tr => tr.role))] as string[];
 
-    // Jeder mit DB-Rollen bekommt auch TEAMCHEF implizit
-    if (!roles.includes("TEAMCHEF")) {
-      roles.push("TEAMCHEF");
-    }
-
-    return NextResponse.json({ roles });
+    return NextResponse.json({ roles: roles.length ? roles : ["TEILNEHMER"] });
 
   } catch (error) {
     console.error('Roles API error:', error);

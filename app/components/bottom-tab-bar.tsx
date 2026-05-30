@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePermissions } from "@/lib/permissions-context";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ interface BottomTabBarProps {
 }
 
 export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarProps) {
+  const router = useRouter();
   const { status } = useSession();
   const { can, activeRole } = usePermissions();
   const authenticated = status === "authenticated";
@@ -72,6 +74,11 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
   });
 
   const handleTabClick = (tabId: string) => {
+    if (tabId === "profile") {
+      router.push("/profile");
+      return;
+    }
+
     onTabChange(tabId);
     const event = new CustomEvent('switchTab', { detail: { tabId } });
     window.dispatchEvent(event);

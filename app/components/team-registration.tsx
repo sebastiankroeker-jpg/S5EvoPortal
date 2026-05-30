@@ -13,8 +13,10 @@ import {
   DISCIPLINE_PLACEHOLDER,
   extractBirthYearFromInput,
   formatBirthDateInput,
+  TEAM_PUBLICATION_OPTIONS,
   resolveBirthDateInputKey,
   summarizeDisciplines,
+  TeamRegistrationFormInput,
   TeamRegistrationInput,
   TeamRegistrationSchema,
   type DisciplineId,
@@ -113,7 +115,6 @@ function isRegistrationDeadlineReached(deadline?: string | null) {
 function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) {
   if (!competition) {
     return {
-      phaseLabel: "Lade Status",
       availabilityLabel: "prüfen",
       canRegister: true,
       detail: "Wettkampfparameter werden geladen.",
@@ -126,18 +127,8 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
   );
   const statusAllowsRegistration = competition.status === "DRAFT" || competition.status === "OPEN";
 
-  const phaseLabel =
-    competition.status === "DRAFT"
-      ? "Simulation"
-      : competition.status === "OPEN"
-        ? "Live"
-        : competition.status === "RUNNING"
-          ? "Wettkampf läuft"
-          : "Geschlossen";
-
   if (!statusAllowsRegistration) {
     return {
-      phaseLabel,
       availabilityLabel: "geschlossen",
       canRegister: false,
       detail: "Die Anmeldung ist in diesem Wettkampfstatus nicht mehr offen.",
@@ -146,7 +137,6 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
 
   if (deadlineReached) {
     return {
-      phaseLabel,
       availabilityLabel: "geschlossen",
       canRegister: false,
       detail: "Der Anmeldeschluss ist erreicht.",
@@ -155,7 +145,6 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
 
   if (teamLimitReached) {
     return {
-      phaseLabel,
       availabilityLabel: "voll",
       canRegister: false,
       detail: "Die maximale Teamzahl ist erreicht.",
@@ -163,7 +152,6 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
   }
 
   return {
-    phaseLabel,
     availabilityLabel: "offen",
     canRegister: true,
     detail:
@@ -194,6 +182,18 @@ function handleBirthDateKeyDown(
   });
 }
 
+function collectValidationMessages(source: unknown, messages: Set<string>) {
+  if (!source || typeof source !== "object") return;
+
+  if ("message" in source && typeof source.message === "string" && source.message.trim()) {
+    messages.add(source.message);
+  }
+
+  for (const entry of Object.values(source)) {
+    collectValidationMessages(entry, messages);
+  }
+}
+
 export default function TeamRegistration({ allowAnonymous = false }: TeamRegistrationProps) {
   const { data: session } = useSession();
   const { active: activeCompetition } = useCompetition();
@@ -207,7 +207,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
 
 
-  const form = useForm<TeamRegistrationInput>({
+  const form = useForm<TeamRegistrationFormInput>({
     resolver: zodResolver(TeamRegistrationSchema),
     defaultValues: createDefaultTeamForm(),
     mode: "onChange",
@@ -247,6 +247,15 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     const discs = (watchedParticipants || []).map((p: any) => p.discipline || "TBD");
     return validateDisciplineAssignment(discs);
   }, [watchedValues]);
+  const participantFieldErrors = useMemo(() => {
+    const messages = new Set<string>();
+    collectValidationMessages(formState.errors.participants, messages);
+    return Array.from(messages);
+  }, [formState.errors.participants]);
+  const stepTwoWarnings = useMemo(
+    () => Array.from(new Set([...liveClassification.warnings, ...disciplineCheck.warnings])),
+    [disciplineCheck.warnings, liveClassification.warnings],
+  );
 
   const participants = watch("participants");
   const teamName = watch("teamName");
@@ -340,7 +349,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       firstName: teamLeadFirstName || effectiveContactName || "Teamchef:in",
       lastName: teamLeadLastName || (!teamLeadFirstName && effectiveContactName ? effectiveContactName : ""),
       email: effectiveContactEmail,
-      phone: current?.phone || "",
       birthDate: teamLeadBirthDate,
       gender: teamLeadGender,
       shirtSize: current?.shirtSize || "",
@@ -523,7 +531,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
         birthDate: randomBirthDate(config.minYear, config.maxYear),
         gender: participantGender,
         email: current?.email || "",
-        phone: current?.phone || "",
+        participantPublicationPreference: current?.participantPublicationPreference || "NAME_VERBERGEN",
         discipline: discipline.id,
         shirtSize: current?.shirtSize || "",
       };
@@ -555,7 +563,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
               {allowAnonymous && (
                 <div className="mb-6 rounded-lg border border-border/60 bg-muted/20 p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{publicRegistrationStatus.phaseLabel}</Badge>
                     <Badge variant={publicRegistrationStatus.canRegister ? "default" : "secondary"}>
                       {publicRegistrationStatus.availabilityLabel}
                     </Badge>
@@ -580,12 +587,12 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                 </div>
               )}
               {isAnonymousRegistration ? (
-                <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
+                  <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
                   <p className="text-sm font-medium">So geht es jetzt weiter</p>
                   <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
                     <li>Wir schicken den Uebernahmelink an <strong>{effectiveContactEmail}</strong>.</li>
                     <li>Oeffne den Link aus der Mail und melde dich dort mit derselben E-Mail im Portal an oder lege damit ein neues Konto an.</li>
-                    <li>Danach ist das Team deinem Account zugeordnet und du kannst Aenderungen direkt im Portal pflegen.</li>
+                    <li>Danach ist die Mannschaft deinem Account zugeordnet und du kannst Aenderungen direkt im Portal pflegen.</li>
                   </ol>
                   <p className="text-xs text-muted-foreground">Wenn nichts ankommt, pruefe bitte auch Spam und Werbung. Wenn nach ein paar Minuten immer noch keine Mail da ist, melde dich direkt bei der Orga.</p>
                 </div>
@@ -602,12 +609,17 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
                   {isAnonymousRegistration ? (
                     <>
-                      <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 text-sm text-muted-foreground">
-                        Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Uebernahmelink, mit dem du das Team spaeter deinem Portal-Konto zuordnen kannst.
+                      <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 text-sm text-muted-foreground space-y-2">
+                        <p>Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Uebernahmelink/Claim-Token, mit dem du die Mannschaft spaeter deinem Portal-Konto zuordnen kannst.</p>
+                        <p>Falls es noch zu Veraenderungen innerhalb der Mannschaft kommen sollte kannst Du diese dort nach Anmeldung selbst pflegen.</p>
+                        <p>Alle T-Shirt Groessen waeren am besten mit der Mannschafts-Anmeldung hilfreich.</p>
+                        <p>Ansonsten bauen wir an weiteren Faehigkeiten um das digitale Benutzererlebnis zu verbessern.</p>
+                        <p>Der Token ist nur in Verbindung mit der hier angegebenen E-Mail Adresse gueltig.</p>
+                        <p>Habt Ihr Fragen, Anpassungswuensche oder braucht Support gerne bei esv(at)s5evo.de melden.</p>
                       </div>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-4 space-y-4">
                         <div>
-                          <p className="text-sm font-medium text-foreground">Kontakt</p>
+                          <p className="text-sm font-medium text-foreground">Kontakt Teamchef:in</p>
                           <p className="text-xs text-muted-foreground">An diese E-Mail senden wir spaeter den Uebernahmelink fuer die weitere Bearbeitung im Portal.</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -686,6 +698,24 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     {formState.errors.teamName && (
                       <p className="text-xs text-red-500 mt-1">{formState.errors.teamName.message}</p>
                     )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="teamPublicationLevel" className="text-sm font-medium">Team veröffentlichen</label>
+                    <select
+                      id="teamPublicationLevel"
+                      {...register("teamPublicationLevel")}
+                      className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {TEAM_PUBLICATION_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Standard für V1 ist zurückhaltend. Einzelne Teilnehmer können ihren eigenen Namen später separat freigeben.
+                    </p>
                   </div>
 
                   <div className="rounded-md border border-border/50 shadow-sm bg-muted/40 p-3 space-y-2">
@@ -901,11 +931,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.email` as const)}
                             />
-                            <input
-                              placeholder="Telefon (optional)"
-                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
-                              {...register(`participants.${index}.phone` as const)}
-                            />
                             <select
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               disabled={shirtOrderClosed}
@@ -950,8 +975,29 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <p className="text-xs text-muted-foreground">T-Shirt-Bestellfrist abgeschlossen, Größen sind nur noch für Admin editierbar.</p>
                   )}
 
-                  {formState.errors.participants && (
-                    <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
+                  {(formState.errors.teamName || formState.errors.participants || stepTwoWarnings.length > 0) && (
+                    <div className="space-y-2">
+                      {(formState.errors.teamName || formState.errors.participants) && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
+                          <div className="space-y-1 text-xs text-red-600">
+                            {formState.errors.teamName?.message && (
+                              <p>• {formState.errors.teamName.message}</p>
+                            )}
+                            {participantFieldErrors.map((message) => (
+                              <p key={message}>• {message}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {stepTwoWarnings.length > 0 && (
+                        <div className="space-y-1 text-xs text-amber-600">
+                          {stepTwoWarnings.map((warning) => (
+                            <p key={warning}>⚠️ {warning}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Navigation Buttons UNTEN */}
@@ -978,7 +1024,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
                   <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span>Team:</span>
+                      <span>Mannschaft:</span>
                       <span className="font-medium">{teamName || "—"}</span>
                     </div>
                     <div className="flex justify-between">
@@ -990,12 +1036,18 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       <span className="font-medium">{liveClassification.totalAge}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Kontakt:</span>
+                      <span>Kontakt Teamchef:in:</span>
                       <span className="font-medium">{effectiveContactName || "—"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Kontakt-E-Mail:</span>
                       <span className="font-medium">{effectiveContactEmail || "—"}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span>Veröffentlichung:</span>
+                      <span className="text-right font-medium">
+                        {TEAM_PUBLICATION_OPTIONS.find((option) => option.id === watch("teamPublicationLevel"))?.label || "—"}
+                      </span>
                     </div>
                     <div>
                       <span className="font-medium">Disziplin-Status</span>

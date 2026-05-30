@@ -17,6 +17,8 @@ type TeamMailPayload = {
   contactName?: string | null;
   contactEmail?: string | null;
   claimUrl?: string;
+  portalUrl?: string;
+  alreadyLinked?: boolean;
   participants: Array<{
     firstName: string;
     lastName: string;
@@ -97,6 +99,8 @@ export async function sendTeamRegistrationEmails({
     tenantName: competition.tenant?.name || "S5Evo",
     participants: team.participants,
     claimUrl: team.claimUrl,
+    portalUrl: team.portalUrl,
+    alreadyLinked: team.alreadyLinked,
   };
 
   const registrantMail = buildRegistrantConfirmationMail(input);

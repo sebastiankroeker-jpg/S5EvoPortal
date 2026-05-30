@@ -1,0 +1,5 @@
+CREATE TYPE "ClaimTokenExpiryMode" AS ENUM ('FIXED_DAYS', 'REGISTRATION_DEADLINE', 'COMPETITION_END');
+
+ALTER TABLE "competitions"
+    ADD COLUMN "claimTokenExpiryMode" "ClaimTokenExpiryMode" NOT NULL DEFAULT 'COMPETITION_END',
+    ADD COLUMN "claimTokenTtlDays" INTEGER NOT NULL DEFAULT 7;

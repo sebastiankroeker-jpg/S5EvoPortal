@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
@@ -20,6 +21,30 @@ function isMainTab(value: string | null): value is MainTab {
   return value !== null && MAIN_TABS.includes(value as MainTab);
 }
 
+function canAccessTab(
+  tab: MainTab,
+  options: {
+    authenticated: boolean;
+    canViewOwnTeams: boolean;
+    canViewAllTeams: boolean;
+    canEditResults: boolean;
+  },
+) {
+  switch (tab) {
+    case "home":
+    case "live":
+      return true;
+    case "registration":
+      return options.authenticated;
+    case "dashboard":
+      return options.canViewOwnTeams || options.canViewAllTeams;
+    case "orga":
+      return options.canViewAllTeams || options.canEditResults;
+    default:
+      return false;
+  }
+}
+
 function getTabFromHash() {
   if (typeof window === "undefined") return null;
   const hashValue = window.location.hash.replace(/^#/, "");
@@ -28,8 +53,12 @@ function getTabFromHash() {
 
 export default function Home() {
   const router = useRouter();
+  const { status } = useSession();
   const { theme } = useTheme();
   const { can } = usePermissions();
+  const canViewOwnTeams = can("team.view.own");
+  const canViewAllTeams = can("team.view.all");
+  const canEditResults = can("results.edit");
   const [activeTab, setActiveTab] = useState<MainTab>(() => {
     if (typeof window === "undefined") return "home";
 
@@ -63,6 +92,28 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (status === "loading") return;
+
+    if (
+      canAccessTab(activeTab, {
+        authenticated: status === "authenticated",
+        canViewOwnTeams,
+        canViewAllTeams,
+        canEditResults,
+      })
+    ) {
+      return;
+    }
+
+    window.sessionStorage.setItem("s5evo-active-tab", "home");
+    if (window.location.pathname === "/" && window.location.hash) {
+      window.history.replaceState(null, "", "/");
+    }
+    setActiveTab("home");
+  }, [activeTab, canEditResults, canViewAllTeams, canViewOwnTeams, status]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     window.sessionStorage.setItem("s5evo-active-tab", activeTab);
     if (window.location.pathname !== "/") return;
 
@@ -87,13 +138,13 @@ export default function Home() {
         {activeTab === "home" && <HomeScreen />}
             {activeTab === "registration" && <TeamScreen />}
             {activeTab === "dashboard" && <Dashboard />}
-            {activeTab === "orga" && (can("team.view.all") || can("results.edit")) && (
+            {activeTab === "orga" && (canViewAllTeams || canEditResults) && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">⚙️ Orga-Bereich</h2>
 
                 {/* Quick-Actions — oben, immer sichtbar */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {can("team.view.all") && (
+                  {canViewAllTeams && (
                     <button onClick={() => setActiveTab("dashboard")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">👥</span>
                       <p className="font-medium text-sm">Alle Teams</p>
@@ -105,21 +156,21 @@ export default function Home() {
                     <p className="font-medium text-sm">Teilnehmerübersicht</p>
                     <p className="text-xs text-muted-foreground">Alle Teilnehmer suchen & bearbeiten</p>
                   </button>
-                  {can("team.view.all") && (
+                  {canViewAllTeams && (
                     <button onClick={() => router.push('/aenderungen')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">📝</span>
                       <p className="font-medium text-sm">Aenderungen</p>
                       <p className="text-xs text-muted-foreground">Offene Antraege pruefen & freigeben</p>
                     </button>
                   )}
-                  {can("team.view.all") && (
+                  {canViewAllTeams && (
                     <button onClick={() => router.push('/claim-links')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">🔐</span>
                       <p className="font-medium text-sm">Claim-Links</p>
                       <p className="text-xs text-muted-foreground">Uebernahmelinks erzeugen & verwalten</p>
                     </button>
                   )}
-                  {can("results.edit") && (
+                  {canEditResults && (
                     <button className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1 opacity-60">
                       <span className="text-lg">✏️</span>
                       <p className="font-medium text-sm">Ergebnis-Erfassung</p>

@@ -5,9 +5,16 @@ import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDat
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
 import { diffParticipantSnapshots, serializeSnapshot, summarizeParticipantChanges, toParticipantSnapshot } from '@/lib/participant-change';
+import {
+  canViewerSeeFullPublication,
+  resolveVisibleParticipantName,
+  resolveVisibleTeamName,
+  splitDisplayName,
+} from '@/lib/publication-visibility';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { prisma } from '@/lib/prisma';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
+import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -20,19 +27,64 @@ function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | 
   return valid.includes(d as (typeof valid)[number]) ? (d as (typeof valid)[number]) : "TBD";
 }
 
-function findExistingParticipantBySubmittedData(
-  submittedParticipant: TeamRegistrationInput["participants"][number],
+function resolveSubmittedParticipants(
+  submittedParticipants: TeamRegistrationInput["participants"],
   existingParticipants: Array<SerializableParticipant>,
-  fallbackIndex: number,
 ) {
-  if (submittedParticipant.id) {
-    const byId = existingParticipants.find((participant) => participant.id === submittedParticipant.id);
-    if (byId) {
-      return byId;
-    }
+  if (submittedParticipants.length !== existingParticipants.length) {
+    return {
+      error: "Teilnehmerzahl passt nicht mehr zum gespeicherten Team. Bitte Seite neu laden.",
+      matches: [] as Array<{
+        submittedParticipant: TeamRegistrationInput["participants"][number];
+        existingParticipant: SerializableParticipant;
+      }>,
+    };
   }
 
-  return existingParticipants[fallbackIndex];
+  const existingById = new Map(existingParticipants.map((participant) => [participant.id, participant]));
+  const seenIds = new Set<string>();
+  const matches: Array<{
+    submittedParticipant: TeamRegistrationInput["participants"][number];
+    existingParticipant: SerializableParticipant;
+  }> = [];
+
+  for (const submittedParticipant of submittedParticipants) {
+    if (!submittedParticipant?.id) {
+      return {
+        error: "Teilnehmerdaten ohne stabile ID koennen nicht sicher zugeordnet werden. Bitte Team neu laden und erneut versuchen.",
+        matches: [] as Array<{
+          submittedParticipant: TeamRegistrationInput["participants"][number];
+          existingParticipant: SerializableParticipant;
+        }>,
+      };
+    }
+
+    if (seenIds.has(submittedParticipant.id)) {
+      return {
+        error: "Teilnehmerdaten enthalten doppelte IDs. Bitte Team neu laden und erneut versuchen.",
+        matches: [] as Array<{
+          submittedParticipant: TeamRegistrationInput["participants"][number];
+          existingParticipant: SerializableParticipant;
+        }>,
+      };
+    }
+
+    const existingParticipant = existingById.get(submittedParticipant.id);
+    if (!existingParticipant) {
+      return {
+        error: "Teilnehmerdaten passen nicht mehr zum aktuellen Teamstand. Bitte Team neu laden.",
+        matches: [] as Array<{
+          submittedParticipant: TeamRegistrationInput["participants"][number];
+          existingParticipant: SerializableParticipant;
+        }>,
+      };
+    }
+
+    seenIds.add(submittedParticipant.id);
+    matches.push({ submittedParticipant, existingParticipant });
+  }
+
+  return { error: null, matches };
 }
 
 function classifyTeam(participants: TeamRegistrationInput['participants']): string {
@@ -64,9 +116,10 @@ type SerializableParticipant = {
   lastName: string;
   gender: "MALE" | "FEMALE";
   birthYear: number | null;
+  userId?: string | null;
+  participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   moderationNote?: string | null;
   email?: string | null;
-  phone?: string | null;
   disciplineCode?: string | null;
   shirtSize?: string | null;
   pendingChanges?: SerializedPendingChange[];
@@ -75,6 +128,7 @@ type SerializableParticipant = {
 type SerializableTeam = {
   id: string;
   name: string;
+  teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH" | null;
   classificationCode?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
@@ -85,20 +139,41 @@ type SerializableTeam = {
   participants?: SerializableParticipant[];
 };
 
-function serializeParticipant(participant: SerializableParticipant | null | undefined) {
+function serializeParticipant(
+  participant: SerializableParticipant | null | undefined,
+  options?: {
+    currentUserId?: string | null;
+    currentUserEmail?: string | null;
+    canSeeFullPublication?: boolean;
+    teamPublicationLevel?: string | null;
+  },
+) {
   if (!participant) return null;
+  const canSeeFullPublication = options?.canSeeFullPublication !== false;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
+  const normalizedParticipantEmail = participant.email ? normalizeEmail(participant.email) : null;
+  const normalizedCurrentUserEmail = options?.currentUserEmail ? normalizeEmail(options.currentUserEmail) : null;
+  const visibleParticipantName = resolveVisibleParticipantName({
+    actualName: `${participant.firstName} ${participant.lastName}`.trim(),
+    teamPublicationLevel: options?.teamPublicationLevel,
+    participantPublicationPreference: participant.participantPublicationPreference,
+    canSeeFullPublication,
+  });
+  const splitName = splitDisplayName(visibleParticipantName);
   return {
     id: participant.id,
-    firstName: participant.firstName,
-    lastName: participant.lastName,
+    firstName: splitName.firstName,
+    lastName: splitName.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
     birthDate: birthYearToBirthDateInput(participant.birthYear),
-    moderationNote: participant.moderationNote ?? "",
-    email: participant.email ?? "",
-    phone: participant.phone ?? "",
+    moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
+    email: canSeeFullPublication ? participant.email ?? "" : "",
+    participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
     shirtSize: participant.shirtSize ?? "",
+    isCurrentUserParticipant:
+      (!!options?.currentUserId && participant.userId === options.currentUserId) ||
+      (!!normalizedParticipantEmail && normalizedParticipantEmail === normalizedCurrentUserEmail),
     latestChange: latestChange
       ? {
           id: latestChange.id,
@@ -111,21 +186,42 @@ function serializeParticipant(participant: SerializableParticipant | null | unde
   };
 }
 
-function serializeTeam(team: SerializableTeam | null | undefined) {
+function serializeTeam(
+  team: SerializableTeam | null | undefined,
+  options?: {
+    currentUserId?: string | null;
+    currentUserEmail?: string | null;
+    canSeeFullPublication?: boolean;
+  },
+) {
   if (!team) return null;
+  const canSeeFullPublication = options?.canSeeFullPublication !== false;
+  const visibleTeamName = resolveVisibleTeamName({
+    actualTeamName: team.name,
+    teamPublicationLevel: team.teamPublicationLevel,
+    canSeeFullPublication,
+  });
   return {
     id: team.id,
-    name: team.name,
+    name: visibleTeamName,
+    teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
     category: team.classificationCode ?? "unclassified",
-    contactName: team.contactName ?? team.owner?.name ?? "",
-    contactEmail: team.contactEmail ?? team.owner?.email ?? "",
-    contactPhone: team.contactPhone ?? "",
-    ownerEmail: team.owner?.email ?? team.contactEmail ?? "",
-    ownerName: team.owner?.name ?? team.contactName ?? "",
+    contactName: canSeeFullPublication ? team.contactName ?? team.owner?.name ?? "" : "",
+    contactEmail: canSeeFullPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
+    contactPhone: canSeeFullPublication ? team.contactPhone ?? "" : "",
+    ownerEmail: canSeeFullPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
+    ownerName: canSeeFullPublication ? team.owner?.name ?? team.contactName ?? "" : "",
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updatedAt: team.updatedAt?.toISOString?.() ?? team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     participants: Array.isArray(team.participants)
-      ? team.participants.map(serializeParticipant).filter(Boolean)
+      ? team.participants
+          .map((participant) =>
+            serializeParticipant(participant, {
+              ...options,
+              teamPublicationLevel: team.teamPublicationLevel,
+            }),
+          )
+          .filter(Boolean)
       : [],
   };
 }
@@ -144,6 +240,7 @@ export async function GET(
     }
 
     const { id } = await params;
+    const roleContext = request.nextUrl.searchParams.get("roleContext");
     
     try {
       const team = await prisma.team.findFirst({
@@ -164,7 +261,14 @@ export async function GET(
             }
           },
           owner: { select: { email: true, name: true } },
-          competition: { select: { tenantId: true } },
+          competition: {
+            select: {
+              tenantId: true,
+              teamOwnerFilterVisibleForTeamchef: true,
+              participantsCanViewAllTeams: true,
+              spectatorsCanViewAllTeams: true,
+            },
+          },
         }
       });
 
@@ -174,17 +278,30 @@ export async function GET(
 
       const { user } = await resolveCurrentUser(session, { createIfMissing: true });
       const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session);
+      const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
+      const canViewRequestedScope =
+        access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, normalizeCompetitionTeamAccessConfig(team.competition));
       const normalizedUserEmail = normalizeEmail(userEmail);
       const isOwner =
         team.ownerId === user?.id ||
         normalizeEmail(team.owner?.email) === normalizedUserEmail ||
         normalizeEmail(team.contactEmail) === normalizedUserEmail;
+      const canSeeFullPublication = canViewerSeeFullPublication({
+        isPrivilegedViewer: effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR",
+        ownsTeam: isOwner,
+      });
 
-      if (!access.canViewAllTeams && !isOwner) {
+      if (!canViewRequestedScope && !isOwner) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
-      return NextResponse.json({ team: serializeTeam(team) });
+      return NextResponse.json({
+        team: serializeTeam(team, {
+          currentUserId: user?.id ?? null,
+          currentUserEmail: normalizedUserEmail,
+          canSeeFullPublication,
+        }),
+      });
     } catch (dbError) {
       console.error('Database error on GET:', dbError);
       return NextResponse.json({ error: 'Database temporarily unavailable' }, { status: 503 });
@@ -297,6 +414,7 @@ export async function PUT(
       // Neue Klassifizierung berechnen
       const autoCategory = requestedTeamState.classification.code;
       const normalizedTeamName = teamData.teamName?.trim();
+      const requestedTeamPublicationLevel = teamData.teamPublicationLevel || existingTeam.teamPublicationLevel;
       
       // Team-Name beibehalten wenn leer
       const finalTeamName = normalizedTeamName && normalizedTeamName.length >= 3
@@ -318,25 +436,32 @@ export async function PUT(
         }))
         .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
       const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
+      const matchedParticipantsResult = resolveSubmittedParticipants(teamData.participants, existingTeam.participants);
+
+      if (matchedParticipantsResult.error) {
+        return NextResponse.json({ error: matchedParticipantsResult.error }, { status: 409 });
+      }
 
       if (!canDirectEdit) {
         let createdRequests = 0;
         let updatedRequests = 0;
+        let updatedTeamPublication = false;
         const createdChangeMailItems: Array<{
           participantName: string;
           changeSummary: ReturnType<typeof summarizeParticipantChanges>;
         }> = [];
 
-        for (let index = 0; index < teamData.participants.length; index += 1) {
-          const submittedParticipant = teamData.participants[index];
-          const existingParticipant = findExistingParticipantBySubmittedData(
-            submittedParticipant,
-            existingTeam.participants,
-            index,
-          );
+        if (requestedTeamPublicationLevel !== existingTeam.teamPublicationLevel) {
+          await prisma.team.update({
+            where: { id },
+            data: {
+              teamPublicationLevel: requestedTeamPublicationLevel,
+            },
+          });
+          updatedTeamPublication = true;
+        }
 
-          if (!submittedParticipant || !existingParticipant) continue;
-
+        for (const { submittedParticipant, existingParticipant } of matchedParticipantsResult.matches) {
           const requestedBirthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
           const currentSnapshot = toParticipantSnapshot(existingParticipant);
           const requestedSnapshot = toParticipantSnapshot({
@@ -348,7 +473,7 @@ export async function PUT(
             shirtSize: submittedParticipant.shirtSize || null,
             moderationNote: submittedParticipant.moderationNote?.trim() || null,
             email: submittedParticipant.email || null,
-            phone: submittedParticipant.phone || null,
+            participantPublicationPreference: submittedParticipant.participantPublicationPreference || "NAME_VERBERGEN",
           });
 
           const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
@@ -463,70 +588,82 @@ export async function PUT(
         if (createdRequests === 0 && updatedRequests === 0) {
           return NextResponse.json({
             success: true,
-            applied: false,
-            message: 'Keine Aenderungen erkannt',
+            applied: updatedTeamPublication,
+            message: updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert' : 'Keine Aenderungen erkannt',
             classificationWarnings: requestedTeamState.classificationWarnings,
-            team: serializeTeam(refreshedTeam),
+            team: serializeTeam(refreshedTeam, { currentUserId: user?.id ?? null, currentUserEmail: normalizedUserEmail }),
           });
         }
 
         return NextResponse.json({
           success: true,
-          applied: false,
+          applied: updatedTeamPublication,
           message:
             createdRequests > 0 && updatedRequests > 0
-              ? `${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert`
+              ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert`
               : createdRequests > 0
-                ? `${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht`
-                : `${updatedRequests} offene Aenderungsanfrage(n) aktualisiert`,
+                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht`
+                : `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${updatedRequests} offene Aenderungsanfrage(n) aktualisiert`,
           classificationWarnings: requestedTeamState.classificationWarnings,
           pendingCount: createdRequests + updatedRequests,
-          team: serializeTeam(refreshedTeam),
+          team: serializeTeam(refreshedTeam, { currentUserId: user?.id ?? null, currentUserEmail: normalizedUserEmail }),
         });
       }
 
-      // Lösche alte Participants (soft delete)
-      await prisma.participant.updateMany({
-        where: { teamId: id },
-        data: { deletedAt: new Date() }
+      await prisma.$transaction(async (tx) => {
+        await tx.team.update({
+          where: { id },
+          data: {
+            name: finalTeamName,
+            teamPublicationLevel: requestedTeamPublicationLevel,
+            contactName: body.contactName || existingTeam.contactName,
+            contactEmail: body.contactEmail || existingTeam.contactEmail,
+            classificationCode: autoCategory,
+            totalAge: totalAge || null,
+          },
+        });
+
+        for (const { submittedParticipant } of matchedParticipantsResult.matches) {
+          const birthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
+          if (birthYear === null || !submittedParticipant.id) continue;
+
+          await tx.participant.update({
+            where: { id: submittedParticipant.id },
+            data: {
+              firstName: submittedParticipant.firstName,
+              lastName: submittedParticipant.lastName,
+              birthYear,
+              gender: mapGender(submittedParticipant.gender),
+              disciplineCode: mapDiscipline(submittedParticipant.discipline),
+              shirtSize: submittedParticipant.shirtSize || null,
+              moderationNote: submittedParticipant.moderationNote?.trim() || null,
+              consentGiven: true,
+              email: submittedParticipant.email || null,
+              participantPublicationPreference: submittedParticipant.participantPublicationPreference || "NAME_VERBERGEN",
+              deletedAt: null,
+            },
+          });
+        }
       });
 
-      // Update Team mit neuen Participants
-      const updatedTeam = await prisma.team.update({
-        where: { id: id },
-        data: {
-          name: finalTeamName,
-          contactName: body.contactName || existingTeam.contactName,
-          contactEmail: body.contactEmail || existingTeam.contactEmail,
-          classificationCode: autoCategory,
-          totalAge: totalAge || null,
-          participants: {
-            create: validParticipants.map(({ participant, birthYear }) => ({
-              firstName: participant.firstName,
-              lastName: participant.lastName,
-              birthYear: birthYear as number,
-              gender: mapGender(participant.gender),
-              disciplineCode: mapDiscipline(participant.discipline),
-              shirtSize: participant.shirtSize || null,
-              moderationNote: participant.moderationNote?.trim() || null,
-              consentGiven: true,
-              email: participant.email || null,
-              phone: participant.phone || null,
-            }))
-          }
-        },
+      const updatedTeam = await prisma.team.findFirst({
+        where: { id, deletedAt: null },
         include: {
           participants: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
           owner: { select: { email: true, name: true } }
         }
       });
 
+      if (!updatedTeam) {
+        return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+
       return NextResponse.json({ 
         success: true,
         applied: true,
         message: `Team "${finalTeamName}" erfolgreich aktualisiert! Klasse: ${autoCategory}`,
         classificationWarnings: requestedTeamState.classificationWarnings,
-        team: serializeTeam(updatedTeam)
+        team: serializeTeam(updatedTeam, { currentUserId: user?.id ?? null, currentUserEmail: normalizedUserEmail })
       });
 
     } catch (dbError) {

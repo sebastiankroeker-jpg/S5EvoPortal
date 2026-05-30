@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { normalizeCompetitionTeamAccessConfig } from "@/lib/team-access-config";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
       date: true,
       dateEnd: true,
       registrationDeadline: true,
+      teamOwnerFilterVisibleForTeamchef: true,
+      participantsCanViewAllTeams: true,
+      spectatorsCanViewAllTeams: true,
       shirtOrderDeadline: true,
       maxTeams: true,
       teamSize: true,
@@ -45,7 +49,13 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ competition: { ...competition, teamCount } });
+    return NextResponse.json({
+      competition: {
+        ...competition,
+        ...normalizeCompetitionTeamAccessConfig(competition),
+        teamCount,
+      },
+    });
   } catch (error) {
     console.error("Failed to load public competition:", error);
     return NextResponse.json({ error: "Failed to load competition" }, { status: 500 });

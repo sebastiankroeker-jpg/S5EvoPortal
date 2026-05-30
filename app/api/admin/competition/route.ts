@@ -4,6 +4,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
 import { requireTenantRoles } from '@/lib/server-permissions';
+import { normalizeCompetitionTeamAccessConfig } from '@/lib/team-access-config';
 
 function normalizeNotificationEmails(value: unknown) {
   if (typeof value !== 'string') {
@@ -18,6 +19,22 @@ function normalizeNotificationEmails(value: unknown) {
   )].join(', ');
 
   return normalized || null;
+}
+
+function normalizeClaimTokenExpiryMode(value: unknown) {
+  const validModes = ["FIXED_DAYS", "REGISTRATION_DEADLINE", "COMPETITION_END"] as const;
+  return validModes.includes(value as (typeof validModes)[number])
+    ? (value as (typeof validModes)[number])
+    : "COMPETITION_END";
+}
+
+function normalizeClaimTokenTtlDays(value: unknown) {
+  const parsed = typeof value === "number" ? value : parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 7;
+  }
+
+  return Math.min(Math.max(Math.floor(parsed), 1), 60);
 }
 
 // GET aktuelle Competition
@@ -39,7 +56,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'No competition found' }, { status: 404 });
       }
 
-      return NextResponse.json({ competition });
+      return NextResponse.json({
+        competition: {
+          ...competition,
+          ...normalizeCompetitionTeamAccessConfig(competition),
+        },
+      });
     } catch (dbError) {
       console.error('Database error on GET competition:', dbError);
       return NextResponse.json({ error: 'Database temporarily unavailable' }, { status: 503 });
@@ -82,6 +104,9 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const claimTokenExpiryMode = normalizeClaimTokenExpiryMode(body.claimTokenExpiryMode);
+    const claimTokenTtlDays = normalizeClaimTokenTtlDays(body.claimTokenTtlDays);
+
     try {
       // Load specific competition by id, or fall back to latest
       let competition = body.id
@@ -97,6 +122,11 @@ export async function PUT(request: NextRequest) {
             date: body.date ? new Date(body.date) : null,
             dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : null,
+            claimTokenExpiryMode,
+            claimTokenTtlDays,
+            teamOwnerFilterVisibleForTeamchef: Boolean(body.teamOwnerFilterVisibleForTeamchef),
+            participantsCanViewAllTeams: Boolean(body.participantsCanViewAllTeams),
+            spectatorsCanViewAllTeams: Boolean(body.spectatorsCanViewAllTeams),
             registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
             status: body.status || "DRAFT",
@@ -122,6 +152,17 @@ export async function PUT(request: NextRequest) {
             date: body.date ? new Date(body.date) : competition.date,
             dateEnd: body.dateEnd !== undefined ? (body.dateEnd ? new Date(body.dateEnd) : null) : competition.dateEnd,
             registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : competition.registrationDeadline,
+            claimTokenExpiryMode,
+            claimTokenTtlDays,
+            teamOwnerFilterVisibleForTeamchef: body.teamOwnerFilterVisibleForTeamchef !== undefined
+              ? Boolean(body.teamOwnerFilterVisibleForTeamchef)
+              : competition.teamOwnerFilterVisibleForTeamchef,
+            participantsCanViewAllTeams: body.participantsCanViewAllTeams !== undefined
+              ? Boolean(body.participantsCanViewAllTeams)
+              : competition.participantsCanViewAllTeams,
+            spectatorsCanViewAllTeams: body.spectatorsCanViewAllTeams !== undefined
+              ? Boolean(body.spectatorsCanViewAllTeams)
+              : competition.spectatorsCanViewAllTeams,
             registrationNotificationEmail: body.registrationNotificationEmail !== undefined
               ? normalizeNotificationEmails(body.registrationNotificationEmail)
               : competition.registrationNotificationEmail,

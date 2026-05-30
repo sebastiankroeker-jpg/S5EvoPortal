@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -12,12 +12,9 @@ type ClaimState = {
     teamName: string;
     competitionName: string;
     competitionYear: number;
-    suggestedEmail?: string | null;
     maskedSuggestedEmail?: string | null;
-    suggestedName?: string | null;
     claimedAt?: string | null;
     expiresAt: string;
-    claimedBy?: { email?: string | null; name?: string | null } | null;
   };
   session: {
     authenticated: boolean;
@@ -36,6 +33,7 @@ type ClaimState = {
 };
 
 export default function ClaimPage() {
+  const router = useRouter();
   const params = useParams<{ token: string }>();
   const token = Array.isArray(params?.token) ? params.token[0] : params?.token;
   const [data, setData] = useState<ClaimState | null>(null);
@@ -49,7 +47,7 @@ export default function ClaimPage() {
 
     (async () => {
       try {
-        const res = await fetch(`/api/claim/${token}`);
+        const res = await fetch(`/api/claim/${token}`, { cache: "no-store" });
         const payload = await res.json();
         if (!res.ok) {
           throw new Error(payload.error || "Link konnte nicht geladen werden");
@@ -63,6 +61,11 @@ export default function ClaimPage() {
     })();
   }, [token]);
 
+  useEffect(() => {
+    if (!data?.state.alreadyClaimedBySessionUser) return;
+    window.history.replaceState(null, "", "/");
+  }, [data?.state.alreadyClaimedBySessionUser]);
+
   const handleClaim = async () => {
     if (!token) return;
     setClaiming(true);
@@ -74,6 +77,7 @@ export default function ClaimPage() {
       if (!res.ok) {
         throw new Error(payload.error || "Claim fehlgeschlagen");
       }
+      window.history.replaceState(null, "", "/");
       setClaimed(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Claim fehlgeschlagen");
@@ -94,7 +98,7 @@ export default function ClaimPage() {
   const loginUrl = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
   const registerUrl = `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`;
   const sessionEmail = data?.session.email || "deinem Konto";
-  const claimEmail = data?.claim.suggestedEmail || data?.claim.maskedSuggestedEmail || "der vorgesehenen E-Mail";
+  const claimEmail = data?.claim.maskedSuggestedEmail || "der vorgesehenen E-Mail";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
@@ -117,15 +121,14 @@ export default function ClaimPage() {
               <div className="rounded-md border p-3 space-y-1">
                 <p><strong>Team:</strong> {data.claim.teamName}</p>
                 <p><strong>Wettkampf:</strong> {data.claim.competitionName} ({data.claim.competitionYear})</p>
-                <p><strong>Vorgesehene E-Mail:</strong> {data.claim.suggestedEmail || data.claim.maskedSuggestedEmail}</p>
-                {data.claim.suggestedName ? <p><strong>Vorgeschlagener Name:</strong> {data.claim.suggestedName}</p> : null}
+                <p><strong>Vorgesehene E-Mail:</strong> {data.claim.maskedSuggestedEmail || "hinterlegt"}</p>
                 <p><strong>Link gültig bis:</strong> {new Date(data.claim.expiresAt).toLocaleString("de-DE")}</p>
               </div>
 
               {!data.session.authenticated && (
                 <div className="space-y-3">
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Bitte melde dich jetzt mit <strong>{claimEmail}</strong> im Portal an. Falls du noch kein Konto hast, kannst du es direkt mit derselben E-Mail anlegen. Nur dann kann die Mannschaft uebernommen werden.
+                    Bitte melde dich jetzt mit der bei der Anmeldung verwendeten E-Mail im Portal an. Falls du noch kein Konto hast, kannst du es direkt damit anlegen. Hinterlegt ist aktuell <strong>{claimEmail}</strong>.
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Link href={loginUrl}>
@@ -140,7 +143,7 @@ export default function ClaimPage() {
 
               {data.session.authenticated && !data.state.emailMatches && !data.state.alreadyClaimedByOtherUser && (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-3">
-                  <p>Angemeldet bist du als <strong>{sessionEmail}</strong>, der Link ist aber fuer <strong>{claimEmail}</strong> gedacht.</p>
+                  <p>Angemeldet bist du als <strong>{sessionEmail}</strong>, der Link ist aber fuer eine andere hinterlegte E-Mail gedacht.</p>
                   <p className="text-sm">Bitte melde dich mit der richtigen E-Mail neu an oder lege damit ein Konto an. Erst dann laesst sich die Mannschaft uebernehmen.</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Link href={loginUrl}>
@@ -155,7 +158,7 @@ export default function ClaimPage() {
 
               {data.state.alreadyClaimedByOtherUser && (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 space-y-2">
-                  <p>Dieser Link wurde bereits von <strong>{data.claim.claimedBy?.email}</strong> eingelöst.</p>
+                  <p>Dieser Link wurde bereits eingelöst.</p>
                   <p className="text-sm">Wenn das nicht so sein sollte, melde dich bitte direkt bei der Orga.</p>
                 </div>
               )}
@@ -189,9 +192,7 @@ export default function ClaimPage() {
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
                     Naechster Schritt: im Portal ins Mannschafts-Dashboard wechseln und das Team dort weiter pflegen.
                   </div>
-                  <Link href="/">
-                    <Button className="w-full">Ins Portal</Button>
-                  </Link>
+                  <Button className="w-full" onClick={() => router.push("/")}>Ins Portal</Button>
                 </div>
               )}
             </div>

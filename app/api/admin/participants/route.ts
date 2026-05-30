@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
       shirtSize: p.shirtSize,
       moderationNote: p.moderationNote,
       email: p.email,
-      phone: p.phone,
       teamId: p.team.id,
       teamName: p.team.name,
       teamCategory: p.team.classificationCode || "–",

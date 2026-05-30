@@ -12,7 +12,7 @@ export const PARTICIPANT_CHANGE_FIELDS = [
   "shirtSize",
   "moderationNote",
   "email",
-  "phone",
+  "participantPublicationPreference",
 ] as const;
 
 export type ParticipantChangeField = typeof PARTICIPANT_CHANGE_FIELDS[number];
@@ -34,7 +34,7 @@ export const PARTICIPANT_FIELD_LABELS: Record<ParticipantChangeField, string> = 
   shirtSize: "T-Shirt",
   moderationNote: "Moderationshinweis",
   email: "E-Mail",
-  phone: "Telefon",
+  participantPublicationPreference: "Namensveröffentlichung",
 };
 
 const PARTICIPANT_GENDER_LABELS: Record<string, string> = {
@@ -65,7 +65,7 @@ export function toParticipantSnapshot(source: Partial<Record<ParticipantChangeFi
     shirtSize: typeof source.shirtSize === "string" ? source.shirtSize : null,
     moderationNote: typeof source.moderationNote === "string" ? source.moderationNote : null,
     email: typeof source.email === "string" ? source.email : null,
-    phone: typeof source.phone === "string" ? source.phone : null,
+    participantPublicationPreference: typeof source.participantPublicationPreference === "string" ? source.participantPublicationPreference : null,
   };
 }
 
@@ -95,7 +95,9 @@ export function buildParticipantChangeData(body: Record<string, unknown>): Parti
     ...(body.shirtSize !== undefined ? { shirtSize: body.shirtSize ? String(body.shirtSize) : null } : {}),
     ...(body.moderationNote !== undefined ? { moderationNote: body.moderationNote ? String(body.moderationNote).trim() : null } : {}),
     ...(body.email !== undefined ? { email: body.email ? String(body.email).trim() : null } : {}),
-    ...(body.phone !== undefined ? { phone: body.phone ? String(body.phone).trim() : null } : {}),
+    ...(body.participantPublicationPreference !== undefined
+      ? { participantPublicationPreference: body.participantPublicationPreference ? String(body.participantPublicationPreference) : null }
+      : {}),
   };
 }
 
@@ -140,7 +142,10 @@ export function snapshotToParticipantUpdateData(snapshot: ParticipantSnapshot): 
         : null,
     moderationNote: typeof snapshot.moderationNote === "string" ? snapshot.moderationNote : null,
     email: typeof snapshot.email === "string" ? snapshot.email : null,
-    phone: typeof snapshot.phone === "string" ? snapshot.phone : null,
+    participantPublicationPreference:
+      snapshot.participantPublicationPreference === "NAME_VEROEFFENTLICHEN"
+        ? "NAME_VEROEFFENTLICHEN"
+        : "NAME_VERBERGEN",
   };
 }
 
@@ -167,6 +172,10 @@ export function formatParticipantFieldValue(field: ParticipantChangeField, value
 
   if (field === "disciplineCode" && typeof value === "string") {
     return PARTICIPANT_DISCIPLINE_LABELS[value] || value;
+  }
+
+  if (field === "participantPublicationPreference" && typeof value === "string") {
+    return value === "NAME_VEROEFFENTLICHEN" ? "Name veröffentlichen" : "Name verbergen";
   }
 
   return String(value);

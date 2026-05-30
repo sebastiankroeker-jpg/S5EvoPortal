@@ -15,6 +15,14 @@ function isExpired(expiresAt: Date) {
   return expiresAt.getTime() < Date.now();
 }
 
+function jsonNoStore(body: unknown, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
+  return response;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -65,7 +73,7 @@ export async function GET(
       suspicious: risk.suspicious,
       sessionEmail,
     });
-    return NextResponse.json({ error: "Link nicht gefunden oder widerrufen" }, { status: 404 });
+    return jsonNoStore({ error: "Link nicht gefunden oder widerrufen" }, { status: 404 });
   }
 
   if (isExpired(claim.expiresAt)) {
@@ -79,7 +87,7 @@ export async function GET(
       teamId: claim.team.id,
       sessionEmail,
     });
-    return NextResponse.json({ error: "Link ist abgelaufen" }, { status: 410 });
+    return jsonNoStore({ error: "Link ist abgelaufen" }, { status: 410 });
   }
 
   const normalizedSuggestedEmail = normalizeEmail(claim.suggestedEmail);
@@ -104,17 +112,14 @@ export async function GET(
         : null,
   });
 
-  return NextResponse.json({
+  return jsonNoStore({
     claim: {
       teamId: claim.team.id,
       teamName: claim.team.name,
       competitionName: claim.team.competition.name,
       competitionYear: claim.team.competition.year,
-      suggestedEmail: sessionEmail ? claim.suggestedEmail : null,
       maskedSuggestedEmail: maskEmail(claim.suggestedEmail),
-      suggestedName: claim.suggestedName,
       claimedAt: claim.claimedAt,
-      claimedBy: claim.claimedByUser,
       expiresAt: claim.expiresAt,
     },
     session: {
@@ -190,7 +195,7 @@ export async function POST(
       teamId: claim?.team.id,
       sessionEmail,
     });
-    return NextResponse.json({ error: "Zu viele fehlgeschlagene Versuche. Bitte später erneut probieren." }, { status: 429 });
+    return jsonNoStore({ error: "Zu viele fehlgeschlagene Versuche. Bitte später erneut probieren." }, { status: 429 });
   }
 
   if (!sessionEmail) {
@@ -203,7 +208,7 @@ export async function POST(
       tokenId: claim?.id,
       teamId: claim?.team.id,
     });
-    return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
+    return jsonNoStore({ error: "Nicht authentifiziert" }, { status: 401 });
   }
 
   if (!claim || claim.revokedAt) {
@@ -215,7 +220,7 @@ export async function POST(
       suspicious: risk.suspicious,
       sessionEmail,
     });
-    return NextResponse.json({ error: "Link nicht gefunden oder widerrufen" }, { status: 404 });
+    return jsonNoStore({ error: "Link nicht gefunden oder widerrufen" }, { status: 404 });
   }
 
   if (isExpired(claim.expiresAt)) {
@@ -229,7 +234,7 @@ export async function POST(
       teamId: claim.team.id,
       sessionEmail,
     });
-    return NextResponse.json({ error: "Link ist abgelaufen" }, { status: 410 });
+    return jsonNoStore({ error: "Link ist abgelaufen" }, { status: 410 });
   }
 
   if (!claim.team.competition.tenant.claimLinksEnabled) {
@@ -243,7 +248,7 @@ export async function POST(
       teamId: claim.team.id,
       sessionEmail,
     });
-    return NextResponse.json({ error: "Die Einlösung von Claim-Links ist aktuell deaktiviert" }, { status: 423 });
+    return jsonNoStore({ error: "Die Einlösung von Claim-Links ist aktuell deaktiviert" }, { status: 423 });
   }
 
   const normalizedSuggestedEmail = normalizeEmail(claim.suggestedEmail);
@@ -260,7 +265,7 @@ export async function POST(
       teamId: claim.team.id,
       sessionEmail,
     });
-    return NextResponse.json({ error: "Dieser Link gehört zu einer anderen E-Mail-Adresse" }, { status: 403 });
+    return jsonNoStore({ error: "Dieser Link gehört zu einer anderen E-Mail-Adresse" }, { status: 403 });
   }
 
   const resolved = await resolveCurrentUser(session, { createIfMissing: true });
@@ -287,7 +292,7 @@ export async function POST(
       sessionEmail,
       userId: user.id,
     });
-    return NextResponse.json({ error: "Link wurde bereits von einem anderen Account eingelöst" }, { status: 409 });
+    return jsonNoStore({ error: "Link wurde bereits von einem anderen Account eingelöst" }, { status: 409 });
   }
 
   await prisma.$transaction([
@@ -321,5 +326,5 @@ export async function POST(
     userId: user.id,
   });
 
-  return NextResponse.json({ success: true, teamId: claim.team.id });
+  return jsonNoStore({ success: true, teamId: claim.team.id });
 }

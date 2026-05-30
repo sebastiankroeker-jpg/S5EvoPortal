@@ -4,11 +4,20 @@ import { authOptions } from '../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
-import { sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
+import { resolveRegistrationNotificationEmail, sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
+import { sendParticipantClaimEmail } from '@/lib/mail/participant-claim';
+import { recordParticipantClaimAuditEvent } from '@/lib/participant-claim-audit';
 import { prisma } from '@/lib/prisma';
-import { buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
+import { buildParticipantClaimUrl, buildPortalHomeUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
+import {
+  canViewerSeeFullPublication,
+  resolveVisibleParticipantName,
+  resolveVisibleTeamName,
+  splitDisplayName,
+} from '@/lib/publication-visibility';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
+import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -55,9 +64,10 @@ type SerializableParticipant = {
   lastName: string;
   gender: "MALE" | "FEMALE";
   birthYear: number | null;
+  userId?: string | null;
+  participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   moderationNote?: string | null;
   email?: string | null;
-  phone?: string | null;
   disciplineCode?: string | null;
   shirtSize?: string | null;
   pendingChanges?: SerializedPendingChange[];
@@ -66,6 +76,7 @@ type SerializableParticipant = {
 type SerializableTeam = {
   id: string;
   name: string;
+  teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH" | null;
   classificationCode?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
@@ -76,20 +87,41 @@ type SerializableTeam = {
   participants?: SerializableParticipant[];
 };
 
-function serializeParticipant(participant: SerializableParticipant | null | undefined) {
+function serializeParticipant(
+  participant: SerializableParticipant | null | undefined,
+  options?: {
+    currentUserId?: string | null;
+    currentUserEmail?: string | null;
+    canSeeFullPublication?: boolean;
+    teamPublicationLevel?: string | null;
+  },
+) {
   if (!participant) return null;
+  const canSeeFullPublication = options?.canSeeFullPublication !== false;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
+  const normalizedParticipantEmail = participant.email ? normalizeEmail(participant.email) : null;
+  const normalizedCurrentUserEmail = options?.currentUserEmail ? normalizeEmail(options.currentUserEmail) : null;
+  const visibleParticipantName = resolveVisibleParticipantName({
+    actualName: `${participant.firstName} ${participant.lastName}`.trim(),
+    teamPublicationLevel: options?.teamPublicationLevel,
+    participantPublicationPreference: participant.participantPublicationPreference,
+    canSeeFullPublication,
+  });
+  const splitName = splitDisplayName(visibleParticipantName);
   return {
     id: participant.id,
-    firstName: participant.firstName,
-    lastName: participant.lastName,
+    firstName: splitName.firstName,
+    lastName: splitName.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
     birthDate: birthYearToBirthDateInput(participant.birthYear),
-    moderationNote: participant.moderationNote ?? "",
-    email: participant.email ?? "",
-    phone: participant.phone ?? "",
+    moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
+    email: canSeeFullPublication ? participant.email ?? "" : "",
+    participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
     shirtSize: participant.shirtSize ?? "",
+    isCurrentUserParticipant:
+      (!!options?.currentUserId && participant.userId === options.currentUserId) ||
+      (!!normalizedParticipantEmail && normalizedParticipantEmail === normalizedCurrentUserEmail),
     latestChange: latestChange
       ? {
           id: latestChange.id,
@@ -102,21 +134,42 @@ function serializeParticipant(participant: SerializableParticipant | null | unde
   };
 }
 
-function serializeTeam(team: SerializableTeam | null | undefined) {
+function serializeTeam(
+  team: SerializableTeam | null | undefined,
+  options?: {
+    currentUserId?: string | null;
+    currentUserEmail?: string | null;
+    canSeeFullPublication?: boolean;
+  },
+) {
   if (!team) return null;
+  const canSeeFullPublication = options?.canSeeFullPublication !== false;
+  const visibleTeamName = resolveVisibleTeamName({
+    actualTeamName: team.name,
+    teamPublicationLevel: team.teamPublicationLevel,
+    canSeeFullPublication,
+  });
   return {
     id: team.id,
-    name: team.name,
+    name: visibleTeamName,
+    teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
     category: team.classificationCode ?? "unclassified",
-    contactName: team.contactName ?? team.owner?.name ?? "",
-    contactEmail: team.contactEmail ?? team.owner?.email ?? "",
-    contactPhone: team.contactPhone ?? "",
-    ownerEmail: team.owner?.email ?? team.contactEmail ?? "",
-    ownerName: team.owner?.name ?? team.contactName ?? "",
+    contactName: canSeeFullPublication ? team.contactName ?? team.owner?.name ?? "" : "",
+    contactEmail: canSeeFullPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
+    contactPhone: canSeeFullPublication ? team.contactPhone ?? "" : "",
+    ownerEmail: canSeeFullPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
+    ownerName: canSeeFullPublication ? team.owner?.name ?? team.contactName ?? "" : "",
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updatedAt: team.updatedAt?.toISOString?.() ?? team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     participants: Array.isArray(team.participants)
-      ? team.participants.map(serializeParticipant).filter(Boolean)
+      ? team.participants
+          .map((participant) =>
+            serializeParticipant(participant, {
+              ...options,
+              teamPublicationLevel: team.teamPublicationLevel,
+            }),
+          )
+          .filter(Boolean)
       : [],
   };
 }
@@ -191,19 +244,35 @@ export async function GET(request: NextRequest) {
     try {
       const url = new URL(request.url);
       const scope = url.searchParams.get('scope');
+      const roleContext = url.searchParams.get('roleContext');
       const competitionId = url.searchParams.get('competitionId');
       const wantsAllTeams = scope === 'all';
       const competition = competitionId
         ? await prisma.competition.findUnique({
             where: { id: competitionId },
-            select: { tenantId: true },
+            select: {
+              tenantId: true,
+              teamOwnerFilterVisibleForTeamchef: true,
+              participantsCanViewAllTeams: true,
+              spectatorsCanViewAllTeams: true,
+            },
           })
         : null;
       const { user } = await resolveCurrentUser(session, { createIfMissing: true });
       const normalizedUserEmail = normalizeEmail(userEmail);
       const access = await getScopedRoleFlags(userEmail, competition?.tenantId, session);
+      const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
+      const competitionTeamAccess = normalizeCompetitionTeamAccessConfig(competition);
+      const canViewRequestedScope =
+        access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess);
+      const canSeeFullPublication =
+        !wantsAllTeams ||
+        canViewerSeeFullPublication({
+          isPrivilegedViewer: effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR",
+          ownsTeam: false,
+        });
 
-      if (wantsAllTeams && !access.canViewAllTeams) {
+      if (wantsAllTeams && !canViewRequestedScope) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
@@ -243,7 +312,15 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      return NextResponse.json({ teams: teams.map(serializeTeam) });
+      return NextResponse.json({
+        teams: teams.map((team) =>
+          serializeTeam(team, {
+            currentUserId: user?.id ?? null,
+            currentUserEmail: normalizedUserEmail,
+            canSeeFullPublication,
+          }),
+        ),
+      });
     } catch (dbError) {
       console.error('Database error on GET:', dbError);
       return NextResponse.json({ teams: [], message: 'Database temporarily unavailable' });
@@ -317,8 +394,12 @@ export async function POST(request: NextRequest) {
           tenantId: true,
           name: true,
           year: true,
+          date: true,
+          dateEnd: true,
           status: true,
           registrationDeadline: true,
+          claimTokenExpiryMode: true,
+          claimTokenTtlDays: true,
           shirtOrderDeadline: true,
           maxTeams: true,
           registrationNotificationEmail: true,
@@ -409,6 +490,7 @@ export async function POST(request: NextRequest) {
       const team = await prisma.team.create({
         data: {
           name: finalTeamName,
+          teamPublicationLevel: teamData.teamPublicationLevel,
           contactName: userName || "",
           contactEmail: userEmail,
           classificationCode: autoCategory,
@@ -427,7 +509,7 @@ export async function POST(request: NextRequest) {
               moderationNote: participant.moderationNote?.trim() || null,
               consentGiven: true,
               email: participant.email || null,
-              phone: participant.phone || null,
+              participantPublicationPreference: participant.participantPublicationPreference || "NAME_VERBERGEN",
             }))
           }
         },
@@ -438,7 +520,11 @@ export async function POST(request: NextRequest) {
       });
 
       const claimToken = createRegistrationClaimToken({
-        maxExpiresAt: competition?.registrationDeadline || null,
+        mode: competition?.claimTokenExpiryMode || "COMPETITION_END",
+        ttlDays: competition?.claimTokenTtlDays || null,
+        registrationDeadline: competition?.registrationDeadline || null,
+        competitionEnd: competition?.dateEnd || competition?.date || null,
+        maxExpiresAt: null,
       });
       await prisma.registrationClaimToken.create({
         data: {
@@ -453,6 +539,13 @@ export async function POST(request: NextRequest) {
       });
 
       const claimUrl = buildRegistrationClaimUrl(claimToken.rawToken);
+      const portalUrl = buildPortalHomeUrl();
+      const participantClaimMailResults: Array<{
+        participantId: string;
+        email: string;
+        status: "sent" | "skipped" | "failed";
+        reason?: string;
+      }> = [];
 
       let mailSummary = null;
 
@@ -460,6 +553,46 @@ export async function POST(request: NextRequest) {
         await Promise.all([
           ensureTenantRole(user.id, competition.tenantId, "TEAMCHEF"),
         ]);
+
+        const participantClaimTokens = await Promise.all(
+          team.participants
+            .filter((participant) => !!participant.email)
+            .map(async (participant) => {
+              const participantClaimToken = createRegistrationClaimToken({
+                mode: competition.claimTokenExpiryMode || "COMPETITION_END",
+                ttlDays: competition.claimTokenTtlDays || null,
+                registrationDeadline: competition.registrationDeadline || null,
+                competitionEnd: competition.dateEnd || competition.date || null,
+                maxExpiresAt: null,
+              });
+
+              const createdToken = await prisma.participantClaimToken.create({
+                data: {
+                  participantId: participant.id,
+                  tokenHash: participantClaimToken.tokenHash,
+                  suggestedEmail: participant.email!,
+                  suggestedName: `${participant.firstName} ${participant.lastName}`.trim() || null,
+                  expiresAt: participantClaimToken.expiresAt,
+                },
+              });
+
+              await recordParticipantClaimAuditEvent({
+                request,
+                eventType: "CLAIM_CREATE",
+                outcome: "SUCCESS",
+                tokenId: createdToken.id,
+                participantId: participant.id,
+                teamId: team.id,
+                userId: user.id,
+                sessionEmail: userEmail,
+              });
+
+              return {
+                participant,
+                claimUrl: buildParticipantClaimUrl(participantClaimToken.rawToken),
+              };
+            }),
+        );
 
         mailSummary = await sendTeamRegistrationEmails({
           competition,
@@ -469,6 +602,8 @@ export async function POST(request: NextRequest) {
             contactName: userName || "",
             contactEmail: userEmail,
             claimUrl,
+            portalUrl,
+            alreadyLinked: !!sessionUserEmail,
             participants: team.participants.map((participant) => ({
               firstName: participant.firstName,
               lastName: participant.lastName,
@@ -478,6 +613,52 @@ export async function POST(request: NextRequest) {
               shirtSize: participant.shirtSize,
             })),
           },
+        });
+
+        const participantClaimReplyTo = resolveRegistrationNotificationEmail(competition)[0] || competition.tenant?.contactEmail || null;
+        const participantMailResults = await Promise.allSettled(
+          participantClaimTokens.map(({ participant, claimUrl }) =>
+            sendParticipantClaimEmail({
+              participantName: `${participant.firstName} ${participant.lastName}`.trim(),
+              participantEmail: participant.email!,
+              teamName: finalTeamName,
+              competitionName: competition.name,
+              competitionYear: competition.year,
+              claimUrl,
+              orgReplyTo: participantClaimReplyTo,
+            }),
+          ),
+        );
+
+        participantMailResults.forEach((result, index) => {
+          const email = participantClaimTokens[index]?.participant.email || "";
+          const participantId = participantClaimTokens[index]?.participant.id || "";
+
+          if (result.status === "rejected") {
+            participantClaimMailResults.push({
+              participantId,
+              email,
+              status: "failed",
+              reason: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            });
+            return;
+          }
+
+          if (result.value.status === "skipped") {
+            participantClaimMailResults.push({
+              participantId,
+              email,
+              status: "skipped",
+              reason: result.value.reason,
+            });
+            return;
+          }
+
+          participantClaimMailResults.push({
+            participantId,
+            email,
+            status: "sent",
+          });
         });
 
         if (!mailSummary.ok) {
@@ -494,6 +675,7 @@ export async function POST(request: NextRequest) {
         message: `Team "${finalTeamName}" erfolgreich angemeldet! Klasse: ${autoCategory}`,
         classificationWarnings: teamEvaluation.classificationWarnings,
         mail: mailSummary,
+        participantClaimMail: participantClaimMailResults,
         team: serializeTeam(team)
       });
 

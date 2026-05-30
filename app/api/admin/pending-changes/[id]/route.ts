@@ -32,6 +32,10 @@ export async function PUT(
     return NextResponse.json({ error: "Ungültige Aktion" }, { status: 400 });
   }
 
+  if (action === "reject" && !comment) {
+    return NextResponse.json({ error: "Bitte bei einer Ablehnung einen kurzen Kommentar hinterlegen" }, { status: 400 });
+  }
+
   const pendingChange = await prisma.pendingChange.findUnique({
     where: { id },
     include: {
@@ -82,8 +86,19 @@ export async function PUT(
   const beforeSnapshot = pendingChange.beforeData ? parseSnapshot(pendingChange.beforeData) : liveSnapshot;
   const requestedSnapshot = parseSnapshot(pendingChange.changeData);
   const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
+  const liveDriftSummary = summarizeParticipantChanges(beforeSnapshot, liveSnapshot);
 
   if (action === "approve") {
+    if (liveDriftSummary.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Der Antrag basiert nicht mehr auf dem aktuellen Datenstand. Bitte zuerst den Live-Stand pruefen oder den Antrag neu einreichen lassen.",
+          liveDriftSummary,
+        },
+        { status: 409 },
+      );
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.participant.update({
         where: { id: pendingChange.participantId },

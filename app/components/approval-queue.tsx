@@ -35,6 +35,31 @@ interface PendingChange {
     name: string | null;
     email: string;
   } | null;
+  recentHistory?: Array<{
+    id: string;
+    action: string;
+    createdAt: string;
+    message?: string | null;
+    pendingChangeId?: string | null;
+    actor?: {
+      name: string | null;
+      email: string;
+    } | null;
+  }>;
+  impact?: {
+    nextClassificationCode: string;
+    nextClassificationLabel: string;
+    nextTotalAge: number;
+    classificationWarnings: string[];
+    disciplineWarnings: string[];
+    hasLiveDrift: boolean;
+    liveDriftSummary: Array<{
+      field: string;
+      label: string;
+      before: string;
+      after: string;
+    }>;
+  };
 }
 
 interface ApprovalQueueProps {
@@ -54,6 +79,8 @@ type DecoratedChange = PendingChange & {
   wasUpdated: boolean;
   participantName: string;
   requesterLabel: string;
+  priorityScore: number;
+  isCritical: boolean;
 };
 
 const fieldLabels: Record<string, string> = {
@@ -65,7 +92,7 @@ const fieldLabels: Record<string, string> = {
   shirtSize: "T-Shirt",
   moderationNote: "Moderationshinweis",
   email: "E-Mail",
-  phone: "Telefon",
+  participantPublicationPreference: "Namensveröffentlichung",
 };
 
 function parseSnapshot(raw?: string | null): Snapshot {
@@ -87,11 +114,22 @@ function formatValue(value: string | number | null | undefined) {
   if (value === "STOCK") return "Stockschiessen";
   if (value === "ROAD") return "Rennrad";
   if (value === "MTB") return "Mountainbike";
+  if (value === "NAME_VEROEFFENTLICHEN") return "Name veröffentlichen";
+  if (value === "NAME_VERBERGEN") return "Name verbergen";
   return String(value);
 }
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("de-DE");
+}
+
+function formatAuditAction(action: string) {
+  if (action === "REQUEST_SUBMITTED") return "Antrag gestellt";
+  if (action === "REQUEST_UPDATED") return "Antrag aktualisiert";
+  if (action === "REQUEST_APPROVED") return "Genehmigt";
+  if (action === "REQUEST_REJECTED") return "Abgelehnt";
+  if (action === "DIRECT_CHANGE") return "Direkt geändert";
+  return action;
 }
 
 function buildDiffs(change: PendingChange): ChangeField[] {
@@ -105,6 +143,18 @@ function buildDiffs(change: PendingChange): ChangeField[] {
       before: before[key],
       after: after[key],
     }));
+}
+
+function resolvePriorityScore(change: PendingChange, wasUpdated: boolean) {
+  let score = 0;
+
+  if (change.status === "PENDING") score += 100;
+  if (change.impact?.hasLiveDrift) score += 50;
+  if ((change.impact?.classificationWarnings?.length || 0) > 0) score += 30;
+  if ((change.impact?.disciplineWarnings?.length || 0) > 0) score += 20;
+  if (wasUpdated) score += 10;
+
+  return score;
 }
 
 export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueueProps) {
@@ -163,37 +213,53 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       wasUpdated: change.updatedAt !== change.createdAt,
       participantName: change.participant.firstName + " " + change.participant.lastName,
       requesterLabel: change.requestedBy.name || change.requestedBy.email,
+      priorityScore: resolvePriorityScore(change, change.updatedAt !== change.createdAt),
+      isCritical:
+        change.status === "PENDING" &&
+        Boolean(
+          change.impact?.hasLiveDrift ||
+            change.impact?.classificationWarnings?.length ||
+            change.impact?.disciplineWarnings?.length,
+        ),
     }));
   }, [changes]);
 
   const filteredChanges = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return decoratedChanges.filter((change) => {
-      if (statusFilter !== "ALL" && change.status !== statusFilter) {
-        return false;
-      }
+    return decoratedChanges
+      .filter((change) => {
+        if (statusFilter !== "ALL" && change.status !== statusFilter) {
+          return false;
+        }
 
-      if (updatedOnly && !change.wasUpdated) {
-        return false;
-      }
+        if (updatedOnly && !change.wasUpdated) {
+          return false;
+        }
 
-      if (!query) {
-        return true;
-      }
+        if (!query) {
+          return true;
+        }
 
-      const haystack = [
-        change.participantName,
-        change.participant.team.name,
-        change.requesterLabel,
-        change.requestedBy.email,
-        ...change.fields.map((field) => (fieldLabels[field.key] || field.key) + " " + formatValue(field.before) + " " + formatValue(field.after)),
-      ]
-        .join(" ")
-        .toLowerCase();
+        const haystack = [
+          change.participantName,
+          change.participant.team.name,
+          change.requesterLabel,
+          change.requestedBy.email,
+          ...change.fields.map((field) => (fieldLabels[field.key] || field.key) + " " + formatValue(field.before) + " " + formatValue(field.after)),
+        ]
+          .join(" ")
+          .toLowerCase();
 
-      return haystack.includes(query);
-    });
+        return haystack.includes(query);
+      })
+      .sort((left, right) => {
+        if (right.priorityScore !== left.priorityScore) {
+          return right.priorityScore - left.priorityScore;
+        }
+
+        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      });
   }, [decoratedChanges, searchQuery, statusFilter, updatedOnly]);
 
   const visibleChanges = useMemo(() => {
@@ -493,7 +559,22 @@ function ChangeList({
                       {getStatusLabel(change.status)}
                     </Badge>
                     <Badge variant="secondary">{change.fields.length} Feldwechsel</Badge>
+                    {change.isCritical ? (
+                      <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
+                        Kritisch
+                      </Badge>
+                    ) : null}
                     {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
+                    {change.impact?.classificationWarnings?.length ? (
+                      <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-200">
+                        Klassenwirkung
+                      </Badge>
+                    ) : null}
+                    {change.impact?.hasLiveDrift ? (
+                      <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
+                        Seit Antrag geändert
+                      </Badge>
+                    ) : null}
                   </div>
                   <CardDescription>
                     Team {change.participant.team.name} · Beantragt von {change.requesterLabel}
@@ -514,6 +595,51 @@ function ChangeList({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-border/50 bg-muted/30 p-3">
+                {(change.impact?.classificationWarnings?.length || change.impact?.disciplineWarnings?.length) ? (
+                  <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                    <div className="font-medium">
+                      Auswirkung auf Team/Klasse: {change.impact?.nextClassificationLabel || "Unbekannt"}
+                      {typeof change.impact?.nextTotalAge === "number" && change.impact.nextTotalAge > 0
+                        ? ` · Gesamtalter ${change.impact.nextTotalAge}`
+                        : ""}
+                    </div>
+                    {change.impact?.classificationWarnings?.map((warning, index) => (
+                      <div key={`class-${index}`} className="mt-1">
+                        {warning}
+                      </div>
+                    ))}
+                    {change.impact?.disciplineWarnings?.map((warning, index) => (
+                      <div key={`disc-${index}`} className="mt-1">
+                        {warning}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {change.impact?.hasLiveDrift ? (
+                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
+                    <div className="font-medium">Achtung: Der Live-Stand wurde seit Antragstellung verändert.</div>
+                    <div className="mt-1 text-xs opacity-90">
+                      Bitte vor der Entscheidung prüfen, ob der Antrag noch zum aktuellen Datenstand passt.
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {change.impact.liveDriftSummary.map((field) => (
+                        <div key={`drift-${field.field}`} className="grid gap-2 md:grid-cols-[150px_1fr_1fr]">
+                          <span className="text-xs font-medium uppercase tracking-[0.14em]">
+                            {field.label}
+                          </span>
+                          <span className="rounded-xl bg-background/70 px-3 py-2 text-sm">
+                            Damals: {field.before}
+                          </span>
+                          <span className="rounded-xl bg-white/70 px-3 py-2 text-sm font-medium dark:bg-black/10">
+                            Jetzt: {field.after}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 {change.fields.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>
                 ) : (
@@ -535,17 +661,54 @@ function ChangeList({
                 )}
               </div>
 
+              {change.recentHistory?.length ? (
+                <div className="rounded-2xl border border-border/50 bg-muted/20 p-3">
+                  <div className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    Letzte Vorgänge
+                  </div>
+                  <div className="space-y-2">
+                    {change.recentHistory.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="text-sm font-medium">
+                            {formatAuditAction(entry.action)}
+                            {entry.pendingChangeId === change.id ? " · aktueller Antrag" : ""}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{formatDateTime(entry.createdAt)}</div>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {entry.actor?.name || entry.actor?.email || "System"}
+                        </div>
+                        {entry.message ? (
+                          <div className="mt-2 text-sm text-muted-foreground">{entry.message}</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="space-y-2">
                 <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                   Kommentar der Orga
                 </label>
                 {change.status === "PENDING" ? (
-                  <Textarea
-                    value={comments[change.id] || ""}
-                    onChange={(event) => setComments((current) => ({ ...current, [change.id]: event.target.value }))}
-                    placeholder="Optionaler Kommentar fuer Genehmigung oder Ablehnung"
-                    className={compact ? "min-h-[84px]" : "min-h-[110px]"}
-                  />
+                  <>
+                    {change.impact?.hasLiveDrift ? (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+                        Genehmigen ist fuer diesen Antrag gesperrt, bis der geaenderte Live-Stand geklaert oder ein neuer Antrag gestellt wurde.
+                      </div>
+                    ) : null}
+                    <Textarea
+                      value={comments[change.id] || ""}
+                      onChange={(event) => setComments((current) => ({ ...current, [change.id]: event.target.value }))}
+                      placeholder="Kommentar fuer Rueckmeldung an Team/Teilnehmer"
+                      className={compact ? "min-h-[84px]" : "min-h-[110px]"}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Bei einer Ablehnung ist ein kurzer Kommentar Pflicht. Bei Genehmigung bleibt er optional.
+                    </p>
+                  </>
                 ) : (
                   <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
                     {change.reviewComment || "Kein Kommentar hinterlegt"}
@@ -563,7 +726,7 @@ function ChangeList({
                   <Button
                     size="sm"
                     onClick={() => void onAction(change.id, "approve")}
-                    disabled={processing === change.id}
+                    disabled={processing === change.id || change.impact?.hasLiveDrift}
                     className="sm:flex-1"
                   >
                     {processing === change.id ? "Bearbeite..." : "Genehmigen"}
@@ -572,7 +735,7 @@ function ChangeList({
                     size="sm"
                     variant="outline"
                     onClick={() => void onAction(change.id, "reject")}
-                    disabled={processing === change.id}
+                    disabled={processing === change.id || !(comments[change.id] || "").trim()}
                     className="sm:flex-1"
                   >
                     {processing === change.id ? "Bearbeite..." : "Ablehnen"}

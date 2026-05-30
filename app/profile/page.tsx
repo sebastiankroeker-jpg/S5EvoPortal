@@ -23,14 +23,36 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+type LinkedParticipant = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  disciplineCode?: string | null;
+  team: {
+    id: string;
+    name: string;
+  };
+};
+
+type ProfileResponse = {
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    linkedParticipants?: LinkedParticipant[];
+  };
+};
+
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [linkedParticipants, setLinkedParticipants] = useState<LinkedParticipant[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -39,6 +61,36 @@ export default function ProfilePage() {
       setEmail(session.user.email || "");
     }
   }, [session]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    let cancelled = false;
+    setLoadingProfile(true);
+
+    fetch("/api/profile")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Profil konnte nicht geladen werden"))))
+      .then((data: ProfileResponse) => {
+        if (cancelled) return;
+        setName(data.user.name || "");
+        setEmail(data.user.email || "");
+        setLinkedParticipants(data.user.linkedParticipants || []);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Profil konnte nicht geladen werden");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingProfile(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -164,6 +216,39 @@ export default function ProfilePage() {
                   {saving ? "Speichert..." : saved ? "✓ Gespeichert!" : "💾 Speichern"}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Teilnehmer-Zuordnung</CardTitle>
+              <CardDescription>Teilnehmerprofile, die bereits mit deinem Portal-Konto verknüpft sind</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loadingProfile ? (
+                <div className="text-sm text-muted-foreground">Lade Teilnehmer-Zuordnungen...</div>
+              ) : linkedParticipants.length === 0 ? (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Aktuell ist noch kein Teilnehmerprofil mit deinem Konto verknüpft.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {linkedParticipants.map((participant) => (
+                    <div key={participant.id} className="rounded-md border p-3 flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="font-medium">{participant.firstName} {participant.lastName}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Team {participant.team.name}
+                          {participant.disciplineCode ? ` · ${participant.disciplineCode}` : ""}
+                        </div>
+                      </div>
+                      <Badge variant="secondary">Verknüpft</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>

@@ -22,12 +22,16 @@ type ClaimTokenInfo = {
 };
 
 type ClaimItem = {
+  itemType: "team" | "participant";
+  itemId: string;
   teamId: string;
   teamName: string;
   category: string;
   contactEmail: string;
   contactName: string;
   ownerEmail: string;
+  participantId: string | null;
+  participantName: string | null;
   token: ClaimTokenInfo | null;
 };
 
@@ -84,10 +88,12 @@ export default function ClaimLinkDashboard() {
     const term = search.trim().toLowerCase();
     if (!term) return items;
     return items.filter((item) =>
+      item.itemType.toLowerCase().includes(term) ||
       item.teamName.toLowerCase().includes(term) ||
       item.contactEmail.toLowerCase().includes(term) ||
       item.contactName.toLowerCase().includes(term) ||
-      item.ownerEmail.toLowerCase().includes(term),
+      item.ownerEmail.toLowerCase().includes(term) ||
+      (item.participantName || "").toLowerCase().includes(term),
     );
   }, [items, search]);
 
@@ -108,18 +114,22 @@ export default function ClaimLinkDashboard() {
     }
   };
 
-  const generateClaimLink = async (teamId: string) => {
-    setBusyTeamId(teamId);
+  const generateClaimLink = async (item: ClaimItem) => {
+    setBusyTeamId(item.itemId);
     try {
       const res = await fetch("/api/admin/claim-links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId }),
+        body: JSON.stringify(
+          item.itemType === "participant"
+            ? { participantId: item.participantId }
+            : { teamId: item.teamId },
+        ),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Claim-Link konnte nicht erzeugt werden");
-      setGeneratedLinks((current) => ({ ...current, [teamId]: data.claimUrl }));
-      setMessage({ type: "success", text: "Neuer Claim-Link erzeugt" });
+      setGeneratedLinks((current) => ({ ...current, [`${item.itemType}:${item.itemId}`]: data.claimUrl }));
+      setMessage({ type: "success", text: item.itemType === "participant" ? "Neuer Teilnehmer-Claim-Link erzeugt" : "Neuer Team-Claim-Link erzeugt" });
       await loadItems();
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Claim-Link konnte nicht erzeugt werden" });
@@ -128,13 +138,13 @@ export default function ClaimLinkDashboard() {
     }
   };
 
-  const revokeClaimLink = async (tokenId: string) => {
+  const revokeClaimLink = async (tokenId: string, tokenType: "team" | "participant") => {
     setBusyTokenId(tokenId);
     try {
       const res = await fetch("/api/admin/claim-links", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tokenId }),
+        body: JSON.stringify({ tokenId, tokenType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Claim-Link konnte nicht gesperrt werden");
@@ -171,7 +181,7 @@ export default function ClaimLinkDashboard() {
       <CardHeader>
         <CardTitle className="text-lg">🔐 Claim-Link Dashboard</CardTitle>
         <CardDescription>
-          Interne Übersicht für Uebernahmelinks. Status <strong>Offen</strong> bedeutet: Link existiert, ist noch nicht eingelöst, nicht gesperrt und nicht abgelaufen. Das angezeigte Portal-Konto kann bereits beim Team-Anlegen gesetzt worden sein und ist kein Beleg für eine erfolgte Einlösung.
+          Interne Übersicht für Team- und Teilnehmer-Claims. Status <strong>Offen</strong> bedeutet: Link existiert, ist noch nicht eingelöst, nicht gesperrt und nicht abgelaufen. Das angezeigte Portal-Konto kann bereits gesetzt worden sein und ist kein Beleg für eine erfolgte Einlösung.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -183,12 +193,12 @@ export default function ClaimLinkDashboard() {
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Suche Team, Kontakt oder Portal-Konto..."
-              className="sm:w-72"
-            />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Suche Team, Teilnehmer, Kontakt oder Portal-Konto..."
+                className="sm:w-72"
+              />
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
               <SelectTrigger className="sm:w-44">
                 <SelectValue placeholder="Status" />
@@ -235,20 +245,31 @@ export default function ClaimLinkDashboard() {
             {visibleItems.map((item) => {
               const tokenStatus = item.token?.status || "none";
               const statusMeta = STATUS_META[tokenStatus];
-              const generatedLink = generatedLinks[item.teamId];
+              const generatedLink = generatedLinks[`${item.itemType}:${item.itemId}`];
+              const itemLabel = item.itemType === "participant" ? "Teilnehmer-Claim" : "Team-Claim";
 
               return (
-                <div key={item.teamId} className="rounded-lg border border-border/50 bg-card p-4 space-y-3 shadow-sm">
+                <div key={`${item.itemType}:${item.itemId}`} className="rounded-lg border border-border/50 bg-card p-4 space-y-3 shadow-sm">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{item.teamName}</span>
+                        <span className="font-medium">{item.itemType === "participant" ? item.contactName : item.teamName}</span>
                         <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                        <Badge variant="outline">{itemLabel}</Badge>
                         <Badge variant="outline">{item.category}</Badge>
                       </div>
                       <div className="text-xs text-muted-foreground space-y-1">
-                        <p>Kontakt: {item.contactName || "—"} · {item.contactEmail || "—"}</p>
-                        <p>Portal-Konto: {item.ownerEmail || "—"}</p>
+                        {item.itemType === "participant" ? (
+                          <>
+                            <p>Teilnehmer: {item.contactName || "—"} · {item.contactEmail || "—"}</p>
+                            <p>Team: {item.teamName}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p>Kontakt: {item.contactName || "—"} · {item.contactEmail || "—"}</p>
+                            <p>Portal-Konto: {item.ownerEmail || "—"}</p>
+                          </>
+                        )}
                         {item.token ? (
                           <>
                             <p>Erzeugt: {formatDateTime(item.token.createdAt)} · Gültig bis: {formatDateTime(item.token.expiresAt)}</p>
@@ -266,10 +287,14 @@ export default function ClaimLinkDashboard() {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        onClick={() => void generateClaimLink(item.teamId)}
-                        disabled={busyTeamId === item.teamId}
+                        onClick={() => void generateClaimLink(item)}
+                        disabled={busyTeamId === item.itemId}
                       >
-                        {busyTeamId === item.teamId ? "Erzeuge..." : item.token?.status === "active" ? "Neuen Link erzeugen" : "Claim-Link erzeugen"}
+                        {busyTeamId === item.itemId
+                          ? "Erzeuge..."
+                          : item.token?.status === "active"
+                            ? item.itemType === "participant" ? "Neuen Teilnehmer-Link erzeugen" : "Neuen Team-Link erzeugen"
+                            : item.itemType === "participant" ? "Teilnehmer-Link erzeugen" : "Team-Link erzeugen"}
                       </Button>
                       {generatedLink ? (
                         <Button size="sm" variant="outline" onClick={() => void copyToClipboard(generatedLink)}>
@@ -280,7 +305,7 @@ export default function ClaimLinkDashboard() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => void revokeClaimLink(item.token!.id)}
+                          onClick={() => void revokeClaimLink(item.token!.id, item.itemType)}
                           disabled={busyTokenId === item.token.id}
                         >
                           {busyTokenId === item.token.id ? "Sperre..." : "Link sperren"}
@@ -291,7 +316,7 @@ export default function ClaimLinkDashboard() {
 
                   {generatedLink ? (
                     <div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3">
-                      <p className="text-xs text-muted-foreground">Neu erzeugter Claim-Link für Supportfälle</p>
+                      <p className="text-xs text-muted-foreground">Neu erzeugter {itemLabel} für Supportfälle</p>
                       <Input value={generatedLink} readOnly className="font-mono text-xs" />
                     </div>
                   ) : null}

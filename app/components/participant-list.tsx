@@ -20,7 +20,6 @@ interface ParticipantEntry {
   shirtSize?: string | null;
   moderationNote?: string | null;
   email?: string | null;
-  phone?: string | null;
   teamId: string;
   teamName: string;
   teamCategory: string;

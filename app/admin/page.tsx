@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -32,6 +33,11 @@ type CompetitionConfig = {
   date: string;
   dateEnd: string;
   registrationDeadline: string;
+  claimTokenExpiryMode: string;
+  claimTokenTtlDays: number;
+  teamOwnerFilterVisibleForTeamchef: boolean;
+  participantsCanViewAllTeams: boolean;
+  spectatorsCanViewAllTeams: boolean;
   registrationNotificationEmail: string;
   shirtOrderDeadline: string;
   status: string;
@@ -46,9 +52,104 @@ type CompetitionConfig = {
   publicResults: boolean;
 };
 
+type ResetCounts = {
+  teamsTotal: number;
+  teamsActive: number;
+  participantsTotal: number;
+  participantsActive: number;
+  pendingChangesOpen?: number;
+  pendingChangesApproved?: number;
+  pendingChangesRejected?: number;
+  pendingChangesTotal?: number;
+  pendingChanges?: number;
+  participantAuditLogs: number;
+  registrationClaimTokens: number;
+  registrationClaimAuditEventsRetained: number;
+  competitionRankings: number;
+  disciplineResults: number;
+  shots: number;
+};
+
+type ResetSummary = {
+  competition: {
+    id: string;
+    name: string;
+    year: number;
+    status: string;
+  };
+  counts: ResetCounts;
+};
+
+type ResetSnapshotEntry = {
+  id: string;
+  reason: string;
+  createdAt: string;
+  summary: ResetSummary;
+  createdBy: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+type ResetAuditEntry = {
+  id: string;
+  action: string;
+  reason: string | null;
+  createdAt: string;
+  actor: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+type InlineFeedback = {
+  type: "success" | "error";
+  text: string;
+};
+
 const STATUS_OPTIONS = ["DRAFT", "OPEN", "RUNNING", "CLOSED"];
 const THEME_OPTIONS = ["LIGHT", "DARK", "ESV"];
 const BENCH_MODES = ["GROSS", "NETTO"];
+const CLAIM_TOKEN_EXPIRY_MODES = ["COMPETITION_END", "REGISTRATION_DEADLINE", "FIXED_DAYS"];
+
+function formatDateTime(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleString("de-DE");
+}
+
+function labelForResetAction(action: string) {
+  switch (action) {
+    case "COMPETITION_RESET_DRY_RUN":
+      return "Dry Run";
+    case "COMPETITION_RESET_STARTED":
+      return "Reset gestartet";
+    case "COMPETITION_RESET_COMPLETED":
+      return "Reset abgeschlossen";
+    default:
+      return action;
+  }
+}
+
+function renderResetCounts(counts: ResetCounts) {
+  const pendingChangesOpen = counts.pendingChangesOpen ?? counts.pendingChanges ?? 0;
+  const pendingChangesApproved = counts.pendingChangesApproved ?? 0;
+  const pendingChangesRejected = counts.pendingChangesRejected ?? 0;
+  const pendingChangesTotal =
+    counts.pendingChangesTotal ?? counts.pendingChanges ?? pendingChangesOpen + pendingChangesApproved + pendingChangesRejected;
+
+  return [
+    `Teams: ${counts.teamsActive}/${counts.teamsTotal}`,
+    `Teilnehmer: ${counts.participantsActive}/${counts.participantsTotal}`,
+    `Pending Changes offen: ${pendingChangesOpen}`,
+    `Historische Änderungen: ${pendingChangesApproved + pendingChangesRejected}/${pendingChangesTotal}`,
+    `Claim-Tokens: ${counts.registrationClaimTokens}`,
+    `Rankings: ${counts.competitionRankings}`,
+    `Results/Shots: ${counts.disciplineResults}/${counts.shots}`,
+  ].join(" • ");
+}
 
 function FormField({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -83,6 +184,11 @@ export default function AdminPage() {
     date: "2026-07-24",
     dateEnd: "2026-07-25",
     registrationDeadline: "2026-07-22",
+    claimTokenExpiryMode: "COMPETITION_END",
+    claimTokenTtlDays: 7,
+    teamOwnerFilterVisibleForTeamchef: false,
+    participantsCanViewAllTeams: false,
+    spectatorsCanViewAllTeams: false,
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
     status: "DRAFT",
@@ -100,7 +206,16 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [resetReason, setResetReason] = useState("");
+  const [resetConfirmationText, setResetConfirmationText] = useState("");
+  const [resetForce, setResetForce] = useState(false);
+  const [resetDryRunSummary, setResetDryRunSummary] = useState<ResetSummary | null>(null);
+  const [resetSnapshots, setResetSnapshots] = useState<ResetSnapshotEntry[]>([]);
+  const [resetAuditEvents, setResetAuditEvents] = useState<ResetAuditEntry[]>([]);
+  const [loadingResetMeta, setLoadingResetMeta] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<InlineFeedback | null>(null);
   const hasAdminAccess = !session || can("config.edit");
+  const expectedResetConfirmationText = activeCompetition?.name || competition.name;
 
   const loadCompetitionDetails = async (compId: string) => {
     const res = await fetch(`/api/admin/competition?id=${compId}`);
@@ -113,6 +228,11 @@ export default function AdminPage() {
           date: comp.date ? comp.date.split('T')[0] : "",
           dateEnd: comp.dateEnd ? comp.dateEnd.split('T')[0] : "",
           registrationDeadline: comp.registrationDeadline ? comp.registrationDeadline.split('T')[0] : "",
+          claimTokenExpiryMode: comp.claimTokenExpiryMode || "COMPETITION_END",
+          claimTokenTtlDays: comp.claimTokenTtlDays || 7,
+          teamOwnerFilterVisibleForTeamchef: comp.teamOwnerFilterVisibleForTeamchef === true,
+          participantsCanViewAllTeams: comp.participantsCanViewAllTeams === true,
+          spectatorsCanViewAllTeams: comp.spectatorsCanViewAllTeams === true,
           registrationNotificationEmail: comp.registrationNotificationEmail || "",
           shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
           status: comp.status || "DRAFT",
@@ -127,6 +247,24 @@ export default function AdminPage() {
           publicResults: comp.publicResults !== false,
         });
       }
+    }
+  };
+
+  const loadResetMetadata = async (compId: string) => {
+    setLoadingResetMeta(true);
+    try {
+      const res = await fetch(`/api/admin/competition/reset?id=${compId}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Reset-Daten konnten nicht geladen werden");
+      }
+      setResetSnapshots(data.snapshots || []);
+      setResetAuditEvents(data.auditEvents || []);
+    } catch (error) {
+      console.error("Failed to load reset metadata:", error);
+      showMessage("error", error instanceof Error ? error.message : "Reset-Daten konnten nicht geladen werden");
+    } finally {
+      setLoadingResetMeta(false);
     }
   };
 
@@ -169,7 +307,14 @@ export default function AdminPage() {
   useEffect(() => {
     if (hasAdminAccess && activeCompetition?.id) {
       loadCompetitionDetails(activeCompetition.id);
+      loadResetMetadata(activeCompetition.id);
+      setResetDryRunSummary(null);
+      setResetConfirmationText("");
+      setResetForce(false);
+      setResetFeedback(null);
     }
+    // loadResetMetadata intentionally stays out of deps to avoid re-fetch loops from local state updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompetition?.id, hasAdminAccess]);
 
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -248,6 +393,75 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Failed to send daily orga export:', error);
       showMessage('error', 'Netzwerkfehler beim CSV-Versand');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleCompetitionReset = async (dryRun: boolean) => {
+    if (!activeCompetition?.id) {
+      setResetFeedback({ type: "error", text: "Kein aktiver Wettkampf ausgewählt." });
+      showMessage("error", "Kein aktiver Wettkampf ausgewählt");
+      return;
+    }
+
+    if (resetReason.trim().length < 10) {
+      setResetFeedback({ type: "error", text: "Bitte gib eine aussagekräftige Begründung mit mindestens 10 Zeichen an." });
+      showMessage("error", "Bitte gib eine aussagekräftige Begründung mit mindestens 10 Zeichen an.");
+      return;
+    }
+
+    if (!dryRun && resetConfirmationText !== expectedResetConfirmationText) {
+      setResetFeedback({
+        type: "error",
+        text: `Bestätigungstext fehlt oder stimmt nicht exakt. Bitte genau "${expectedResetConfirmationText}" eingeben.`,
+      });
+      showMessage("error", "Bestätigungstext fehlt oder stimmt nicht exakt.");
+      return;
+    }
+
+    setSaving(dryRun ? "competition-reset-dry-run" : "competition-reset");
+    setResetFeedback(null);
+    try {
+      const response = await fetch("/api/admin/competition/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: activeCompetition.id,
+          reason: resetReason.trim(),
+          dryRun,
+          force: resetForce,
+          confirmationText: dryRun ? undefined : resetConfirmationText,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Competition Reset fehlgeschlagen");
+      }
+
+      if (data.summary) {
+        setResetDryRunSummary(data.summary);
+      }
+
+      if (!dryRun) {
+        setResetConfirmationText("");
+        setResetForce(false);
+        setResetFeedback({ type: "success", text: `Wettkampf zurückgesetzt. Snapshot ${data.snapshotId} wurde erstellt.` });
+        showMessage("success", `Wettkampf zurückgesetzt. Snapshot ${data.snapshotId} wurde erstellt.`);
+      } else {
+        setResetFeedback({ type: "success", text: "Dry Run erfolgreich berechnet." });
+        showMessage("success", "Dry Run erfolgreich berechnet.");
+      }
+
+      await loadResetMetadata(activeCompetition.id);
+    } catch (error) {
+      console.error("Competition reset failed:", error);
+      setResetFeedback({
+        type: "error",
+        text: error instanceof Error ? error.message : "Competition Reset fehlgeschlagen",
+      });
+      showMessage("error", error instanceof Error ? error.message : "Competition Reset fehlgeschlagen");
     } finally {
       setSaving(null);
     }
@@ -576,6 +790,112 @@ export default function AdminPage() {
                       />
                     </FormField>
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField label="Claim-Link Gültigkeit" hint="Steuert, bis wann neu erzeugte Claim-Links gültig bleiben.">
+                      <select
+                        value={competition.claimTokenExpiryMode}
+                        onChange={(e) => setCompetition({ ...competition, claimTokenExpiryMode: e.target.value })}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        {CLAIM_TOKEN_EXPIRY_MODES.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {mode === "COMPETITION_END"
+                              ? "Bis Wettkampfende"
+                              : mode === "REGISTRATION_DEADLINE"
+                                ? "Bis Anmeldeschluss"
+                                : "Feste Anzahl Tage"}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField
+                      label="Claim-Link Tage"
+                      hint="Wird nur genutzt, wenn 'Feste Anzahl Tage' gewählt ist."
+                    >
+                      <Input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={competition.claimTokenTtlDays}
+                        disabled={competition.claimTokenExpiryMode !== "FIXED_DAYS"}
+                        onChange={(e) => setCompetition({ ...competition, claimTokenTtlDays: parseInt(e.target.value) || 7 })}
+                      />
+                    </FormField>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField label="Teamchef sieht Anleger-Filter">
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          onClick={() =>
+                            setCompetition({
+                              ...competition,
+                              teamOwnerFilterVisibleForTeamchef: !competition.teamOwnerFilterVisibleForTeamchef,
+                            })
+                          }
+                          className={`relative h-6 w-12 rounded-full transition-colors ${
+                            competition.teamOwnerFilterVisibleForTeamchef ? "bg-primary" : "bg-muted"
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                              competition.teamOwnerFilterVisibleForTeamchef ? "translate-x-6" : ""
+                            }`}
+                          />
+                        </button>
+                        <span className="text-sm text-muted-foreground">
+                          {competition.teamOwnerFilterVisibleForTeamchef ? "Filter sichtbar" : "Filter ausgeblendet"}
+                        </span>
+                      </div>
+                    </FormField>
+                    <FormField label="Teilnehmer dürfen alle Teams sehen">
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          onClick={() =>
+                            setCompetition({
+                              ...competition,
+                              participantsCanViewAllTeams: !competition.participantsCanViewAllTeams,
+                            })
+                          }
+                          className={`relative h-6 w-12 rounded-full transition-colors ${
+                            competition.participantsCanViewAllTeams ? "bg-primary" : "bg-muted"
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                              competition.participantsCanViewAllTeams ? "translate-x-6" : ""
+                            }`}
+                          />
+                        </button>
+                        <span className="text-sm text-muted-foreground">
+                          {competition.participantsCanViewAllTeams ? "Alle Teams sichtbar" : "Nur eigenes Team"}
+                        </span>
+                      </div>
+                    </FormField>
+                    <FormField label="Zuschauer dürfen alle Teams sehen">
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          onClick={() =>
+                            setCompetition({
+                              ...competition,
+                              spectatorsCanViewAllTeams: !competition.spectatorsCanViewAllTeams,
+                            })
+                          }
+                          className={`relative h-6 w-12 rounded-full transition-colors ${
+                            competition.spectatorsCanViewAllTeams ? "bg-primary" : "bg-muted"
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                              competition.spectatorsCanViewAllTeams ? "translate-x-6" : ""
+                            }`}
+                          />
+                        </button>
+                        <span className="text-sm text-muted-foreground">
+                          {competition.spectatorsCanViewAllTeams ? "Alle Teams sichtbar" : "Watchlist only"}
+                        </span>
+                      </div>
+                    </FormField>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField label="Orga-Mails für Anmeldungen" hint="Mehrere Empfänger mit Komma oder Semikolon trennen. Wenn leer, wird die Tenant-Kontaktadresse genutzt.">
                       <Input
@@ -713,6 +1033,173 @@ export default function AdminPage() {
                       />
                     </FormField>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-destructive/40">
+                <CardHeader>
+                  <CardTitle className="text-lg">🧨 Competition Reset</CardTitle>
+                  <CardDescription>
+                    Setzt nur den aktiven Wettkampf zurück. Tenant, Benutzer, Rollen, Branding und Wettkampf-Stammdaten bleiben erhalten.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                    <p className="font-medium text-foreground">
+                      Aktiver Wettkampf: {activeCompetition?.name || "Kein Wettkampf ausgewählt"}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Betroffen sind Teams, Teilnehmer, Pending Changes, Claim-Tokens, Rankings und Ergebnissätze. Vor dem Reset wird immer ein Snapshot angelegt.
+                    </p>
+                  </div>
+
+                  <FormField
+                    label="Begründung"
+                    hint="Wird im Audit gespeichert. Beispiel: Testdaten vor offizieller Freischaltung entfernen."
+                  >
+                    <Textarea
+                      value={resetReason}
+                      onChange={(e) => {
+                        setResetReason(e.target.value);
+                        if (resetFeedback?.type === "error") setResetFeedback(null);
+                      }}
+                      placeholder="Warum wird dieser Wettkampf zurückgesetzt?"
+                      className="min-h-[96px]"
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Bestätigungstext"
+                    hint={`Für den echten Reset exakt eingeben: ${activeCompetition?.name || competition.name}`}
+                  >
+                    <Input
+                      value={resetConfirmationText}
+                      onChange={(e) => {
+                        setResetConfirmationText(e.target.value);
+                        if (resetFeedback?.type === "error") setResetFeedback(null);
+                      }}
+                      placeholder={expectedResetConfirmationText}
+                    />
+                  </FormField>
+
+                  <div className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+                    <input
+                      id="reset-force"
+                      type="checkbox"
+                      checked={resetForce}
+                      onChange={(e) => setResetForce(e.target.checked)}
+                    />
+                    <label htmlFor="reset-force" className="text-muted-foreground">
+                      `force` aktivieren, falls ein Reset trotz Status `RUNNING` oder `CLOSED` nötig ist.
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleCompetitionReset(true)}
+                      disabled={saving === "competition-reset-dry-run" || saving === "competition-reset" || !activeCompetition?.id}
+                    >
+                      {saving === "competition-reset-dry-run" ? "Berechne..." : "Dry Run berechnen"}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => void handleCompetitionReset(false)}
+                      disabled={
+                        saving === "competition-reset-dry-run" ||
+                        saving === "competition-reset" ||
+                        !activeCompetition?.id ||
+                        resetReason.trim().length < 10 ||
+                        resetConfirmationText !== expectedResetConfirmationText
+                      }
+                    >
+                      {saving === "competition-reset" ? "Reset läuft..." : "Wettkampf jetzt zurücksetzen"}
+                    </Button>
+                  </div>
+
+                  {resetFeedback && (
+                    <div
+                      className={`rounded-lg border px-4 py-3 text-sm ${
+                        resetFeedback.type === "success"
+                          ? "border-green-200 bg-green-50 text-green-800"
+                          : "border-red-200 bg-red-50 text-red-800"
+                      }`}
+                    >
+                      {resetFeedback.type === "success" ? "✓" : "✗"} {resetFeedback.text}
+                    </div>
+                  )}
+
+                  {resetDryRunSummary && (
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm space-y-2">
+                      <p className="font-medium">Letzte Dry-Run Zusammenfassung</p>
+                      <p className="text-muted-foreground">
+                        {renderResetCounts(resetDryRunSummary.counts)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Genehmigt/abgelehnt: {resetDryRunSummary.counts.pendingChangesApproved ?? 0}/{resetDryRunSummary.counts.pendingChangesRejected ?? 0}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Claim-Audit-Events bleiben erhalten: {resetDryRunSummary.counts.registrationClaimAuditEventsRetained}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Reset-Snapshots</CardTitle>
+                  <CardDescription>
+                    Die letzten Snapshots des aktiven Wettkampfs. Restore ist bewusst noch nicht freigeschaltet.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {loadingResetMeta ? (
+                    <div className="text-sm text-muted-foreground">Lade Reset-Historie...</div>
+                  ) : resetSnapshots.length === 0 ? (
+                    <div className="rounded-md border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                      Für diesen Wettkampf wurden noch keine Reset-Snapshots angelegt.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {resetSnapshots.map((snapshot) => (
+                        <div key={snapshot.id} className="rounded-lg border border-border/60 bg-card p-4 space-y-2">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="font-medium text-sm">{snapshot.id}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDateTime(snapshot.createdAt)} • {snapshot.createdBy?.name || snapshot.createdBy?.email || "Unbekannt"}
+                              </p>
+                            </div>
+                            <Badge variant="outline">Snapshot</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{snapshot.reason}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {renderResetCounts(snapshot.summary.counts)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {resetAuditEvents.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Letzte Audit-Einträge</p>
+                      <div className="space-y-2">
+                        {resetAuditEvents.map((entry) => (
+                          <div key={entry.id} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary">{labelForResetAction(entry.action)}</Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDateTime(entry.createdAt)} • {entry.actor?.name || entry.actor?.email || "Unbekannt"}
+                              </span>
+                            </div>
+                            {entry.reason && <p className="mt-1 text-muted-foreground">{entry.reason}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

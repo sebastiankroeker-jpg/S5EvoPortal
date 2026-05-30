@@ -161,6 +161,26 @@ const disciplineEnum = z.enum([
 ] as [DisciplineSelection, ...DisciplineSelection[]]);
 
 const shirtSizeEnum = z.enum(SHIRT_SIZE_IDS as [ShirtSizeId, ...ShirtSizeId[]]);
+const teamPublicationLevelEnum = z.enum([
+  "TEAM_ANONYM",
+  "TEAMNAME_OEFFENTLICH",
+  "ALLES_OEFFENTLICH",
+] as const);
+const participantPublicationPreferenceEnum = z.enum([
+  "NAME_VERBERGEN",
+  "NAME_VEROEFFENTLICHEN",
+] as const);
+
+export const TEAM_PUBLICATION_OPTIONS = [
+  { id: "TEAM_ANONYM", label: "Team anonym" },
+  { id: "TEAMNAME_OEFFENTLICH", label: "Teamname sichtbar, Teilnehmer anonym" },
+  { id: "ALLES_OEFFENTLICH", label: "Alles öffentlich" },
+] as const;
+
+export const PARTICIPANT_PUBLICATION_OPTIONS = [
+  { id: "NAME_VERBERGEN", label: "Namen nicht veröffentlichen" },
+  { id: "NAME_VEROEFFENTLICHEN", label: "Namen veröffentlichen" },
+] as const;
 
 export const ParticipantSchema = z.object({
   id: z.string().optional(),
@@ -173,7 +193,7 @@ export const ParticipantSchema = z.object({
   gender: z.enum(["M", "W", "D"]),
   moderationNote: z.string().max(280, "Moderationshinweis zu lang").optional().or(z.literal("")),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
-  phone: z.string().optional().or(z.literal("")),
+  participantPublicationPreference: participantPublicationPreferenceEnum.default("NAME_VERBERGEN"),
   discipline: disciplineEnum,
   shirtSize: shirtSizeEnum.optional().or(z.literal("")),
 });
@@ -184,13 +204,15 @@ export const TeamRegistrationSchema = z.object({
   contactLastName: z.string().min(2, "Name zu kurz").optional().or(z.literal("")),
   contactName: z.string().min(2, "Kontaktname zu kurz").optional().or(z.literal("")),
   contactEmail: z.string().email("Ungültige Kontakt-E-Mail").optional().or(z.literal("")),
+  teamPublicationLevel: teamPublicationLevelEnum.default("TEAM_ANONYM"),
   participants: z
     .array(ParticipantSchema)
     .length(5, "Es müssen genau 5 Teilnehmer erfasst werden"),
 });
 
-export type ParticipantInput = z.infer<typeof ParticipantSchema>;
-export type TeamRegistrationInput = z.infer<typeof TeamRegistrationSchema>;
+export type ParticipantInput = z.output<typeof ParticipantSchema>;
+export type TeamRegistrationInput = z.output<typeof TeamRegistrationSchema>;
+export type TeamRegistrationFormInput = z.input<typeof TeamRegistrationSchema>;
 
 export function createEmptyParticipant(): ParticipantInput {
   return {
@@ -200,7 +222,7 @@ export function createEmptyParticipant(): ParticipantInput {
     gender: "M",
     moderationNote: "",
     email: "",
-    phone: "",
+    participantPublicationPreference: "NAME_VERBERGEN",
     discipline: DISCIPLINE_PLACEHOLDER,
     shirtSize: "",
   };
@@ -218,11 +240,12 @@ export function createDefaultTeamForm(): TeamRegistrationInput {
     contactLastName: "",
     contactName: "",
     contactEmail: "",
+    teamPublicationLevel: "TEAM_ANONYM",
     participants: baseParticipants,
   };
 }
 
-export function summarizeDisciplines(participants: ParticipantInput[]) {
+export function summarizeDisciplines(participants: Array<{ discipline: DisciplineSelection }>) {
   return participants.reduce<Record<DisciplineSelection, number>>((acc, participant) => {
     const key = participant.discipline;
     acc[key] = (acc[key] || 0) + 1;

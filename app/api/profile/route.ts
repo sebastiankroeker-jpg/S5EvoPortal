@@ -14,7 +14,33 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { id: true, name: true, email: true, image: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        createdAt: true,
+        linkedParticipants: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            disciplineCode: true,
+            team: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: [
+            { team: { name: "asc" } },
+            { lastName: "asc" },
+            { firstName: "asc" },
+          ],
+        },
+      },
     });
 
     if (!user) {
@@ -66,7 +92,10 @@ export async function DELETE() {
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      include: { ownedTeams: { select: { id: true } } },
+      include: {
+        ownedTeams: { select: { id: true } },
+        linkedParticipants: { select: { id: true } },
+      },
     });
 
     if (!user) {
@@ -87,6 +116,11 @@ export async function DELETE() {
         data: { deletedAt: now },
       });
     }
+
+    await prisma.participant.updateMany({
+      where: { userId: user.id },
+      data: { userId: null },
+    });
 
     // Soft-delete user
     await prisma.user.update({

@@ -18,6 +18,7 @@ import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
+import { normalizeEmail } from "@/lib/current-user";
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
 export async function GET(
@@ -68,15 +69,20 @@ export async function GET(
     ? await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId)
     : null;
   const isAdmin = Boolean(access?.isAdmin || access?.isModerator);
-  const isTeamOwner = participant.team.contactEmail === session.user.email;
-  const isSelf = participant.email === session.user.email;
+  const normalizedSessionEmail = normalizeEmail(session.user.email);
+  const isTeamOwner = normalizeEmail(participant.team.contactEmail) === normalizedSessionEmail;
+  const isSelf = participant.userId
+    ? participant.userId === user?.id
+    : normalizeEmail(participant.email) === normalizedSessionEmail;
 
   if (!isAdmin && !isTeamOwner && !isSelf) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
+  const { phone: _ignoredPhone, ...participantWithoutPhone } = participant;
+
   return NextResponse.json({
-    ...participant,
+    ...participantWithoutPhone,
     birthDate: birthYearToBirthDateInput(participant.birthYear),
   });
 }
@@ -147,8 +153,11 @@ export async function PUT(
 
   const access = await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId);
   const isAdmin = access.isAdmin || access.isModerator;
-  const isTeamOwner = participant.team.contactEmail === session.user.email;
-  const isSelf = participant.email === session.user.email;
+  const normalizedSessionEmail = normalizeEmail(session.user.email);
+  const isTeamOwner = normalizeEmail(participant.team.contactEmail) === normalizedSessionEmail;
+  const isSelf = participant.userId
+    ? participant.userId === user.id
+    : normalizeEmail(participant.email) === normalizedSessionEmail;
   const shirtOrderClosed = isShirtOrderClosed(participant.team.competition?.shirtOrderDeadline);
 
   if (!isAdmin && !isTeamOwner && !isSelf) {

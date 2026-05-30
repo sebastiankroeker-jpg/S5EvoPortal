@@ -2,9 +2,12 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const FAILED_WINDOW_MINUTES = 15;
-const BLOCK_AFTER_FAILED_ATTEMPTS_PER_IP = 8;
-const BLOCK_AFTER_FAILED_ATTEMPTS_PER_TOKEN = 4;
-const SUSPICIOUS_DISTINCT_TOKENS_PER_IP = 3;
+const BLOCK_AFTER_FAILED_ATTEMPTS_PER_IP = 6;
+const BLOCK_AFTER_FAILED_ATTEMPTS_PER_TOKEN = 3;
+const SUSPICIOUS_DISTINCT_TOKENS_PER_IP = 2;
+const SUSPICIOUS_CLAIM_VIEWS_PER_IP = 12;
+const SUSPICIOUS_CLAIM_VIEWS_PER_TOKEN = 6;
+const BLOCK_AFTER_CLAIM_VIEWS_PER_IP = 20;
 
 function sinceDate(minutes: number) {
   return new Date(Date.now() - minutes * 60 * 1000);
@@ -79,6 +82,15 @@ export async function assessClaimRequestRisk(input: {
     select: { tokenId: true },
   });
 
+  const recentViewsByIp = await prisma.registrationClaimAuditEvent.findMany({
+    where: {
+      createdAt: { gte: windowStart },
+      ipAddress,
+      eventType: "CLAIM_VIEW",
+    },
+    select: { tokenId: true },
+  });
+
   const recentFailedByToken = input.tokenId
     ? await prisma.registrationClaimAuditEvent.count({
         where: {
@@ -89,7 +101,18 @@ export async function assessClaimRequestRisk(input: {
       })
     : 0;
 
+  const recentViewsByToken = input.tokenId
+    ? await prisma.registrationClaimAuditEvent.count({
+        where: {
+          createdAt: { gte: windowStart },
+          tokenId: input.tokenId,
+          eventType: "CLAIM_VIEW",
+        },
+      })
+    : 0;
+
   const distinctTokens = new Set(recentFailedByIp.map((event) => event.tokenId).filter(Boolean)).size;
+  const distinctViewedTokens = new Set(recentViewsByIp.map((event) => event.tokenId).filter(Boolean)).size;
   const reasons: string[] = [];
 
   if (recentFailedByIp.length >= BLOCK_AFTER_FAILED_ATTEMPTS_PER_IP) {
@@ -104,15 +127,27 @@ export async function assessClaimRequestRisk(input: {
     reasons.push("multiple_tokens_touched_from_same_ip");
   }
 
+  if (recentViewsByIp.length >= SUSPICIOUS_CLAIM_VIEWS_PER_IP) {
+    reasons.push("high_claim_view_volume_from_ip");
+  }
+
+  if (recentViewsByToken >= SUSPICIOUS_CLAIM_VIEWS_PER_TOKEN) {
+    reasons.push("high_claim_view_volume_for_token");
+  }
+
   return {
     suspicious: reasons.length > 0,
     blocked:
       reasons.includes("too_many_failed_attempts_from_ip") ||
-      reasons.includes("too_many_failed_attempts_for_token"),
+      reasons.includes("too_many_failed_attempts_for_token") ||
+      (recentViewsByIp.length >= BLOCK_AFTER_CLAIM_VIEWS_PER_IP && distinctViewedTokens >= 3),
     reasons,
   };
 }
 
 export function logSuspiciousClaimPattern(context: { reasons: string[]; tokenId?: string | null; teamId?: string | null; sessionEmail?: string | null; }) {
-  console.warn("Suspicious registration claim pattern detected", context);
+  console.warn("Suspicious registration claim pattern detected", {
+    ...context,
+    sessionEmail: context.sessionEmail ? maskEmail(context.sessionEmail) : null,
+  });
 }

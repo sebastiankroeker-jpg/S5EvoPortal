@@ -5,6 +5,8 @@ import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/permissions-context";
+import { useCompetition } from "@/lib/competition-context";
+import { canRoleViewAllTeams } from "@/lib/team-access-config";
 import Dashboard from "./dashboard";
 import TeamRegistration from "./team-registration";
 
@@ -13,8 +15,10 @@ type TeamView = "mannschaften" | "register" | "watchlist";
 export default function TeamScreen() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
+  const { active: activeCompetition } = useCompetition();
   const [view, setView] = useState<TeamView>("register");
   const [hasOwnTeams, setHasOwnTeams] = useState<boolean | null>(null);
+  const canBrowseAllTeams = can("team.view.all") || canRoleViewAllTeams(activeRole, activeCompetition);
 
   // Check if user has teams → default to Mannschaften tab with owner filter
   useEffect(() => {
@@ -87,7 +91,9 @@ export default function TeamScreen() {
       </div>
 
       {/* Content */}
-      {view === "mannschaften" && <Dashboard ownerFilter={hasOwnTeams ? (session.user.email || undefined) : undefined} />}
+      {view === "mannschaften" && (
+        <Dashboard ownerFilter={!canBrowseAllTeams && hasOwnTeams ? (session.user.email || undefined) : undefined} />
+      )}
       {view === "register" && <TeamRegistration />}
       {view === "watchlist" && (
         <div className="text-center space-y-4 py-8">
