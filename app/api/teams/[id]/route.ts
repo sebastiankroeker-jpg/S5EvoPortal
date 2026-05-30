@@ -353,7 +353,9 @@ export async function GET(
       const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session);
       const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
       const canViewRequestedScope =
-        access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, normalizeCompetitionTeamAccessConfig(team.competition));
+        roleContext
+          ? canRoleViewAllTeams(effectiveScopeRole, normalizeCompetitionTeamAccessConfig(team.competition))
+          : access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, normalizeCompetitionTeamAccessConfig(team.competition));
       const normalizedUserEmail = normalizeEmail(userEmail);
       const teamAccess = resolveTeamAccess({
         team,

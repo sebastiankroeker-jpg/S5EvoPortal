@@ -317,7 +317,9 @@ export async function GET(request: NextRequest) {
       const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
       const competitionTeamAccess = normalizeCompetitionTeamAccessConfig(competition);
       const canViewRequestedScope =
-        access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess);
+        roleContext
+          ? canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess)
+          : access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess);
       if (wantsAllTeams && !canViewRequestedScope) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }

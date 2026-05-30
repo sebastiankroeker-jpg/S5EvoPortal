@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useCompetition } from "@/lib/competition-context";
+import { usePermissions } from "@/lib/permissions-context";
+import { canRoleViewAllTeams } from "@/lib/team-access-config";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,12 +62,24 @@ export default function LiveScreen() {
   const [classFilter, setClassFilter] = useState("all");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const { active: activeCompetition } = useCompetition();
+  const { activeRole } = usePermissions();
+  const canViewTeamLists = canRoleViewAllTeams(activeRole, activeCompetition);
+  const availableSegments = useMemo<Segment[]>(
+    () => canViewTeamLists ? [...SEGMENTS] : ["ergebnis"],
+    [canViewTeamLists],
+  );
 
   // Fetch teams data
-  const fetchTeams = async () => {
+  const fetchTeams = useCallback(async () => {
+    if (!canViewTeamLists) {
+      setTeams([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       // Fetch all teams for live view
-      const params = new URLSearchParams({ scope: 'all' });
+      const params = new URLSearchParams({ scope: 'all', roleContext: activeRole });
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
       const response = await fetch(`/api/teams?${params}`);
       const data = await response.json();
@@ -75,11 +89,17 @@ export default function LiveScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompetition?.id, activeRole, canViewTeamLists]);
 
   useEffect(() => {
     fetchTeams();
-  }, [activeCompetition?.id]);
+  }, [fetchTeams]);
+
+  useEffect(() => {
+    if (!availableSegments.includes(activeSegment)) {
+      setActiveSegment(availableSegments[0]);
+    }
+  }, [activeSegment, availableSegments]);
 
   // Toggle section expansion
   const toggleSection = (key: string) => {
@@ -420,7 +440,7 @@ export default function LiveScreen() {
     <div className="space-y-6">
       {/* Segment Tabs */}
       <div className="flex space-x-1 bg-muted/50 p-1 rounded-lg">
-        {SEGMENTS.map((segment) => {
+        {availableSegments.map((segment) => {
           const isActive = activeSegment === segment;
           const labels = { teams: "📋 Teams", start: "🏁 Start", ergebnis: "🏆 Ergebnis" };
           
