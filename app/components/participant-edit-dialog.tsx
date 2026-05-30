@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info, Send } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -36,9 +38,19 @@ interface Participant {
   shirtSize?: string | null;
   moderationNote?: string | null;
   email?: string | null;
+  emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   pendingChanges?: { id: string; status: string; updatedAt?: string | null; reviewedAt?: string | null; reviewComment?: string | null }[];
 }
+
+type EmailInvitationStatus = {
+  status: "missing_email" | "none" | "active" | "claimed" | "expired" | "revoked" | "linked";
+  tokenStatus?: "none" | "active" | "claimed" | "expired" | "revoked";
+  sentAt?: string | null;
+  expiresAt?: string | null;
+  claimedAt?: string | null;
+  revokedAt?: string | null;
+};
 
 type ParticipantChangeStatus = {
   id: string;
@@ -95,6 +107,45 @@ function getStatusMeta(status?: string | null) {
   return null;
 }
 
+function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null) {
+  if (status === "linked") return { label: "Portal-Konto verknüpft", className: "border-green-300 text-green-700" };
+  if (status === "claimed") return { label: "Einladung eingelöst", className: "border-green-300 text-green-700" };
+  if (status === "active") return { label: "Einladung versendet", className: "border-blue-300 text-blue-700" };
+  if (status === "expired") return { label: "Einladung abgelaufen", className: "border-amber-300 text-amber-700" };
+  if (status === "revoked") return { label: "Einladung gesperrt", className: "border-red-300 text-red-700" };
+  if (status === "missing_email") return { label: "Keine E-Mail", className: "border-muted text-muted-foreground" };
+  return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("de-DE");
+}
+
+function InfoHint({ text }: { text: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          type="button"
+          className="inline-flex size-5 items-center justify-center rounded-full border border-border/70 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Info"
+          onClick={(event) => event.preventDefault()}
+        >
+          <Info className="size-3" />
+        </TooltipTrigger>
+        <TooltipContent side="top">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export default function ParticipantEditDialog({
   participant,
   open,
@@ -112,6 +163,10 @@ export default function ParticipantEditDialog({
   const [shirtSize, setShirtSize] = useState("");
   const [moderationNote, setModerationNote] = useState("");
   const [email, setEmail] = useState("");
+  const [savedEmail, setSavedEmail] = useState("");
+  const [emailInvitation, setEmailInvitation] = useState<EmailInvitationStatus | null>(null);
+  const [sendingInvitation, setSendingInvitation] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [participantPublicationPreference, setParticipantPublicationPreference] = useState<"NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN">("NAME_VERBERGEN");
   const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -149,6 +204,9 @@ export default function ParticipantEditDialog({
       setShirtSize(participant.shirtSize || "");
       setModerationNote(participant.moderationNote || "");
       setEmail(participant.email || "");
+      setSavedEmail(participant.email || "");
+      setEmailInvitation(participant.emailInvitation || null);
+      setInviteMessage(null);
       setParticipantPublicationPreference(participant.participantPublicationPreference || "NAME_VERBERGEN");
       setShirtOrderDeadline(null);
       setLatestChange(participant.pendingChanges?.[0] || null);
@@ -174,6 +232,8 @@ export default function ParticipantEditDialog({
         setShirtSize(data.shirtSize || "");
         setModerationNote(data.moderationNote || "");
         setEmail(data.email || "");
+        setSavedEmail(data.email || "");
+        setEmailInvitation(data.emailInvitation || null);
         setParticipantPublicationPreference(data.participantPublicationPreference || "NAME_VERBERGEN");
         setShirtOrderDeadline(data.team?.competition?.shirtOrderDeadline || null);
         setLatestChange(data.pendingChanges?.[0] || null);
@@ -184,6 +244,46 @@ export default function ParticipantEditDialog({
   }, [open, participant?.id]);
 
   const shirtLocked = !isAdminEdit && isShirtOrderClosed(shirtOrderDeadline);
+  const emailDiffersFromSaved = email.trim().toLowerCase() !== savedEmail.trim().toLowerCase();
+  const effectiveEmailInvitationStatus = emailDiffersFromSaved ? (email ? "none" : "missing_email") : emailInvitation?.status;
+  const emailInvitationMeta = getEmailInvitationMeta(effectiveEmailInvitationStatus || (email ? "none" : "missing_email"));
+  const canSendInvitation =
+    Boolean(participant?.id) &&
+    (directEdit || showModerationNote) &&
+    isValidEmail(email) &&
+    (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(emailInvitation?.status || "none"));
+
+  const handleSendInvitation = async () => {
+    if (!participant?.id) return;
+    setSendingInvitation(true);
+    setInviteMessage(null);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/participants/${participant.id}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Einladung konnte nicht gesendet werden");
+
+      setEmailInvitation((current) => ({
+        status: "active",
+        tokenStatus: "active",
+        sentAt: new Date().toISOString(),
+        expiresAt: data.participantClaimMail?.expiresAt ?? current?.expiresAt ?? null,
+        claimedAt: null,
+        revokedAt: null,
+      }));
+      setSavedEmail(email);
+      setInviteMessage({ type: "success", text: "Einladung wurde versendet." });
+    } catch (err) {
+      setInviteMessage({ type: "error", text: err instanceof Error ? err.message : "Einladung konnte nicht gesendet werden" });
+    } finally {
+      setSendingInvitation(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!participant) return;
@@ -219,6 +319,19 @@ export default function ParticipantEditDialog({
       }
 
         const data = await res.json();
+        if (data.participantClaimMail?.status === "sent" || data.participantClaimMail?.status === "queued") {
+          setEmailInvitation((current) => ({
+            status: "active",
+            tokenStatus: "active",
+            sentAt: new Date().toISOString(),
+            expiresAt: data.participantClaimMail?.expiresAt ?? current?.expiresAt ?? null,
+            claimedAt: null,
+            revokedAt: null,
+          }));
+        }
+        if (data.applied || data.participantClaimMail) {
+          setSavedEmail(email);
+        }
         setResult({
           applied: data.applied,
           message: data.message,
@@ -330,7 +443,10 @@ export default function ParticipantEditDialog({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Namensveröffentlichung</label>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground">Namensveröffentlichung</label>
+                <InfoHint text="Steuert nur, ob der Teilnehmername öffentlich sichtbar werden darf. Die Team-Sichtbarkeit kann diese Freigabe weiterhin übersteuern." />
+              </div>
               <Select value={participantPublicationPreference} onValueChange={(value) => setParticipantPublicationPreference(value as "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN")}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
@@ -398,16 +514,38 @@ export default function ParticipantEditDialog({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">E-Mail (optional)</label>
+            <div className="space-y-2 rounded-md border border-border/60 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-muted-foreground">E-Mail (optional)</label>
+                  <InfoHint text="Die E-Mail ist nur Kontakt- und Einladungskanal. Sie ist nicht die dauerhafte Identität des Portal-Accounts." />
+                </div>
+                <Badge variant="outline" className={emailInvitationMeta.className}>
+                  {emailInvitationMeta.label}
+                </Badge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="teilnehmer@example.de"
-                  className="mt-1"
                 />
+                {canSendInvitation ? (
+                  <Button type="button" size="sm" variant="outline" onClick={handleSendInvitation} disabled={sendingInvitation}>
+                    <Send className="size-4" />
+                    {sendingInvitation ? "Sendet..." : "Einladung senden"}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {emailInvitation?.sentAt ? <p>Versendet: {formatDateTime(emailInvitation.sentAt)}</p> : null}
+                {emailInvitation?.expiresAt ? <p>Gültig bis: {formatDateTime(emailInvitation.expiresAt)}</p> : null}
+                {emailInvitation?.claimedAt ? <p>Eingelöst: {formatDateTime(emailInvitation.claimedAt)}</p> : null}
+                {email && !isValidEmail(email) ? <p className="text-red-600">Bitte eine gültige E-Mail-Adresse eintragen.</p> : null}
+                {inviteMessage ? (
+                  <p className={inviteMessage.type === "success" ? "text-green-700" : "text-red-600"}>{inviteMessage.text}</p>
+                ) : null}
               </div>
             </div>
           </div>

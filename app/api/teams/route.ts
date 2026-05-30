@@ -10,6 +10,7 @@ import { recordParticipantClaimAuditEvent } from '@/lib/participant-claim-audit'
 import { prisma } from '@/lib/prisma';
 import { buildParticipantClaimUrl, buildPortalHomeUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
+import { getParticipantEmailInvitationStatus, getParticipantClaimTokenStatus } from '@/lib/participant-claim-invitation';
 import {
   canViewerSeeFullPublication,
   resolveVisibleParticipantName,
@@ -71,6 +72,13 @@ type SerializableParticipant = {
   disciplineCode?: string | null;
   shirtSize?: string | null;
   pendingChanges?: SerializedPendingChange[];
+  claimTokens?: Array<{
+    id: string;
+    createdAt: Date;
+    expiresAt: Date;
+    claimedAt?: Date | null;
+    revokedAt?: Date | null;
+  }>;
 };
 
 type SerializableTeam = {
@@ -99,6 +107,7 @@ function serializeParticipant(
   if (!participant) return null;
   const canSeeFullPublication = options?.canSeeFullPublication !== false;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
+  const latestClaimToken = Array.isArray(participant.claimTokens) ? participant.claimTokens[0] : null;
   const normalizedParticipantEmail = participant.email ? normalizeEmail(participant.email) : null;
   const normalizedCurrentUserEmail = options?.currentUserEmail ? normalizeEmail(options.currentUserEmail) : null;
   const visibleParticipantName = resolveVisibleParticipantName({
@@ -116,6 +125,20 @@ function serializeParticipant(
     birthDate: birthYearToBirthDateInput(participant.birthYear),
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeFullPublication ? participant.email ?? "" : "",
+    emailInvitation: canSeeFullPublication
+      ? {
+          status: getParticipantEmailInvitationStatus({
+            email: participant.email,
+            participantUserId: participant.userId,
+            token: latestClaimToken,
+          }),
+          tokenStatus: getParticipantClaimTokenStatus(latestClaimToken),
+          sentAt: latestClaimToken?.createdAt?.toISOString?.() ?? null,
+          expiresAt: latestClaimToken?.expiresAt?.toISOString?.() ?? null,
+          claimedAt: latestClaimToken?.claimedAt?.toISOString?.() ?? null,
+          revokedAt: latestClaimToken?.revokedAt?.toISOString?.() ?? null,
+        }
+      : null,
     participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
     shirtSize: participant.shirtSize ?? "",
@@ -305,6 +328,11 @@ export async function GET(request: NextRequest) {
                 orderBy: { updatedAt: 'desc' },
                 take: 1,
                 select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
+              },
+              claimTokens: {
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+                select: { id: true, createdAt: true, expiresAt: true, claimedAt: true, revokedAt: true }
               }
             }
           },

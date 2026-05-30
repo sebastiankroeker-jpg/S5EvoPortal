@@ -62,6 +62,7 @@ interface Participant {
   shirtSize?: string;
   moderationNote?: string;
   email?: string | null;
+  emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN";
   isCurrentUserParticipant?: boolean;
   pendingChanges?: { id: string; status: string }[];
@@ -74,6 +75,14 @@ interface Participant {
   } | null;
   teamOwnerEmail?: string;
 }
+
+type EmailInvitationStatus = {
+  status: "missing_email" | "none" | "active" | "claimed" | "expired" | "revoked" | "linked";
+  sentAt?: string | null;
+  expiresAt?: string | null;
+  claimedAt?: string | null;
+  revokedAt?: string | null;
+};
 
 type TeamEditPayload = {
   teamName: string;
@@ -203,6 +212,16 @@ function getLatestChangeMeta(status?: string | null) {
   if (status === "APPROVED") return { label: "Genehmigt", className: "border-green-300 text-green-700" };
   if (status === "REJECTED") return { label: "Abgelehnt", className: "border-red-300 text-red-700" };
   return null;
+}
+
+function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null) {
+  if (status === "linked") return { label: "Konto verknüpft", className: "border-green-300 text-green-700" };
+  if (status === "claimed") return { label: "Einladung eingelöst", className: "border-green-300 text-green-700" };
+  if (status === "active") return { label: "Einladung versendet", className: "border-blue-300 text-blue-700" };
+  if (status === "expired") return { label: "Einladung abgelaufen", className: "border-amber-300 text-amber-700" };
+  if (status === "revoked") return { label: "Einladung gesperrt", className: "border-red-300 text-red-700" };
+  if (status === "missing_email") return { label: "Keine E-Mail", className: "border-muted text-muted-foreground" };
+  return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
 }
 
 function compareDates(a?: string, b?: string) {
@@ -1160,6 +1179,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 {team.participants.map((p, i) => {
                                   const disciplineDisplay = getDisciplineDisplay(p.discipline);
                                   const birthYear = p.birthDate ? extractBirthYearFromInput(p.birthDate) : null;
+                                  const emailInviteMeta = getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"));
                                   const canManageModerationNote =
                                     canEditAll ||
                                     (normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(userEmail) && can("team.edit.own"));
@@ -1213,6 +1233,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                           {birthYear && <span>Jg. {birthYear}</span>}
                                         </div>
                                       </div>
+                                      {(canEditAll || canManageModerationNote) && (
+                                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                          <span className="truncate">{p.email || "Keine E-Mail hinterlegt"}</span>
+                                          <Badge variant="outline" className={emailInviteMeta.className}>
+                                            {emailInviteMeta.label}
+                                          </Badge>
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}

@@ -6,6 +6,12 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { birthYearToBirthDateInput } from "@/lib/domain/team";
 import { sendParticipantChangeSubmittedEmails } from "@/lib/mail/participant-change";
 import {
+  createParticipantClaimInvitation,
+  getParticipantClaimTokenStatus,
+  getParticipantEmailInvitationStatus,
+  shouldInviteParticipantClaim,
+} from "@/lib/participant-claim-invitation";
+import {
   buildParticipantChangeData,
   diffParticipantSnapshots,
   mergeParticipantSnapshot,
@@ -54,6 +60,11 @@ export async function GET(
         take: 1,
         select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true },
       },
+      claimTokens: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { id: true, createdAt: true, expiresAt: true, claimedAt: true, revokedAt: true },
+      },
     },
   });
 
@@ -84,6 +95,18 @@ export async function GET(
   return NextResponse.json({
     ...participantWithoutPhone,
     birthDate: birthYearToBirthDateInput(participant.birthYear),
+    emailInvitation: {
+      status: getParticipantEmailInvitationStatus({
+        email: participant.email,
+        participantUserId: participant.userId,
+        token: participant.claimTokens[0] ?? null,
+      }),
+      tokenStatus: getParticipantClaimTokenStatus(participant.claimTokens[0] ?? null),
+      sentAt: participant.claimTokens[0]?.createdAt?.toISOString?.() ?? null,
+      expiresAt: participant.claimTokens[0]?.expiresAt?.toISOString?.() ?? null,
+      claimedAt: participant.claimTokens[0]?.claimedAt?.toISOString?.() ?? null,
+      revokedAt: participant.claimTokens[0]?.revokedAt?.toISOString?.() ?? null,
+    },
   });
 }
 
@@ -123,8 +146,13 @@ export async function PUT(
             select: {
               name: true,
               year: true,
+              date: true,
+              dateEnd: true,
+              registrationDeadline: true,
               shirtOrderDeadline: true,
               registrationNotificationEmail: true,
+              claimTokenExpiryMode: true,
+              claimTokenTtlDays: true,
               tenantId: true,
               tenant: {
                 select: {
@@ -171,7 +199,6 @@ export async function PUT(
   const currentSnapshot = toParticipantSnapshot(participant);
   const requestedSnapshot = mergeParticipantSnapshot(currentSnapshot, changeData);
   const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
-  const changeSummary = summarizeParticipantChanges(currentSnapshot, requestedSnapshot);
   const projectedTeamState = evaluateTeamState(
     participant.team.participants.map((teamParticipant) =>
       teamParticipant.id === participant.id
@@ -215,6 +242,12 @@ export async function PUT(
   }
 
   if (isAdmin) {
+    const shouldSendParticipantClaim = shouldInviteParticipantClaim({
+      previousEmail: typeof currentSnapshot.email === "string" ? currentSnapshot.email : null,
+      nextEmail: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+      participantUserId: participant.userId,
+    });
+
     const updated = await prisma.$transaction(async (tx) => {
       const updatedParticipant = await tx.participant.update({
         where: { id },
@@ -253,14 +286,134 @@ export async function PUT(
       classificationWarnings = await recalculateTeamClassification(participant.team.id);
     }
 
+    let participantClaimMail: unknown = null;
+    if (shouldSendParticipantClaim) {
+      try {
+        participantClaimMail = await createParticipantClaimInvitation({
+          request,
+          participant: {
+            id: updated.id,
+            firstName: updated.firstName,
+            lastName: updated.lastName,
+            email: updated.email,
+            userId: updated.userId,
+          },
+          team: participant.team,
+          competition: participant.team.competition,
+          actorUserId: user.id,
+          sessionEmail: session.user.email,
+          previousEmail: typeof currentSnapshot.email === "string" ? currentSnapshot.email : null,
+        });
+      } catch (error) {
+        participantClaimMail = {
+          status: "failed" as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+        console.error("Participant claim invitation failed after direct participant update", {
+          participantId: updated.id,
+          error,
+        });
+      }
+    }
+
     return NextResponse.json({
       participant: updated,
       applied: true,
+      participantClaimMail,
       classificationWarnings:
         projectedTeamState.classificationWarnings.length > 0
           ? projectedTeamState.classificationWarnings
           : classificationWarnings,
     });
+  }
+
+  let approvalBaseSnapshot = currentSnapshot;
+  let approvalRequestedSnapshot = requestedSnapshot;
+  let approvalChangeSummary = summarizeParticipantChanges(approvalBaseSnapshot, approvalRequestedSnapshot);
+  let directEmailParticipantClaimMail: unknown = null;
+  let updatedParticipantAfterDirectEmail: unknown = null;
+  const emailChangedDirectly =
+    Object.prototype.hasOwnProperty.call(changedFields, "email") &&
+    currentSnapshot.email !== requestedSnapshot.email;
+
+  if (emailChangedDirectly) {
+    const emailAppliedSnapshot = {
+      ...currentSnapshot,
+      email: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+    };
+    const shouldSendParticipantClaim = shouldInviteParticipantClaim({
+      previousEmail: typeof currentSnapshot.email === "string" ? currentSnapshot.email : null,
+      nextEmail: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+      participantUserId: participant.userId,
+    });
+
+    updatedParticipantAfterDirectEmail = await prisma.$transaction(async (tx) => {
+      const updatedParticipant = await tx.participant.update({
+        where: { id },
+        data: {
+          email: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+        },
+      });
+
+      await tx.participantAuditLog.create({
+        data: {
+          action: "DIRECT_CHANGE",
+          participantId: id,
+          actorId: user.id,
+          beforeData: serializeSnapshot(currentSnapshot),
+          afterData: serializeSnapshot(emailAppliedSnapshot),
+          message: "E-Mail direkt aktualisiert",
+        },
+      });
+
+      return updatedParticipant;
+    });
+
+    if (shouldSendParticipantClaim) {
+      try {
+        directEmailParticipantClaimMail = await createParticipantClaimInvitation({
+          request,
+          participant: {
+            id: participant.id,
+            firstName: participant.firstName,
+            lastName: participant.lastName,
+            email: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+            userId: participant.userId,
+          },
+          team: participant.team,
+          competition: participant.team.competition,
+          actorUserId: user.id,
+          sessionEmail: session.user.email,
+          previousEmail: typeof currentSnapshot.email === "string" ? currentSnapshot.email : null,
+        });
+      } catch (error) {
+        directEmailParticipantClaimMail = {
+          status: "failed" as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+        console.error("Participant claim invitation failed after direct participant email update", {
+          participantId: participant.id,
+          error,
+        });
+      }
+    }
+
+    approvalBaseSnapshot = emailAppliedSnapshot;
+    approvalRequestedSnapshot = {
+      ...requestedSnapshot,
+      email: emailAppliedSnapshot.email,
+    };
+    approvalChangeSummary = summarizeParticipantChanges(approvalBaseSnapshot, approvalRequestedSnapshot);
+
+    if (approvalChangeSummary.length === 0) {
+      return NextResponse.json({
+        participant: updatedParticipantAfterDirectEmail,
+        applied: true,
+        message: "E-Mail direkt gespeichert",
+        participantClaimMail: directEmailParticipantClaimMail,
+        classificationWarnings: [],
+      });
+    }
   }
 
   const existingPendingChange = await prisma.pendingChange.findFirst({
@@ -276,8 +429,8 @@ export async function PUT(
         const updatedPendingChange = await tx.pendingChange.update({
           where: { id: existingPendingChange.id },
           data: {
-            beforeData: serializeSnapshot(currentSnapshot),
-            changeData: serializeSnapshot(requestedSnapshot),
+            beforeData: serializeSnapshot(approvalBaseSnapshot),
+            changeData: serializeSnapshot(approvalRequestedSnapshot),
             requestedById: user.id,
             reviewComment: null,
             reviewedAt: null,
@@ -291,8 +444,8 @@ export async function PUT(
             participantId: id,
             actorId: user.id,
             pendingChangeId: updatedPendingChange.id,
-            beforeData: serializeSnapshot(currentSnapshot),
-            afterData: serializeSnapshot(requestedSnapshot),
+            beforeData: serializeSnapshot(approvalBaseSnapshot),
+            afterData: serializeSnapshot(approvalRequestedSnapshot),
             message: "Offene Änderungsanfrage aktualisiert",
           },
         });
@@ -302,8 +455,8 @@ export async function PUT(
     : await prisma.$transaction(async (tx) => {
         const createdPendingChange = await tx.pendingChange.create({
           data: {
-            beforeData: serializeSnapshot(currentSnapshot),
-            changeData: serializeSnapshot(requestedSnapshot),
+            beforeData: serializeSnapshot(approvalBaseSnapshot),
+            changeData: serializeSnapshot(approvalRequestedSnapshot),
             status: "PENDING",
             participantId: id,
             requestedById: user.id,
@@ -316,8 +469,8 @@ export async function PUT(
             participantId: id,
             actorId: user.id,
             pendingChangeId: createdPendingChange.id,
-            beforeData: serializeSnapshot(currentSnapshot),
-            afterData: serializeSnapshot(requestedSnapshot),
+            beforeData: serializeSnapshot(approvalBaseSnapshot),
+            afterData: serializeSnapshot(approvalRequestedSnapshot),
             message: "Änderungsanfrage eingereicht",
           },
         });
@@ -330,7 +483,7 @@ export async function PUT(
       competition: participant.team.competition,
       participant: {
         name: participant.firstName + " " + participant.lastName,
-        email: participant.email,
+        email: typeof approvalBaseSnapshot.email === "string" ? approvalBaseSnapshot.email : participant.email,
         teamName: participant.team.name,
         teamContactEmail: participant.team.contactEmail,
       },
@@ -338,7 +491,7 @@ export async function PUT(
         name: user.name || session.user.email || "Teilnehmer",
         email: session.user.email,
       },
-      changeSummary,
+      changeSummary: approvalChangeSummary,
     });
   }
 
@@ -346,8 +499,13 @@ export async function PUT(
     pendingChange: savedPendingChange,
     applied: false,
     message: existingPendingChange
-      ? "Offener Änderungsantrag aktualisiert"
+      ? emailChangedDirectly
+        ? "E-Mail direkt gespeichert, offener Änderungsantrag aktualisiert"
+        : "Offener Änderungsantrag aktualisiert"
+      : emailChangedDirectly
+        ? "E-Mail direkt gespeichert, weitere Änderung zur Genehmigung eingereicht"
       : "Änderung zur Genehmigung eingereicht",
+    participantClaimMail: directEmailParticipantClaimMail,
     classificationWarnings: projectedTeamState.classificationWarnings,
   });
 }

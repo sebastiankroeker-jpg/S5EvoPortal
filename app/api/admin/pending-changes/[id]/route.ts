@@ -4,6 +4,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { sendParticipantChangeDecisionEmail } from "@/lib/mail/participant-change";
 import {
+  createParticipantClaimInvitation,
+  shouldInviteParticipantClaim,
+} from "@/lib/participant-claim-invitation";
+import {
   parseSnapshot,
   recalculateTeamClassification,
   serializeSnapshot,
@@ -50,7 +54,12 @@ export async function PUT(
                 select: {
                   name: true,
                   year: true,
+                  date: true,
+                  dateEnd: true,
+                  registrationDeadline: true,
                   registrationNotificationEmail: true,
+                  claimTokenExpiryMode: true,
+                  claimTokenTtlDays: true,
                   tenant: {
                     select: {
                       id: true,
@@ -132,6 +141,49 @@ export async function PUT(
       await recalculateTeamClassification(pendingChange.participant.team.id);
     }
 
+    let participantClaimMail: unknown = null;
+    if (
+      shouldInviteParticipantClaim({
+        previousEmail: typeof liveSnapshot.email === "string" ? liveSnapshot.email : null,
+        nextEmail: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+        participantUserId: pendingChange.participant.userId,
+      })
+    ) {
+      try {
+        participantClaimMail = await createParticipantClaimInvitation({
+          request,
+          participant: {
+            id: pendingChange.participant.id,
+            firstName:
+              typeof requestedSnapshot.firstName === "string"
+                ? requestedSnapshot.firstName
+                : pendingChange.participant.firstName,
+            lastName:
+              typeof requestedSnapshot.lastName === "string"
+                ? requestedSnapshot.lastName
+                : pendingChange.participant.lastName,
+            email: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
+            userId: pendingChange.participant.userId,
+          },
+          team: pendingChange.participant.team,
+          competition: pendingChange.participant.team.competition,
+          actorUserId: auth.user.id,
+          sessionEmail: session?.user?.email || null,
+          previousEmail: typeof liveSnapshot.email === "string" ? liveSnapshot.email : null,
+        });
+      } catch (error) {
+        participantClaimMail = {
+          status: "failed" as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+        console.error("Participant claim invitation failed after approving participant change", {
+          participantId: pendingChange.participantId,
+          pendingChangeId: pendingChange.id,
+          error,
+        });
+      }
+    }
+
     await sendParticipantChangeDecisionEmail({
       competition: pendingChange.participant.team.competition,
       participant: {
@@ -149,7 +201,11 @@ export async function PUT(
       changeSummary,
     });
 
-    return NextResponse.json({ status: "approved", message: "Änderung genehmigt und angewendet" });
+    return NextResponse.json({
+      status: "approved",
+      message: "Änderung genehmigt und angewendet",
+      participantClaimMail,
+    });
   }
 
   await prisma.$transaction(async (tx) => {
