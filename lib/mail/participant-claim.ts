@@ -15,7 +15,7 @@ export async function sendParticipantClaimEmail(payload: ParticipantClaimMailPay
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
       <p>Hallo ${payload.participantName || "Teilnehmer:in"},</p>
-      <p>du bist für <strong>${payload.competitionName} ${payload.competitionYear}</strong> im Team <strong>${payload.teamName}</strong> eingetragen.</p>
+      <p>Du bist zum <strong>${payload.competitionName} ${payload.competitionYear}</strong> im Team <strong>${payload.teamName}</strong> angemeldet worden.</p>
       <p>Über diesen Link verknüpfst du deinen Teilnehmer-Eintrag mit deinem S5Evo Portal-Konto:</p>
       <p><a href="${payload.claimUrl}" style="display:inline-block;padding:10px 16px;background:#bbf7d0;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Zugang öffnen</a></p>
       <p style="font-size:14px;color:#555">Melde dich dort mit <strong>${payload.participantEmail}</strong> an. Wenn du mit dieser E-Mail schon ein Konto hast, nutze einfach dieses Konto. Falls nicht, kannst du im selben Schritt ein neues Konto anlegen.</p>
@@ -24,7 +24,7 @@ export async function sendParticipantClaimEmail(payload: ParticipantClaimMailPay
   const text = [
     `Hallo ${payload.participantName || "Teilnehmer:in"},`,
     "",
-    `du bist für ${payload.competitionName} ${payload.competitionYear} im Team ${payload.teamName} eingetragen.`,
+    `Du bist zum ${payload.competitionName} ${payload.competitionYear} im Team ${payload.teamName} angemeldet worden.`,
     "",
     "Über diesen Link verknüpfst du deinen Teilnehmer-Eintrag mit deinem S5Evo Portal-Konto:",
     payload.claimUrl,

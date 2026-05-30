@@ -17,7 +17,6 @@ import {
   resolveBirthDateInputKey,
   summarizeDisciplines,
   TeamRegistrationFormInput,
-  TeamRegistrationInput,
   TeamRegistrationSchema,
   type DisciplineId,
   type ParticipantInput,
@@ -249,6 +248,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const userEmail = session?.user?.email ?? "";
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedRecipientEmail, setSubmittedRecipientEmail] = useState("");
   const [serverError, setServerError] = useState("");
   const [submissionWarning, setSubmissionWarning] = useState("");
   const [competitionInfo, setCompetitionInfo] = useState<PublicCompetitionInfo | null>(null);
@@ -277,25 +277,29 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   // Live-Klassifikation basierend auf aktuellen Teilnehmer-Daten
   // watch() ohne useMemo — re-rendert bei jeder Feldänderung
-  const watchedParticipants = form.watch("participants");
+  const watchedParticipants = form.watch("participants") ?? [];
   const watchedValues = JSON.stringify(
-    (watchedParticipants || []).map((p: any) => ({ bd: p.birthDate, g: p.gender, d: p.discipline }))
+    watchedParticipants.map((participant) => ({
+      bd: participant.birthDate,
+      g: participant.gender,
+      d: participant.discipline,
+    }))
   );
   const liveClassification = useMemo(() => {
-    const inputs = (watchedParticipants || [])
-      .map((p: any) => ({
-        birthYear: extractBirthYearFromInput(p.birthDate),
-        gender: p.gender as "M" | "W",
+    const inputs = watchedParticipants
+      .map((participant) => ({
+        birthYear: extractBirthYearFromInput(participant.birthDate),
+        gender: participant.gender === "W" ? "W" : "M",
       }))
-      .filter((p: any) => p.birthYear !== null) as Array<{ birthYear: number; gender: "M" | "W" }>;
+      .filter((participant): participant is { birthYear: number; gender: "M" | "W" } => participant.birthYear !== null);
     return classifyTeam(inputs);
-  }, [watchedValues]);
+  }, [watchedParticipants, watchedValues]);
 
   const disciplineCheck = useMemo(() => {
-    const discs = (watchedParticipants || []).map((p: any) => p.discipline || "TBD");
+    const discs = watchedParticipants.map((participant) => participant.discipline || "TBD");
     return validateDisciplineAssignment(discs);
-  }, [watchedValues]);
-  const participants = watch("participants");
+  }, [watchedParticipants, watchedValues]);
+  const participants = watch("participants") ?? [];
   const participantFieldErrors = useMemo(() => {
     return collectParticipantValidationMessages(formState.errors.participants, participants || []);
   }, [formState.errors.participants, participants]);
@@ -340,6 +344,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const shirtOrderClosed = useMemo(() => isShirtOrderClosed(competitionInfo?.shirtOrderDeadline), [competitionInfo?.shirtOrderDeadline]);
   const publicRegistrationStatus = useMemo(() => getPublicRegistrationStatus(competitionInfo), [competitionInfo]);
   const showTestDataTools = !isAnonymousRegistration && competitionInfo?.status === "DRAFT";
+  const completedParticipantCount = participants.filter((participant) => participant.firstName && participant.lastName).length;
+  const publicationLabel = TEAM_PUBLICATION_OPTIONS.find((option) => option.id === watch("teamPublicationLevel"))?.label || "-";
 
   useEffect(() => {
     if (!userName) {
@@ -504,6 +510,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       if (Array.isArray(payload.classificationWarnings) && payload.classificationWarnings.length > 0) {
         setSubmissionWarning(payload.classificationWarnings.join(" · "));
       }
+      setSubmittedRecipientEmail(effectiveContactEmail);
       reset(createDefaultTeamForm());
       setTeamLeadParticipates(false);
       setTeamLeadDiscipline(DISCIPLINES[0].id);
@@ -520,6 +527,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     setServerError("");
     setSubmissionWarning("");
     setSubmitted(false);
+    setSubmittedRecipientEmail("");
     setLiabilityAccepted(false);
     setOpenModerationNotes({});
     setStep(1);
@@ -637,7 +645,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
                   <p className="text-sm font-medium">So geht es jetzt weiter</p>
                   <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
-                    <li>Wir schicken den Uebernahmelink an <strong>{effectiveContactEmail}</strong>.</li>
+                    <li>Wir schicken den Uebernahmelink an <strong>{submittedRecipientEmail || effectiveContactEmail || "die angegebene Kontakt-E-Mail"}</strong>.</li>
                     <li>Oeffne den Link aus der Mail und melde dich dort mit derselben E-Mail im Portal an oder lege damit ein neues Konto an.</li>
                     <li>Danach ist die Mannschaft deinem Account zugeordnet und du kannst Aenderungen direkt im Portal pflegen.</li>
                   </ol>
@@ -1060,76 +1068,72 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
               )}
 
               {step === 3 && (
-                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                  <div className="text-center space-y-2">
-                    <h3 className="text-lg font-medium">Letzter Schritt: Angaben pruefen und absenden</h3>
-                    <p className="text-muted-foreground">Pruefe hier alles noch einmal in Ruhe. Erst mit dem letzten Klick wird die Mannschaft wirklich angemeldet.</p>
-                    {isAnonymousRegistration && (
-                      <p className="text-xs text-muted-foreground">Der Uebernahmelink fuer die spaetere Weiterbearbeitung geht an {effectiveContactEmail || "deine Kontakt-E-Mail"}.</p>
-                    )}
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-medium">Angaben pruefen und absenden</h3>
+                    <p className="text-xs text-muted-foreground">Erst mit dem letzten Klick wird die Mannschaft angemeldet.</p>
                   </div>
 
-                  <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Mannschaft:</span>
-                      <span className="font-medium">{teamName || "—"}</span>
+                  <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="min-w-0 max-w-full truncate font-semibold">{teamName || "Mannschaft ohne Namen"}</span>
+                      <span className="text-muted-foreground">{liveClassification.emoji} {liveClassification.label}</span>
+                      <span className="text-muted-foreground">{completedParticipantCount}/5 Teilnehmer</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Klasse:</span>
-                      <span className="font-medium">{liveClassification.emoji} {liveClassification.label}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Gesamtalter:</span>
-                      <span className="font-medium">{liveClassification.totalAge}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Kontakt Teamchef:in:</span>
-                      <span className="font-medium">{effectiveContactName || "—"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Kontakt-E-Mail:</span>
-                      <span className="font-medium">{effectiveContactEmail || "—"}</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Veröffentlichung:</span>
-                      <span className="text-right font-medium">
-                        {TEAM_PUBLICATION_OPTIONS.find((option) => option.id === watch("teamPublicationLevel"))?.label || "—"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Disziplin-Status</span>
-                      <ul className="mt-2 space-y-1">
-                        {DISCIPLINES.map((discipline) => {
-                          const assigned = participants.find(
-                            (participant) => participant.discipline === discipline.id && participant.firstName && participant.lastName
-                          );
-                          return (
-                            <li key={discipline.id} className="flex items-center justify-between">
-                              <div>
-                                <span>
-                                  {discipline.icon} {discipline.label}
-                                </span>
-                                <p className="text-xs text-muted-foreground">
-                                  {assigned ? `${assigned.firstName} ${assigned.lastName}` : "TBD"}
-                                </p>
-                              </div>
-                              <span className="font-mono">{assigned ? 1 : 0}</span>
-                            </li>
-                          );
-                        })}
-                        <li className="flex justify-between text-muted-foreground text-xs">
-                          <span>📝 TBD</span>
-                          <span className="font-mono">{disciplineSummary[DISCIPLINE_PLACEHOLDER] ?? 0}</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Teilnehmer erfasst:</span>
-                      <span className="font-medium">
-                        {participants.filter((p) => p.firstName && p.lastName).length}/5
-                      </span>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>Gesamtalter: {liveClassification.totalAge}</span>
+                      <span>Empfaenger: {effectiveContactEmail || "-"}</span>
                     </div>
                   </div>
+
+                  <div className="space-y-1.5 text-xs">
+                    {participants.map((participant, index) => {
+                      const discipline = disciplineMap[participant.discipline as DisciplineId];
+                      const name = [participant.firstName, participant.lastName].filter(Boolean).join(" ").trim() || "Name fehlt";
+                      const shirtSize = SHIRT_SIZES.find((size) => size.id === participant.shirtSize)?.label;
+                      const isTeamLead = teamLeadParticipates && participant.discipline === teamLeadDiscipline;
+
+                      return (
+                        <div key={`${participant.discipline}-${index}`} className="rounded-md border border-border/50 bg-background px-2.5 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate font-medium">
+                              {discipline?.icon} {name}
+                            </span>
+                            <span className="shrink-0 text-muted-foreground">{participant.gender} · {participant.birthDate || "-"}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-muted-foreground">
+                            <span>{discipline?.label || `Teilnehmer:in ${index + 1}`}</span>
+                            {participant.email && <span>{participant.email}</span>}
+                            {shirtSize && <span>{shirtSize}</span>}
+                            {isTeamLead && <span>Teamchef:in</span>}
+                            {participant.moderationNote?.trim() && <span>Hinweis vorhanden</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <details className="rounded-md border border-border/60 bg-muted/10 p-3 text-sm">
+                    <summary className="cursor-pointer font-medium">Metadaten & Kontakt Teamchef:in</summary>
+                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                      <div className="flex justify-between gap-3">
+                        <span>Teamchef:in</span>
+                        <span className="text-right font-medium text-foreground">{effectiveContactName || "-"}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Kontakt-E-Mail</span>
+                        <span className="text-right font-medium text-foreground">{effectiveContactEmail || "-"}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Veröffentlichung</span>
+                        <span className="text-right font-medium text-foreground">{publicationLabel}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>TBD-Disziplinen</span>
+                        <span className="text-right font-medium text-foreground">{disciplineSummary[DISCIPLINE_PLACEHOLDER] ?? 0}</span>
+                      </div>
+                    </div>
+                  </details>
 
                   {serverError && (
                     <div className="text-red-500 text-sm text-center bg-red-50 dark:bg-red-900/20 p-2 rounded">
