@@ -225,6 +225,7 @@
 - Zusätzlich soll sich ein Teamchef **optional vor der Anmeldung registrieren und über Authentik anmelden** können
 - Beide Einstiege müssen in denselben fachlichen Anmeldeprozess führen
 - Ein späterer Claim-/Zuordnungsflow für bereits anonym angelegte Teams bleibt weiterhin möglich
+- Validierungs- und Klassifikationshinweise im Anmeldeprozess müssen auf die betroffene **Disziplin** verweisen, damit z.B. fehlende oder unplausible Geburtsdaten nicht nur als generische Sammelmeldung erscheinen
 
 ### Datenreset & Wiederherstellung
 - Vor dem offiziellen Start darf der aktive Wettkampf **ohne Tenant-Löschung** auf einen sauberen Zustand zurückgesetzt werden
