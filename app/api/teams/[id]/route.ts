@@ -198,11 +198,14 @@ function serializeParticipant(
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
   const normalizedParticipantEmail = participant.email ? normalizeEmail(participant.email) : null;
   const normalizedCurrentUserEmail = options?.currentUserEmail ? normalizeEmail(options.currentUserEmail) : null;
+  const isCurrentUserParticipant =
+    (!!options?.currentUserId && participant.userId === options.currentUserId) ||
+    (!!normalizedParticipantEmail && normalizedParticipantEmail === normalizedCurrentUserEmail);
   const visibleParticipantName = resolveVisibleParticipantName({
     actualName: `${participant.firstName} ${participant.lastName}`.trim(),
     teamPublicationLevel: options?.teamPublicationLevel,
     participantPublicationPreference: participant.participantPublicationPreference,
-    canSeeFullPublication,
+    canSeeFullPublication: canSeeFullPublication || isCurrentUserParticipant,
   });
   const splitName = splitDisplayName(visibleParticipantName);
   return {
@@ -218,9 +221,7 @@ function serializeParticipant(
     shirtSize: participant.shirtSize ?? "",
     isTeamManager: !!participant.userId && options?.activeTeamManagerUserIds?.has(participant.userId) === true,
     canBeTeamManager: !!participant.userId,
-    isCurrentUserParticipant:
-      (!!options?.currentUserId && participant.userId === options.currentUserId) ||
-      (!!normalizedParticipantEmail && normalizedParticipantEmail === normalizedCurrentUserEmail),
+    isCurrentUserParticipant,
     latestChange: latestChange
       ? {
           id: latestChange.id,

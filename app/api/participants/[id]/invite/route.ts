@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { normalizeEmail } from "@/lib/current-user";
+import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { createParticipantClaimInvitation } from "@/lib/participant-claim-invitation";
 import { serializeSnapshot, toParticipantSnapshot } from "@/lib/participant-change";
 import { prisma } from "@/lib/prisma";
@@ -68,9 +68,7 @@ export async function POST(
     return NextResponse.json({ error: "Teilnehmer nicht gefunden" }, { status: 404 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  });
+  const { user } = await resolveCurrentUser(session, { createIfMissing: true });
 
   if (!user) {
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });

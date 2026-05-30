@@ -27,7 +27,7 @@ import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
-import { normalizeEmail } from "@/lib/current-user";
+import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { resolveTeamAccess } from "@/lib/team-manager-access";
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
@@ -83,9 +83,7 @@ export async function GET(
     return NextResponse.json({ error: "Teilnehmer nicht gefunden" }, { status: 404 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  });
+  const { user } = await resolveCurrentUser(session, { createIfMissing: true });
 
   const access = user
     ? await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId)
@@ -193,9 +191,7 @@ export async function PUT(
     return NextResponse.json({ error: "Teilnehmer nicht gefunden" }, { status: 404 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  });
+  const { user } = await resolveCurrentUser(session, { createIfMissing: true });
 
   if (!user) {
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
