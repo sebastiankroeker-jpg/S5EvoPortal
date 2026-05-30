@@ -859,51 +859,23 @@ export default function AdminPage() {
                         </span>
                       </div>
                     </FormField>
-                    <FormField label="Teilnehmer dürfen alle Teams sehen">
+                    <FormField label="Teilnehmer:innen sehen Konkurrenz">
                       <div className="flex items-center gap-3 pt-2">
-                        <button
-                          onClick={() =>
-                            setCompetition({
-                              ...competition,
-                              participantsCanViewAllTeams: !competition.participantsCanViewAllTeams,
-                            })
-                          }
-                          className={`relative h-6 w-12 rounded-full transition-colors ${
-                            competition.participantsCanViewAllTeams ? "bg-primary" : "bg-muted"
-                          }`}
-                        >
-                          <span
-                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                              competition.participantsCanViewAllTeams ? "translate-x-6" : ""
-                            }`}
-                          />
-                        </button>
+                        <div className="relative h-6 w-12 rounded-full bg-primary">
+                          <span className="absolute left-0.5 top-0.5 h-5 w-5 translate-x-6 rounded-full bg-white" />
+                        </div>
                         <span className="text-sm text-muted-foreground">
-                          {competition.participantsCanViewAllTeams ? "Alle Teams sichtbar" : "Nur eigenes Team"}
+                          Privacy-gefiltert sichtbar
                         </span>
                       </div>
                     </FormField>
-                    <FormField label="Zuschauer dürfen alle Teams sehen">
+                    <FormField label="Zuschauer:innen sehen Konkurrenz">
                       <div className="flex items-center gap-3 pt-2">
-                        <button
-                          onClick={() =>
-                            setCompetition({
-                              ...competition,
-                              spectatorsCanViewAllTeams: !competition.spectatorsCanViewAllTeams,
-                            })
-                          }
-                          className={`relative h-6 w-12 rounded-full transition-colors ${
-                            competition.spectatorsCanViewAllTeams ? "bg-primary" : "bg-muted"
-                          }`}
-                        >
-                          <span
-                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                              competition.spectatorsCanViewAllTeams ? "translate-x-6" : ""
-                            }`}
-                          />
-                        </button>
+                        <div className="relative h-6 w-12 rounded-full bg-muted">
+                          <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white" />
+                        </div>
                         <span className="text-sm text-muted-foreground">
-                          {competition.spectatorsCanViewAllTeams ? "Alle Teams sichtbar" : "Watchlist only"}
+                          Noch nicht freigegeben
                         </span>
                       </div>
                     </FormField>

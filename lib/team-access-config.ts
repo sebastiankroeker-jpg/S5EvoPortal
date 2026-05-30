@@ -18,10 +18,8 @@ export function normalizeCompetitionTeamAccessConfig(
   return {
     teamOwnerFilterVisibleForTeamchef:
       input?.teamOwnerFilterVisibleForTeamchef ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.teamOwnerFilterVisibleForTeamchef,
-    participantsCanViewAllTeams:
-      input?.participantsCanViewAllTeams ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.participantsCanViewAllTeams,
-    spectatorsCanViewAllTeams:
-      input?.spectatorsCanViewAllTeams ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.spectatorsCanViewAllTeams,
+    participantsCanViewAllTeams: true,
+    spectatorsCanViewAllTeams: false,
   };
 }
 
@@ -36,9 +34,9 @@ export function canRoleViewAllTeams(
     case "MODERATOR":
       return true;
     case "TEILNEHMER":
-      return normalized.participantsCanViewAllTeams;
+      return true;
     case "ZUSCHAUER":
-      return normalized.spectatorsCanViewAllTeams;
+      return false;
     default:
       return false;
   }

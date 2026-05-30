@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 import { isClaimNavigationPath } from "@/lib/navigation-menu";
+import { useCompetition } from "@/lib/competition-context";
+import { canRoleViewAllTeams } from "@/lib/team-access-config";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
@@ -68,6 +70,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
+  const { active: activeCompetition } = useCompetition();
   const { theme, setTheme } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -88,8 +91,9 @@ export default function Sidebar() {
   const isClaimPath = isClaimNavigationPath(pathname);
   const showOrgaSection = !isClaimPath && (can("team.view.all") || can("results.edit"));
   const showTechSection = !isClaimPath;
-  const teamLabel = isClaimPath || activeRole === "TEILNEHMER" ? "Mein Team" : "Mannschaften";
-  const teamIcon = isClaimPath || activeRole === "TEILNEHMER" ? "🏃" : "📋";
+  const participantCanBrowseTeams = canRoleViewAllTeams(activeRole, activeCompetition);
+  const teamLabel = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "Mein Team" : "Mannschaften";
+  const teamIcon = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "🏃" : "📋";
 
   useEffect(() => {
     if (pathname !== "/") return;

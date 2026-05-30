@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePermissions } from "@/lib/permissions-context";
 import { cn } from "@/lib/utils";
+import { useCompetition } from "@/lib/competition-context";
+import { canRoleViewAllTeams } from "@/lib/team-access-config";
 
 interface Tab {
   id: string;
@@ -36,18 +38,18 @@ const TABS: Tab[] = [
 ];
 
 // Dynamic label for Team tab based on role
-function getTeamLabel(activeRole: string): string {
+function getTeamLabel(activeRole: string, canBrowseTeams: boolean): string {
   switch (activeRole) {
     case "ZUSCHAUER": return "Watch";
-    case "TEILNEHMER": return "Mein Team";
+    case "TEILNEHMER": return canBrowseTeams ? "Mannschaften" : "Mein Team";
     default: return "Mannschaften"; // TEAMCHEF, MODERATOR, ADMIN
   }
 }
 
-function getTeamIcon(activeRole: string): string {
+function getTeamIcon(activeRole: string, canBrowseTeams: boolean): string {
   switch (activeRole) {
     case "ZUSCHAUER": return "👀";
-    case "TEILNEHMER": return "🏃";
+    case "TEILNEHMER": return canBrowseTeams ? "📋" : "🏃";
     default: return "📋";
   }
 }
@@ -61,14 +63,16 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
   const router = useRouter();
   const { status } = useSession();
   const { can, activeRole } = usePermissions();
+  const { active: activeCompetition } = useCompetition();
   const authenticated = status === "authenticated";
+  const canBrowseTeams = canRoleViewAllTeams(activeRole, activeCompetition);
 
   const ctx = { authenticated, can, activeRole };
 
   const visibleTabs = TABS.filter(tab => tab.show(ctx)).map(tab => {
     // Dynamic Team tab
     if (tab.id === "registration") {
-      return { ...tab, label: getTeamLabel(activeRole), icon: getTeamIcon(activeRole) };
+      return { ...tab, label: getTeamLabel(activeRole, canBrowseTeams), icon: getTeamIcon(activeRole, canBrowseTeams) };
     }
     return tab;
   });
