@@ -33,6 +33,8 @@ export function canRoleViewAllTeams(
     case "ADMIN":
     case "MODERATOR":
       return true;
+    case "TEAMCHEF":
+      return normalized.participantsCanViewAllTeams;
     case "TEILNEHMER":
       return true;
     case "ZUSCHAUER":
