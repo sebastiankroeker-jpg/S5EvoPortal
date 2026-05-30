@@ -38,6 +38,8 @@ interface Participant {
   shirtSize?: string | null;
   moderationNote?: string | null;
   email?: string | null;
+  teamName?: string;
+  teamCategory?: string;
   emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   pendingChanges?: { id: string; status: string; updatedAt?: string | null; reviewedAt?: string | null; reviewComment?: string | null }[];
@@ -68,6 +70,8 @@ interface ParticipantEditDialogProps {
   directEdit: boolean; // true = Admin/Team Manager, false = Teilnehmer (Approval)
   isAdminEdit?: boolean;
   showModerationNote?: boolean;
+  moderatorNoteOnly?: boolean;
+  showAdminOnlyParticipantFields?: boolean;
 }
 
 function normalizeGenderValue(value?: string | null) {
@@ -206,6 +210,8 @@ export default function ParticipantEditDialog({
   directEdit,
   isAdminEdit = false,
   showModerationNote = false,
+  moderatorNoteOnly = false,
+  showAdminOnlyParticipantFields = true,
 }: ParticipantEditDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -324,17 +330,19 @@ export default function ParticipantEditDialog({
     isValidEmail(email) &&
     emailInvitation?.status !== "linked";
   const approvalRelevantChanges = participant
-    ? normalizeComparableText(firstName) !== normalizeComparableText(participant.firstName) ||
+    ? !moderatorNoteOnly && (
+      normalizeComparableText(firstName) !== normalizeComparableText(participant.firstName) ||
       normalizeComparableText(lastName) !== normalizeComparableText(participant.lastName) ||
       extractBirthYearFromInput(birthDate) !== extractBirthYearFromInput(participant.birthDate || birthYearToBirthDateInput(participant.birthYear)) ||
       gender !== normalizeGenderValue(participant.gender) ||
       disciplineCode !== normalizeDisciplineValue(participant.disciplineCode || participant.discipline)
+    )
     : false;
   const directChanges = participant
-    ? emailDiffersFromSaved ||
-      (shirtSize || "") !== (participant.shirtSize || "") ||
+    ? (!moderatorNoteOnly && showAdminOnlyParticipantFields && emailDiffersFromSaved) ||
+      (!moderatorNoteOnly && showAdminOnlyParticipantFields && (shirtSize || "") !== (participant.shirtSize || "")) ||
       normalizeComparableText(moderationNote) !== normalizeComparableText(participant.moderationNote) ||
-      participantPublicationPreference !== (participant.participantPublicationPreference || "NAME_VERBERGEN")
+      (!moderatorNoteOnly && participantPublicationPreference !== (participant.participantPublicationPreference || "NAME_VERBERGEN"))
     : false;
   const participantSaveLabel = getParticipantSaveButtonLabel({
     isSaving: saving,
@@ -391,17 +399,20 @@ export default function ParticipantEditDialog({
       const res = await fetch(`/api/participants/${participant.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          birthYear: extractedBirthYear,
-          gender,
-          disciplineCode,
-          shirtSize: shirtSize || null,
-          moderationNote: moderationNote || null,
-          email: email || null,
-          participantPublicationPreference,
-        }),
+        body: JSON.stringify(
+          moderatorNoteOnly
+            ? { moderationNote: moderationNote || null }
+            : {
+                firstName,
+                lastName,
+                birthYear: extractedBirthYear,
+                gender,
+                disciplineCode,
+                ...(showAdminOnlyParticipantFields ? { shirtSize: shirtSize || null, email: email || null } : {}),
+                moderationNote: moderationNote || null,
+                participantPublicationPreference,
+              },
+        ),
       });
 
       if (!res.ok) {
@@ -459,7 +470,7 @@ export default function ParticipantEditDialog({
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-md">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center gap-2">
-            ✏️ Teilnehmer bearbeiten
+            {moderatorNoteOnly ? "📝 Moderationshinweis" : "✏️ Teilnehmer bearbeiten"}
             {!directEdit && (
               <Badge variant="outline" className="text-xs">
                 Änderung wird geprüft
@@ -467,7 +478,9 @@ export default function ParticipantEditDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            {directEdit
+            {moderatorNoteOnly
+              ? "Moderator:innen bearbeiten hier nur den internen Hinweis für Listen und Ausdrucke."
+              : directEdit
               ? "Änderungen werden direkt gespeichert."
               : "Mit Prüfung markierte Felder werden genehmigt. Direkt markierte Felder wie E-Mail, T-Shirt, Moderationshinweis und Namensveröffentlichung werden direkt gespeichert."}
           </DialogDescription>
@@ -510,6 +523,17 @@ export default function ParticipantEditDialog({
           ) : null}
 
           <div className="space-y-3">
+            {moderatorNoteOnly && participant ? (
+              <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+                <div className="font-medium">{participant.lastName}, {participant.firstName}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {participant.teamName} · Jg. {participant.birthYear} · {participant.disciplineCode || "TBD"}
+                </div>
+              </div>
+            ) : null}
+
+            {!moderatorNoteOnly && (
+              <>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -623,6 +647,8 @@ export default function ParticipantEditDialog({
                 <p className="mt-1 text-xs text-muted-foreground">Bestellfrist abgeschlossen, nur Admin kann noch ändern.</p>
               )}
             </div>
+              </>
+            )}
 
             <div>
               {showModerationNote && (
@@ -643,6 +669,7 @@ export default function ParticipantEditDialog({
               )}
             </div>
 
+            {!moderatorNoteOnly && showAdminOnlyParticipantFields && (
             <div className="space-y-2 rounded-md border border-border/60 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -678,6 +705,7 @@ export default function ParticipantEditDialog({
                 ) : null}
               </div>
             </div>
+            )}
           </div>
 
         </div>

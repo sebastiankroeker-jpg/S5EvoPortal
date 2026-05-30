@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCompetition } from "@/lib/competition-context";
+import { usePermissions } from "@/lib/permissions-context";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface ParticipantEntry {
@@ -49,7 +50,9 @@ export default function ParticipantList() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [disciplineFilter, setDisciplineFilter] = useState("all");
   const { active: activeCompetition } = useCompetition();
+  const { activeRole } = usePermissions();
   const [editingParticipant, setEditingParticipant] = useState<ParticipantEntry | null>(null);
+  const canSeeAdminOnlyFields = activeRole === "ADMIN";
 
   const fetchParticipants = async () => {
     try {
@@ -82,14 +85,14 @@ export default function ParticipantList() {
         !search ||
         `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
         p.teamName.toLowerCase().includes(search.toLowerCase()) ||
-        p.email?.toLowerCase().includes(search.toLowerCase());
+        (canSeeAdminOnlyFields && p.email?.toLowerCase().includes(search.toLowerCase()));
 
       const matchesCategory = categoryFilter === "all" || p.teamCategory === categoryFilter;
       const matchesDiscipline = disciplineFilter === "all" || p.disciplineCode === disciplineFilter;
 
       return matchesSearch && matchesCategory && matchesDiscipline;
     });
-  }, [participants, search, categoryFilter, disciplineFilter]);
+  }, [participants, search, categoryFilter, disciplineFilter, canSeeAdminOnlyFields]);
 
   if (loading) {
     return (
@@ -100,20 +103,25 @@ export default function ParticipantList() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 participant-list">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">
           🏃 Teilnehmerübersicht ({filtered.length}/{participants.length})
         </h3>
-        <Button size="sm" variant="ghost" onClick={fetchParticipants}>
-          🔄
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="outline" onClick={() => window.print()}>
+            🖨️ Drucken
+          </Button>
+          <Button size="sm" variant="ghost" onClick={fetchParticipants}>
+            🔄
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <Input
-          placeholder="Suche Name, Team, E-Mail..."
+          placeholder={canSeeAdminOnlyFields ? "Suche Name, Team, E-Mail..." : "Suche Name oder Team..."}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1"
@@ -164,7 +172,7 @@ export default function ParticipantList() {
                   exit={{ opacity: 0 }}
                   layout
                 >
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-border/30 hover:bg-accent/50 transition-colors">
+                  <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg border border-border/30 hover:bg-accent/50 transition-colors">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <span className="text-lg shrink-0">{disc.icon}</span>
                       <div className="min-w-0">
@@ -185,13 +193,18 @@ export default function ParticipantList() {
                           <span>{p.teamCategory}</span>
                           <span>·</span>
                           <span>Jg. {p.birthYear}</span>
-                          {p.shirtSize && (
+                          {canSeeAdminOnlyFields && p.shirtSize && (
                             <>
                               <span>·</span>
                               <span>👕 {p.shirtSize}</span>
                             </>
                           )}
                         </div>
+                        {p.moderationNote?.trim() && (
+                          <p className="mt-1 line-clamp-2 text-xs text-foreground/80">
+                            Hinweis: {p.moderationNote.trim()}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -220,6 +233,42 @@ export default function ParticipantList() {
         </div>
       )}
 
+      <div className="print-only participant-print-sheet">
+        <div className="mb-4">
+          <h1>Moderationsliste</h1>
+          <p>
+            {activeCompetition?.name || "Wettkampf"} · {filtered.length} von {participants.length} Teilnehmer:innen
+          </p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Disziplin</th>
+              <th>Name</th>
+              <th>Team</th>
+              <th>Klasse</th>
+              <th>Jg.</th>
+              <th>Hinweis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((p) => {
+              const disc = DISCIPLINE_LABELS[p.disciplineCode] || DISCIPLINE_LABELS.TBD;
+              return (
+                <tr key={p.id}>
+                  <td>{disc.label}</td>
+                  <td>{p.lastName}, {p.firstName}</td>
+                  <td>{p.teamName}</td>
+                  <td>{p.teamCategory}</td>
+                  <td>{p.birthYear}</td>
+                  <td>{p.moderationNote?.trim() || ""}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
       {/* Edit Dialog */}
       <ParticipantEditDialog
         participant={editingParticipant}
@@ -227,8 +276,10 @@ export default function ParticipantList() {
         onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
         onSaved={() => { setEditingParticipant(null); fetchParticipants(); }}
         directEdit={true}
-        isAdminEdit={true}
+        isAdminEdit={canSeeAdminOnlyFields}
         showModerationNote
+        moderatorNoteOnly={!canSeeAdminOnlyFields}
+        showAdminOnlyParticipantFields={canSeeAdminOnlyFields}
       />
     </div>
   );

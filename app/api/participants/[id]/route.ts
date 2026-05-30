@@ -95,31 +95,52 @@ export async function GET(
     userEmail: session.user.email,
     canEditAllTeams: access?.canEditAllTeams,
   });
+  const ownTeamAccess = resolveTeamAccess({
+    team: participant.team,
+    user,
+    userEmail: session.user.email,
+    canEditAllTeams: false,
+  });
   const isSelf = participant.userId
     ? participant.userId === user?.id
     : normalizeEmail(participant.email) === normalizedSessionEmail;
+  const isModeratorGlobalView =
+    access?.isModerator === true &&
+    access.isAdmin !== true &&
+    !ownTeamAccess.canEditTeam &&
+    !isSelf;
 
   if (!teamAccess.canEditTeam && !isSelf) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
   const { phone: _ignoredPhone, ...participantWithoutPhone } = participant;
+  const visibleParticipant = isModeratorGlobalView
+    ? {
+        ...participantWithoutPhone,
+        email: null,
+        shirtSize: null,
+        claimTokens: [],
+      }
+    : participantWithoutPhone;
 
   return NextResponse.json({
-    ...participantWithoutPhone,
+    ...visibleParticipant,
     birthDate: birthYearToBirthDateInput(participant.birthYear),
-    emailInvitation: {
-      status: getParticipantEmailInvitationStatus({
-        email: participant.email,
-        participantUserId: participant.userId,
-        token: participant.claimTokens[0] ?? null,
-      }),
-      tokenStatus: getParticipantClaimTokenStatus(participant.claimTokens[0] ?? null),
-      sentAt: participant.claimTokens[0]?.createdAt?.toISOString?.() ?? null,
-      expiresAt: participant.claimTokens[0]?.expiresAt?.toISOString?.() ?? null,
-      claimedAt: participant.claimTokens[0]?.claimedAt?.toISOString?.() ?? null,
-      revokedAt: participant.claimTokens[0]?.revokedAt?.toISOString?.() ?? null,
-    },
+    emailInvitation: isModeratorGlobalView
+      ? null
+      : {
+          status: getParticipantEmailInvitationStatus({
+            email: participant.email,
+            participantUserId: participant.userId,
+            token: participant.claimTokens[0] ?? null,
+          }),
+          tokenStatus: getParticipantClaimTokenStatus(participant.claimTokens[0] ?? null),
+          sentAt: participant.claimTokens[0]?.createdAt?.toISOString?.() ?? null,
+          expiresAt: participant.claimTokens[0]?.expiresAt?.toISOString?.() ?? null,
+          claimedAt: participant.claimTokens[0]?.claimedAt?.toISOString?.() ?? null,
+          revokedAt: participant.claimTokens[0]?.revokedAt?.toISOString?.() ?? null,
+        },
   });
 }
 
@@ -198,7 +219,7 @@ export async function PUT(
   }
 
   const access = await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId);
-  const isAdmin = access.isAdmin || access.isModerator;
+  const isAdmin = access.isAdmin;
   const normalizedSessionEmail = normalizeEmail(session.user.email);
   const teamAccess = resolveTeamAccess({
     team: participant.team,
@@ -206,9 +227,20 @@ export async function PUT(
     userEmail: session.user.email,
     canEditAllTeams: access.canEditAllTeams,
   });
+  const ownTeamAccess = resolveTeamAccess({
+    team: participant.team,
+    user,
+    userEmail: session.user.email,
+    canEditAllTeams: false,
+  });
   const isSelf = participant.userId
     ? participant.userId === user.id
     : normalizeEmail(participant.email) === normalizedSessionEmail;
+  const isModeratorGlobalEdit =
+    access.isModerator &&
+    !access.isAdmin &&
+    !ownTeamAccess.canEditTeam &&
+    !isSelf;
   const shirtOrderClosed = isShirtOrderClosed(participant.team.competition?.shirtOrderDeadline);
 
   if (!teamAccess.canEditTeam && !isSelf) {
@@ -251,6 +283,49 @@ export async function PUT(
     return NextResponse.json({
       applied: false,
       message: "Keine Änderungen erkannt",
+    });
+  }
+
+  if (isModeratorGlobalEdit) {
+    const disallowedFields = Object.keys(changedFields).filter((field) => field !== "moderationNote");
+    if (disallowedFields.length > 0) {
+      return NextResponse.json(
+        { error: "Moderator:innen dürfen hier nur den Moderationshinweis bearbeiten." },
+        { status: 403 },
+      );
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedParticipant = await tx.participant.update({
+        where: { id },
+        data: {
+          moderationNote: typeof changeData.moderationNote === "string" ? changeData.moderationNote : null,
+        },
+      });
+
+      await tx.participantAuditLog.create({
+        data: {
+          action: "DIRECT_CHANGE",
+          participantId: id,
+          actorId: user.id,
+          beforeData: serializeSnapshot(currentSnapshot),
+          afterData: serializeSnapshot(requestedSnapshot),
+          message: "Moderationshinweis direkt durch Moderator:in aktualisiert",
+        },
+      });
+
+      return updatedParticipant;
+    });
+
+    return NextResponse.json({
+      participant: {
+        ...updated,
+        email: null,
+        shirtSize: null,
+      },
+      applied: true,
+      message: "Moderationshinweis gespeichert",
+      classificationWarnings: [],
     });
   }
 

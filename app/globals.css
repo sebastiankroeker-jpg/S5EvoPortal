@@ -232,3 +232,65 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(128,128,128,0.2) transparent;
 }
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .participant-print-sheet,
+  .participant-print-sheet * {
+    visibility: visible;
+  }
+
+  .participant-print-sheet {
+    display: block !important;
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #111;
+    font-size: 10pt;
+  }
+
+  .participant-print-sheet h1 {
+    margin: 0;
+    font-size: 18pt;
+    font-weight: 700;
+  }
+
+  .participant-print-sheet p {
+    margin: 2mm 0 0;
+    color: #444;
+  }
+
+  .participant-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .participant-print-sheet th,
+  .participant-print-sheet td {
+    border: 1px solid #bbb;
+    padding: 4px 6px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .participant-print-sheet th {
+    background: #eee !important;
+    font-weight: 700;
+  }
+}

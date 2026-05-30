@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get("search")?.toLowerCase() || "";
   const competitionId = searchParams.get("competitionId");
+  const canSeeAdminOnlyFields = auth.isAdmin;
 
   const participants = await prisma.participant.findMany({
     where: {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
         OR: [
           { firstName: { contains: search, mode: "insensitive" as const } },
           { lastName: { contains: search, mode: "insensitive" as const } },
-          { email: { contains: search, mode: "insensitive" as const } },
+          ...(canSeeAdminOnlyFields ? [{ email: { contains: search, mode: "insensitive" as const } }] : []),
           { team: { name: { contains: search, mode: "insensitive" as const } } },
         ],
       } : {}),
@@ -50,14 +51,15 @@ export async function GET(request: NextRequest) {
       birthYear: p.birthYear,
       gender: p.gender,
       disciplineCode: p.disciplineCode,
-      shirtSize: p.shirtSize,
+      shirtSize: canSeeAdminOnlyFields ? p.shirtSize : null,
       moderationNote: p.moderationNote,
-      email: p.email,
+      email: canSeeAdminOnlyFields ? p.email : null,
       teamId: p.team.id,
       teamName: p.team.name,
       teamCategory: p.team.classificationCode || "–",
       hasPendingChange: p.pendingChanges.length > 0,
     })),
     total: participants.length,
+    canSeeAdminOnlyFields,
   });
 }
