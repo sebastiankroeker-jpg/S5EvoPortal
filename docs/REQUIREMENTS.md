@@ -140,6 +140,12 @@
 - Erwachsene: Gesamtalter aller 5 Teilnehmer bestimmt Klasse
 - Reines Frauenteam (alle 5 weiblich) → Damen-Wertung
 - Orga/Admin kann ein **Claim-Link Dashboard** nutzen, um Übernahmelinks intern einzusehen, neue Links für Supportfälle zu erzeugen und aktive Links bei Bedarf zu sperren
+- Orga/Admin kann pro Wettkampf konfigurieren, ob neue **Claim-Links** bis zum **Wettkampfende**, bis zum **Anmeldeschluss** oder für eine **feste Anzahl Tage** gültig sind
+- Orga/Admin kann pro Wettkampf **rollenbezogene Team-Features** konfigurieren, mindestens:
+  - ob Teamchefs im Mannschafts-Dashboard den Filter **„Anleger:in“** sehen
+  - ob **Teilnehmer** andere Mannschaften sehen dürfen
+  - ob **Zuschauer** andere Mannschaften sehen dürfen
+- Orga/Admin kann einen **Competition-Reset** für den aktiven Wettkampf ausführen, um Test- und Probeanmeldungen vor dem offiziellen Start kontrolliert zu entfernen
 - Gemischtes oder reines Männerteam → Herren-Wertung (Jungsters/Herren/Masters nach Gesamtalter)
 - Sobald mindestens ein männlicher Teilnehmer in der Mannschaft ist, startet das Team in der Herren-Wertung
 
@@ -149,11 +155,43 @@
 - **"TBD"** ist nur als kurzfristiger UI-Zwischenzustand während der Bearbeitung zulässig, darf aber **nicht gespeichert** werden
 - Ziel: Teamchef sieht jederzeit, welche Disziplinen bereits besetzt sind
 
+### Sichtbarkeit & Veröffentlichung
+- Fachlich sollen **Zugriffsrechte** und **Veröffentlichungsgrad** getrennt modelliert werden:
+  - **Zugriffsrechte** = welche Rolle welche Bereiche/Teams im Portal sehen oder bearbeiten darf
+  - **Veröffentlichungsgrad** = welche Team-/Teilnehmerdaten öffentlich oder rollenübergreifend angezeigt werden dürfen
+- Teamchef kann pro Team den **Veröffentlichungsgrad** setzen, mindestens mit diesen Stufen:
+  - **TEAM_ANONYM** = Team erscheint anonym
+  - **TEAMNAME_OEFFENTLICH** = Teamname ist sichtbar, Teilnehmernamen bleiben anonym
+  - **ALLES_OEFFENTLICH** = Teamname und freigegebene Teilnehmernamen sind sichtbar
+- Teilnehmer kann **nur für die eigene Person** steuern, ob der eigene Name veröffentlicht werden darf:
+  - **NAME_VERBERGEN**
+  - **NAME_VEROEFFENTLICHEN**
+- Bei Konflikten gilt immer die **restriktivere Regel**:
+  - Wenn das Team anonym ist, bleiben auch freigegebene Teilnehmernamen unsichtbar
+  - Wenn das Team auf `ALLES_OEFFENTLICH` steht, aber ein Teilnehmer `NAME_VERBERGEN` wählt, bleibt genau dieser Teilnehmer anonym
+- E-Mail-Adressen, interne Hinweise und Kontaktdaten sind **nie Bestandteil der öffentlichen Veröffentlichung**
+
 ### Default-Rollen (Neu-Registrierung)
 - Neue User ohne existierende Tenant-Rolle erhalten automatisch **TEAMCHEF + TEILNEHMER**
 - **ADMIN wird nie automatisch** bei einer normalen Neu-Registrierung vergeben
 - Admin-Rechte werden nur bewusst durch bestehende Admins vergeben
 - Damit sehen Neu-Registrierte sofort den Anmelde-Tab (Fix vom 30.03.2026)
+- Eingeladene Personen aus einem Team-Kontext erhalten nach erfolgreichem Claim standardmäßig **nur die Rolle TEILNEHMER**
+- Eine Hochstufung von **TEILNEHMER** auf **TEAMCHEF** darf nur durch **Admin/Orga** erfolgen, nicht durch andere Teamchefs
+
+### Team-Einladung & Claim-Zuordnung
+- In V1 wird pro Teilnehmer **genau eine primäre Kontakt-/Invite-E-Mail-Adresse** gepflegt
+- Eine **Telefonnummer wird in V1 nicht pro Teilnehmer geführt**; sie gehört fachlich an den Team-/Teamchef-Kontakt, nicht an den einzelnen Teilnehmer
+- Beim erstmaligen Hinterlegen oder erneuten Versenden einer Teilnehmer-E-Mail kann das System eine **Einladungsmail mit Claim-Token** senden
+- Ein solcher Claim ist fachlich an den konkreten Teilnehmer-Kontext gebunden und führt standardmäßig in eine **TEILNEHMER**-Berechtigung für genau diese Person
+- Claim-Links müssen **widerrufbar**, **auditierbar** und mit bestehender Claim-Gültigkeitslogik kombinierbar bleiben
+- Falls eine eingeladene E-Mail nicht zur später verwendeten Login-Identität passt, braucht es einen klaren Support-/Admin-Prozess statt stillschweigender Zuordnung
+- Für die fachliche Teilnehmer-Zuordnung gilt: **E-Mail ist ein Kontakt-/Invite-Kanal, aber nicht die eigentliche Identität**
+- Die dauerhafte Zuordnung eines Portal-Accounts zu einem Teilnehmer soll über eine **stabile User-ID-Verknüpfung** erfolgen, nicht über die E-Mail-Adresse allein
+- Empfohlene Modellierung:
+  - Teilnehmer hat optional genau **einen primären Account-Link** für Self-Service
+  - zusätzliche E-Mail-Adressen für Einladung/Benachrichtigung sind **kein V1-Pflichtumfang** und würden bei echtem Bedarf **separat** modelliert
+- Claim-Links für Teilnehmer sollen daher **participant-scoped** sein; bestehende team-scoped Claims bleiben nur für Team-Übernahme
 
 ### Approval-Workflow
 - **Teamchef:** Änderungen an Teilnehmerdaten laufen ebenfalls über die Approval-Queue
@@ -169,12 +207,24 @@
 - Direkte Änderungen durch **Admin/Moderator** werden ohne Freigabe angewendet, aber auditierbar protokolliert
 - Änderungs-Mails an die Orga gehen an **alle** im Wettbewerb hinterlegten \`registrationNotificationEmail\`-Empfänger
 - Rückfragen erhalten in V1 **keinen eigenen Workflow-Status**; es gibt zunächst nur \`PENDING\`, \`APPROVED\`, \`REJECTED\`
+- Wenn Teilnehmer innerhalb eines Teams die **Disziplin tauschen**, bleibt ihre **Teilnehmer-Identität** bestehen:
+  - Moderationshinweis, Audit-Historie, offene Änderungsanträge und Account-Zuordnung hängen am **Teilnehmer**
+  - Es wechselt nur die **Disziplin-Zuordnung**
+- Die Implementierung darf Teilnehmer bei einem Disziplin-Tausch deshalb **nicht implizit über Listenindex oder Slot-Reihenfolge austauschen**
 
 ### Anmelde- & Login-Modi
 - Mannschaftsanmeldung muss **ohne vorherigen Login** möglich bleiben
 - Zusätzlich soll sich ein Teamchef **optional vor der Anmeldung registrieren und über Authentik anmelden** können
 - Beide Einstiege müssen in denselben fachlichen Anmeldeprozess führen
 - Ein späterer Claim-/Zuordnungsflow für bereits anonym angelegte Teams bleibt weiterhin möglich
+
+### Datenreset & Wiederherstellung
+- Vor dem offiziellen Start darf der aktive Wettkampf **ohne Tenant-Löschung** auf einen sauberen Zustand zurückgesetzt werden
+- Der Reset ist **competition-scoped** und betrifft insbesondere Teams, Teilnehmer, Pending Changes, Claim-Tokens, Rankings und Ergebnissätze des gewählten Wettkampfs
+- Tenant-Stammdaten, Branding, Rollen, Benutzerkonten und Competition-Stammdaten bleiben beim Reset erhalten
+- Vor jedem Reset muss ein **vollständiger Snapshot** der betroffenen Wettkampfdaten erstellt werden, damit eine spätere Wiederherstellung möglich bleibt
+- Jeder Reset muss **auditierbar** sein: mindestens mit Ausführendem, Zeitpunkt, Begründung, Umfang und Ergebnis
+- Für normale Einzellöschungen bleiben **Soft Deletes** bestehen; der Competition-Reset ist ein eigener administrativer Vorgang mit Snapshot + Audit
 
 ### Approval-Status
 ```
@@ -332,6 +382,8 @@ User → TenantRoles (pro Wettkampf)
 ---
 
 *Änderungshistorie:*
+- 2026-05-29 v7: Teilnehmer-Einladungsmodell für V1 geschärft: pro Teilnehmer zunächst genau eine primäre Invite-/Kontakt-Mail. Mehrere Empfänger nur bei später nachgewiesenem Bedarf und dann als eigene Struktur, nicht als Feld-Workaround.
+- 2026-05-29 v6: Privacy-/Veröffentlichungsmodell für Teams und Teilnehmer präzisiert, inkl. restriktiver Konfliktregel. Einladungs-/Claim-Flow für Teilnehmer-E-Mails ergänzt; eingeladene Personen starten standardmäßig als TEILNEHMER, Upgrade auf TEAMCHEF nur durch Admin/Orga.
 - 2026-05-17 v5: Approval-Workflow fachlich erweitert: Änderungsanträge sollen auditierbar sein, UI-Status wie „in Prüfung“ / „genehmigt“ tragen und später per Orga-Mail mit Deep-Link ins Freigabe-Dashboard ausgelöst werden. Umsetzung bewusst nach der ersten Testwelle einplanen.
 - 2026-04-22 v4: Neue Anforderungsrichtung aus Vereins-Feedback ergänzt: öffentliche Mannschaftsanmeldung ohne vorgelagerten Authentik-Login, Bestätigungsmails an Anmelder + Verein, T-Shirt-Größe pro Teilnehmer sowie T-Shirt-Bestellschluss in den Wettkampf-Parametern.
 - 2026-04-01 v3: Default-Rollen-Fix dokumentiert (neue User ohne Tenant-Rolle bekommen automatisch TEAMCHEF+TEILNEHMER, Admins zusätzlich ADMIN). Supply-Chain-Security ergänzt (axios-Audit, npm Safety Defaults). Deploy-Pipeline-Referenz aktualisiert. CrewUnited-Gruppenchat als Kommunikationskanal notiert.
