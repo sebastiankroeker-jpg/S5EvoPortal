@@ -160,7 +160,10 @@ export function snapshotToParticipantUpdateData(snapshot: ParticipantSnapshot): 
 
 export function diffParticipantSnapshots(before: ParticipantSnapshot, after: ParticipantSnapshot) {
   return PARTICIPANT_CHANGE_FIELDS.reduce((diff, field) => {
-    if (before[field] !== after[field]) {
+    const normalizedBefore = normalizeParticipantSnapshotValue(field, before[field]);
+    const normalizedAfter = normalizeParticipantSnapshotValue(field, after[field]);
+
+    if (normalizedBefore !== normalizedAfter) {
       diff[field] = {
         before: before[field],
         after: after[field],
@@ -168,6 +171,24 @@ export function diffParticipantSnapshots(before: ParticipantSnapshot, after: Par
     }
     return diff;
   }, {} as Partial<Record<ParticipantChangeField, { before: string | number | null; after: string | number | null }>>);
+}
+
+function normalizeParticipantSnapshotValue(field: ParticipantChangeField, value: string | number | null) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.normalize("NFC").trim();
+
+  if (normalized === "") {
+    return null;
+  }
+
+  if (field === "email") {
+    return normalized.toLowerCase();
+  }
+
+  return normalized;
 }
 
 export function pickDirectParticipantChangeData(

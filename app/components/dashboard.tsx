@@ -176,6 +176,10 @@ function normalizeEmail(value?: string | null) {
   return value?.trim().toLowerCase() ?? "";
 }
 
+function normalizeComparableText(value?: string | null) {
+  return value?.normalize("NFC").trim() ?? "";
+}
+
 function getParticipantCount(team: Team) {
   return team.participants?.length || 0;
 }
@@ -1398,8 +1402,8 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
         if (!original) return true;
 
         return (
-          participant.firstName !== original.firstName ||
-          participant.lastName !== original.lastName ||
+          normalizeComparableText(participant.firstName) !== normalizeComparableText(original.firstName) ||
+          normalizeComparableText(participant.lastName) !== normalizeComparableText(original.lastName) ||
           participant.birthDate !== original.birthDate ||
           participant.gender !== original.gender ||
           (participant.discipline || participant.disciplineCode || "TBD") !== (original.discipline || original.disciplineCode || "TBD")
@@ -1418,7 +1422,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
         return (
           normalizeEmail(participant.email) !== normalizeEmail(original.email) ||
           (participant.shirtSize || "") !== (original.shirtSize || "") ||
-          (participant.moderationNote || "") !== (original.moderationNote || "") ||
+          normalizeComparableText(participant.moderationNote) !== normalizeComparableText(original.moderationNote) ||
           (participant.participantPublicationPreference || "NAME_VERBERGEN") !==
             (original.participantPublicationPreference || "NAME_VERBERGEN")
         );

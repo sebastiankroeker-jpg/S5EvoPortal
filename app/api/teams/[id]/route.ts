@@ -37,6 +37,10 @@ function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | 
   return valid.includes(d as (typeof valid)[number]) ? (d as (typeof valid)[number]) : "TBD";
 }
 
+function normalizeSubmittedText(value?: string | null) {
+  return value?.normalize("NFC").trim() || "";
+}
+
 function toDirectParticipantUpdateInput(changeData: Record<string, unknown>): Prisma.ParticipantUpdateInput {
   const data: Prisma.ParticipantUpdateInput = {};
 
@@ -514,14 +518,14 @@ export async function PUT(
           const requestedBirthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
           const currentSnapshot = toParticipantSnapshot(existingParticipant);
           const requestedSnapshot = toParticipantSnapshot({
-            firstName: submittedParticipant.firstName,
-            lastName: submittedParticipant.lastName,
+            firstName: normalizeSubmittedText(submittedParticipant.firstName),
+            lastName: normalizeSubmittedText(submittedParticipant.lastName),
             birthYear: requestedBirthYear,
             gender: mapGender(submittedParticipant.gender),
             disciplineCode: mapDiscipline(submittedParticipant.discipline),
             shirtSize: submittedParticipant.shirtSize || null,
             moderationNote: submittedParticipant.moderationNote?.trim() || null,
-            email: submittedParticipant.email || null,
+            email: normalizeSubmittedText(submittedParticipant.email) || null,
             participantPublicationPreference: submittedParticipant.participantPublicationPreference || "NAME_VERBERGEN",
           });
 
@@ -573,8 +577,8 @@ export async function PUT(
                 participantId: existingParticipant.id,
                 previousEmail: existingParticipant.email,
                 nextEmail: normalizeEmail(submittedParticipant.email),
-                firstName: submittedParticipant.firstName,
-                lastName: submittedParticipant.lastName,
+                firstName: normalizeSubmittedText(submittedParticipant.firstName),
+                lastName: normalizeSubmittedText(submittedParticipant.lastName),
                 userId: existingParticipant.userId,
               });
             }
@@ -782,8 +786,8 @@ export async function PUT(
           participantId: existingParticipant.id,
           previousEmail: existingParticipant.email,
           nextEmail: normalizeEmail(submittedParticipant.email),
-          firstName: submittedParticipant.firstName,
-          lastName: submittedParticipant.lastName,
+          firstName: normalizeSubmittedText(submittedParticipant.firstName),
+          lastName: normalizeSubmittedText(submittedParticipant.lastName),
           userId: existingParticipant.userId,
         }));
 
@@ -807,15 +811,15 @@ export async function PUT(
           await tx.participant.update({
             where: { id: submittedParticipant.id },
             data: {
-              firstName: submittedParticipant.firstName,
-              lastName: submittedParticipant.lastName,
+              firstName: normalizeSubmittedText(submittedParticipant.firstName),
+              lastName: normalizeSubmittedText(submittedParticipant.lastName),
               birthYear,
               gender: mapGender(submittedParticipant.gender),
               disciplineCode: mapDiscipline(submittedParticipant.discipline),
               shirtSize: submittedParticipant.shirtSize || null,
               moderationNote: submittedParticipant.moderationNote?.trim() || null,
               consentGiven: true,
-              email: submittedParticipant.email || null,
+              email: normalizeSubmittedText(submittedParticipant.email) || null,
               participantPublicationPreference: submittedParticipant.participantPublicationPreference || "NAME_VERBERGEN",
               deletedAt: null,
             },

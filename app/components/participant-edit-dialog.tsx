@@ -79,6 +79,10 @@ function normalizeDisciplineValue(value?: string | null) {
   return value || "TBD";
 }
 
+function normalizeComparableText(value?: string | null) {
+  return value?.normalize("NFC").trim() ?? "";
+}
+
 function getStatusMeta(status?: string | null) {
   if (status === "PENDING") {
     return {
@@ -306,8 +310,8 @@ export default function ParticipantEditDialog({
     isValidEmail(email) &&
     emailInvitation?.status !== "linked";
   const approvalRelevantChanges = participant
-    ? firstName !== participant.firstName ||
-      lastName !== participant.lastName ||
+    ? normalizeComparableText(firstName) !== normalizeComparableText(participant.firstName) ||
+      normalizeComparableText(lastName) !== normalizeComparableText(participant.lastName) ||
       extractBirthYearFromInput(birthDate) !== extractBirthYearFromInput(participant.birthDate || birthYearToBirthDateInput(participant.birthYear)) ||
       gender !== normalizeGenderValue(participant.gender) ||
       disciplineCode !== normalizeDisciplineValue(participant.disciplineCode || participant.discipline)
@@ -315,7 +319,7 @@ export default function ParticipantEditDialog({
   const directChanges = participant
     ? emailDiffersFromSaved ||
       (shirtSize || "") !== (participant.shirtSize || "") ||
-      (moderationNote || "") !== (participant.moderationNote || "") ||
+      normalizeComparableText(moderationNote) !== normalizeComparableText(participant.moderationNote) ||
       participantPublicationPreference !== (participant.participantPublicationPreference || "NAME_VERBERGEN")
     : false;
   const participantSaveLabel = getParticipantSaveButtonLabel({
