@@ -172,11 +172,6 @@ function formatTimePart(value?: string) {
   });
 }
 
-function escapeCsvValue(value: string | number | null | undefined) {
-  const normalized = value == null ? "" : String(value);
-  return '"' + normalized.replace(/"/g, '""') + '"';
-}
-
 function normalizeEmail(value?: string | null) {
   return value?.trim().toLowerCase() ?? "";
 }
@@ -334,58 +329,6 @@ function getStoredVisibleColumns() {
   } catch {
     return null;
   }
-}
-
-function exportTeamsCsv(teams: Team[]) {
-  const headers = [
-    "Team",
-    "Klasse",
-    "Teamchef",
-    "Kontakt E-Mail",
-    "Owner E-Mail",
-    "Angelegt",
-    "Zuletzt geaendert",
-    "Teilnehmeranzahl",
-    "Teilnehmer",
-    "Disziplinen",
-  ];
-
-  const rows = teams.map((team) => {
-    const participantNames = (team.participants ?? [])
-      .map((participant) => (participant.firstName + " " + participant.lastName).trim())
-      .filter(Boolean)
-      .join(" | ");
-    const disciplines = (team.participants ?? [])
-      .map((participant) => participant.discipline || participant.disciplineCode || "TBD")
-      .join(" | ");
-
-    return [
-      team.name,
-      team.category,
-      team.contactName,
-      team.contactEmail,
-      team.ownerEmail || "",
-      team.createdAt ? new Date(team.createdAt).toLocaleString("de-DE") : "",
-      team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "",
-      team.participants?.length || 0,
-      participantNames,
-      disciplines,
-    ];
-  });
-
-  const csv = [headers, ...rows]
-    .map((row) => row.map((value) => escapeCsvValue(value)).join(";"))
-    .join("\n");
-
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "teams-export-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 export default function Dashboard({ ownerFilter: initialOwnerFilter }: DashboardProps = {}) {
@@ -725,6 +668,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         </div>
       )}
 
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={viewMode === "cards" ? "default" : "outline"}
+          onClick={() => setViewMode("cards")}
+        >
+          Kacheln
+        </Button>
+        <Button
+          variant={viewMode === "list" ? "default" : "outline"}
+          onClick={() => setViewMode("list")}
+        >
+          Liste
+        </Button>
+      </div>
+
       <Card size="sm">
         <CardHeader className="border-b">
           <button
@@ -865,33 +823,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       <div className="text-sm text-muted-foreground">
         {filteredTeams.length} von {teams.length} Teams gefunden
         {hasActiveFilters ? " für die aktuellen Filter" : ""}
-      </div>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={viewMode === "cards" ? "default" : "outline"}
-            onClick={() => setViewMode("cards")}
-          >
-            Kacheln
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            onClick={() => setViewMode("list")}
-          >
-            Liste
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={() => exportTeamsCsv(sortedTeams)}
-            disabled={sortedTeams.length === 0}
-          >
-            CSV Export
-          </Button>
-        </div>
       </div>
 
       {viewMode === "list" && (
