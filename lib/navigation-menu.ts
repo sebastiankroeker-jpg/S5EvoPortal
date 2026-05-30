@@ -37,8 +37,8 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
   },
   {
     id: "my-teams",
-    label: "Meine Teams",
-    keywords: ["teams", "dashboard", "meine teams", "übersicht"],
+    label: "Meine Mannschaften",
+    keywords: ["teams", "mannschaften", "dashboard", "meine teams", "meine mannschaften", "übersicht"],
     icon: "📊",
     permission: "team.view.own",
     requiresAuth: true,
@@ -58,8 +58,8 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
   },
   {
     id: "all-teams",
-    label: "Alle Teams",
-    keywords: ["alle teams", "admin teams"],
+    label: "Alle Mannschaften",
+    keywords: ["alle teams", "alle mannschaften", "admin teams", "admin mannschaften"],
     icon: "👥",
     permission: "team.view.all",
     requiresAuth: true,

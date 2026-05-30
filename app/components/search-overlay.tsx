@@ -65,6 +65,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         break;
       case "registration":
         if (status === "authenticated") {
+          window.sessionStorage.setItem("s5evo-team-view", "register");
           switchToTab("registration");
         } else {
           router.push("/anmeldung");

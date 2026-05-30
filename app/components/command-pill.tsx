@@ -132,6 +132,7 @@ export default function CommandPill() {
         break;
       case "registration":
         if (session?.user) {
+          window.sessionStorage.setItem("s5evo-team-view", "register");
           switchToTab("registration");
         } else {
           router.push("/anmeldung");

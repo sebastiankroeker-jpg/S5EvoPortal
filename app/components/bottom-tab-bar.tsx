@@ -40,7 +40,7 @@ function getTeamLabel(activeRole: string): string {
   switch (activeRole) {
     case "ZUSCHAUER": return "Watch";
     case "TEILNEHMER": return "Mein Team";
-    default: return "Teams"; // TEAMCHEF, MODERATOR, ADMIN
+    default: return "Mannschaften"; // TEAMCHEF, MODERATOR, ADMIN
   }
 }
 
@@ -79,6 +79,10 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
       return;
     }
 
+    if (tabId === "registration") {
+      window.sessionStorage.setItem("s5evo-team-view", "mannschaften");
+    }
+
     onTabChange(tabId);
     const event = new CustomEvent('switchTab', { detail: { tabId } });
     window.dispatchEvent(event);
@@ -115,7 +119,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                   {tab.icon}
                 </span>
                 <span className={cn(
-                  "text-[10px] font-medium",
+                  "max-w-full truncate px-0.5 text-[10px] font-medium",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}>
                   {tab.label}

@@ -88,7 +88,7 @@ export default function Sidebar() {
   const isClaimPath = isClaimNavigationPath(pathname);
   const showOrgaSection = !isClaimPath && (can("team.view.all") || can("results.edit"));
   const showTechSection = !isClaimPath;
-  const teamLabel = isClaimPath || activeRole === "TEILNEHMER" ? "Mein Team" : "Teams";
+  const teamLabel = isClaimPath || activeRole === "TEILNEHMER" ? "Mein Team" : "Mannschaften";
   const teamIcon = isClaimPath || activeRole === "TEILNEHMER" ? "🏃" : "📋";
 
   useEffect(() => {
@@ -124,6 +124,9 @@ export default function Sidebar() {
   const switchToTab = (tabId: string) => {
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem("s5evo-active-tab", tabId);
+      if (tabId === "registration") {
+        window.sessionStorage.setItem("s5evo-team-view", "mannschaften");
+      }
     }
     setActiveTab(tabId as MainTab);
 

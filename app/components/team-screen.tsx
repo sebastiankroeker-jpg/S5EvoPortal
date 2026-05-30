@@ -12,13 +12,40 @@ import TeamRegistration from "./team-registration";
 
 type TeamView = "mannschaften" | "register" | "watchlist";
 
+const TEAM_VIEW_STORAGE_KEY = "s5evo-team-view";
+
+function isTeamView(value: string | null): value is TeamView {
+  return value === "mannschaften" || value === "register" || value === "watchlist";
+}
+
 export default function TeamScreen() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
   const { active: activeCompetition } = useCompetition();
-  const [view, setView] = useState<TeamView>("register");
+  const [view, setView] = useState<TeamView>(() => {
+    if (typeof window === "undefined") return "mannschaften";
+    const storedView = window.sessionStorage.getItem(TEAM_VIEW_STORAGE_KEY);
+    return isTeamView(storedView) ? storedView : "mannschaften";
+  });
   const [hasOwnTeams, setHasOwnTeams] = useState<boolean | null>(null);
   const canBrowseAllTeams = can("team.view.all") || canRoleViewAllTeams(activeRole, activeCompetition);
+
+  const selectView = (nextView: TeamView) => {
+    setView(nextView);
+    window.sessionStorage.setItem(TEAM_VIEW_STORAGE_KEY, nextView);
+  };
+
+  useEffect(() => {
+    const handleSwitchTab = (event: Event) => {
+      const detail = (event as CustomEvent<{ tabId?: string; teamView?: string }>).detail;
+      if (detail?.tabId !== "registration") return;
+      const requestedView = detail.teamView ?? null;
+      selectView(isTeamView(requestedView) ? requestedView : "mannschaften");
+    };
+
+    window.addEventListener("switchTab", handleSwitchTab as EventListener);
+    return () => window.removeEventListener("switchTab", handleSwitchTab as EventListener);
+  }, []);
 
   // Check if user has teams → default to Mannschaften tab with owner filter
   useEffect(() => {
@@ -30,7 +57,6 @@ export default function TeamScreen() {
           const data = await res.json();
           const owns = (data.teams || []).length > 0;
           setHasOwnTeams(owns);
-          if (owns) setView("mannschaften");
         }
       } catch {}
     })();
@@ -49,7 +75,7 @@ export default function TeamScreen() {
             Hier kannst du bald deine Lieblingsmannschaften verfolgen.
           </p>
           {can("team.create") && (
-            <Button onClick={() => setView("register")} className="mt-4">
+            <Button onClick={() => selectView("register")} className="mt-4">
               📋 Mannschaft anmelden
             </Button>
           )}
@@ -62,18 +88,8 @@ export default function TeamScreen() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
       {/* Sub-Navigation */}
       <div className="flex items-center gap-1 bg-muted/30 rounded-md p-0.5 w-fit">
-        {can("team.create") && (
-          <button
-            onClick={() => setView("register")}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              view === "register" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            📋 Anmelden
-          </button>
-        )}
         <button
-          onClick={() => setView("mannschaften")}
+          onClick={() => selectView("mannschaften")}
           className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
             view === "mannschaften" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
@@ -81,7 +97,7 @@ export default function TeamScreen() {
           📊 Mannschaften
         </button>
         <button
-          onClick={() => setView("watchlist")}
+          onClick={() => selectView("watchlist")}
           className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
             view === "watchlist" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}

@@ -74,7 +74,7 @@ const FLYER_INFO_2026 = {
   ],
 };
 
-function FlyerInfoCard() {
+function FlyerInfoCard({ onRegisterClick }: { onRegisterClick?: () => void }) {
   return (
     <Card>
       <CardHeader>
@@ -105,6 +105,16 @@ function FlyerInfoCard() {
             {FLYER_INFO_2026.registrationNotes.map((note) => (
               <p key={note}>• {note}</p>
             ))}
+            {onRegisterClick && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onRegisterClick}
+                className="mt-3 w-full justify-center"
+              >
+                📋 Mannschaft anmelden
+              </Button>
+            )}
           </div>
         </div>
 
@@ -245,6 +255,9 @@ export default function HomeScreen() {
   }, [activeCompetition?.id, canViewAllTeams, competitionLoading, status]);
 
   const handleQuickAction = (tabId: string, additionalData?: any) => {
+    if (tabId === "registration") {
+      window.sessionStorage.setItem("s5evo-team-view", "register");
+    }
     const event = new CustomEvent('switchTab', { detail: { tabId, ...additionalData } });
     window.dispatchEvent(event);
   };
@@ -316,7 +329,7 @@ export default function HomeScreen() {
         </Card>
 
         <div className="max-w-3xl mx-auto">
-          <FlyerInfoCard />
+          <FlyerInfoCard onRegisterClick={() => { window.location.href = "/anmeldung"; }} />
         </div>
       </motion.div>
     );
@@ -368,7 +381,7 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      <FlyerInfoCard />
+      <FlyerInfoCard onRegisterClick={() => handleQuickAction("registration")} />
 
       {/* Stats Overview */}
       {teamStats && (
