@@ -189,9 +189,57 @@ function collectValidationMessages(source: unknown, messages: Set<string>) {
     messages.add(source.message);
   }
 
-  for (const entry of Object.values(source)) {
+  for (const [key, entry] of Object.entries(source)) {
+    if (key === "ref") continue;
     collectValidationMessages(entry, messages);
   }
+}
+
+function getDisciplineLabel(participant: { discipline?: string } | undefined, index: number) {
+  const discipline = DISCIPLINES.find((entry) => entry.id === participant?.discipline);
+  return discipline ? `${discipline.icon} ${discipline.label}` : `Teilnehmer:in ${index + 1}`;
+}
+
+function collectParticipantValidationMessages(
+  source: unknown,
+  participants: Array<{ discipline?: string }>,
+) {
+  if (!Array.isArray(source)) {
+    const fallback = new Set<string>();
+    collectValidationMessages(source, fallback);
+    return Array.from(fallback);
+  }
+
+  const messages: string[] = [];
+
+  source.forEach((entry, index) => {
+    if (!entry) return;
+
+    const fieldMessages = new Set<string>();
+    collectValidationMessages(entry, fieldMessages);
+
+    for (const message of fieldMessages) {
+      messages.push(`${getDisciplineLabel(participants[index], index)}: ${message}`);
+    }
+  });
+
+  return Array.from(new Set(messages));
+}
+
+function buildBirthDateWarnings(participants: Array<{ birthDate?: string; discipline?: string }>) {
+  return participants.flatMap((participant, index) => {
+    const value = participant.birthDate?.trim() ?? "";
+
+    if (!value) {
+      return [`${getDisciplineLabel(participant, index)}: Geburtsdatum fehlt`];
+    }
+
+    if (extractBirthYearFromInput(value) === null) {
+      return [`${getDisciplineLabel(participant, index)}: Geburtsdatum unplausibel oder Jahrgang nicht erlaubt`];
+    }
+
+    return [];
+  });
 }
 
 export default function TeamRegistration({ allowAnonymous = false }: TeamRegistrationProps) {
@@ -247,17 +295,16 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     const discs = (watchedParticipants || []).map((p: any) => p.discipline || "TBD");
     return validateDisciplineAssignment(discs);
   }, [watchedValues]);
+  const participants = watch("participants");
   const participantFieldErrors = useMemo(() => {
-    const messages = new Set<string>();
-    collectValidationMessages(formState.errors.participants, messages);
-    return Array.from(messages);
-  }, [formState.errors.participants]);
+    return collectParticipantValidationMessages(formState.errors.participants, participants || []);
+  }, [formState.errors.participants, participants]);
+  const birthDateWarnings = useMemo(() => buildBirthDateWarnings(participants || []), [participants]);
   const stepTwoWarnings = useMemo(
-    () => Array.from(new Set([...liveClassification.warnings, ...disciplineCheck.warnings])),
-    [disciplineCheck.warnings, liveClassification.warnings],
+    () => Array.from(new Set([...liveClassification.warnings, ...birthDateWarnings, ...disciplineCheck.warnings])),
+    [birthDateWarnings, disciplineCheck.warnings, liveClassification.warnings],
   );
 
-  const participants = watch("participants");
   const teamName = watch("teamName");
   const contactFirstName = watch("contactFirstName");
   const contactLastName = watch("contactLastName");
@@ -815,9 +862,9 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                         ))}
                       </div>
                     )}
-                    {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
+                    {stepTwoWarnings.length > 0 && (
                       <div className="mt-1 space-y-1">
-                        {[...liveClassification.warnings, ...disciplineCheck.warnings].map((w, i) => (
+                        {stepTwoWarnings.map((w, i) => (
                           <p key={i} className="text-xs text-amber-600 dark:text-amber-400">⚠️ {w}</p>
                         ))}
                       </div>
