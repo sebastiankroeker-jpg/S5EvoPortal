@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +44,33 @@ export default function ParticipantClaimPage() {
   const [error, setError] = useState("");
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
+  const claimAttempted = useRef(false);
+
+  const callbackUrl = `/participant-claim/${token}`;
+  const loginUrl = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+  const registerUrl = `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+
+  const activateClaim = useCallback(async () => {
+    if (!token || claimAttempted.current) return;
+    claimAttempted.current = true;
+    setClaiming(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/participant-claim/${token}`, { method: "POST" });
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload.error || "Claim fehlgeschlagen");
+      }
+      setClaimed(true);
+      router.replace("/#dashboard");
+    } catch (err) {
+      claimAttempted.current = false;
+      setError(err instanceof Error ? err.message : "Claim fehlgeschlagen");
+    } finally {
+      setClaiming(false);
+    }
+  }, [router, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -64,25 +91,23 @@ export default function ParticipantClaimPage() {
     })();
   }, [token]);
 
-  const handleClaim = async () => {
-    if (!token) return;
-    setClaiming(true);
-    setError("");
+  useEffect(() => {
+    if (!data || !token) return;
 
-    try {
-      const res = await fetch(`/api/participant-claim/${token}`, { method: "POST" });
-      const payload = await res.json();
-      if (!res.ok) {
-        throw new Error(payload.error || "Claim fehlgeschlagen");
-      }
-      setClaimed(true);
-      router.replace("/profile");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Claim fehlgeschlagen");
-    } finally {
-      setClaiming(false);
+    if (!data.session.authenticated) {
+      router.replace(loginUrl);
+      return;
     }
-  };
+
+    if (data.state.alreadyClaimedBySessionUser) {
+      router.replace("/#dashboard");
+      return;
+    }
+
+    if (data.state.emailMatches && data.settings.claimLinksEnabled && !data.state.alreadyClaimedByOtherUser) {
+      void activateClaim();
+    }
+  }, [activateClaim, data, loginUrl, router, token]);
 
   if (loading) {
     return (
@@ -92,9 +117,6 @@ export default function ParticipantClaimPage() {
     );
   }
 
-  const callbackUrl = `/participant-claim/${token}`;
-  const loginUrl = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
-  const registerUrl = `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`;
   const sessionEmail = data?.session.email || "deinem Konto";
   const claimEmail = data?.claim.maskedSuggestedEmail || "der vorgesehenen E-Mail";
 
@@ -172,13 +194,13 @@ export default function ParticipantClaimPage() {
               {(data.state.emailMatches || data.state.alreadyClaimedBySessionUser) && !claimed && data.settings.claimLinksEnabled && (
                 <div className="space-y-3">
                   <p>
-                    Angemeldet als <strong>{sessionEmail}</strong>. Wenn du bestätigst, wird dieser Teilnehmer mit deinem Portal-Konto verknüpft.
+                    Angemeldet als <strong>{sessionEmail}</strong>. Dein Teilnehmer-Zugang wird automatisch aktiviert.
                   </p>
                   <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    Danach findest du die Zuordnung in deinem Profil und kannst deine eigenen Teilnehmerdaten bearbeiten.
+                    Danach landest du direkt bei deinen Teams und kannst deine eigenen Teilnehmerdaten bearbeiten.
                   </div>
-                  <Button onClick={handleClaim} disabled={claiming} className="w-full">
-                    {claiming ? "Verknüpfe..." : data.state.alreadyClaimedBySessionUser ? "Zum Profil" : "Teilnehmer-Zugang aktivieren"}
+                  <Button onClick={activateClaim} disabled={claiming} className="w-full">
+                    {claiming ? "Aktiviere..." : data.state.alreadyClaimedBySessionUser ? "Zu meinen Teams" : "Jetzt aktivieren"}
                   </Button>
                 </div>
               )}
@@ -188,7 +210,7 @@ export default function ParticipantClaimPage() {
                   <div className="rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3">
                     Der Teilnehmer ist mit deinem Account verknüpft. Du kannst jetzt im Portal deine eigenen Daten pflegen.
                   </div>
-                  <Button className="w-full" onClick={() => router.push("/profile")}>Zum Profil</Button>
+                  <Button className="w-full" onClick={() => router.push("/#dashboard")}>Zu meinen Teams</Button>
                 </div>
               )}
             </div>

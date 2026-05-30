@@ -123,7 +123,7 @@ export default function LoginPage() {
           {callbackUrl !== "/" && (
             <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
               {isParticipantClaimFlow
-                ? "Nach der Anmeldung kommst du zurück zur Bestätigung des Teilnehmer-Zugangs."
+                ? "Nach der Anmeldung wird der Teilnehmer-Zugang automatisch aktiviert."
                 : "Nach dem Login landest du wieder automatisch beim laufenden Portal-Schritt."}
             </div>
           )}
