@@ -121,6 +121,38 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function getParticipantSaveButtonLabel({
+  isSaving,
+  isDirectEdit,
+  hasApprovalChanges,
+  hasDirectChanges,
+  sendsInvitation,
+}: {
+  isSaving: boolean;
+  isDirectEdit: boolean;
+  hasApprovalChanges: boolean;
+  hasDirectChanges: boolean;
+  sendsInvitation: boolean;
+}) {
+  if (isSaving) return "Speichert...";
+
+  if (isDirectEdit) {
+    if (sendsInvitation) {
+      return hasDirectChanges ? "Speichern & Einladung versenden" : "Einladung versenden";
+    }
+    return "Speichern";
+  }
+
+  if (hasApprovalChanges && sendsInvitation) {
+    return "Genehmigung einreichen & Einladung versenden";
+  }
+
+  if (hasApprovalChanges) return "Genehmigung einreichen";
+  if (sendsInvitation) return "Einladung versenden";
+  if (hasDirectChanges) return "Speichern";
+  return "Speichern";
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
@@ -268,6 +300,11 @@ export default function ParticipantEditDialog({
     (directEdit || showModerationNote) &&
     isValidEmail(email) &&
     (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(emailInvitation?.status || "none"));
+  const sendsInvitationOnSave =
+    Boolean(participant?.id) &&
+    emailDiffersFromSaved &&
+    isValidEmail(email) &&
+    emailInvitation?.status !== "linked";
   const approvalRelevantChanges = participant
     ? firstName !== participant.firstName ||
       lastName !== participant.lastName ||
@@ -277,13 +314,17 @@ export default function ParticipantEditDialog({
       (shirtSize || "") !== (participant.shirtSize || "") ||
       (moderationNote || "") !== (participant.moderationNote || "")
     : false;
-  const participantSaveLabel = saving
-    ? "Speichert..."
-    : directEdit
-      ? "💾 Speichern"
-      : approvalRelevantChanges
-        ? "📨 Zur Genehmigung einreichen"
-        : "💾 Direkt speichern";
+  const directChanges = participant
+    ? emailDiffersFromSaved ||
+      participantPublicationPreference !== (participant.participantPublicationPreference || "NAME_VERBERGEN")
+    : false;
+  const participantSaveLabel = getParticipantSaveButtonLabel({
+    isSaving: saving,
+    isDirectEdit: directEdit,
+    hasApprovalChanges: approvalRelevantChanges,
+    hasDirectChanges: directChanges,
+    sendsInvitation: sendsInvitationOnSave,
+  });
 
   const handleSendInvitation = async () => {
     if (!participant?.id) return;

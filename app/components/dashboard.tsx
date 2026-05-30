@@ -229,6 +229,39 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function formatInvitationActionLabel(count: number) {
+  return count === 1 ? "Einladung versenden" : "Einladungen versenden";
+}
+
+function getTeamSaveButtonLabel({
+  isAdminEdit,
+  hasApprovalChanges,
+  hasDirectChanges,
+  pendingInvitationCount,
+}: {
+  isAdminEdit: boolean;
+  hasApprovalChanges: boolean;
+  hasDirectChanges: boolean;
+  pendingInvitationCount: number;
+}) {
+  const invitationLabel = formatInvitationActionLabel(pendingInvitationCount);
+
+  if (isAdminEdit) {
+    if (pendingInvitationCount > 0) {
+      return hasDirectChanges ? `Speichern & ${invitationLabel}` : invitationLabel;
+    }
+    return "Speichern";
+  }
+
+  if (hasApprovalChanges && pendingInvitationCount > 0) {
+    return `Genehmigung einreichen & ${invitationLabel}`;
+  }
+
+  if (hasApprovalChanges) return "Genehmigung einreichen";
+  if (pendingInvitationCount > 0) return invitationLabel;
+  return "Speichern";
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
@@ -1435,15 +1468,28 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
       }),
     [formData.participants, team.participants],
   );
-  const saveButtonLabel = showAdminInfo
-    ? pendingInvitationCount > 0
-      ? `💾 Speichern & ${pendingInvitationCount === 1 ? "Einladung" : "Einladungen"} senden`
-      : "💾 Speichern"
-    : approvalRelevantChanges
-      ? "📨 Zur Genehmigung einreichen"
-      : pendingInvitationCount > 0
-        ? `💾 Direkt speichern & ${pendingInvitationCount === 1 ? "Einladung" : "Einladungen"} senden`
-        : "💾 Direkt speichern";
+  const directChanges = useMemo(
+    () =>
+      formData.teamName !== team.name ||
+      (formData.teamPublicationLevel || "TEAM_ANONYM") !== (team.teamPublicationLevel || "TEAM_ANONYM") ||
+      formData.participants.some((participant, index) => {
+        const original = team.participants?.[index];
+        if (!original) return true;
+
+        return (
+          normalizeEmail(participant.email) !== normalizeEmail(original.email) ||
+          (participant.participantPublicationPreference || "NAME_VERBERGEN") !==
+            (original.participantPublicationPreference || "NAME_VERBERGEN")
+        );
+      }),
+    [formData.participants, formData.teamName, formData.teamPublicationLevel, team.name, team.participants, team.teamPublicationLevel],
+  );
+  const saveButtonLabel = getTeamSaveButtonLabel({
+    isAdminEdit: showAdminInfo,
+    hasApprovalChanges: approvalRelevantChanges,
+    hasDirectChanges: directChanges,
+    pendingInvitationCount,
+  });
 
   const handleParticipantChange = (index: number, field: string, value: string) => {
     const newParticipants = [...formData.participants];
