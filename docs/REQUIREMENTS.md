@@ -186,6 +186,7 @@
 - Das Portal zeigt pro Teilnehmer den Status der E-Mail-Einladung an (z.B. kein Link, versendet/offen, eingelöst, abgelaufen, gesperrt, Konto verknüpft)
 - Wenn ein Teilnehmer eine gültige E-Mail-Adresse hat, aber noch keine offene/eingelöste Einladung, kann Orga/Teamchef die **Einladung manuell erneut senden**
 - Ein solcher Claim ist fachlich an den konkreten Teilnehmer-Kontext gebunden und führt standardmäßig in eine **TEILNEHMER**-Berechtigung für genau diese Person
+- Wenn die eingeladene Person bereits ein Portal-Konto mit der Invite-E-Mail besitzt, kann sie dieses Konto verwenden; ein neues Konto ist dafür nicht erforderlich
 - Claim-Links müssen **widerrufbar**, **auditierbar** und mit bestehender Claim-Gültigkeitslogik kombinierbar bleiben
 - Falls eine eingeladene E-Mail nicht zur später verwendeten Login-Identität passt, braucht es einen klaren Support-/Admin-Prozess statt stillschweigender Zuordnung
 - Für die fachliche Teilnehmer-Zuordnung gilt: **E-Mail ist ein Kontakt-/Invite-Kanal, aber nicht die eigentliche Identität**
