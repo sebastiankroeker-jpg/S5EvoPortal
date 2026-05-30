@@ -189,6 +189,7 @@ function serializeParticipant(
     currentUserId?: string | null;
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
+    canSeeSensitiveParticipantFields?: boolean;
     teamPublicationLevel?: string | null;
     activeTeamManagerUserIds?: Set<string>;
   },
@@ -196,6 +197,7 @@ function serializeParticipant(
   if (!participant) return null;
   const canSeeFullPublication = options?.canSeeFullPublication !== false;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
+  const canSeeSensitiveParticipantFields = options?.canSeeSensitiveParticipantFields === true;
   const normalizedParticipantEmail = participant.email ? normalizeEmail(participant.email) : null;
   const normalizedCurrentUserEmail = options?.currentUserEmail ? normalizeEmail(options.currentUserEmail) : null;
   const isCurrentUserParticipant =
@@ -213,12 +215,12 @@ function serializeParticipant(
     firstName: splitName.firstName,
     lastName: splitName.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
-    birthDate: birthYearToBirthDateInput(participant.birthYear),
+    birthDate: canSeeFullPublication || isCurrentUserParticipant ? birthYearToBirthDateInput(participant.birthYear) : "",
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
-    email: canSeeFullPublication ? participant.email ?? "" : "",
+    email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
     participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
-    shirtSize: participant.shirtSize ?? "",
+    shirtSize: canSeeSensitiveParticipantFields ? participant.shirtSize ?? "" : "",
     isTeamManager: !!participant.userId && options?.activeTeamManagerUserIds?.has(participant.userId) === true,
     canBeTeamManager: !!participant.userId,
     isCurrentUserParticipant,
@@ -240,6 +242,7 @@ function serializeTeam(
     currentUserId?: string | null;
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
+    canSeeSensitiveParticipantFields?: boolean;
     canEditAllTeams?: boolean;
   },
 ) {
@@ -287,6 +290,7 @@ function serializeTeam(
             serializeParticipant(participant, {
               ...options,
               teamPublicationLevel: team.teamPublicationLevel,
+              canSeeSensitiveParticipantFields: options?.canEditAllTeams === true,
               activeTeamManagerUserIds,
             }),
           )
@@ -378,6 +382,7 @@ export async function GET(
           currentUserEmail: normalizedUserEmail,
           canSeeFullPublication,
           canEditAllTeams: access.canEditAllTeams,
+          canSeeSensitiveParticipantFields: access.canEditAllTeams,
         }),
       });
     } catch (dbError) {

@@ -1250,8 +1250,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 {team.participants.map((p, i) => {
                                   const disciplineDisplay = getDisciplineDisplay(p.discipline);
                                   const birthYear = p.birthDate ? extractBirthYearFromInput(p.birthDate) : null;
-                                  const emailInviteMeta = getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"));
                                   const canManageModerationNote = canEditAll || team.canCurrentUserEdit === true;
+                                  const emailInviteMeta = canEditAll
+                                    ? getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"))
+                                    : null;
                                   return (
                                     <div key={i} className="rounded-md border border-border/40 bg-background px-2 py-1.5 text-xs">
                                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1264,8 +1266,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                             <span>{disciplineDisplay.label}</span>
                                             <span>{p.gender === "M" ? "♂" : p.gender === "W" ? "♀" : "⚥"}</span>
                                             {birthYear && <span>Jg. {birthYear}</span>}
-                                            {p.shirtSize && <span>👕 {p.shirtSize}</span>}
-                                            {(canEditAll || canManageModerationNote) && <span className="break-all">{p.email || "Keine E-Mail hinterlegt"}</span>}
+                                            {canEditAll && p.shirtSize && <span>👕 {p.shirtSize}</span>}
+                                            {canEditAll && <span className="break-all">{p.email || "Keine E-Mail hinterlegt"}</span>}
                                           </div>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-1 sm:shrink-0 sm:justify-end">
@@ -1313,9 +1315,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                               ✏️
                                             </button>
                                           )}
-                                          <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${emailInviteMeta.className}`}>
-                                            {emailInviteMeta.label}
-                                          </Badge>
+                                          {emailInviteMeta && (
+                                            <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${emailInviteMeta.className}`}>
+                                              {emailInviteMeta.label}
+                                            </Badge>
+                                          )}
                                         </div>
                                       </div>
                                     </div>

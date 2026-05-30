@@ -106,6 +106,7 @@ function serializeParticipant(
     currentUserId?: string | null;
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
+    canSeeSensitiveParticipantFields?: boolean;
     teamPublicationLevel?: string | null;
     activeTeamManagerUserIds?: Set<string>;
   },
@@ -114,6 +115,7 @@ function serializeParticipant(
   const canSeeFullPublication = options?.canSeeFullPublication !== false;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
   const latestClaimToken = Array.isArray(participant.claimTokens) ? participant.claimTokens[0] : null;
+  const canSeeSensitiveParticipantFields = options?.canSeeSensitiveParticipantFields === true;
   const normalizedParticipantEmail = participant.email ? normalizeEmail(participant.email) : null;
   const normalizedCurrentUserEmail = options?.currentUserEmail ? normalizeEmail(options.currentUserEmail) : null;
   const isCurrentUserParticipant =
@@ -131,10 +133,10 @@ function serializeParticipant(
     firstName: splitName.firstName,
     lastName: splitName.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
-    birthDate: birthYearToBirthDateInput(participant.birthYear),
+    birthDate: canSeeFullPublication || isCurrentUserParticipant ? birthYearToBirthDateInput(participant.birthYear) : "",
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
-    email: canSeeFullPublication ? participant.email ?? "" : "",
-    emailInvitation: canSeeFullPublication
+    email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
+    emailInvitation: canSeeSensitiveParticipantFields
       ? {
           status: getParticipantEmailInvitationStatus({
             email: participant.email,
@@ -150,7 +152,7 @@ function serializeParticipant(
       : null,
     participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
-    shirtSize: participant.shirtSize ?? "",
+    shirtSize: canSeeSensitiveParticipantFields ? participant.shirtSize ?? "" : "",
     isTeamManager: !!participant.userId && options?.activeTeamManagerUserIds?.has(participant.userId) === true,
     canBeTeamManager: !!participant.userId,
     isCurrentUserParticipant,
@@ -172,6 +174,7 @@ function serializeTeam(
     currentUserId?: string | null;
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
+    canSeeSensitiveParticipantFields?: boolean;
     canEditAllTeams?: boolean;
   },
 ) {
@@ -233,6 +236,7 @@ function serializeTeam(
             serializeParticipant(participant, {
               ...options,
               teamPublicationLevel: team.teamPublicationLevel,
+              canSeeSensitiveParticipantFields: options?.canEditAllTeams === true,
               activeTeamManagerUserIds,
             }),
           )
@@ -424,6 +428,7 @@ export async function GET(request: NextRequest) {
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,
             canEditAllTeams: access.canEditAllTeams,
+            canSeeSensitiveParticipantFields: access.canEditAllTeams,
           });
         }),
       });
