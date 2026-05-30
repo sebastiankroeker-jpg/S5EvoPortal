@@ -100,10 +100,13 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id)}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 transition-all duration-200",
+                  "relative m-1 flex flex-col items-center justify-center gap-0.5 rounded-md transition-all duration-200",
                   "hover:bg-muted/50 active:bg-muted",
-                  isActive && "text-primary"
+                  isActive
+                    ? "bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20 dark:bg-primary/20"
+                    : "text-muted-foreground"
                 )}
+                aria-current={isActive ? "page" : undefined}
               >
                 <span className={cn(
                   "text-lg transition-transform duration-200",

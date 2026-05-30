@@ -37,11 +37,17 @@ function SidebarItem({ icon, label, onClick, isActive, isCollapsed }: {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors hover:bg-accent ${
-        isActive ? "bg-accent font-medium" : "text-muted-foreground"
+      className={`relative w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent ${
+        isActive
+          ? "bg-primary/10 text-primary font-medium shadow-sm ring-1 ring-primary/20 dark:bg-primary/20"
+          : "text-muted-foreground"
       } ${isCollapsed ? "justify-center" : ""}`}
       title={isCollapsed ? label : undefined}
+      aria-current={isActive ? "page" : undefined}
     >
+      {isActive && !isCollapsed && (
+        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-primary" />
+      )}
       <span className="text-sm shrink-0">{icon}</span>
       {!isCollapsed && <span className="truncate">{label}</span>}
     </button>
