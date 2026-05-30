@@ -146,6 +146,22 @@ function InfoHint({ text }: { text: string }) {
   );
 }
 
+function ApprovalFieldBadge() {
+  return (
+    <Badge variant="outline" className="border-amber-300 px-1.5 py-0 text-[10px] font-normal text-amber-700">
+      Prüfung
+    </Badge>
+  );
+}
+
+function DirectFieldBadge() {
+  return (
+    <Badge variant="outline" className="border-green-300 px-1.5 py-0 text-[10px] font-normal text-green-700">
+      Direkt
+    </Badge>
+  );
+}
+
 export default function ParticipantEditDialog({
   participant,
   open,
@@ -252,6 +268,22 @@ export default function ParticipantEditDialog({
     (directEdit || showModerationNote) &&
     isValidEmail(email) &&
     (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(emailInvitation?.status || "none"));
+  const approvalRelevantChanges = participant
+    ? firstName !== participant.firstName ||
+      lastName !== participant.lastName ||
+      extractBirthYearFromInput(birthDate) !== extractBirthYearFromInput(participant.birthDate || birthYearToBirthDateInput(participant.birthYear)) ||
+      gender !== normalizeGenderValue(participant.gender) ||
+      disciplineCode !== normalizeDisciplineValue(participant.disciplineCode || participant.discipline) ||
+      (shirtSize || "") !== (participant.shirtSize || "") ||
+      (moderationNote || "") !== (participant.moderationNote || "")
+    : false;
+  const participantSaveLabel = saving
+    ? "Speichert..."
+    : directEdit
+      ? "💾 Speichern"
+      : approvalRelevantChanges
+        ? "📨 Zur Genehmigung einreichen"
+        : "💾 Direkt speichern";
 
   const handleSendInvitation = async () => {
     if (!participant?.id) return;
@@ -376,7 +408,7 @@ export default function ParticipantEditDialog({
           <DialogDescription>
             {directEdit
               ? "Änderungen werden direkt gespeichert."
-              : "Deine Änderungen werden zur Genehmigung eingereicht."}
+              : "Mit Prüfung markierte Felder werden genehmigt. E-Mail und Namensveröffentlichung werden direkt gespeichert."}
           </DialogDescription>
         </DialogHeader>
 
@@ -405,18 +437,27 @@ export default function ParticipantEditDialog({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Vorname</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-muted-foreground">Vorname</label>
+                  {!directEdit && <ApprovalFieldBadge />}
+                </div>
                 <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="mt-1" />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Nachname</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-muted-foreground">Nachname</label>
+                  {!directEdit && <ApprovalFieldBadge />}
+                </div>
                 <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className="mt-1" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Geburtsdatum</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-muted-foreground">Geburtsdatum</label>
+                  {!directEdit && <ApprovalFieldBadge />}
+                </div>
                 <Input
                   type="text"
                   inputMode="numeric"
@@ -429,7 +470,10 @@ export default function ParticipantEditDialog({
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Geschlecht</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-muted-foreground">Geschlecht</label>
+                  {!directEdit && <ApprovalFieldBadge />}
+                </div>
                 <Select value={gender} onValueChange={setGender}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
@@ -445,6 +489,7 @@ export default function ParticipantEditDialog({
             <div>
               <div className="flex items-center gap-2">
                 <label className="text-xs font-medium text-muted-foreground">Namensveröffentlichung</label>
+                {!directEdit && <DirectFieldBadge />}
                 <InfoHint text="Steuert nur, ob der Teilnehmername öffentlich sichtbar werden darf. Die Team-Sichtbarkeit kann diese Freigabe weiterhin übersteuern." />
               </div>
               <Select value={participantPublicationPreference} onValueChange={(value) => setParticipantPublicationPreference(value as "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN")}>
@@ -462,7 +507,10 @@ export default function ParticipantEditDialog({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Disziplin-Zuordnung</label>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground">Disziplin-Zuordnung</label>
+                {!directEdit && <ApprovalFieldBadge />}
+              </div>
               <Select value={disciplineCode} onValueChange={setDisciplineCode}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
@@ -479,7 +527,10 @@ export default function ParticipantEditDialog({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground">T-Shirt-Größe</label>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground">T-Shirt-Größe</label>
+                {!directEdit && <ApprovalFieldBadge />}
+              </div>
               <Select value={shirtSize || "none"} onValueChange={(value) => setShirtSize(value === "none" ? "" : value)} disabled={shirtLocked}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
@@ -501,7 +552,10 @@ export default function ParticipantEditDialog({
             <div>
               {showModerationNote && (
                 <>
-                  <label className="text-xs font-medium text-muted-foreground">Hinweis für Moderation (intern)</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-muted-foreground">Hinweis für Moderation (intern)</label>
+                    {!directEdit && <ApprovalFieldBadge />}
+                  </div>
                   <Textarea
                     value={moderationNote}
                     onChange={(e) => setModerationNote(e.target.value)}
@@ -518,6 +572,7 @@ export default function ParticipantEditDialog({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium text-muted-foreground">E-Mail (optional)</label>
+                  {!directEdit && <DirectFieldBadge />}
                   <InfoHint text="Die E-Mail ist nur Kontakt- und Einladungskanal. Sie ist nicht die dauerhafte Identität des Portal-Accounts." />
                 </div>
                 <Badge variant="outline" className={emailInvitationMeta.className}>
@@ -575,11 +630,7 @@ export default function ParticipantEditDialog({
             onClick={handleSave}
             disabled={saving || !!result}
           >
-            {saving
-              ? "Speichert..."
-              : directEdit
-              ? "💾 Speichern"
-              : "📨 Zur Genehmigung einreichen"}
+            {participantSaveLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

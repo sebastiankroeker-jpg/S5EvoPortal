@@ -254,6 +254,22 @@ function InfoHint({ text }: { text: string }) {
   );
 }
 
+function ApprovalFieldBadge() {
+  return (
+    <Badge variant="outline" className="border-amber-300 px-1.5 py-0 text-[10px] font-normal text-amber-700">
+      Prüfung
+    </Badge>
+  );
+}
+
+function DirectFieldBadge() {
+  return (
+    <Badge variant="outline" className="border-green-300 px-1.5 py-0 text-[10px] font-normal text-green-700">
+      Direkt
+    </Badge>
+  );
+}
+
 function compareDates(a?: string, b?: string) {
   const aTime = a ? new Date(a).getTime() : 0;
   const bTime = b ? new Date(b).getTime() : 0;
@@ -1401,11 +1417,33 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
       }).length,
     [formData.participants, savedInvitationEmails],
   );
+  const approvalRelevantChanges = useMemo(
+    () =>
+      formData.participants.some((participant, index) => {
+        const original = team.participants?.[index];
+        if (!original) return true;
+
+        return (
+          participant.firstName !== original.firstName ||
+          participant.lastName !== original.lastName ||
+          participant.birthDate !== original.birthDate ||
+          participant.gender !== original.gender ||
+          (participant.shirtSize || "") !== (original.shirtSize || "") ||
+          (participant.discipline || participant.disciplineCode || "TBD") !== (original.discipline || original.disciplineCode || "TBD") ||
+          (participant.moderationNote || "") !== (original.moderationNote || "")
+        );
+      }),
+    [formData.participants, team.participants],
+  );
   const saveButtonLabel = showAdminInfo
     ? pendingInvitationCount > 0
       ? `💾 Speichern & ${pendingInvitationCount === 1 ? "Einladung" : "Einladungen"} senden`
       : "💾 Speichern"
-    : "📨 Zur Genehmigung einreichen";
+    : approvalRelevantChanges
+      ? "📨 Zur Genehmigung einreichen"
+      : pendingInvitationCount > 0
+        ? `💾 Direkt speichern & ${pendingInvitationCount === 1 ? "Einladung" : "Einladungen"} senden`
+        : "💾 Direkt speichern";
 
   const handleParticipantChange = (index: number, field: string, value: string) => {
     const newParticipants = [...formData.participants];
@@ -1506,7 +1544,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
         <CardContent className="flex-1 space-y-4 overflow-y-auto pb-6">
           {!showAdminInfo && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              Aenderungen durch Teamchefs werden jetzt zur Genehmigung eingereicht. Teamname bleibt in diesem Schritt schreibgeschuetzt.
+              Mit Prüfung markierte Teilnehmerdaten werden zur Genehmigung eingereicht. E-Mail, Einladung und Veröffentlichung werden direkt gespeichert.
             </div>
           )}
           {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
@@ -1547,7 +1585,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Team veröffentlichen</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Team veröffentlichen</label>
+              {!showAdminInfo && <DirectFieldBadge />}
+            </div>
             <Select
               value={formData.teamPublicationLevel}
               onValueChange={(value) =>
@@ -1595,7 +1636,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                 <div key={index} className="border border-border/50 shadow-sm rounded-md p-3 space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs text-muted-foreground">Vorname</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Vorname</label>
+                        {!showAdminInfo && <ApprovalFieldBadge />}
+                      </div>
                       <Input
                         value={participant.firstName}
                         onChange={(e) => handleParticipantChange(index, 'firstName', e.target.value)}
@@ -1603,7 +1647,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Nachname</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Nachname</label>
+                        {!showAdminInfo && <ApprovalFieldBadge />}
+                      </div>
                       <Input
                         value={participant.lastName}
                         onChange={(e) => handleParticipantChange(index, 'lastName', e.target.value)}
@@ -1613,7 +1660,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div>
-                      <label className="text-xs text-muted-foreground">Geschlecht</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Geschlecht</label>
+                        {!showAdminInfo && <ApprovalFieldBadge />}
+                      </div>
                       <Select
                         value={participant.gender}
                         onValueChange={(value) => handleParticipantChange(index, 'gender', value)}
@@ -1628,7 +1678,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                       </Select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">T-Shirt</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">T-Shirt</label>
+                        {!showAdminInfo && <ApprovalFieldBadge />}
+                      </div>
                       <Select
                         value={participant.shirtSize || "none"}
                         onValueChange={(value) => handleParticipantChange(index, 'shirtSize', value === 'none' ? '' : value)}
@@ -1647,7 +1700,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                       </Select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Geburtsdatum</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Geburtsdatum</label>
+                        {!showAdminInfo && <ApprovalFieldBadge />}
+                      </div>
                       <Input
                         type="text"
                         inputMode="numeric"
@@ -1664,7 +1720,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Disziplin</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Disziplin</label>
+                        {!showAdminInfo && <ApprovalFieldBadge />}
+                      </div>
                       <Select
                         value={participant.discipline || "TBD"}
                         onValueChange={(value) => handleParticipantChange(index, 'discipline', value)}
@@ -1684,7 +1743,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Namensveröffentlichung</label>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground">Namensveröffentlichung</label>
+                      {!showAdminInfo && <DirectFieldBadge />}
+                    </div>
                     <Select
                       value={participant.participantPublicationPreference || "NAME_VERBERGEN"}
                       onValueChange={(value) => handleParticipantChange(index, "participantPublicationPreference", value)}
@@ -1705,6 +1767,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-medium text-muted-foreground">E-Mail (optional)</label>
+                        {!showAdminInfo && <DirectFieldBadge />}
                         <InfoHint text="Die E-Mail ist nur Kontakt- und Einladungskanal. Sie ist nicht die dauerhafte Identität des Portal-Accounts." />
                       </div>
                       <Badge variant="outline" className={emailInvitationMeta.className}>
@@ -1756,7 +1819,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false }: {
                   </div>
                   {openModerationNotes[index] && (
                     <div>
-                      <label className="text-xs text-muted-foreground">Hinweis für Moderation (intern)</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Hinweis für Moderation (intern)</label>
+                        {!showAdminInfo && <ApprovalFieldBadge />}
+                      </div>
                       <Textarea
                         value={participant.moderationNote || ""}
                         onChange={(e) => handleParticipantChange(index, 'moderationNote', e.target.value)}
