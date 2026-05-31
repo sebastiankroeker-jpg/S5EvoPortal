@@ -66,6 +66,21 @@ export type LegacyParticipantReviewInput = {
   requestedSnapshot?: JsonInput;
 };
 
+export type RecordAppliedChangeRequestInput = {
+  tenantId: string;
+  competitionId?: string | null;
+  targetType: ChangeRequestTargetType;
+  targetId: string;
+  changeType: ChangeRequestChangeType;
+  source?: ChangeRequestSource;
+  beforeSnapshot?: JsonInput;
+  requestedSnapshot: JsonInput;
+  metadata?: JsonInput;
+  actorId: string;
+  message: string;
+  reviewComment?: string | null;
+};
+
 export async function createChangeRequest(input: CreateChangeRequestInput) {
   const now = new Date();
   const status: ChangeRequestStatus = input.submit ? "PENDING" : "DRAFT";
@@ -243,6 +258,63 @@ export async function reviewLegacyParticipantChangeRequest(
   }
 
   return updated;
+}
+
+export async function recordAppliedChangeRequest(
+  tx: ChangeRequestTx,
+  input: RecordAppliedChangeRequestInput,
+) {
+  const now = new Date();
+  const request = await tx.changeRequest.create({
+    data: {
+      tenantId: input.tenantId,
+      competitionId: input.competitionId ?? null,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      changeType: input.changeType,
+      source: input.source ?? "SYSTEM",
+      status: "APPLIED",
+      submittedAt: now,
+      reviewedAt: now,
+      appliedAt: now,
+      requestedById: input.actorId,
+      reviewedById: input.actorId,
+      appliedById: input.actorId,
+      reviewComment: input.reviewComment ?? null,
+      beforeSnapshot: input.beforeSnapshot ?? undefined,
+      requestedSnapshot: input.requestedSnapshot,
+      metadata: input.metadata ?? undefined,
+    },
+  });
+
+  await createChangeRequestAudit(tx, {
+    changeRequestId: request.id,
+    actorId: input.actorId,
+    action: "SUBMITTED",
+    beforeData: input.beforeSnapshot,
+    afterData: input.requestedSnapshot,
+    message: input.message,
+  });
+
+  await createChangeRequestAudit(tx, {
+    changeRequestId: request.id,
+    actorId: input.actorId,
+    action: "APPROVED",
+    beforeData: input.beforeSnapshot,
+    afterData: input.requestedSnapshot,
+    message: "Direkte Aenderung ohne Review angewendet",
+  });
+
+  await createChangeRequestAudit(tx, {
+    changeRequestId: request.id,
+    actorId: input.actorId,
+    action: "APPLIED",
+    beforeData: input.beforeSnapshot,
+    afterData: input.requestedSnapshot,
+    message: input.message,
+  });
+
+  return request;
 }
 
 export async function submitChangeRequest(id: string, actorId: string, message = "Aenderungsantrag eingereicht") {

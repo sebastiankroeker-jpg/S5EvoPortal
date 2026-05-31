@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { recordAppliedChangeRequest } from "@/lib/change-request";
 import { sendTeamLifecycleOrgEmail } from "@/lib/mail/team-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
@@ -66,20 +67,30 @@ export async function POST(
   const now = new Date();
   const deletedParticipants = team.participants.filter((participant) => participant.deletedAt);
   const requestMeta = getRequestMeta(request);
+  const beforeSnapshot = {
+    teamDeletedAt: team.deletedAt?.toISOString() ?? null,
+    deletedParticipantIds: deletedParticipants.map((participant) => participant.id),
+    deletedParticipantCount: deletedParticipants.length,
+  };
+  const requestedSnapshot = {
+    restoredAt: now.toISOString(),
+    restoredParticipants: deletedParticipants.length,
+    teamDeletedAt: null,
+  };
 
-  await prisma.$transaction([
-    prisma.team.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.team.update({
       where: { id: team.id },
       data: { deletedAt: null },
-    }),
-    prisma.participant.updateMany({
+    });
+    await tx.participant.updateMany({
       where: {
         teamId: team.id,
         deletedAt: { not: null },
       },
       data: { deletedAt: null },
-    }),
-    prisma.auditEvent.create({
+    });
+    await tx.auditEvent.create({
       data: {
         action: "TEAM_RESTORED",
         scopeType: "TEAM",
@@ -87,14 +98,8 @@ export async function POST(
         entityType: "TEAM",
         entityId: team.id,
         reason: "admin_restore",
-        beforeData: {
-          teamDeletedAt: team.deletedAt?.toISOString() ?? null,
-          deletedParticipantIds: deletedParticipants.map((participant) => participant.id),
-        },
-        afterData: {
-          restoredAt: now.toISOString(),
-          restoredParticipants: deletedParticipants.length,
-        },
+        beforeData: beforeSnapshot,
+        afterData: requestedSnapshot,
         meta: {
           ...requestMeta,
           teamName: team.name,
@@ -105,8 +110,27 @@ export async function POST(
         competitionId: team.competition.id,
         actorId: auth.user.id,
       },
-    }),
-  ]);
+    });
+    await recordAppliedChangeRequest(tx, {
+      tenantId: auth.tenantId,
+      competitionId: team.competition.id,
+      targetType: "TEAM",
+      targetId: team.id,
+      changeType: "RESTORE",
+      source: "ADMIN",
+      beforeSnapshot,
+      requestedSnapshot,
+      metadata: {
+        reason: "admin_restore",
+        ...requestMeta,
+        teamName: team.name,
+        ownerEmail: team.owner.email,
+        linkedParticipants: team.participants.filter((participant) => participant.userId).length,
+      },
+      actorId: auth.user.id,
+      message: "Mannschaft wiederhergestellt",
+    });
+  });
 
   try {
     const mailResult = await sendTeamLifecycleOrgEmail({

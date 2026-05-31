@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import type { Prisma, ShirtSize } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { upsertLegacyParticipantChangeRequest } from '@/lib/change-request';
+import { recordAppliedChangeRequest, upsertLegacyParticipantChangeRequest } from '@/lib/change-request';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
@@ -1062,6 +1062,10 @@ export async function DELETE(
       }
 
       const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+      if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+
       const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId, session);
       const teamAccess = resolveTeamAccess({
         team: existingTeam,
@@ -1076,19 +1080,29 @@ export async function DELETE(
 
       const now = new Date();
       const linkedParticipantCount = existingTeam.participants.filter((participant) => participant.userId).length;
+      const beforeSnapshot = {
+        teamName: existingTeam.name,
+        deletedAt: null,
+        participantIds: existingTeam.participants.map((participant) => participant.id),
+        participantCount: existingTeam.participants.length,
+      };
+      const requestedSnapshot = {
+        deletedAt: now.toISOString(),
+        deletedParticipants: existingTeam.participants.length,
+      };
 
-      await prisma.$transaction([
-        prisma.team.update({
+      await prisma.$transaction(async (tx) => {
+        await tx.team.update({
           where: { id: id },
           data: {
             deletedAt: now,
           },
-        }),
-        prisma.participant.updateMany({
+        });
+        await tx.participant.updateMany({
           where: { teamId: id, deletedAt: null },
           data: { deletedAt: now },
-        }),
-        prisma.auditEvent.create({
+        });
+        await tx.auditEvent.create({
           data: {
             action: "TEAM_SOFT_DELETED",
             scopeType: "TEAM",
@@ -1096,14 +1110,8 @@ export async function DELETE(
             entityType: "TEAM",
             entityId: existingTeam.id,
             reason: "team_delete",
-            beforeData: {
-              teamName: existingTeam.name,
-              participantIds: existingTeam.participants.map((participant) => participant.id),
-            },
-            afterData: {
-              deletedAt: now.toISOString(),
-              deletedParticipants: existingTeam.participants.length,
-            },
+            beforeData: beforeSnapshot,
+            afterData: requestedSnapshot,
             meta: {
               ownerEmail: existingTeam.owner.email,
               sessionEmail: normalizeEmail(userEmail),
@@ -1111,10 +1119,29 @@ export async function DELETE(
             },
             tenantId: existingTeam.competition.tenantId,
             competitionId: existingTeam.competition.id,
-            actorId: user?.id ?? null,
+            actorId: user.id,
           },
-        }),
-      ]);
+        });
+        await recordAppliedChangeRequest(tx, {
+          tenantId: existingTeam.competition.tenantId,
+          competitionId: existingTeam.competition.id,
+          targetType: "TEAM",
+          targetId: existingTeam.id,
+          changeType: "DELETE",
+          source: access.canEditAllTeams ? "ADMIN" : "SELF_SERVICE",
+          beforeSnapshot,
+          requestedSnapshot,
+          metadata: {
+            reason: "team_delete",
+            teamName: existingTeam.name,
+            ownerEmail: existingTeam.owner.email,
+            sessionEmail: normalizeEmail(userEmail),
+            linkedParticipants: linkedParticipantCount,
+          },
+          actorId: user.id,
+          message: "Mannschaft geloescht",
+        });
+      });
 
       try {
         const mailResult = await sendTeamLifecycleOrgEmail({
@@ -1155,7 +1182,7 @@ export async function DELETE(
             },
             tenantId: existingTeam.competition.tenantId,
             competitionId: existingTeam.competition.id,
-            actorId: user?.id ?? null,
+            actorId: user.id,
           },
         }).catch((auditError) => console.error("Team delete mail audit failed", auditError));
       } catch (mailError) {
@@ -1181,7 +1208,7 @@ export async function DELETE(
             },
             tenantId: existingTeam.competition.tenantId,
             competitionId: existingTeam.competition.id,
-            actorId: user?.id ?? null,
+            actorId: user.id,
           },
         }).catch((auditError) => console.error("Team delete mail audit failed", auditError));
       }
