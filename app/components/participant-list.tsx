@@ -43,12 +43,23 @@ const GENDER_LABELS: Record<string, string> = {
   W: "♀️",
 };
 
+type QuickFilter = "all" | "openDiscipline" | "pendingChange" | "moderationNote" | "missingEmail";
+
+const QUICK_FILTER_LABELS: Record<QuickFilter, string> = {
+  all: "Alle",
+  openDiscipline: "Offene Disziplin",
+  pendingChange: "mit Änderungsantrag",
+  moderationNote: "mit Moderationshinweis",
+  missingEmail: "ohne E-Mail",
+};
+
 export default function ParticipantList() {
   const [participants, setParticipants] = useState<ParticipantEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [disciplineFilter, setDisciplineFilter] = useState("all");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const [editingParticipant, setEditingParticipant] = useState<ParticipantEntry | null>(null);
@@ -79,6 +90,16 @@ export default function ParticipantList() {
     return cats;
   }, [participants]);
 
+  const quickFilterCounts = useMemo(() => {
+    return {
+      all: participants.length,
+      openDiscipline: participants.filter((p) => p.disciplineCode === "TBD").length,
+      pendingChange: participants.filter((p) => p.hasPendingChange).length,
+      moderationNote: participants.filter((p) => Boolean(p.moderationNote?.trim())).length,
+      missingEmail: participants.filter((p) => !p.email?.trim()).length,
+    };
+  }, [participants]);
+
   const filtered = useMemo(() => {
     return participants.filter((p) => {
       const matchesSearch =
@@ -89,10 +110,23 @@ export default function ParticipantList() {
 
       const matchesCategory = categoryFilter === "all" || p.teamCategory === categoryFilter;
       const matchesDiscipline = disciplineFilter === "all" || p.disciplineCode === disciplineFilter;
+      const matchesQuickFilter =
+        quickFilter === "all" ||
+        (quickFilter === "openDiscipline" && p.disciplineCode === "TBD") ||
+        (quickFilter === "pendingChange" && p.hasPendingChange) ||
+        (quickFilter === "moderationNote" && Boolean(p.moderationNote?.trim())) ||
+        (quickFilter === "missingEmail" && canSeeAdminOnlyFields && !p.email?.trim());
 
-      return matchesSearch && matchesCategory && matchesDiscipline;
+      return matchesSearch && matchesCategory && matchesDiscipline && matchesQuickFilter;
     });
-  }, [participants, search, categoryFilter, disciplineFilter, canSeeAdminOnlyFields]);
+  }, [participants, search, categoryFilter, disciplineFilter, quickFilter, canSeeAdminOnlyFields]);
+
+  const resetFilters = () => {
+    setSearch("");
+    setCategoryFilter("all");
+    setDisciplineFilter("all");
+    setQuickFilter("all");
+  };
 
   if (loading) {
     return (
@@ -116,6 +150,26 @@ export default function ParticipantList() {
             🔄
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(QUICK_FILTER_LABELS) as QuickFilter[])
+          .filter((filter) => filter !== "missingEmail" || canSeeAdminOnlyFields)
+          .map((filter) => (
+            <Button
+              key={filter}
+              type="button"
+              size="sm"
+              variant={quickFilter === filter ? "default" : "outline"}
+              onClick={() => setQuickFilter(filter)}
+              className="justify-between gap-2"
+            >
+              <span>{QUICK_FILTER_LABELS[filter]}</span>
+              <span className="rounded bg-background/30 px-1 text-[10px]">
+                {quickFilterCounts[filter]}
+              </span>
+            </Button>
+          ))}
       </div>
 
       {/* Filters */}
@@ -153,8 +207,11 @@ export default function ParticipantList() {
       {/* Participant Cards */}
       {filtered.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center">
+          <CardContent className="space-y-3 py-8 text-center">
             <p className="text-muted-foreground">Keine Teilnehmer gefunden</p>
+            <Button variant="ghost" size="sm" onClick={resetFilters}>
+              Filter zurücksetzen
+            </Button>
           </CardContent>
         </Card>
       ) : (

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
+import { useCompetition } from "@/lib/competition-context";
 import NavBar from "./components/nav-bar";
 import HomeScreen from "./components/home-screen";
 import TeamScreen from "./components/team-screen";
@@ -18,6 +19,13 @@ type SwitchTabDetail = {
   tabId?: string;
   teamView?: string;
   ownerFilter?: string;
+};
+
+type OrgaSummary = {
+  teamsTotal: number;
+  participantsTotal: number;
+  pendingChanges: number;
+  openClaimLinks: number;
 };
 
 function isMainTab(value: string | null): value is MainTab {
@@ -59,9 +67,12 @@ export default function Home() {
   const { status } = useSession();
   const { theme } = useTheme();
   const { can } = usePermissions();
+  const { active: activeCompetition } = useCompetition();
   const canViewOwnTeams = can("team.view.own");
   const canViewAllTeams = can("team.view.all");
   const canEditResults = can("results.edit");
+  const [orgaSummary, setOrgaSummary] = useState<OrgaSummary | null>(null);
+  const [orgaSummaryLoading, setOrgaSummaryLoading] = useState(false);
   const pendingSwitchTabDetail = useRef<SwitchTabDetail | null>(null);
   const [activeTab, setActiveTab] = useState<MainTab>(() => {
     if (typeof window === "undefined") return "home";
@@ -138,6 +149,44 @@ export default function Home() {
     window.dispatchEvent(new CustomEvent("switchTab", { detail: pendingDetail ?? { tabId: activeTab } }));
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== "orga" || !(canViewAllTeams || canEditResults)) return;
+
+    let cancelled = false;
+    const loadSummary = async () => {
+      setOrgaSummaryLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
+        const response = await fetch(`/api/admin/orga-summary?${params}`);
+        if (!response.ok) throw new Error("Summary failed");
+        const data = await response.json();
+        if (!cancelled) {
+          setOrgaSummary(data.summary || null);
+        }
+      } catch {
+        if (!cancelled) {
+          setOrgaSummary(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setOrgaSummaryLoading(false);
+        }
+      }
+    };
+
+    void loadSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCompetition?.id, activeTab, canEditResults, canViewAllTeams]);
+
+  const formatOrgaCount = (value?: number) => {
+    if (orgaSummaryLoading) return "...";
+    if (typeof value !== "number") return "—";
+    return value.toLocaleString("de-DE");
+  };
+
   return (
     <div className={`min-h-screen pb-24 lg:pb-0 ${
       theme === "bunt" ? "bunt-bg" :
@@ -160,20 +209,35 @@ export default function Home() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button onClick={() => router.push('/teilnehmer')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                    <span className="text-lg">📋</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-lg">📋</span>
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
+                        {formatOrgaCount(orgaSummary?.participantsTotal)}
+                      </span>
+                    </div>
                     <p className="font-medium text-sm">Teilnehmerübersicht</p>
                     <p className="text-xs text-muted-foreground">Eigenes Dashboard für Suche, Hinweise und Druckliste</p>
                   </button>
                   {canViewAllTeams && (
                     <button onClick={() => router.push('/aenderungen')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                      <span className="text-lg">📝</span>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-lg">📝</span>
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
+                          {formatOrgaCount(orgaSummary?.pendingChanges)}
+                        </span>
+                      </div>
                       <p className="font-medium text-sm">Änderungen</p>
                       <p className="text-xs text-muted-foreground">Anträge prüfen, freigeben oder ablehnen</p>
                     </button>
                   )}
                   {canViewAllTeams && (
                     <button onClick={() => router.push('/claim-links')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                      <span className="text-lg">🔐</span>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-lg">🔐</span>
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
+                          {formatOrgaCount(orgaSummary?.openClaimLinks)}
+                        </span>
+                      </div>
                       <p className="font-medium text-sm">Claim-Links</p>
                       <p className="text-xs text-muted-foreground">Übernahmelinks erzeugen und Supportfälle klären</p>
                     </button>
@@ -187,7 +251,12 @@ export default function Home() {
                   )}
                   {can("config.edit") && (
                     <button onClick={() => router.push("/admin")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                      <span className="text-lg">🏢</span>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-lg">🏢</span>
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
+                          {formatOrgaCount(orgaSummary?.teamsTotal)}
+                        </span>
+                      </div>
                       <p className="font-medium text-sm">Administration</p>
                       <p className="text-xs text-muted-foreground">Tenant & Wettkampf konfigurieren</p>
                     </button>
