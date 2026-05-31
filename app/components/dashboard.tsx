@@ -136,6 +136,7 @@ type TeamOptionalColumnKey =
   | "updatedAt";
 
 const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
+const TEAM_FOCUS_STORAGE_KEY = "s5evo.dashboard.focusTeamId";
 
 const SORT_OPTIONS: Array<{ value: TeamSortField; label: string }> = [
   { value: "updatedAt", label: "Zuletzt geändert" },
@@ -607,6 +608,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       setPendingOwnerFilter(null);
     }
   }, [teams, pendingOwnerFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || teams.length === 0) {
+      return;
+    }
+
+    const focusTeamId = window.sessionStorage.getItem(TEAM_FOCUS_STORAGE_KEY);
+    if (!focusTeamId || !teams.some((team) => team.id === focusTeamId)) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(TEAM_FOCUS_STORAGE_KEY);
+    setExpandedTeam(focusTeamId);
+    setExpandedTeamMeta(null);
+    setViewMode("cards");
+  }, [teams]);
 
   // Filter and search logic
   const filteredTeams = useMemo(() => {

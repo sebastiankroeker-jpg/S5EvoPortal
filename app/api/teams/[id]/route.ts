@@ -255,6 +255,8 @@ function serializeTeam(
       ?.filter((memberRole) => !memberRole.revokedAt)
       .map((memberRole) => memberRole.userId) ?? [],
   );
+  if (team.ownerId) activeTeamManagerUserIds.add(team.ownerId);
+  if (team.teamChiefId) activeTeamManagerUserIds.add(team.teamChiefId);
   const visibleTeamName = resolveVisibleTeamName({
     actualTeamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel,

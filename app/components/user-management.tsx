@@ -46,6 +46,7 @@ interface UsersResponse {
 }
 
 const ALL_ROLES = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"] as const;
+const TEAM_FOCUS_STORAGE_KEY = "s5evo.dashboard.focusTeamId";
 
 const ROLE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
   ADMIN: { icon: "👑", label: "Admin", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300", desc: "Vollzugriff" },
@@ -180,6 +181,13 @@ export default function UserManagement() {
     } finally {
       setDeletingUserId(null);
     }
+  };
+
+  const openTeam = (teamId: string) => {
+    window.sessionStorage.setItem("s5evo-active-tab", "registration");
+    window.sessionStorage.setItem("s5evo-team-view", "mannschaften");
+    window.sessionStorage.setItem(TEAM_FOCUS_STORAGE_KEY, teamId);
+    window.location.href = "/#registration";
   };
 
   const filteredUsers = useMemo(() => {
@@ -329,7 +337,7 @@ export default function UserManagement() {
                     {editingUser === user.id && (
                       <div className="mt-3 space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          Wähle die Portal-Rollen für diesen Benutzer. Team Manager:in gilt als Portal-Kontext für eigene Teams; die konkrete Team-Zuordnung steht darunter.
+                          Wähle die Portal-Rollen für diesen Benutzer. Team Manager:in schaltet den Portal-Kontext frei; konkrete Managerrechte hängen an der jeweiligen Mannschaft darunter.
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                           {ALL_ROLES.map((role) => {
@@ -380,7 +388,14 @@ export default function UserManagement() {
                         <p className="font-medium text-muted-foreground">Eigene Teams / Team-Manager-Zuordnung</p>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {user.teamScopes.map((team) => (
-                            <Badge key={team.id} variant="outline" className="text-[11px]">
+                            <Badge
+                              key={team.id}
+                              variant="outline"
+                              className="cursor-pointer text-[11px] transition-colors hover:border-primary hover:text-primary"
+                              onClick={() => openTeam(team.id)}
+                              role="link"
+                              title="Mannschaft öffnen"
+                            >
                               {team.name} · {team.relation}
                             </Badge>
                           ))}
