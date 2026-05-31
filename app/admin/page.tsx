@@ -14,6 +14,7 @@ import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
+import RestoreCenter from "@/app/components/restore-center";
 import UserManagement from "@/app/components/user-management";
 import NavBar from "@/app/components/nav-bar";
 import BottomTabBar from "@/app/components/bottom-tab-bar";
@@ -224,7 +225,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "tenant" || tab === "competition" || tab === "users") {
+    if (tab === "tenant" || tab === "competition" || tab === "users" || tab === "restore") {
       setActiveAdminTab(tab);
     }
   }, []);
@@ -563,10 +564,11 @@ export default function AdminPage() {
         </motion.div>
 
         <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
             <TabsTrigger value="competition">🏆 Wettkampf</TabsTrigger>
             <TabsTrigger value="users">👥 Benutzer</TabsTrigger>
+            <TabsTrigger value="restore">♻️ Papierkorb</TabsTrigger>
           </TabsList>
 
           {/* ==================== TENANT TAB ==================== */}
@@ -1214,6 +1216,12 @@ export default function AdminPage() {
           <TabsContent value="users">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               <UserManagement />
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="restore">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <RestoreCenter />
             </motion.div>
           </TabsContent>
         </Tabs>
