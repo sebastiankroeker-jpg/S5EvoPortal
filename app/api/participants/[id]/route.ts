@@ -256,6 +256,17 @@ export async function PUT(
   const currentSnapshot = toParticipantSnapshot(participant);
   const requestedSnapshot = mergeParticipantSnapshot(currentSnapshot, changeData);
   const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
+
+  if (!isAdmin && changedFields.disciplineCode) {
+    return NextResponse.json(
+      {
+        error:
+          "Disziplinen koennen nur im Mannschaftskontext geaendert werden, weil jede Disziplin genau einmal vergeben sein muss. Bitte die Mannschaft bearbeiten.",
+      },
+      { status: 409 },
+    );
+  }
+
   const projectedTeamState = evaluateTeamState(
     participant.team.participants.map((teamParticipant) =>
       teamParticipant.id === participant.id
