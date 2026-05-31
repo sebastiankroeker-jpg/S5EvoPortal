@@ -466,6 +466,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [expandedTeamMeta, setExpandedTeamMeta] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
@@ -565,6 +566,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   useEffect(() => {
     if (viewMode === "list") {
       setExpandedTeam(null);
+      setExpandedTeamMeta(null);
     }
   }, [viewMode]);
 
@@ -1258,55 +1260,61 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               const linkedAccountCount = getTeamLinkedAccountCount(team);
               const CompletionIcon = completionMeta.icon;
               const DisciplineIcon = disciplineMeta.icon;
+              const isMetaOpen = expandedTeamMeta === team.id;
 
               return (
-              <div key={team.id} className="space-y-2">
+              <div key={team.id} className={`space-y-2 ${expandedTeam === team.id ? "md:col-span-2 lg:col-span-3 xl:col-span-4" : ""}`}>
                 {/* Team-Kachel mit Teilnehmern */}
-                <Card 
-                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${expandedTeam === team.id ? "ring-2 ring-primary" : ""}`}
-                  onClick={() => setExpandedTeam(expandedTeam === team.id ? null : team.id)}
-                >
-                  <CardContent className="p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-sm truncate">{team.name}</h3>
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        {categoryEmojis[team.category] || "🏆"} {team.category}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
-                        <CompletionIcon className="size-3" />
-                        {completionMeta.label}
-                      </Badge>
-                      <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
-                        <DisciplineIcon className="size-3" />
-                        {disciplineMeta.label}
-                      </Badge>
-                    </div>
-                    {/* Teilnehmer-Liste */}
-                    {team.participants && team.participants.length > 0 ? (
-                      <div className="space-y-0.5">
-                        {team.participants.map((p, i) => {
-                          const disc = getDisciplineDisplay(p.discipline);
-                          return (
-                            <div key={i} className="flex items-start justify-between gap-2 text-xs text-muted-foreground">
-                              <span className="min-w-0 break-words pr-2">{getParticipantDisplayName(p, i)}</span>
-                              <span className="shrink-0" title={disc.label}>{disc.icon} {p.gender === "M" ? "♂" : "♀"}</span>
-                            </div>
-                          );
-                        })}
+                {expandedTeam !== team.id && (
+                  <Card
+                    className="cursor-pointer transition-colors hover:bg-muted/50"
+                    onClick={() => {
+                      setExpandedTeam(team.id);
+                      setExpandedTeamMeta(null);
+                    }}
+                  >
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-sm truncate">{team.name}</h3>
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          {categoryEmojis[team.category] || "🏆"} {team.category}
+                        </Badge>
                       </div>
-                    ) : null}
-                    {/* Team Manager:in extra Zeile wenn nicht Teilnehmer */}
-                    {team.contactName && (!team.participants || !team.participants.some(p => 
-                      team.contactName?.includes(p.firstName) || team.contactName?.includes(p.lastName)
-                    )) && (
-                      <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
-                        ⭐ {team.contactName} <span className="text-muted-foreground/60">(Team Manager:in)</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                          <CompletionIcon className="size-3" />
+                          {completionMeta.label}
+                        </Badge>
+                        <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                          <DisciplineIcon className="size-3" />
+                          {disciplineMeta.label}
+                        </Badge>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      {/* Teilnehmer-Liste */}
+                      {team.participants && team.participants.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {team.participants.map((p, i) => {
+                            const disc = getDisciplineDisplay(p.discipline);
+                            return (
+                              <div key={i} className="flex items-start justify-between gap-2 text-xs text-muted-foreground">
+                                <span className="min-w-0 break-words pr-2">{getParticipantDisplayName(p, i)}</span>
+                                <span className="shrink-0" title={disc.label}>{disc.icon} {p.gender === "M" ? "♂" : "♀"}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      {/* Team Manager:in extra Zeile wenn nicht Teilnehmer */}
+                      {team.contactName && (!team.participants || !team.participants.some(p =>
+                        team.contactName?.includes(p.firstName) || team.contactName?.includes(p.lastName)
+                      )) && (
+                        <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
+                          ⭐ {team.contactName} <span className="text-muted-foreground/60">(Team Manager:in)</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Expandierte Detail-View */}
                 <AnimatePresence>
@@ -1319,21 +1327,45 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                     >
                       <Card className="border-l-4 border-l-primary shadow-sm">
                         <CardContent className="space-y-4 p-3">
-                          <div className="flex flex-col gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0 space-y-2">
-                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                <h3 className="min-w-0 truncate text-base font-semibold">{team.name}</h3>
-                                <Badge variant="outline" className="gap-1">
-                                  <span>{categoryEmojis[team.category] || "🏆"}</span>
-                                  {team.category}
-                                </Badge>
-                                {team.isCurrentUserTeam && (
-                                  <Badge variant="secondary" className="gap-1">
-                                    <Star className="size-3" />
-                                    Eigenes Team
-                                  </Badge>
-                                )}
-                              </div>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                              <h3 className="min-w-0 truncate text-lg font-semibold">{team.name}</h3>
+                              <Badge variant="outline" className="shrink-0 gap-1">
+                                <span>{categoryEmojis[team.category] || "🏆"}</span>
+                                {team.category}
+                              </Badge>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedTeamMeta(isMetaOpen ? null : team.id);
+                                }}
+                              >
+                                {isMetaOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                                Infos
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedTeam(null);
+                                  setExpandedTeamMeta(null);
+                                }}
+                                className="h-8 w-8 shrink-0 p-0"
+                                aria-label="Details schließen"
+                              >
+                                <X className="size-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {isMetaOpen && (
+                            <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
                               <div className="flex flex-wrap gap-1.5">
                                 <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                   <CompletionIcon className="size-3" />
@@ -1349,93 +1381,87 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     {pendingChangeCount} Änderung(en)
                                   </Badge>
                                 )}
+                                {team.isCurrentUserTeam && (
+                                  <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px]">
+                                    <Star className="size-3" />
+                                    Eigenes Team
+                                  </Badge>
+                                )}
                               </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedTeam(null);
-                              }}
-                              className="h-8 w-8 shrink-0 p-0"
-                              aria-label="Details schließen"
-                            >
-                              <X className="size-4" />
-                            </Button>
-                          </div>
 
-                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                            <div className="rounded-md border border-border/60 bg-background p-3">
-                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                <UsersRound className="size-4" />
-                                Mannschaft
-                              </div>
-                              <div className="mt-2 space-y-1 text-sm">
-                                <div className="flex justify-between gap-3">
-                                  <span className="text-muted-foreground">Teilnehmer</span>
-                                  <span className="font-medium">{getParticipantCount(team)}/5</span>
+                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="rounded-md border border-border/60 bg-background p-3">
+                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                    <UsersRound className="size-4" />
+                                    Mannschaft
+                                  </div>
+                                  <div className="mt-2 space-y-1 text-sm">
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-muted-foreground">Teilnehmer</span>
+                                      <span className="font-medium">{getParticipantCount(team)}/5</span>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-muted-foreground">Portal-Konten</span>
+                                      <span className="font-medium">{linkedAccountCount}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-muted-foreground">Sichtbarkeit</span>
+                                      <span className="max-w-[9rem] truncate text-right font-medium" title={getTeamPublicationLabel(team)}>
+                                        {getTeamPublicationLabel(team)}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between gap-3">
-                                  <span className="text-muted-foreground">Portal-Konten</span>
-                                  <span className="font-medium">{linkedAccountCount}</span>
-                                </div>
-                                <div className="flex justify-between gap-3">
-                                  <span className="text-muted-foreground">Sichtbarkeit</span>
-                                  <span className="max-w-[9rem] truncate text-right font-medium" title={getTeamPublicationLabel(team)}>
-                                    {getTeamPublicationLabel(team)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
 
-                            <div className="rounded-md border border-border/60 bg-background p-3">
-                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                <UserRound className="size-4" />
-                                Team Manager:in
-                              </div>
-                              <div className="mt-2 space-y-1 text-sm">
-                                <p className="truncate font-medium" title={team.contactName || getContactFallbackLabel(team)}>
-                                  {team.contactName || getContactFallbackLabel(team)}
-                                </p>
-                                <p className="truncate text-muted-foreground" title={team.contactEmail || getContactFallbackLabel(team)}>
-                                  {team.contactEmail || getContactFallbackLabel(team)}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-border/60 bg-background p-3">
-                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                <ShieldCheck className="size-4" />
-                                Verwaltung
-                              </div>
-                              <div className="mt-2 space-y-1 text-sm">
-                                <p className="truncate font-medium" title={team.ownerName || team.ownerEmail || "Nicht sichtbar"}>
-                                  {team.ownerName || team.ownerEmail || "Nicht sichtbar"}
-                                </p>
-                                <p className="truncate text-muted-foreground" title={team.ownerEmail || "Keine Owner-Mail sichtbar"}>
-                                  {team.ownerEmail || "Keine Owner-Mail sichtbar"}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-border/60 bg-background p-3">
-                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                <CalendarClock className="size-4" />
-                                Zeitstempel
-                              </div>
-                              <div className="mt-2 space-y-1 text-sm">
-                                <div className="flex justify-between gap-3">
-                                  <span className="text-muted-foreground">Angelegt</span>
-                                  <span className="font-medium">{formatDatePart(team.createdAt)}, {formatTimePart(team.createdAt)}</span>
+                                <div className="rounded-md border border-border/60 bg-background p-3">
+                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                    <UserRound className="size-4" />
+                                    Team Manager:in
+                                  </div>
+                                  <div className="mt-2 space-y-1 text-sm">
+                                    <p className="truncate font-medium" title={team.contactName || getContactFallbackLabel(team)}>
+                                      {team.contactName || getContactFallbackLabel(team)}
+                                    </p>
+                                    <p className="truncate text-muted-foreground" title={team.contactEmail || getContactFallbackLabel(team)}>
+                                      {team.contactEmail || getContactFallbackLabel(team)}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between gap-3">
-                                  <span className="text-muted-foreground">Geändert</span>
-                                  <span className="font-medium">{team.updatedAt ? new Date(team.updatedAt).toLocaleDateString("de-DE") : "Unbekannt"}</span>
+
+                                <div className="rounded-md border border-border/60 bg-background p-3">
+                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                    <ShieldCheck className="size-4" />
+                                    Verwaltung
+                                  </div>
+                                  <div className="mt-2 space-y-1 text-sm">
+                                    <p className="truncate font-medium" title={team.ownerName || team.ownerEmail || "Nicht sichtbar"}>
+                                      {team.ownerName || team.ownerEmail || "Nicht sichtbar"}
+                                    </p>
+                                    <p className="truncate text-muted-foreground" title={team.ownerEmail || "Keine Owner-Mail sichtbar"}>
+                                      {team.ownerEmail || "Keine Owner-Mail sichtbar"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="rounded-md border border-border/60 bg-background p-3">
+                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                    <CalendarClock className="size-4" />
+                                    Zeitstempel
+                                  </div>
+                                  <div className="mt-2 space-y-1 text-sm">
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-muted-foreground">Angelegt</span>
+                                      <span className="font-medium">{formatDatePart(team.createdAt)}, {formatTimePart(team.createdAt)}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-muted-foreground">Geändert</span>
+                                      <span className="font-medium">{team.updatedAt ? new Date(team.updatedAt).toLocaleDateString("de-DE") : "Unbekannt"}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
+                          )}
 
                           {team.participants && team.participants.length > 0 && (
                             <div className="space-y-2">
