@@ -1478,28 +1478,29 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     ? getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"))
                                     : null;
                                   const latestChangeMeta = getLatestChangeMeta(p.latestChange?.status);
+                                  const participantMeta = [
+                                    p.gender === "M" ? "Männlich" : p.gender === "W" ? "Weiblich" : "Divers",
+                                    birthYear ? `Jg. ${birthYear}` : null,
+                                    canEditAll && p.shirtSize ? `Shirt ${p.shirtSize}` : null,
+                                  ].filter(Boolean).join(" · ");
 
                                   return (
-                                    <div key={i} className="grid gap-2 border-b border-border/40 bg-background px-3 py-2 text-xs last:border-b-0 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] md:items-center">
-                                      <div className="min-w-0">
-                                        <div className="flex min-w-0 items-center gap-2">
-                                          <span className="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-[11px] font-semibold">{i + 1}</span>
-                                          <div className="min-w-0">
-                                            <p className="truncate font-medium" title={getParticipantDisplayName(p, i)}>
-                                              {getParticipantDisplayName(p, i)}
-                                            </p>
-                                            <p className="text-muted-foreground">
-                                              {p.gender === "M" ? "Männlich" : p.gender === "W" ? "Weiblich" : "Divers"}
-                                              {birthYear ? ` · Jg. ${birthYear}` : ""}
-                                              {canEditAll && p.shirtSize ? ` · Shirt ${p.shirtSize}` : ""}
+                                    <div key={i} className="grid gap-2 border-b border-border/40 bg-background px-3 py-2 text-xs last:border-b-0 md:grid-cols-[minmax(0,1.55fr)_minmax(0,1.2fr)_auto] md:items-center">
+                                      <div className="min-w-0 space-y-1">
+                                        <div className="flex min-w-0 items-start gap-2">
+                                          <span className="shrink-0 leading-5" title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                              <span className="shrink-0 text-muted-foreground">{disciplineDisplay.label}</span>
+                                              <span className="min-w-0 truncate font-medium" title={getParticipantDisplayName(p, i)}>
+                                                {getParticipantDisplayName(p, i)}
+                                              </span>
+                                            </div>
+                                            <p className="truncate text-muted-foreground" title={participantMeta}>
+                                              {participantMeta}
                                             </p>
                                           </div>
                                         </div>
-                                      </div>
-
-                                      <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
-                                        <span className="shrink-0" title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
-                                        <span className="truncate">{disciplineDisplay.label}</span>
                                       </div>
 
                                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1519,9 +1520,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                             {emailInviteMeta.label}
                                           </Badge>
                                         )}
-                                        {canEditAll && (
+                                        {canEditAll && p.email && (
                                           <span className="min-w-0 truncate text-muted-foreground" title={p.email || "Keine E-Mail hinterlegt"}>
-                                            {p.email || "Keine E-Mail"}
+                                            {p.email}
                                           </span>
                                         )}
                                       </div>
