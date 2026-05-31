@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import ApprovalQueue from "@/app/components/approval-queue";
 import BottomTabBar from "@/app/components/bottom-tab-bar";
 import NavBar from "@/app/components/nav-bar";
+import ParticipantList from "@/app/components/participant-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermissions } from "@/lib/permissions-context";
 
-export default function ChangesPage() {
+export default function ParticipantsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { can } = usePermissions();
@@ -48,7 +48,7 @@ export default function ChangesPage() {
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Kein Zugriff</CardTitle>
-              <CardDescription>Du hast keine Berechtigung für das Änderungs-Dashboard.</CardDescription>
+              <CardDescription>Du hast keine Berechtigung für das Teilnehmer-Dashboard.</CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/">
@@ -72,26 +72,26 @@ export default function ChangesPage() {
         <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
           <Card className="border-border/60">
             <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Änderungs-Dashboard</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight">Sauber prüfen statt Mails zusammensuchen.</h1>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Teilnehmer-Dashboard</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight">Alle Teilnehmer schnell finden und pflegen.</h1>
               <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                Hier laufen offene, genehmigte und abgelehnte Teilnehmeränderungen zusammen. Du siehst Antragsteller,
-                Mannschaft, Feldwechsel, Nachbesserungen und bereits getroffene Entscheidungen an einer Stelle.
+                Suche nach Name oder Mannschaft, filtere nach Klasse und Disziplin, pflege Moderationshinweise und
+                drucke die aktuelle Liste für die Wettkampfleitung.
               </p>
             </CardContent>
           </Card>
           <Card className="border-border/60">
             <CardContent className="p-5 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Was drin ist</p>
-              <p className="mt-2">Live-Liste aller offenen und erledigten Anträge</p>
-              <p>Suche nach Team, Person und Änderungsinhalt</p>
-              <p>Statusfilter für offen, genehmigt, abgelehnt und alle</p>
-              <p>Genehmigen oder ablehnen direkt aus dem Dashboard</p>
+              <p className="font-medium text-foreground">Wofür gedacht</p>
+              <p className="mt-2">Startnummern- und Moderationsvorbereitung</p>
+              <p>Teilnehmerdaten schnell querprüfen</p>
+              <p>Offene Änderungsanträge im Blick behalten</p>
+              <p>Druckliste für den Veranstaltungstag</p>
             </CardContent>
           </Card>
         </section>
 
-        <ApprovalQueue variant="page" />
+        <ParticipantList />
       </main>
 
       <div className="lg:hidden">

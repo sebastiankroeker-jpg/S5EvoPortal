@@ -11,8 +11,6 @@ import TeamScreen from "./components/team-screen";
 import Dashboard from "./components/dashboard";
 import LiveScreen from "./components/live-screen";
 import BottomTabBar from "./components/bottom-tab-bar";
-import ApprovalQueue from "./components/approval-queue";
-import ParticipantList from "./components/participant-list";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
@@ -152,35 +150,32 @@ export default function Home() {
             {activeTab === "registration" && <TeamScreen />}
             {activeTab === "dashboard" && <Dashboard />}
             {activeTab === "orga" && (canViewAllTeams || canEditResults) && (
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">⚙️ Orga-Bereich</h2>
+              <div className="space-y-5">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-semibold">⚙️ Orga-Bereich</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Zentrale Werkzeuge für Wettkampfleitung, Support und Datenpflege.
+                  </p>
+                </div>
 
-                {/* Quick-Actions — oben, immer sichtbar */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {canViewAllTeams && (
-                    <button onClick={() => setActiveTab("dashboard")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                      <span className="text-lg">👥</span>
-                      <p className="font-medium text-sm">Alle Teams</p>
-                      <p className="text-xs text-muted-foreground">Teams verwalten & bearbeiten</p>
-                    </button>
-                  )}
-                  <button onClick={() => { const el = document.getElementById('participant-list'); el?.scrollIntoView({ behavior: 'smooth' }); }} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                  <button onClick={() => router.push('/teilnehmer')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                     <span className="text-lg">📋</span>
                     <p className="font-medium text-sm">Teilnehmerübersicht</p>
-                    <p className="text-xs text-muted-foreground">Alle Teilnehmer suchen & bearbeiten</p>
+                    <p className="text-xs text-muted-foreground">Eigenes Dashboard für Suche, Hinweise und Druckliste</p>
                   </button>
                   {canViewAllTeams && (
                     <button onClick={() => router.push('/aenderungen')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">📝</span>
-                      <p className="font-medium text-sm">Aenderungen</p>
-                      <p className="text-xs text-muted-foreground">Offene Antraege pruefen & freigeben</p>
+                      <p className="font-medium text-sm">Änderungen</p>
+                      <p className="text-xs text-muted-foreground">Anträge prüfen, freigeben oder ablehnen</p>
                     </button>
                   )}
                   {canViewAllTeams && (
                     <button onClick={() => router.push('/claim-links')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <span className="text-lg">🔐</span>
                       <p className="font-medium text-sm">Claim-Links</p>
-                      <p className="text-xs text-muted-foreground">Uebernahmelinks erzeugen & verwalten</p>
+                      <p className="text-xs text-muted-foreground">Übernahmelinks erzeugen und Supportfälle klären</p>
                     </button>
                   )}
                   {canEditResults && (
@@ -207,13 +202,6 @@ export default function Home() {
                     <p className="font-medium text-sm">Infrastruktur</p>
                     <p className="text-xs text-muted-foreground">System-Übersicht</p>
                   </button>
-                </div>
-
-                {/* Approval Queue */}
-                <ApprovalQueue variant="embedded" />
-                {/* Teilnehmerübersicht */}
-                <div id="participant-list">
-                  <ParticipantList />
                 </div>
               </div>
             )}
