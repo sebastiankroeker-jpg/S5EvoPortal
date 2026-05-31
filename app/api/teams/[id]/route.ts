@@ -5,6 +5,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
+import { sendTeamLifecycleOrgEmail } from '@/lib/mail/team-lifecycle';
 import {
   diffParticipantSnapshots,
   hasParticipantChangeData,
@@ -1020,7 +1021,16 @@ export async function DELETE(
             where: { role: "TEAM_MANAGER", revokedAt: null },
             select: { userId: true, revokedAt: true },
           },
-          competition: { select: { id: true, tenantId: true } },
+          competition: {
+            select: {
+              id: true,
+              name: true,
+              year: true,
+              tenantId: true,
+              registrationNotificationEmail: true,
+              tenant: { select: { name: true, contactEmail: true } },
+            },
+          },
         },
       });
 
@@ -1082,6 +1092,26 @@ export async function DELETE(
           },
         }),
       ]);
+
+      try {
+        await sendTeamLifecycleOrgEmail({
+          action: "deleted",
+          competition: existingTeam.competition,
+          team: {
+            name: existingTeam.name,
+            ownerEmail: existingTeam.owner.email,
+            contactEmail: existingTeam.contactEmail,
+            participantCount: existingTeam.participants.length,
+            linkedParticipantCount,
+          },
+          actor: {
+            name: user?.name || session.user?.name || null,
+            email: userEmail,
+          },
+        });
+      } catch (mailError) {
+        console.error("Team delete org mail failed", mailError);
+      }
 
       return NextResponse.json({ 
         success: true,

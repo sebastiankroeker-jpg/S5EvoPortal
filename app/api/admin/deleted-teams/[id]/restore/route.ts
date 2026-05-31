@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { sendTeamLifecycleOrgEmail } from "@/lib/mail/team-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
@@ -29,7 +30,16 @@ export async function POST(
     },
     include: {
       owner: { select: { id: true, email: true, name: true, deletedAt: true } },
-      competition: { select: { id: true, name: true, tenantId: true } },
+      competition: {
+        select: {
+          id: true,
+          name: true,
+          year: true,
+          tenantId: true,
+          registrationNotificationEmail: true,
+          tenant: { select: { name: true, contactEmail: true } },
+        },
+      },
       participants: {
         select: {
           id: true,
@@ -97,6 +107,26 @@ export async function POST(
       },
     }),
   ]);
+
+  try {
+    await sendTeamLifecycleOrgEmail({
+      action: "restored",
+      competition: team.competition,
+      team: {
+        name: team.name,
+        ownerEmail: team.owner.email,
+        contactEmail: team.contactEmail,
+        participantCount: deletedParticipants.length,
+        linkedParticipantCount: team.participants.filter((participant) => participant.userId).length,
+      },
+      actor: {
+        name: auth.user.name,
+        email: auth.user.email,
+      },
+    });
+  } catch (mailError) {
+    console.error("Team restore org mail failed", mailError);
+  }
 
   return NextResponse.json({
     success: true,
