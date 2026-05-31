@@ -93,7 +93,7 @@ function FlyerInfoCard({ onRegisterClick }: { onRegisterClick?: () => void }) {
             href={FLYER_INFO_2026.flyerUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:opacity-90 transition-opacity"
+            className="flex h-12 w-full items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-opacity hover:opacity-90"
           >
             Zur ESV-Ausschreibung ↗
           </a>
@@ -101,16 +101,15 @@ function FlyerInfoCard({ onRegisterClick }: { onRegisterClick?: () => void }) {
 
         <div className="space-y-2">
           <p className="font-medium">Anmeldung</p>
-          <div className="rounded-md border border-border/50 p-3 space-y-1 text-muted-foreground">
+          <div className="rounded-md border border-border/50 p-3 space-y-3 text-muted-foreground">
             {FLYER_INFO_2026.registrationNotes.map((note) => (
               <p key={note}>• {note}</p>
             ))}
             {onRegisterClick && (
               <Button
                 type="button"
-                size="sm"
                 onClick={onRegisterClick}
-                className="mt-3 w-full justify-center"
+                className="h-12 w-full"
               >
                 📋 Mannschaft anmelden
               </Button>
@@ -412,18 +411,6 @@ export default function HomeScreen() {
 
       {/* Quick Actions */}
       <div className="space-y-3">
-        {can("team.create") && (
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => handleQuickAction("registration")}
-            className="w-full justify-start"
-          >
-            📋 Mannschaft anmelden
-            <span className="ml-auto">→</span>
-          </Button>
-        )}
-        
         {can("team.view.own") && (
           <Button
             variant="outline"
