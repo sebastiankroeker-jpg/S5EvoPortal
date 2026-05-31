@@ -65,6 +65,7 @@ function joinClasses(...classes: Array<string | false | null | undefined>) {
 }
 
 export default function UserManagement() {
+  const [focusedUserId, setFocusedUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [adminCount, setAdminCount] = useState(0);
@@ -100,6 +101,7 @@ export default function UserManagement() {
   };
 
   useEffect(() => {
+    setFocusedUserId(new URLSearchParams(window.location.search).get("userId"));
     fetchUsers();
   }, []);
 
@@ -109,6 +111,14 @@ export default function UserManagement() {
     setStatusMessage(null);
     setErrorMessage(null);
   };
+
+  useEffect(() => {
+    if (!focusedUserId || users.length === 0) return;
+    const focusedUser = users.find((user) => user.id === focusedUserId);
+    if (!focusedUser) return;
+    setSearchQuery(focusedUser.email);
+    startEdit(focusedUser);
+  }, [focusedUserId, users]);
 
   const toggleRole = (role: string) => {
     setEditRoles((prev) => (

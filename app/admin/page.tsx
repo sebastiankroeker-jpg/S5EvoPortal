@@ -208,6 +208,7 @@ export default function AdminPage() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [activeAdminTab, setActiveAdminTab] = useState("tenant");
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [resetReason, setResetReason] = useState("");
@@ -220,6 +221,13 @@ export default function AdminPage() {
   const [resetFeedback, setResetFeedback] = useState<InlineFeedback | null>(null);
   const hasAdminAccess = !session || can("config.edit");
   const expectedResetConfirmationText = activeCompetition?.name || competition.name;
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "tenant" || tab === "competition" || tab === "users") {
+      setActiveAdminTab(tab);
+    }
+  }, []);
 
   const navigateFromBottomTab = (tabId: string) => {
     if (tabId === "profile") {
@@ -550,7 +558,7 @@ export default function AdminPage() {
           </p>
         </motion.div>
 
-        <Tabs defaultValue="tenant" className="space-y-6">
+        <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
             <TabsTrigger value="competition">🏆 Wettkampf</TabsTrigger>

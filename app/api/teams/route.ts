@@ -136,6 +136,7 @@ function serializeParticipant(
     birthDate: canSeeFullPublication || isCurrentUserParticipant ? birthYearToBirthDateInput(participant.birthYear) : "",
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
+    linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
     emailInvitation: canSeeSensitiveParticipantFields
       ? {
           status: getParticipantEmailInvitationStatus({

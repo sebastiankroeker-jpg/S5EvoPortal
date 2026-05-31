@@ -218,6 +218,7 @@ function serializeParticipant(
     birthDate: canSeeFullPublication || isCurrentUserParticipant ? birthYearToBirthDateInput(participant.birthYear) : "",
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
+    linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
     participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
     shirtSize: canSeeSensitiveParticipantFields ? participant.shirtSize ?? "" : "",
