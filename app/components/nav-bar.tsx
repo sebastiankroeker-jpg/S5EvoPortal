@@ -17,7 +17,7 @@ import SearchOverlay from "./search-overlay";
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admin",
   MODERATOR: "Moderator:in",
-  TEAMCHEF: "Team Manager:in",
+  TEAMCHEF: "Teamchef:in",
   TEILNEHMER: "Teilnehmer:in",
   ZUSCHAUER: "Zuschauer:in",
 };

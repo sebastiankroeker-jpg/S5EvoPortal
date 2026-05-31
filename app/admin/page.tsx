@@ -843,7 +843,7 @@ export default function AdminPage() {
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="Team Manager:in sieht Anleger-Filter">
+                    <FormField label="Teamchef:in sieht Anleger-Filter">
                       <div className="flex items-center gap-3 pt-2">
                         <button
                           onClick={() =>

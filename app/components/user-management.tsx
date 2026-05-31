@@ -51,7 +51,7 @@ const TEAM_FOCUS_STORAGE_KEY = "s5evo.dashboard.focusTeamId";
 const ROLE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
   ADMIN: { icon: "👑", label: "Admin", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300", desc: "Vollzugriff" },
   MODERATOR: { icon: "🛡️", label: "Moderator:in", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300", desc: "Ergebnisse & Teams" },
-  TEAMCHEF: { icon: "📋", label: "Team Manager:in", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", desc: "Eigene Teams" },
+  TEAMCHEF: { icon: "📋", label: "Teamchef:in", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", desc: "Eigene Teams" },
   TEILNEHMER: { icon: "🏃", label: "Teilnehmer:in", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300", desc: "Eigene Daten" },
 };
 
@@ -257,7 +257,7 @@ export default function UserManagement() {
               ["Benutzer", stats.filtered.users, stats.total.users],
               ["Admins", stats.filtered.admins, stats.total.admins],
               ["Moderatoren", stats.filtered.moderators, stats.total.moderators],
-              ["Team Manager:innen", stats.filtered.teamManagers, stats.total.teamManagers],
+              ["Teamchef:innen", stats.filtered.teamManagers, stats.total.teamManagers],
             ].map(([label, filtered, total]) => (
               <div key={label} className="rounded-md border border-border/50 bg-muted/25 px-3 py-2">
                 <p className="text-[11px] text-muted-foreground">{label}</p>
@@ -337,7 +337,7 @@ export default function UserManagement() {
                     {editingUser === user.id && (
                       <div className="mt-3 space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          Wähle die Portal-Rollen für diesen Benutzer. Team Manager:in schaltet den Portal-Kontext frei; konkrete Managerrechte hängen an der jeweiligen Mannschaft darunter.
+                          Wähle die Portal-Rollen für diesen Benutzer. Teamchef:in schaltet den Portal-Kontext frei; konkrete Managerrechte hängen an der jeweiligen Mannschaft darunter.
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                           {ALL_ROLES.map((role) => {
