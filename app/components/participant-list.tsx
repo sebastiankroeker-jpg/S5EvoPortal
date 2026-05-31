@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { motion, AnimatePresence } from "framer-motion";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
+import { openChangesDashboard, openTeamDashboard } from "@/lib/admin-routing";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface ParticipantEntry {
@@ -60,6 +61,8 @@ export default function ParticipantList() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [disciplineFilter, setDisciplineFilter] = useState("all");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
+  const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
+  const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const [editingParticipant, setEditingParticipant] = useState<ParticipantEntry | null>(null);
@@ -82,6 +85,13 @@ export default function ParticipantList() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const participantId = params.get("participantId");
+    const teamId = params.get("teamId");
+    const query = params.get("q");
+    if (query) setSearch(query);
+    if (participantId) setParticipantFilterId(participantId);
+    if (teamId) setTeamFilterId(teamId);
     fetchParticipants();
   }, [activeCompetition?.id]);
 
@@ -116,16 +126,21 @@ export default function ParticipantList() {
         (quickFilter === "pendingChange" && p.hasPendingChange) ||
         (quickFilter === "moderationNote" && Boolean(p.moderationNote?.trim())) ||
         (quickFilter === "missingEmail" && canSeeAdminOnlyFields && !p.email?.trim());
+      const matchesParticipantFocus = !participantFilterId || p.id === participantFilterId;
+      const matchesTeamFocus = !teamFilterId || p.teamId === teamFilterId;
 
-      return matchesSearch && matchesCategory && matchesDiscipline && matchesQuickFilter;
+      return matchesSearch && matchesCategory && matchesDiscipline && matchesQuickFilter && matchesParticipantFocus && matchesTeamFocus;
     });
-  }, [participants, search, categoryFilter, disciplineFilter, quickFilter, canSeeAdminOnlyFields]);
+  }, [participants, search, categoryFilter, disciplineFilter, quickFilter, canSeeAdminOnlyFields, participantFilterId, teamFilterId]);
 
   const resetFilters = () => {
     setSearch("");
     setCategoryFilter("all");
     setDisciplineFilter("all");
     setQuickFilter("all");
+    setParticipantFilterId(null);
+    setTeamFilterId(null);
+    window.history.replaceState(null, "", "/teilnehmer");
   };
 
   if (loading) {
@@ -239,13 +254,37 @@ export default function ParticipantList() {
                           </span>
                           <span className="text-xs">{gender}</span>
                           {p.hasPendingChange && (
-                            <Badge variant="outline" className="text-amber-600 text-[10px] px-1 py-0">
+                            <Badge
+                              variant="outline"
+                              className={`text-amber-600 text-[10px] px-1 py-0 ${canSeeAdminOnlyFields ? "cursor-pointer" : ""}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (canSeeAdminOnlyFields) {
+                                  openChangesDashboard({ participantId: p.id, teamId: p.teamId, status: "PENDING" });
+                                }
+                              }}
+                              role={canSeeAdminOnlyFields ? "link" : undefined}
+                              title={canSeeAdminOnlyFields ? "Zum Änderungsdashboard" : undefined}
+                            >
                               ⏳
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{p.teamName}</span>
+                          <button
+                            type="button"
+                            className={canSeeAdminOnlyFields ? "truncate hover:text-primary" : "truncate"}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (canSeeAdminOnlyFields) {
+                                openTeamDashboard({ teamId: p.teamId });
+                              }
+                            }}
+                            disabled={!canSeeAdminOnlyFields}
+                            title={canSeeAdminOnlyFields ? "Mannschaft öffnen" : undefined}
+                          >
+                            {p.teamName}
+                          </button>
                           <span>·</span>
                           <span>{p.teamCategory}</span>
                           <span>·</span>

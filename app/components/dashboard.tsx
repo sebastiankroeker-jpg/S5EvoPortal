@@ -32,6 +32,12 @@ import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
+import {
+  TEAM_FOCUS_STORAGE_KEY,
+  TEAM_SEARCH_STORAGE_KEY,
+  openChangesDashboard,
+  openUserDashboard,
+} from "@/lib/admin-routing";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -136,8 +142,6 @@ type TeamOptionalColumnKey =
   | "updatedAt";
 
 const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
-const TEAM_FOCUS_STORAGE_KEY = "s5evo.dashboard.focusTeamId";
-
 const SORT_OPTIONS: Array<{ value: TeamSortField; label: string }> = [
   { value: "updatedAt", label: "Zuletzt geändert" },
   { value: "createdAt", label: "Angelegt" },
@@ -492,6 +496,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   const canEditAll = can("team.edit.all");
   const canViewAll = can("team.view.all");
+  const canUseAdminLinks = activeRole === "ADMIN";
   const userEmail = session?.user?.email;
   const { active: activeCompetition } = useCompetition();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
@@ -635,6 +640,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     setExpandedTeamMeta(null);
     setViewMode("cards");
   }, [teams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedSearch = window.sessionStorage.getItem(TEAM_SEARCH_STORAGE_KEY);
+    if (!storedSearch) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(TEAM_SEARCH_STORAGE_KEY);
+    setSearchQuery(storedSearch);
+  }, []);
 
   // Filter and search logic
   const filteredTeams = useMemo(() => {
@@ -1540,13 +1559,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                             {latestChangeMeta && (
                                               <Badge
                                                 variant="outline"
-                                                className={`h-6 cursor-pointer px-1.5 text-[10px] ${latestChangeMeta.className}`}
+                                                className={`h-6 px-1.5 text-[10px] ${latestChangeMeta.className} ${canUseAdminLinks ? "cursor-pointer" : ""}`}
                                                 onClick={(event) => {
                                                   event.stopPropagation();
-                                                  window.location.href = "/aenderungen";
+                                                  if (canUseAdminLinks) {
+                                                    openChangesDashboard({
+                                                      participantId: p.id,
+                                                      teamId: team.id,
+                                                      status: p.latestChange?.status as "PENDING" | "APPROVED" | "REJECTED" | undefined,
+                                                    });
+                                                  }
                                                 }}
-                                                role="link"
-                                                title="Zum Änderungsdashboard"
+                                                role={canUseAdminLinks ? "link" : undefined}
+                                                title={canUseAdminLinks ? "Zum Änderungsdashboard" : undefined}
                                               >
                                                 {latestChangeMeta.label}
                                               </Badge>
@@ -1554,15 +1579,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                             {emailInviteMeta && (
                                               <Badge
                                                 variant="outline"
-                                                className={`h-6 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${p.linkedUserId ? "cursor-pointer" : ""}`}
+                                                className={`h-6 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${canUseAdminLinks && (p.linkedUserId || p.email) ? "cursor-pointer" : ""}`}
                                                 onClick={(event) => {
                                                   event.stopPropagation();
-                                                  if (p.linkedUserId) {
-                                                    window.location.href = `/admin?tab=users&userId=${encodeURIComponent(p.linkedUserId)}`;
+                                                  if (canUseAdminLinks && (p.linkedUserId || p.email)) {
+                                                    openUserDashboard({ userId: p.linkedUserId, email: p.email, teamId: team.id });
                                                   }
                                                 }}
-                                                role={p.linkedUserId ? "link" : undefined}
-                                                title={p.linkedUserId ? "Verknüpften Benutzer bearbeiten" : undefined}
+                                                role={canUseAdminLinks && (p.linkedUserId || p.email) ? "link" : undefined}
+                                                title={canUseAdminLinks && (p.linkedUserId || p.email) ? "Benutzerverwaltung öffnen" : undefined}
                                               >
                                                 <Mail className="size-3" />
                                                 {emailInviteMeta.label}
@@ -1582,17 +1607,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                                 variant="outline"
                                                 className={
                                                   p.isTeamManager
-                                                    ? `h-6 border-green-300 px-1.5 text-[10px] text-green-700 ${p.linkedUserId ? "cursor-pointer" : ""}`
+                                                    ? `h-6 border-green-300 px-1.5 text-[10px] text-green-700 ${canUseAdminLinks && p.linkedUserId ? "cursor-pointer" : ""}`
                                                     : "h-6 border-muted px-1.5 text-[10px] text-muted-foreground"
                                                 }
                                                 onClick={(event) => {
                                                   event.stopPropagation();
-                                                  if (p.isTeamManager && p.linkedUserId) {
-                                                    window.location.href = `/admin?tab=users&userId=${encodeURIComponent(p.linkedUserId)}`;
+                                                  if (canUseAdminLinks && p.isTeamManager && p.linkedUserId) {
+                                                    openUserDashboard({ userId: p.linkedUserId, teamId: team.id });
                                                   }
                                                 }}
-                                                role={p.isTeamManager && p.linkedUserId ? "link" : undefined}
-                                                title={p.isTeamManager && p.linkedUserId ? "Benutzer bearbeiten" : undefined}
+                                                role={canUseAdminLinks && p.isTeamManager && p.linkedUserId ? "link" : undefined}
+                                                title={canUseAdminLinks && p.isTeamManager && p.linkedUserId ? "Benutzerverwaltung öffnen" : undefined}
                                               >
                                                 {p.isTeamManager ? "Team Manager:in" : p.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
                                               </Badge>

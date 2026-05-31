@@ -25,7 +25,7 @@ interface PendingChange {
     firstName: string;
     lastName: string;
     email?: string | null;
-    team: { name: string; contactEmail?: string | null };
+    team: { id: string; name: string; contactEmail?: string | null };
   };
   requestedBy: {
     name: string | null;
@@ -166,6 +166,8 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [searchQuery, setSearchQuery] = useState("");
   const [updatedOnly, setUpdatedOnly] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "ALL">("PENDING");
+  const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
+  const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const dashboardMode = variant === "page";
@@ -203,6 +205,20 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   };
 
   useEffect(() => {
+    if (dashboardMode) {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get("status");
+      const query = params.get("q");
+      const participantId = params.get("participantId");
+      const teamId = params.get("teamId");
+
+      if (status === "PENDING" || status === "APPROVED" || status === "REJECTED" || status === "ALL") {
+        setStatusFilter(status);
+      }
+      if (query) setSearchQuery(query);
+      if (participantId) setParticipantFilterId(participantId);
+      if (teamId) setTeamFilterId(teamId);
+    }
     void fetchChanges();
   }, []);
 
@@ -237,6 +253,14 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
           return false;
         }
 
+        if (participantFilterId && change.participant.id !== participantFilterId) {
+          return false;
+        }
+
+        if (teamFilterId && change.participant.team.id !== teamFilterId) {
+          return false;
+        }
+
         if (!query) {
           return true;
         }
@@ -260,7 +284,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
 
         return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
       });
-  }, [decoratedChanges, searchQuery, statusFilter, updatedOnly]);
+  }, [decoratedChanges, participantFilterId, searchQuery, statusFilter, teamFilterId, updatedOnly]);
 
   const visibleChanges = useMemo(() => {
     return dashboardMode ? filteredChanges : filteredChanges.slice(0, 3);
@@ -368,6 +392,23 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                 />
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                {(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setParticipantFilterId(null);
+                      setTeamFilterId(null);
+                      setSearchQuery("");
+                      setStatusFilter("PENDING");
+                      setUpdatedOnly(false);
+                      window.history.replaceState(null, "", "/aenderungen");
+                    }}
+                  >
+                    Filter zurücksetzen
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant={statusFilter === "PENDING" ? "default" : "outline"}

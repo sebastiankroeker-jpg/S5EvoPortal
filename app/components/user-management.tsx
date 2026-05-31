@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { openTeamDashboard } from "@/lib/admin-routing";
 
 interface UserRole {
   id: string;
@@ -50,8 +51,6 @@ interface UsersResponse {
 }
 
 const ALL_ROLES = ["ADMIN", "MODERATOR", "TEILNEHMER"] as const;
-const TEAM_FOCUS_STORAGE_KEY = "s5evo.dashboard.focusTeamId";
-
 const ROLE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
   ADMIN: { icon: "👑", label: "Admin", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300", desc: "Vollzugriff" },
   MODERATOR: { icon: "🛡️", label: "Moderator:in", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300", desc: "Ergebnisse & Teams" },
@@ -79,6 +78,7 @@ export default function UserManagement() {
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [updatingTeamScopeKey, setUpdatingTeamScopeKey] = useState<string | null>(null);
+  const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -107,7 +107,13 @@ export default function UserManagement() {
   };
 
   useEffect(() => {
-    setFocusedUserId(new URLSearchParams(window.location.search).get("userId"));
+    const params = new URLSearchParams(window.location.search);
+    setFocusedUserId(params.get("userId"));
+    setFocusedTeamId(params.get("teamId"));
+    const userQuery = params.get("userQuery");
+    if (userQuery) {
+      setSearchQuery(userQuery);
+    }
     fetchUsers();
   }, []);
 
@@ -189,10 +195,7 @@ export default function UserManagement() {
   };
 
   const openTeam = (teamId: string) => {
-    window.sessionStorage.setItem("s5evo-active-tab", "registration");
-    window.sessionStorage.setItem("s5evo-team-view", "mannschaften");
-    window.sessionStorage.setItem(TEAM_FOCUS_STORAGE_KEY, teamId);
-    window.location.href = "/#registration";
+    openTeamDashboard({ teamId });
   };
 
   const toggleTeamManager = async (user: UserEntry, team: UserEntry["teamScopes"][number]) => {
@@ -433,7 +436,13 @@ export default function UserManagement() {
                             const isUpdating = updatingTeamScopeKey === `${user.id}:${team.id}`;
 
                             return (
-                              <div key={team.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div
+                                key={team.id}
+                                className={joinClasses(
+                                  "flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
+                                  focusedTeamId === team.id && "bg-primary/5 ring-1 ring-inset ring-primary/20"
+                                )}
+                              >
                                 <button
                                   type="button"
                                   className="min-w-0 text-left transition-colors hover:text-primary"
