@@ -66,7 +66,7 @@ export default function Home() {
   const router = useRouter();
   const { status } = useSession();
   const { theme } = useTheme();
-  const { can } = usePermissions();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const { active: activeCompetition } = useCompetition();
   const canViewOwnTeams = can("team.view.own");
   const canViewAllTeams = can("team.view.all");
@@ -109,7 +109,7 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (status === "loading") return;
+    if (status === "loading" || permissionsLoading) return;
 
     if (
       canAccessTab(activeTab, {
@@ -127,7 +127,7 @@ export default function Home() {
       window.history.replaceState(null, "", "/");
     }
     setActiveTab("home");
-  }, [activeTab, canEditResults, canViewAllTeams, canViewOwnTeams, status]);
+  }, [activeTab, canEditResults, canViewAllTeams, canViewOwnTeams, permissionsLoading, status]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

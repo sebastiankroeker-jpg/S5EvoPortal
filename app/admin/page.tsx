@@ -166,8 +166,8 @@ function FormField({ label, children, hint }: { label: string; children: React.R
 
 export default function AdminPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const { can } = usePermissions();
+  const { data: session, status } = useSession();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const { active: activeCompetition, all: competitions, switchTo } = useCompetition();
 
   const [tenant, setTenant] = useState<TenantConfig>({
@@ -219,7 +219,7 @@ export default function AdminPage() {
   const [resetAuditEvents, setResetAuditEvents] = useState<ResetAuditEntry[]>([]);
   const [loadingResetMeta, setLoadingResetMeta] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<InlineFeedback | null>(null);
-  const hasAdminAccess = !session || can("config.edit");
+  const hasAdminAccess = !!session && can("config.edit");
   const expectedResetConfirmationText = activeCompetition?.name || competition.name;
 
   useEffect(() => {
@@ -291,6 +291,10 @@ export default function AdminPage() {
 
   // Load tenant on mount
   useEffect(() => {
+    if (status === "loading" || permissionsLoading) {
+      return;
+    }
+
     if (!hasAdminAccess) {
       setLoading(false);
       return;
@@ -322,7 +326,7 @@ export default function AdminPage() {
         setLoading(false);
       }
     })();
-  }, [hasAdminAccess]);
+  }, [hasAdminAccess, permissionsLoading, status]);
 
   // Load competition details when active competition changes
   useEffect(() => {
@@ -488,7 +492,7 @@ export default function AdminPage() {
     }
   };
 
-  if (loading) {
+  if (status === "loading" || permissionsLoading || loading) {
     return (
       <div className="min-h-screen bg-background pb-24 lg:pb-0">
         <NavBar />

@@ -7,6 +7,7 @@ import { Role, Permission, can as canCheck, getHighestRole } from "./permissions
 interface PermissionsContextType {
   roles: Role[];
   activeRole: Role;
+  isLoading: boolean;
   can: (permission: Permission) => boolean;
   simulatedRole: Role | null;
   setSimulatedRole: (role: Role | null) => void;
@@ -20,14 +21,17 @@ interface PermissionsProviderProps {
 }
 
 export function PermissionsProvider({ children }: PermissionsProviderProps) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [simulatedRole, setSimulatedRole] = useState<Role | null>(null);
+  const sessionEmail = session?.user?.email ?? null;
   
   // Rollen aus der DB laden
-  const [dbRoles, setDbRoles] = useState<Role[] | null>(null);
+  const [dbRoles, setDbRoles] = useState<{ email: string | null; roles: Role[] } | null>(null);
 
   useEffect(() => {
-    if (!session?.user) return;
+    if (!sessionEmail) {
+      return;
+    }
 
     let cancelled = false;
 
@@ -35,23 +39,25 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
       .then(res => res.ok ? res.json() : { roles: [] })
       .then(data => {
         if (!cancelled) {
-          setDbRoles(data.roles?.length ? data.roles : ["TEILNEHMER"]);
+          setDbRoles({ email: sessionEmail, roles: data.roles?.length ? data.roles : ["TEILNEHMER"] });
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setDbRoles(["TEILNEHMER"]);
+          setDbRoles({ email: sessionEmail, roles: ["TEILNEHMER"] });
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [session?.user]);
+  }, [sessionEmail]);
 
+  const currentDbRoles = dbRoles?.email === sessionEmail ? dbRoles.roles : null;
   const roles: Role[] = session?.user
-    ? (dbRoles?.length ? dbRoles : ["TEILNEHMER"])
+    ? (currentDbRoles?.length ? currentDbRoles : ["TEILNEHMER"])
     : ["ZUSCHAUER"];
+  const isLoading = status === "loading" || Boolean(session?.user && currentDbRoles === null);
   
   const activeRole = simulatedRole || getHighestRole(roles);
   const isSimulating = simulatedRole !== null;
@@ -68,6 +74,7 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const contextValue: PermissionsContextType = {
     roles,
     activeRole,
+    isLoading,
     can,
     simulatedRole,
     setSimulatedRole,

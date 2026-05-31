@@ -14,7 +14,7 @@ import { usePermissions } from "@/lib/permissions-context";
 export default function ClaimLinksPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { can } = usePermissions();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const hasAccess = !!session && can("team.view.all");
 
   const navigateFromBottomTab = (tabId: string) => {
@@ -26,7 +26,7 @@ export default function ClaimLinksPage() {
     router.push(tabId === "home" ? "/" : `/#${tabId}`);
   };
 
-  if (status === "loading") {
+  if (status === "loading" || permissionsLoading) {
     return (
       <div className="min-h-screen bg-background pb-24 lg:pb-0">
         <NavBar />
