@@ -1094,7 +1094,7 @@ export async function DELETE(
       ]);
 
       try {
-        await sendTeamLifecycleOrgEmail({
+        const mailResult = await sendTeamLifecycleOrgEmail({
           action: "deleted",
           competition: existingTeam.competition,
           team: {
@@ -1109,8 +1109,58 @@ export async function DELETE(
             email: userEmail,
           },
         });
+        await prisma.auditEvent.create({
+          data: {
+            action: "TEAM_LIFECYCLE_MAIL",
+            scopeType: "TEAM",
+            scopeId: existingTeam.id,
+            entityType: "TEAM",
+            entityId: existingTeam.id,
+            reason: "team_deleted_org_mail",
+            afterData: {
+              mailStatus: mailResult.status,
+              recipients: mailResult.recipients,
+              subject: mailResult.subject ?? null,
+              reason: mailResult.status === "skipped" ? mailResult.reason : null,
+              missing: mailResult.status === "skipped" ? mailResult.missing ?? [] : [],
+            },
+            meta: {
+              lifecycleAction: "deleted",
+              teamName: existingTeam.name,
+              ownerEmail: existingTeam.owner.email,
+              sessionEmail: normalizeEmail(userEmail),
+            },
+            tenantId: existingTeam.competition.tenantId,
+            competitionId: existingTeam.competition.id,
+            actorId: user?.id ?? null,
+          },
+        }).catch((auditError) => console.error("Team delete mail audit failed", auditError));
       } catch (mailError) {
         console.error("Team delete org mail failed", mailError);
+        await prisma.auditEvent.create({
+          data: {
+            action: "TEAM_LIFECYCLE_MAIL",
+            scopeType: "TEAM",
+            scopeId: existingTeam.id,
+            entityType: "TEAM",
+            entityId: existingTeam.id,
+            reason: "team_deleted_org_mail_failed",
+            afterData: {
+              mailStatus: "failed",
+              recipients: [],
+              error: mailError instanceof Error ? mailError.message : String(mailError),
+            },
+            meta: {
+              lifecycleAction: "deleted",
+              teamName: existingTeam.name,
+              ownerEmail: existingTeam.owner.email,
+              sessionEmail: normalizeEmail(userEmail),
+            },
+            tenantId: existingTeam.competition.tenantId,
+            competitionId: existingTeam.competition.id,
+            actorId: user?.id ?? null,
+          },
+        }).catch((auditError) => console.error("Team delete mail audit failed", auditError));
       }
 
       return NextResponse.json({ 

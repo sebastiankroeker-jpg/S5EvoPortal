@@ -30,6 +30,20 @@ type TeamLifecyclePayload = {
   actor: TeamLifecycleActor;
 };
 
+export type TeamLifecycleMailResult =
+  | {
+      status: "sent";
+      recipients: string[];
+      subject: string;
+    }
+  | {
+      status: "skipped";
+      recipients: string[];
+      subject?: string;
+      reason: string;
+      missing?: string[];
+    };
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -92,15 +106,31 @@ export async function sendTeamLifecycleOrgEmail(input: TeamLifecyclePayload) {
   const recipients = resolveRegistrationNotificationEmail(input.competition);
 
   if (recipients.length === 0) {
-    return { status: "skipped" as const, reason: "missing_org_recipient" };
+    return { status: "skipped" as const, recipients, reason: "missing_org_recipient" };
   }
 
   const mail = buildTeamLifecycleMail(input);
-  return sendResendMail({
+  const result = await sendResendMail({
     to: recipients,
     subject: mail.subject,
     html: mail.html,
     text: mail.text,
     replyTo: input.actor.email || process.env.MAIL_REPLY_TO || recipients[0],
   });
+
+  if (result.status === "skipped") {
+    return {
+      status: "skipped" as const,
+      recipients,
+      subject: mail.subject,
+      reason: result.reason,
+      missing: result.missing,
+    };
+  }
+
+  return {
+    status: "sent" as const,
+    recipients,
+    subject: mail.subject,
+  };
 }

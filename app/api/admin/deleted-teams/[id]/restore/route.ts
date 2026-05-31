@@ -109,7 +109,7 @@ export async function POST(
   ]);
 
   try {
-    await sendTeamLifecycleOrgEmail({
+    const mailResult = await sendTeamLifecycleOrgEmail({
       action: "restored",
       competition: team.competition,
       team: {
@@ -124,8 +124,56 @@ export async function POST(
         email: auth.user.email,
       },
     });
+    await prisma.auditEvent.create({
+      data: {
+        action: "TEAM_LIFECYCLE_MAIL",
+        scopeType: "TEAM",
+        scopeId: team.id,
+        entityType: "TEAM",
+        entityId: team.id,
+        reason: "team_restored_org_mail",
+        afterData: {
+          mailStatus: mailResult.status,
+          recipients: mailResult.recipients,
+          subject: mailResult.subject ?? null,
+          reason: mailResult.status === "skipped" ? mailResult.reason : null,
+          missing: mailResult.status === "skipped" ? mailResult.missing ?? [] : [],
+        },
+        meta: {
+          lifecycleAction: "restored",
+          teamName: team.name,
+          ownerEmail: team.owner.email,
+        },
+        tenantId: auth.tenantId,
+        competitionId: team.competition.id,
+        actorId: auth.user.id,
+      },
+    }).catch((auditError) => console.error("Team restore mail audit failed", auditError));
   } catch (mailError) {
     console.error("Team restore org mail failed", mailError);
+    await prisma.auditEvent.create({
+      data: {
+        action: "TEAM_LIFECYCLE_MAIL",
+        scopeType: "TEAM",
+        scopeId: team.id,
+        entityType: "TEAM",
+        entityId: team.id,
+        reason: "team_restored_org_mail_failed",
+        afterData: {
+          mailStatus: "failed",
+          recipients: [],
+          error: mailError instanceof Error ? mailError.message : String(mailError),
+        },
+        meta: {
+          lifecycleAction: "restored",
+          teamName: team.name,
+          ownerEmail: team.owner.email,
+        },
+        tenantId: auth.tenantId,
+        competitionId: team.competition.id,
+        actorId: auth.user.id,
+      },
+    }).catch((auditError) => console.error("Team restore mail audit failed", auditError));
   }
 
   return NextResponse.json({

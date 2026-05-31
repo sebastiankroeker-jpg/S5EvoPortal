@@ -95,15 +95,27 @@ function getNumberValue(record: AuditRecord | null | undefined, key: string) {
   return typeof value === "number" ? value : null;
 }
 
+function getStringArrayValue(record: AuditRecord | null | undefined, key: string) {
+  const value = record?.[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 function getAuditLabel(action: string) {
   if (action === "TEAM_SOFT_DELETED") return "Gelöscht";
   if (action === "TEAM_RESTORED") return "Wiederhergestellt";
+  if (action === "TEAM_LIFECYCLE_MAIL") return "Mail";
   return action;
 }
 
-function getAuditTone(action: string) {
-  if (action === "TEAM_SOFT_DELETED") return "destructive" as const;
-  if (action === "TEAM_RESTORED") return "default" as const;
+function getAuditTone(event: AuditEvent) {
+  if (event.action === "TEAM_LIFECYCLE_MAIL") {
+    const mailStatus = getStringValue(event.afterData, "mailStatus");
+    if (mailStatus === "failed") return "destructive" as const;
+    if (mailStatus === "skipped") return "secondary" as const;
+    return "outline" as const;
+  }
+  if (event.action === "TEAM_SOFT_DELETED") return "destructive" as const;
+  if (event.action === "TEAM_RESTORED") return "default" as const;
   return "outline" as const;
 }
 
@@ -150,8 +162,9 @@ export default function RestoreCenter() {
       if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
       params.append("action", "TEAM_SOFT_DELETED");
       params.append("action", "TEAM_RESTORED");
+      params.append("action", "TEAM_LIFECYCLE_MAIL");
       params.set("scopeType", "TEAM");
-      params.set("limit", "12");
+      params.set("limit", "18");
       const response = await fetch(`/api/admin/audit-events?${params}`);
       const data = (await response.json().catch(() => ({}))) as Partial<AuditEventsResponse> & { error?: string };
       if (!response.ok) {
@@ -299,11 +312,15 @@ export default function RestoreCenter() {
                   getNumberValue(event.afterData, "deletedParticipants") ||
                   getNumberValue(event.afterData, "restoredParticipants");
                 const linkedParticipants = getNumberValue(event.meta, "linkedParticipants");
+                const mailStatus = getStringValue(event.afterData, "mailStatus");
+                const mailReason = getStringValue(event.afterData, "reason") || getStringValue(event.afterData, "error");
+                const mailRecipients = getStringArrayValue(event.afterData, "recipients");
+                const lifecycleAction = getStringValue(event.meta, "lifecycleAction");
 
                 return (
                   <div key={event.id} className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={getAuditTone(event.action)}>{getAuditLabel(event.action)}</Badge>
+                      <Badge variant={getAuditTone(event)}>{getAuditLabel(event.action)}</Badge>
                       <span className="text-sm font-medium">{teamName}</span>
                       <span className="text-xs text-muted-foreground">
                         {formatDateTime(event.createdAt)} · {actor}
@@ -312,8 +329,25 @@ export default function RestoreCenter() {
                     <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                       {typeof participantCount === "number" && <span>{participantCount} Teilnehmer:innen</span>}
                       {typeof linkedParticipants === "number" && <span>{linkedParticipants} verknüpfte Accounts</span>}
+                      {event.action === "TEAM_LIFECYCLE_MAIL" && (
+                        <span>
+                          {mailStatus === "sent"
+                            ? `Mail gesendet an ${mailRecipients.length} Empfänger`
+                            : mailStatus === "skipped"
+                              ? `Mail übersprungen${mailReason ? `: ${mailReason}` : ""}`
+                              : `Mail fehlgeschlagen${mailReason ? `: ${mailReason}` : ""}`}
+                        </span>
+                      )}
+                      {event.action === "TEAM_LIFECYCLE_MAIL" && lifecycleAction && (
+                        <span>{lifecycleAction === "restored" ? "nach Restore" : "nach Löschen"}</span>
+                      )}
                       {event.competition && <span>{event.competition.name}</span>}
                     </div>
+                    {event.action === "TEAM_LIFECYCLE_MAIL" && mailRecipients.length > 0 && (
+                      <div className="mt-1 truncate text-xs text-muted-foreground">
+                        An: {mailRecipients.join(", ")}
+                      </div>
+                    )}
                   </div>
                 );
               })}

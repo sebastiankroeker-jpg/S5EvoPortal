@@ -8,6 +8,7 @@ import { requireTenantRoles } from "@/lib/server-permissions";
 const ALLOWED_ACTIONS = new Set([
   "TEAM_SOFT_DELETED",
   "TEAM_RESTORED",
+  "TEAM_LIFECYCLE_MAIL",
   "TEAM_MANAGER_GRANTED",
   "TEAM_MANAGER_REVOKED",
   "COMPETITION_RESET_DRY_RUN",
