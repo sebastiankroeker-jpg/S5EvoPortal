@@ -7,7 +7,7 @@ import { fullSignOut } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { APP_VERSION } from "@/lib/version";
-import { useTheme } from "@/lib/theme-context";
+import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
@@ -29,7 +29,7 @@ export default function NavBar() {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const THEMES = [
+  const THEMES: Array<{ id: Theme; icon: string; label: string }> = [
     { id: "light", icon: "☀️", label: "Light" },
     { id: "dark", icon: "🌙", label: "Dark" },
     { id: "esv", icon: "🏔️", label: "ESV" },
@@ -77,7 +77,7 @@ export default function NavBar() {
         {THEMES.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTheme(t.id as any)}
+            onClick={() => setTheme(t.id)}
             className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center transition-all hover:scale-110 ${
               theme === t.id ? "ring-1 ring-primary ring-offset-1 ring-offset-background scale-110" : "opacity-40 hover:opacity-80"
             }`}

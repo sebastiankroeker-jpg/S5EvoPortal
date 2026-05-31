@@ -18,6 +18,14 @@ type AuthLogger = {
   debug(code: string, ...message: unknown[]): void;
 };
 
+type AuthentikProfile = {
+  sub?: string;
+  email?: string;
+  name?: string;
+  preferred_username?: string;
+  picture?: string;
+};
+
 function redactAuthUrl(rawValue: string) {
   try {
     const url = new URL(rawValue);
@@ -139,10 +147,11 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account, profile }) {
       // Keep the session token lean so the auth cookie stays below browser limits.
       if (account) {
-        token.id = profile?.sub;
-        token.email = profile?.email;
-        token.name = profile?.name ?? (profile as any)?.preferred_username;
-        token.picture = (profile as any)?.picture;
+        const authentikProfile = profile as AuthentikProfile | undefined;
+        token.id = authentikProfile?.sub;
+        token.email = authentikProfile?.email;
+        token.name = authentikProfile?.name ?? authentikProfile?.preferred_username;
+        token.picture = authentikProfile?.picture;
         token.idToken = account.id_token;
       }
       return token;

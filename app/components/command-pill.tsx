@@ -6,13 +6,40 @@ import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { fullSignOut } from "@/lib/auth-helpers";
 import { usePermissions } from "@/lib/permissions-context";
-import { useTheme } from "@/lib/theme-context";
+import { useTheme, type Theme } from "@/lib/theme-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { X, Search, Menu, ExternalLink } from "lucide-react";
 import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
+
+type SearchResult =
+  | {
+      type: "menu";
+      id: string;
+      label: string;
+      icon: NavigationMenuItem["icon"];
+    }
+  | {
+      type: "team";
+      id: string;
+      name?: string;
+      label?: string;
+      discipline?: string | null;
+      participants?: unknown[];
+      icon: string;
+    };
+
+type TeamsSearchResponse = {
+  teams?: Array<{
+    id: string;
+    name?: string;
+    label?: string;
+    discipline?: string | null;
+    participants?: unknown[];
+  }>;
+};
 
 export default function CommandPill() {
   const router = useRouter();
@@ -23,7 +50,7 @@ export default function CommandPill() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const isClaimPath = isClaimNavigationPath(pathname);
 
   const permittedMenuItems = getPermittedNavigationMenuItems({
@@ -43,26 +70,26 @@ export default function CommandPill() {
     const lowerQuery = query.toLowerCase();
     
     // Search menu items first
-    const menuResults = permittedMenuItems
+    const menuResults: SearchResult[] = permittedMenuItems
       .filter(item => {
         // Check if query matches label or keywords
         return item.label.toLowerCase().includes(lowerQuery) ||
                item.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery));
       })
       .map(item => ({
-        type: 'menu',
+        type: 'menu' as const,
         id: item.id,
         label: item.label,
         icon: item.icon,
       }));
 
     // Search teams via API
-    let teamResults: any[] = [];
+    let teamResults: SearchResult[] = [];
     try {
       const response = await fetch(`/api/teams?q=${encodeURIComponent(query)}`);
       if (response.ok) {
-        const teams = await response.json();
-        teamResults = teams.map((team: any) => ({
+        const teamsData = (await response.json()) as TeamsSearchResponse;
+        teamResults = (teamsData.teams ?? []).map((team) => ({
           type: 'team',
           ...team,
           icon: "🏅"
@@ -177,7 +204,7 @@ export default function CommandPill() {
   };
 
   // Theme options
-  const themes = [
+  const themes: Array<{ id: Theme; label: string; icon: string }> = [
     { id: "light", label: "Light", icon: "☀️" },
     { id: "dark", label: "Dark", icon: "🌙" },
     { id: "esv", label: "ESV", icon: "🏔️" },
@@ -259,7 +286,7 @@ export default function CommandPill() {
                 {searchQuery && (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {searchResults.length > 0 ? (
-                      searchResults.map((result: any, index) => (
+                      searchResults.map((result, index) => (
                         <div
                           key={`${result.type}-${result.id || index}`}
                         className="p-2 rounded-md hover:bg-accent cursor-pointer"
@@ -479,7 +506,7 @@ export default function CommandPill() {
                             variant={theme === t.id ? "default" : "ghost"}
                             size="sm"
                             className="h-8 w-8 p-0 text-base"
-                            onClick={() => setTheme(t.id as any)}
+                            onClick={() => setTheme(t.id)}
                             title={t.label}
                           >
                             {t.icon}

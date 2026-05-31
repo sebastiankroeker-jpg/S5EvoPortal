@@ -24,6 +24,17 @@ type CompetitionContextType = {
   loading: boolean;
 };
 
+type AdminCompetitionResponseItem = {
+  id: string;
+  name: string;
+  year: number;
+  status: string;
+  _count?: { teams?: number };
+  teamOwnerFilterVisibleForTeamchef?: boolean;
+  participantsCanViewAllTeams?: boolean;
+  spectatorsCanViewAllTeams?: boolean;
+};
+
 const CompetitionContext = createContext<CompetitionContextType>({
   active: null,
   all: [],
@@ -75,7 +86,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
           return;
         }
         const data = await res.json();
-        const comps: CompetitionInfo[] = (data.competitions || []).map((c: any) => ({
+        const comps: CompetitionInfo[] = ((data.competitions || []) as AdminCompetitionResponseItem[]).map((c) => ({
           id: c.id,
           name: c.name,
           year: c.year,

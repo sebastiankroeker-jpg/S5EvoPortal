@@ -25,6 +25,11 @@ interface TeamStats {
   totalClasses: number;
 }
 
+type TeamStatsSource = {
+  category?: string | null;
+  participants?: unknown[];
+};
+
 const FLYER_INFO_2026 = {
   registrationDeadline: "22.07.2026",
   registrationUrl: "www.esv-bad-bayersoien.de",
@@ -230,11 +235,11 @@ export default function HomeScreen() {
           const teamsResponse = await fetch(`/api/teams?${params}`);
           if (teamsResponse.ok) {
             const teamsData = await teamsResponse.json();
-            const teams = teamsData.teams || [];
+            const teams = (teamsData.teams || []) as TeamStatsSource[];
             const stats = {
               totalTeams: teams.length,
-              totalParticipants: teams.reduce((sum: number, team: any) => sum + (team.participants?.length || 0), 0),
-              totalClasses: new Set(teams.map((team: any) => team.category).filter(Boolean)).size
+              totalParticipants: teams.reduce((sum, team) => sum + (team.participants?.length || 0), 0),
+              totalClasses: new Set(teams.map((team) => team.category).filter(Boolean)).size
             };
             setTeamStats(stats);
           }
@@ -253,7 +258,7 @@ export default function HomeScreen() {
     loadData();
   }, [activeCompetition?.id, canViewAllTeams, competitionLoading, status]);
 
-  const handleQuickAction = (tabId: string, additionalData?: any) => {
+  const handleQuickAction = (tabId: string, additionalData?: Record<string, string | null | undefined>) => {
     const detail = tabId === "registration"
       ? { tabId, teamView: "register", ...additionalData }
       : { tabId, ...additionalData };
