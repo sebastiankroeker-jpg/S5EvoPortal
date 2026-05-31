@@ -52,6 +52,32 @@ type DeletedTeamsResponse = {
   teams: DeletedTeam[];
 };
 
+type AuditRecord = Record<string, unknown>;
+
+type AuditEvent = {
+  id: string;
+  action: string;
+  reason?: string | null;
+  beforeData?: AuditRecord | null;
+  afterData?: AuditRecord | null;
+  meta?: AuditRecord | null;
+  createdAt: string;
+  actor?: {
+    id: string;
+    name?: string | null;
+    email: string;
+  } | null;
+  competition?: {
+    id: string;
+    name: string;
+    year: number;
+  } | null;
+};
+
+type AuditEventsResponse = {
+  events: AuditEvent[];
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return "unbekannt";
   const date = new Date(value);
@@ -59,10 +85,38 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString("de-DE");
 }
 
+function getStringValue(record: AuditRecord | null | undefined, key: string) {
+  const value = record?.[key];
+  return typeof value === "string" ? value : null;
+}
+
+function getNumberValue(record: AuditRecord | null | undefined, key: string) {
+  const value = record?.[key];
+  return typeof value === "number" ? value : null;
+}
+
+function getAuditLabel(action: string) {
+  if (action === "TEAM_SOFT_DELETED") return "Gelöscht";
+  if (action === "TEAM_RESTORED") return "Wiederhergestellt";
+  return action;
+}
+
+function getAuditTone(action: string) {
+  if (action === "TEAM_SOFT_DELETED") return "destructive" as const;
+  if (action === "TEAM_RESTORED") return "default" as const;
+  return "outline" as const;
+}
+
+function getAuditTeamName(event: AuditEvent) {
+  return getStringValue(event.meta, "teamName") || getStringValue(event.beforeData, "teamName") || "Mannschaft";
+}
+
 export default function RestoreCenter() {
   const { active: activeCompetition } = useCompetition();
   const [teams, setTeams] = useState<DeletedTeam[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [auditLoading, setAuditLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -89,8 +143,33 @@ export default function RestoreCenter() {
     }
   };
 
+  const fetchAuditEvents = async () => {
+    setAuditLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
+      params.append("action", "TEAM_SOFT_DELETED");
+      params.append("action", "TEAM_RESTORED");
+      params.set("scopeType", "TEAM");
+      params.set("limit", "12");
+      const response = await fetch(`/api/admin/audit-events?${params}`);
+      const data = (await response.json().catch(() => ({}))) as Partial<AuditEventsResponse> & { error?: string };
+      if (!response.ok) {
+        setErrorMessage(data.error || "Audit-Verlauf konnte nicht geladen werden");
+        return;
+      }
+      setAuditEvents(data.events || []);
+    } catch (error) {
+      console.error("Failed to load audit events:", error);
+      setErrorMessage("Audit-Verlauf konnte nicht geladen werden");
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     void fetchDeletedTeams();
+    void fetchAuditEvents();
     // fetchDeletedTeams intentionally stays local to keep dependencies compact.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompetition?.id]);
@@ -130,6 +209,7 @@ export default function RestoreCenter() {
 
       setStatusMessage(data.message || "Mannschaft wurde wiederhergestellt");
       await fetchDeletedTeams();
+      await fetchAuditEvents();
     } catch (error) {
       console.error("Failed to restore team:", error);
       setErrorMessage("Mannschaft konnte nicht wiederhergestellt werden");
@@ -193,6 +273,52 @@ export default function RestoreCenter() {
               <p className="text-lg font-semibold">{filteredTeams.length}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Audit-Verlauf</CardTitle>
+          <CardDescription>
+            Letzte Lösch- und Wiederherstellungsaktionen für Mannschaften.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {auditLoading ? (
+            <div className="py-4 text-sm text-muted-foreground">Lade Audit-Verlauf...</div>
+          ) : auditEvents.length === 0 ? (
+            <div className="rounded-md border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+              Noch keine Lösch- oder Restore-Aktionen protokolliert.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {auditEvents.map((event) => {
+                const teamName = getAuditTeamName(event);
+                const actor = event.actor?.name || event.actor?.email || "Unbekannt";
+                const participantCount =
+                  getNumberValue(event.afterData, "deletedParticipants") ||
+                  getNumberValue(event.afterData, "restoredParticipants");
+                const linkedParticipants = getNumberValue(event.meta, "linkedParticipants");
+
+                return (
+                  <div key={event.id} className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={getAuditTone(event.action)}>{getAuditLabel(event.action)}</Badge>
+                      <span className="text-sm font-medium">{teamName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateTime(event.createdAt)} · {actor}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      {typeof participantCount === "number" && <span>{participantCount} Teilnehmer:innen</span>}
+                      {typeof linkedParticipants === "number" && <span>{linkedParticipants} verknüpfte Accounts</span>}
+                      {event.competition && <span>{event.competition.name}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
