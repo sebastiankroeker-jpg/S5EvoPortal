@@ -68,29 +68,7 @@ export default function ParticipantsPage() {
     <div className="min-h-screen bg-background pb-24 lg:pb-0">
       <NavBar />
 
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
-        <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-          <Card className="border-border/60">
-            <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Teilnehmer-Dashboard</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight">Alle Teilnehmer schnell finden und pflegen.</h1>
-              <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                Suche nach Name oder Mannschaft, filtere nach Klasse und Disziplin, pflege Moderationshinweise und
-                drucke die aktuelle Liste für die Wettkampfleitung.
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="p-5 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Wofür gedacht</p>
-              <p className="mt-2">Startnummern- und Moderationsvorbereitung</p>
-              <p>Teilnehmerdaten schnell querprüfen</p>
-              <p>Offene Änderungsanträge im Blick behalten</p>
-              <p>Druckliste für den Veranstaltungstag</p>
-            </CardContent>
-          </Card>
-        </section>
-
+      <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5">
         <ParticipantList />
       </main>
 

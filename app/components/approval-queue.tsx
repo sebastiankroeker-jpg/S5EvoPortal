@@ -349,118 +349,101 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
 
   if (dashboardMode) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Offen</p>
-              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.openCount}</p>
-              <p className="text-[11px] text-muted-foreground">In Prüfung</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Genehmigt</p>
-              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.approvedCount}</p>
-              <p className="text-[11px] text-muted-foreground">Erledigt</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Abgelehnt</p>
-              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.rejectedCount}</p>
-              <p className="text-[11px] text-muted-foreground">Entschieden</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Feldwechsel</p>
-              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.fieldCount}</p>
-              <p className="truncate text-[11px] text-muted-foreground" title={stats.lastUpdated ? "Letzte Aktivitaet: " + formatDateTime(stats.lastUpdated) : "Noch keine Aktivitaet"}>
-                {stats.lastUpdated ? "Letzte Aktivitaet: " + formatDateTime(stats.lastUpdated) : "Noch keine Aktivitaet"}
-              </p>
-            </CardContent>
-          </Card>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold">
+              Änderungsübersicht ({filteredChanges.length}/{decoratedChanges.length})
+            </h3>
+            <p className="truncate text-xs text-muted-foreground">
+              {stats.fieldCount} Feldwechsel
+              {stats.lastUpdated ? " · letzte Aktivität " + formatDateTime(stats.lastUpdated) : ""}
+            </p>
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={() => void fetchChanges("refresh")} disabled={refreshing}>
+            <RefreshCw className={"h-4 w-4" + (refreshing ? " animate-spin" : "")} />
+            <span className="sr-only">Aktualisieren</span>
+          </Button>
         </div>
 
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Suche nach Teilnehmer, Team, Antragsteller oder Aenderung"
-                  className="pl-9"
-                />
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
-                {(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly) && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setParticipantFilterId(null);
-                      setTeamFilterId(null);
-                      setSearchQuery("");
-                      setStatusFilter("PENDING");
-                      setUpdatedOnly(false);
-                      window.history.replaceState(null, "", "/aenderungen");
-                    }}
-                  >
-                    Zurücksetzen
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant={statusFilter === "PENDING" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("PENDING")}
-                >
-                  Offen
-                </Button>
-                <Button
-                  type="button"
-                  variant={statusFilter === "APPROVED" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("APPROVED")}
-                >
-                  Genehmigt
-                </Button>
-                <Button
-                  type="button"
-                  variant={statusFilter === "REJECTED" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("REJECTED")}
-                >
-                  Abgelehnt
-                </Button>
-                <Button
-                  type="button"
-                  variant={statusFilter === "ALL" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("ALL")}
-                >
-                  Alle
-                </Button>
-                <Button
-                  type="button"
-                  variant={updatedOnly ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setUpdatedOnly((current) => !current)}
-                >
-                  {updatedOnly ? "Aktualisierte an" : "Aktualisierte"}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => void fetchChanges("refresh")} disabled={refreshing}>
-                  <RefreshCw className={"mr-2 h-4 w-4" + (refreshing ? " animate-spin" : "")} />
-                  Aktualisieren
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <Button
+            type="button"
+            variant={statusFilter === "PENDING" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("PENDING")}
+            className="justify-between gap-2"
+          >
+            <span>Offen</span>
+            <span className="rounded bg-background/30 px-1 text-[10px]">{stats.openCount}</span>
+          </Button>
+          <Button
+            type="button"
+            variant={statusFilter === "APPROVED" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("APPROVED")}
+            className="justify-between gap-2"
+          >
+            <span>Genehmigt</span>
+            <span className="rounded bg-background/30 px-1 text-[10px]">{stats.approvedCount}</span>
+          </Button>
+          <Button
+            type="button"
+            variant={statusFilter === "REJECTED" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("REJECTED")}
+            className="justify-between gap-2"
+          >
+            <span>Abgelehnt</span>
+            <span className="rounded bg-background/30 px-1 text-[10px]">{stats.rejectedCount}</span>
+          </Button>
+          <Button
+            type="button"
+            variant={statusFilter === "ALL" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("ALL")}
+            className="justify-between gap-2"
+          >
+            <span>Alle</span>
+            <span className="rounded bg-background/30 px-1 text-[10px]">{decoratedChanges.length}</span>
+          </Button>
+          <Button
+            type="button"
+            variant={updatedOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setUpdatedOnly((current) => !current)}
+            className="whitespace-nowrap"
+          >
+            Aktualisierte
+          </Button>
+          {(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setParticipantFilterId(null);
+                setTeamFilterId(null);
+                setSearchQuery("");
+                setStatusFilter("PENDING");
+                setUpdatedOnly(false);
+                window.history.replaceState(null, "", "/aenderungen");
+              }}
+            >
+              Zurücksetzen
+            </Button>
+          )}
+        </div>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Suche Teilnehmer, Team, Antragsteller oder Änderung"
+            className="pl-9"
+          />
+        </div>
 
         {error && (
           <Card className="border-red-300 bg-red-50/70 dark:border-red-900 dark:bg-red-950/30">

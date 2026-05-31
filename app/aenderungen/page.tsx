@@ -68,29 +68,7 @@ export default function ChangesPage() {
     <div className="min-h-screen bg-background pb-24 lg:pb-0">
       <NavBar />
 
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
-        <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-          <Card className="border-border/60">
-            <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Änderungs-Dashboard</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight">Sauber prüfen statt Mails zusammensuchen.</h1>
-              <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                Hier laufen offene, genehmigte und abgelehnte Teilnehmeränderungen zusammen. Du siehst Antragsteller,
-                Mannschaft, Feldwechsel, Nachbesserungen und bereits getroffene Entscheidungen an einer Stelle.
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="p-5 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Was drin ist</p>
-              <p className="mt-2">Live-Liste aller offenen und erledigten Anträge</p>
-              <p>Suche nach Team, Person und Änderungsinhalt</p>
-              <p>Statusfilter für offen, genehmigt, abgelehnt und alle</p>
-              <p>Genehmigen oder ablehnen direkt aus dem Dashboard</p>
-            </CardContent>
-          </Card>
-        </section>
-
+      <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5">
         <ApprovalQueue variant="page" />
       </main>
 
