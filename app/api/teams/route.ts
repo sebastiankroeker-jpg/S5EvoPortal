@@ -352,6 +352,7 @@ export async function GET(request: NextRequest) {
             : {
                 OR: [
                   ...(user ? [{ ownerId: user.id }] : []),
+                  ...(user ? [{ teamChiefId: user.id }] : []),
                   ...(user
                     ? [{
                         participants: {

@@ -35,7 +35,11 @@ interface UserEntry {
   teamScopes: Array<{
     id: string;
     name: string;
-    relation: string;
+    relations: string[];
+    isOwner: boolean;
+    isLegacyTeamChief: boolean;
+    isParticipant: boolean;
+    isTeamManager: boolean;
   }>;
 }
 
@@ -45,7 +49,7 @@ interface UsersResponse {
   users: UserEntry[];
 }
 
-const ALL_ROLES = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"] as const;
+const ALL_ROLES = ["ADMIN", "MODERATOR", "TEILNEHMER"] as const;
 const TEAM_FOCUS_STORAGE_KEY = "s5evo.dashboard.focusTeamId";
 
 const ROLE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
@@ -74,6 +78,7 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [updatingTeamScopeKey, setUpdatingTeamScopeKey] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -108,7 +113,7 @@ export default function UserManagement() {
 
   const startEdit = (user: UserEntry) => {
     setEditingUser(user.id);
-    setEditRoles(user.roles.map((role) => role.role));
+    setEditRoles(user.roles.map((role) => role.role).filter((role) => role !== "TEAMCHEF"));
     setStatusMessage(null);
     setErrorMessage(null);
   };
@@ -188,6 +193,39 @@ export default function UserManagement() {
     window.sessionStorage.setItem("s5evo-team-view", "mannschaften");
     window.sessionStorage.setItem(TEAM_FOCUS_STORAGE_KEY, teamId);
     window.location.href = "/#registration";
+  };
+
+  const toggleTeamManager = async (user: UserEntry, team: UserEntry["teamScopes"][number]) => {
+    const scopeKey = `${user.id}:${team.id}`;
+    setUpdatingTeamScopeKey(scopeKey);
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch(
+        team.isTeamManager
+          ? `/api/teams/${team.id}/managers?userId=${encodeURIComponent(user.id)}`
+          : `/api/teams/${team.id}/managers`,
+        {
+          method: team.isTeamManager ? "DELETE" : "POST",
+          headers: team.isTeamManager ? undefined : { "Content-Type": "application/json" },
+          body: team.isTeamManager ? undefined : JSON.stringify({ userId: user.id }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMessage(data.error || "Team-Rechte konnten nicht gespeichert werden");
+        return;
+      }
+
+      setStatusMessage(team.isTeamManager ? "Team-Manager-Rechte entfernt" : "Team-Manager-Rechte vergeben");
+      await fetchUsers();
+    } catch (err) {
+      console.error("Fehler beim Speichern der Team-Rechte:", err);
+      setErrorMessage("Team-Rechte konnten nicht gespeichert werden");
+    } finally {
+      setUpdatingTeamScopeKey(null);
+    }
   };
 
   const filteredUsers = useMemo(() => {
@@ -337,7 +375,7 @@ export default function UserManagement() {
                     {editingUser === user.id && (
                       <div className="mt-3 space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          Wähle die Portal-Rollen für diesen Benutzer. Teamchef:in schaltet den Portal-Kontext frei; konkrete Managerrechte hängen an der jeweiligen Mannschaft darunter.
+                          Wähle die globalen Portal-Rollen für diesen Benutzer. Teamchef- und Managerrechte werden pro Mannschaft in den Team-Zeilen darunter vergeben.
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                           {ALL_ROLES.map((role) => {
@@ -385,20 +423,54 @@ export default function UserManagement() {
 
                     {user.teamScopes?.length > 0 && (
                       <div className="mt-3 rounded-md border border-border/40 bg-muted/20 p-2 text-xs">
-                        <p className="font-medium text-muted-foreground">Eigene Teams / Team-Manager-Zuordnung</p>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {user.teamScopes.map((team) => (
-                            <Badge
-                              key={team.id}
-                              variant="outline"
-                              className="cursor-pointer text-[11px] transition-colors hover:border-primary hover:text-primary"
-                              onClick={() => openTeam(team.id)}
-                              role="link"
-                              title="Mannschaft öffnen"
-                            >
-                              {team.name} · {team.relation}
-                            </Badge>
-                          ))}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-medium text-muted-foreground">Verbundene Teams</p>
+                          <span className="text-[11px] text-muted-foreground">Rechte gelten je Mannschaft</span>
+                        </div>
+                        <div className="mt-2 divide-y divide-border/50 overflow-hidden rounded-md border border-border/40 bg-background/60">
+                          {user.teamScopes.map((team) => {
+                            const isFixedManager = team.isOwner || team.isLegacyTeamChief;
+                            const isUpdating = updatingTeamScopeKey === `${user.id}:${team.id}`;
+
+                            return (
+                              <div key={team.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                                <button
+                                  type="button"
+                                  className="min-w-0 text-left transition-colors hover:text-primary"
+                                  onClick={() => openTeam(team.id)}
+                                  title="Mannschaft öffnen"
+                                >
+                                  <span className="block truncate font-medium">{team.name}</span>
+                                  <span className="block text-[11px] text-muted-foreground">
+                                    {team.relations.join(" · ")}
+                                  </span>
+                                </button>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className={team.isTeamManager ? "border-green-300 text-green-700" : "border-muted text-muted-foreground"}
+                                  >
+                                    {team.isTeamManager ? "Team Manager:in" : "Keine Managerrechte"}
+                                  </Badge>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={team.isTeamManager ? "outline" : "secondary"}
+                                    className="h-7 px-2 text-[11px]"
+                                    onClick={() => toggleTeamManager(user, team)}
+                                    disabled={saving || isUpdating || isFixedManager}
+                                    title={isFixedManager ? "Owner/Teamchef-Rechte kommen aus der Team-Zuordnung" : undefined}
+                                  >
+                                    {isUpdating
+                                      ? "..."
+                                      : team.isTeamManager
+                                        ? "Entziehen"
+                                        : "Vergeben"}
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

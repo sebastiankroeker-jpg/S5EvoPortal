@@ -30,6 +30,16 @@ export async function GET() {
       },
       select: { id: true },
     });
+    const legacyManagedTeam = await prisma.team.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [
+          { ownerId: user.id },
+          { teamChiefId: user.id },
+        ],
+      },
+      select: { id: true },
+    });
 
     if (tenantRoles.length === 0) {
       // Eingeloggt aber noch keine DB-Rollen:
@@ -40,19 +50,20 @@ export async function GET() {
       if (tenant) {
         await prisma.tenantRole.createMany({
           data: [
-            { userId: user.id, tenantId: tenant.id, role: "TEAMCHEF" },
             { userId: user.id, tenantId: tenant.id, role: "TEILNEHMER" },
           ],
           skipDuplicates: true,
         });
       }
 
-      return NextResponse.json({ roles: ["TEAMCHEF", "TEILNEHMER"] });
+      const roles = ["TEILNEHMER"];
+      if (activeTeamManagerRole || legacyManagedTeam) roles.unshift("TEAMCHEF");
+      return NextResponse.json({ roles });
     }
 
     // Unique Rollen extrahieren - keine implizite Hochstufung
     const roles = [...new Set(tenantRoles.map(tr => tr.role))] as string[];
-    if (activeTeamManagerRole && !roles.includes("TEAMCHEF")) {
+    if ((activeTeamManagerRole || legacyManagedTeam) && !roles.includes("TEAMCHEF")) {
       roles.push("TEAMCHEF");
     }
 

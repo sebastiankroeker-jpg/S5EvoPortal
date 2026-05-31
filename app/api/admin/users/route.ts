@@ -4,6 +4,16 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
+type TeamScope = {
+  id: string;
+  name: string;
+  relations: string[];
+  isOwner: boolean;
+  isLegacyTeamChief: boolean;
+  isParticipant: boolean;
+  isTeamManager: boolean;
+};
+
 // GET /api/admin/users — Alle User mit Rollen laden
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -30,6 +40,19 @@ export async function GET() {
         where: { deletedAt: null },
         select: { id: true, name: true },
       },
+      linkedParticipants: {
+        where: {
+          deletedAt: null,
+          team: {
+            deletedAt: null,
+            competition: { tenantId: auth.tenantId },
+          },
+        },
+        select: {
+          id: true,
+          team: { select: { id: true, name: true } },
+        },
+      },
       teamMemberRoles: {
         where: {
           role: "TEAM_MANAGER",
@@ -38,6 +61,7 @@ export async function GET() {
         },
         select: {
           id: true,
+          role: true,
           team: { select: { id: true, name: true } },
         },
       },
@@ -52,20 +76,39 @@ export async function GET() {
     tenantId: auth.tenantId,
     adminCount,
     users: users.map((u) => {
-      const teamScopes = new Map<string, { id: string; name: string; relation: string }>();
+      const teamScopes = new Map<string, TeamScope>();
+
+      const upsertTeamScope = (
+        team: { id: string; name: string },
+        relation: string,
+        flags: Partial<Omit<TeamScope, "id" | "name" | "relations">>,
+      ) => {
+        const existing = teamScopes.get(team.id) ?? {
+          id: team.id,
+          name: team.name,
+          relations: [],
+          isOwner: false,
+          isLegacyTeamChief: false,
+          isParticipant: false,
+          isTeamManager: false,
+        };
+        if (!existing.relations.includes(relation)) {
+          existing.relations.push(relation);
+        }
+        teamScopes.set(team.id, { ...existing, ...flags });
+      };
 
       for (const team of u.ownedTeams) {
-        teamScopes.set(team.id, { id: team.id, name: team.name, relation: "Owner" });
+        upsertTeamScope(team, "Owner", { isOwner: true, isTeamManager: true });
       }
       for (const team of u.chiefOfTeams) {
-        teamScopes.set(team.id, { id: team.id, name: team.name, relation: "Team Manager:in" });
+        upsertTeamScope(team, "Teamchef:in", { isLegacyTeamChief: true, isTeamManager: true });
+      }
+      for (const participant of u.linkedParticipants) {
+        upsertTeamScope(participant.team, "Teilnehmer:in", { isParticipant: true });
       }
       for (const memberRole of u.teamMemberRoles) {
-        teamScopes.set(memberRole.team.id, {
-          id: memberRole.team.id,
-          name: memberRole.team.name,
-          relation: "Team Manager:in",
-        });
+        upsertTeamScope(memberRole.team, "Team Manager:in", { isTeamManager: true });
       }
 
       return {

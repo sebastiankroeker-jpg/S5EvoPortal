@@ -76,6 +76,7 @@ export async function POST(
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const participantId = typeof body.participantId === "string" ? body.participantId : null;
+  const requestedUserId = typeof body.userId === "string" ? body.userId : null;
   const { user } = await resolveCurrentUser(session, { createIfMissing: true });
 
   if (!user) {
@@ -113,28 +114,37 @@ export async function POST(
     return NextResponse.json({ error: "Keine Berechtigung zum Verwalten von Team Manager:innen" }, { status: 403 });
   }
 
-  if (!participantId) {
-    return NextResponse.json({ error: "participantId ist erforderlich" }, { status: 400 });
+  if (!participantId && !requestedUserId) {
+    return NextResponse.json({ error: "participantId oder userId ist erforderlich" }, { status: 400 });
   }
 
-  const participant = team.participants.find((entry) => entry.id === participantId);
-  if (!participant) {
+  if (requestedUserId && !access.canEditAllTeams) {
+    return NextResponse.json({ error: "Direkte Benutzer-Zuordnung ist nur für Admins möglich" }, { status: 403 });
+  }
+
+  const participant = participantId ? team.participants.find((entry) => entry.id === participantId) : null;
+  if (participantId && !participant) {
     return NextResponse.json({ error: "Teilnehmer gehört nicht zu dieser Mannschaft" }, { status: 404 });
   }
 
-  if (!participant.userId) {
+  if (participant && !participant.userId) {
     return NextResponse.json(
       { error: "Teilnehmer muss zuerst per Einladung mit einem Portal-Konto verknüpft werden" },
       { status: 409 },
     );
   }
 
-  if (participant.userId === user.id && !access.canEditAllTeams) {
+  const targetUserId = requestedUserId || participant?.userId || null;
+  if (!targetUserId) {
+    return NextResponse.json({ error: "Verknüpfter Benutzer wurde nicht gefunden" }, { status: 404 });
+  }
+
+  if (targetUserId === user.id && !access.canEditAllTeams) {
     return NextResponse.json({ error: "Du bist für diese Mannschaft bereits berechtigt" }, { status: 409 });
   }
 
   const targetUser = await prisma.user.findFirst({
-    where: { id: participant.userId, deletedAt: null },
+    where: { id: targetUserId, deletedAt: null },
     select: { id: true, email: true, name: true },
   });
 
@@ -190,7 +200,7 @@ export async function POST(
           id: nextRole.id,
           teamId: team.id,
           userId: targetUser.id,
-          participantId: participant.id,
+          participantId: participant?.id ?? null,
           role: nextRole.role,
           revokedAt: nextRole.revokedAt?.toISOString() ?? null,
         },
@@ -198,7 +208,7 @@ export async function POST(
           ...requestMeta,
           sessionEmail: normalizeEmail(userEmail),
           targetUserEmail: targetUser.email,
-          participantName: `${participant.firstName} ${participant.lastName}`.trim(),
+          participantName: participant ? `${participant.firstName} ${participant.lastName}`.trim() : null,
         },
         tenantId: team.competition.tenantId,
         competitionId: team.competition.id,
@@ -213,7 +223,7 @@ export async function POST(
     success: true,
     manager: {
       userId: role.userId,
-      participantId: participant.id,
+      participantId: participant?.id ?? null,
       role: role.role,
       isTeamManager: !role.revokedAt,
     },
