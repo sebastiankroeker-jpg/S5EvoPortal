@@ -34,7 +34,25 @@ import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowDownUp, ChevronDown, ChevronUp, Info, RotateCcw, Send, SlidersHorizontal, Star, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDownUp,
+  CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  Info,
+  Mail,
+  RotateCcw,
+  Send,
+  ShieldCheck,
+  SlidersHorizontal,
+  Star,
+  UserRound,
+  UsersRound,
+  X,
+} from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
 
 interface Team {
@@ -206,6 +224,86 @@ function isTeamIncomplete(team: Team) {
   }
 
   return (team.participants ?? []).some((participant) => !participant.firstName || !participant.lastName);
+}
+
+function getTeamCompletionMeta(team: Team) {
+  const participantCount = getParticipantCount(team);
+  const missingNames = (team.participants ?? []).filter(
+    (participant) => !participant.firstName?.trim() || !participant.lastName?.trim(),
+  ).length;
+
+  if (participantCount < 5) {
+    return {
+      label: `${participantCount}/5 besetzt`,
+      toneClass: "border-amber-300 bg-amber-50 text-amber-800",
+      icon: AlertTriangle,
+    };
+  }
+
+  if (missingNames > 0) {
+    return {
+      label: `${missingNames} Name(n) offen`,
+      toneClass: "border-amber-300 bg-amber-50 text-amber-800",
+      icon: AlertTriangle,
+    };
+  }
+
+  return {
+    label: "Vollständig",
+    toneClass: "border-green-300 bg-green-50 text-green-800",
+    icon: CheckCircle2,
+  };
+}
+
+function getTeamDisciplineMeta(team: Team) {
+  const participants = team.participants ?? [];
+  const missingDisciplines = participants.filter(
+    (participant) => !(participant.discipline || participant.disciplineCode) || (participant.discipline || participant.disciplineCode) === "TBD",
+  ).length;
+  const disciplineCheck = validateDisciplineAssignment(
+    participants.map((participant) => participant.discipline || participant.disciplineCode || "TBD"),
+  );
+
+  if (missingDisciplines > 0) {
+    return {
+      label: `${missingDisciplines} Disziplin(en) offen`,
+      toneClass: "border-amber-300 bg-amber-50 text-amber-800",
+      icon: AlertTriangle,
+    };
+  }
+
+  if (!disciplineCheck.valid || disciplineCheck.warnings.length > 0) {
+    return {
+      label: "Disziplinen prüfen",
+      toneClass: "border-amber-300 bg-amber-50 text-amber-800",
+      icon: AlertTriangle,
+    };
+  }
+
+  return {
+    label: "Disziplinen ok",
+    toneClass: "border-green-300 bg-green-50 text-green-800",
+    icon: CheckCircle2,
+  };
+}
+
+function getTeamPendingChangeCount(team: Team) {
+  return (team.participants ?? []).reduce(
+    (count, participant) => count + (participant.latestChange?.status === "PENDING" ? 1 : 0),
+    0,
+  );
+}
+
+function getTeamLinkedAccountCount(team: Team) {
+  return (team.participants ?? []).filter((participant) =>
+    participant.emailInvitation?.status === "linked" ||
+    participant.emailInvitation?.status === "claimed" ||
+    participant.canBeTeamManager,
+  ).length;
+}
+
+function getTeamPublicationLabel(team: Team) {
+  return TEAM_PUBLICATION_OPTIONS.find((option) => option.id === team.teamPublicationLevel)?.label || "Nicht festgelegt";
 }
 
 function getParticipantsSummary(team: Team) {
@@ -1153,7 +1251,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sortedTeams.map((team) => (
+            {sortedTeams.map((team) => {
+              const completionMeta = getTeamCompletionMeta(team);
+              const disciplineMeta = getTeamDisciplineMeta(team);
+              const pendingChangeCount = getTeamPendingChangeCount(team);
+              const linkedAccountCount = getTeamLinkedAccountCount(team);
+              const CompletionIcon = completionMeta.icon;
+              const DisciplineIcon = disciplineMeta.icon;
+
+              return (
               <div key={team.id} className="space-y-2">
                 {/* Team-Kachel mit Teilnehmern */}
                 <Card 
@@ -1165,6 +1271,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       <h3 className="font-medium text-sm truncate">{team.name}</h3>
                       <Badge variant="outline" className="text-xs shrink-0">
                         {categoryEmojis[team.category] || "🏆"} {team.category}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                        <CompletionIcon className="size-3" />
+                        {completionMeta.label}
+                      </Badge>
+                      <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                        <DisciplineIcon className="size-3" />
+                        {disciplineMeta.label}
                       </Badge>
                     </div>
                     {/* Teilnehmer-Liste */}
@@ -1202,125 +1318,225 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       transition={{ duration: 0.2 }}
                     >
                       <Card className="border-l-4 border-l-primary shadow-sm">
-                        <CardContent className="space-y-3 p-3">
-                          {/* Team Details */}
-                          <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                                <span className="min-w-0 truncate font-semibold">{team.name}</span>
-                                <span className="shrink-0 text-muted-foreground">{categoryEmojis[team.category] || "🏆"} {team.category}</span>
-                                <span className="shrink-0 text-muted-foreground">{team.participants?.length || 0}/5 Teilnehmer</span>
+                        <CardContent className="space-y-4 p-3">
+                          <div className="flex flex-col gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 space-y-2">
+                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                <h3 className="min-w-0 truncate text-base font-semibold">{team.name}</h3>
+                                <Badge variant="outline" className="gap-1">
+                                  <span>{categoryEmojis[team.category] || "🏆"}</span>
+                                  {team.category}
+                                </Badge>
+                                {team.isCurrentUserTeam && (
+                                  <Badge variant="secondary" className="gap-1">
+                                    <Star className="size-3" />
+                                    Eigenes Team
+                                  </Badge>
+                                )}
                               </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedTeam(null);
-                                }}
-                                className="h-6 w-6 shrink-0 p-0"
-                              >
-                                ✕
-                              </Button>
+                              <div className="flex flex-wrap gap-1.5">
+                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                                  <CompletionIcon className="size-3" />
+                                  {completionMeta.label}
+                                </Badge>
+                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                                  <DisciplineIcon className="size-3" />
+                                  {disciplineMeta.label}
+                                </Badge>
+                                {pendingChangeCount > 0 && (
+                                  <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                                    <ClipboardList className="size-3" />
+                                    {pendingChangeCount} Änderung(en)
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedTeam(null);
+                              }}
+                              className="h-8 w-8 shrink-0 p-0"
+                              aria-label="Details schließen"
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          </div>
+
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-md border border-border/60 bg-background p-3">
+                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                <UsersRound className="size-4" />
+                                Mannschaft
+                              </div>
+                              <div className="mt-2 space-y-1 text-sm">
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">Teilnehmer</span>
+                                  <span className="font-medium">{getParticipantCount(team)}/5</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">Portal-Konten</span>
+                                  <span className="font-medium">{linkedAccountCount}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">Sichtbarkeit</span>
+                                  <span className="max-w-[9rem] truncate text-right font-medium" title={getTeamPublicationLabel(team)}>
+                                    {getTeamPublicationLabel(team)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-border/60 bg-background p-3">
+                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                <UserRound className="size-4" />
+                                Team Manager:in
+                              </div>
+                              <div className="mt-2 space-y-1 text-sm">
+                                <p className="truncate font-medium" title={team.contactName || getContactFallbackLabel(team)}>
+                                  {team.contactName || getContactFallbackLabel(team)}
+                                </p>
+                                <p className="truncate text-muted-foreground" title={team.contactEmail || getContactFallbackLabel(team)}>
+                                  {team.contactEmail || getContactFallbackLabel(team)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-border/60 bg-background p-3">
+                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                <ShieldCheck className="size-4" />
+                                Verwaltung
+                              </div>
+                              <div className="mt-2 space-y-1 text-sm">
+                                <p className="truncate font-medium" title={team.ownerName || team.ownerEmail || "Nicht sichtbar"}>
+                                  {team.ownerName || team.ownerEmail || "Nicht sichtbar"}
+                                </p>
+                                <p className="truncate text-muted-foreground" title={team.ownerEmail || "Keine Owner-Mail sichtbar"}>
+                                  {team.ownerEmail || "Keine Owner-Mail sichtbar"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-border/60 bg-background p-3">
+                              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                <CalendarClock className="size-4" />
+                                Zeitstempel
+                              </div>
+                              <div className="mt-2 space-y-1 text-sm">
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">Angelegt</span>
+                                  <span className="font-medium">{formatDatePart(team.createdAt)}, {formatTimePart(team.createdAt)}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">Geändert</span>
+                                  <span className="font-medium">{team.updatedAt ? new Date(team.updatedAt).toLocaleDateString("de-DE") : "Unbekannt"}</span>
+                                </div>
+                              </div>
                             </div>
                           </div>
 
-                          <details className="rounded-md border border-border/60 bg-muted/10 p-2 text-xs">
-                            <summary className="cursor-pointer font-medium">Metadaten & Kontakt Team Manager:in</summary>
-                            <div className="mt-2 grid gap-x-3 gap-y-1 text-muted-foreground sm:grid-cols-2">
-                              {hasVisibleContactInfo(team) ? (
-                                <>
-                                  {team.contactName && <div><strong className="text-foreground">Team Manager:in:</strong> ⭐ {team.contactName}</div>}
-                                  {team.contactEmail && <div><strong className="text-foreground">E-Mail:</strong> {team.contactEmail}</div>}
-                                </>
-                              ) : (
-                                <div>Kontaktdaten sind in dieser Ansicht nicht sichtbar.</div>
-                              )}
-                              <div><strong className="text-foreground">Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>
-                              <div><strong className="text-foreground">Anlageuhrzeit:</strong> {formatTimePart(team.createdAt)}</div>
-                              <div><strong className="text-foreground">Anlage-User:</strong> {team.ownerName || team.ownerEmail || "Nicht sichtbar"}</div>
-                              <div><strong className="text-foreground">Letzte Änderung:</strong> {team.updatedAt ? new Date(team.updatedAt).toLocaleString("de-DE") : "Unbekannt"}</div>
-                            </div>
-                          </details>
-
-                          {/* Participants */}
                           {team.participants && team.participants.length > 0 && (
-                            <div className="space-y-1.5">
-                              <div className="space-y-1">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="text-sm font-semibold">Teilnehmer:innen</h4>
+                                <span className="text-xs text-muted-foreground">Disziplin, Status und Admin-Aktionen auf einen Blick</span>
+                              </div>
+                              <div className="overflow-hidden rounded-md border border-border/60">
                                 {team.participants.map((p, i) => {
-                                  const disciplineDisplay = getDisciplineDisplay(p.discipline);
+                                  const disciplineDisplay = getDisciplineDisplay(p.discipline || p.disciplineCode);
                                   const birthYear = p.birthDate ? extractBirthYearFromInput(p.birthDate) : null;
                                   const canManageModerationNote = canEditAll || team.canCurrentUserEdit === true;
                                   const emailInviteMeta = canEditAll
                                     ? getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"))
                                     : null;
+                                  const latestChangeMeta = getLatestChangeMeta(p.latestChange?.status);
+
                                   return (
-                                    <div key={i} className="rounded-md border border-border/40 bg-background px-2 py-1.5 text-xs">
-                                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                        <div className="min-w-0">
-                                          <div className="flex min-w-0 items-center gap-1.5">
-                                            <span className="shrink-0" title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
-                                            <span className="break-words font-medium leading-snug">{getParticipantDisplayName(p, i)}</span>
-                                          </div>
-                                          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-muted-foreground">
-                                            <span>{disciplineDisplay.label}</span>
-                                            <span>{p.gender === "M" ? "♂" : p.gender === "W" ? "♀" : "⚥"}</span>
-                                            {birthYear && <span>Jg. {birthYear}</span>}
-                                            {canEditAll && p.shirtSize && <span>👕 {p.shirtSize}</span>}
-                                            {canEditAll && <span className="break-all">{p.email || "Keine E-Mail hinterlegt"}</span>}
+                                    <div key={i} className="grid gap-2 border-b border-border/40 bg-background px-3 py-2 text-xs last:border-b-0 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] md:items-center">
+                                      <div className="min-w-0">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                          <span className="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-[11px] font-semibold">{i + 1}</span>
+                                          <div className="min-w-0">
+                                            <p className="truncate font-medium" title={getParticipantDisplayName(p, i)}>
+                                              {getParticipantDisplayName(p, i)}
+                                            </p>
+                                            <p className="text-muted-foreground">
+                                              {p.gender === "M" ? "Männlich" : p.gender === "W" ? "Weiblich" : "Divers"}
+                                              {birthYear ? ` · Jg. ${birthYear}` : ""}
+                                              {canEditAll && p.shirtSize ? ` · Shirt ${p.shirtSize}` : ""}
+                                            </p>
                                           </div>
                                         </div>
-                                        <div className="flex flex-wrap items-center gap-1 sm:shrink-0 sm:justify-end">
-                                          {getLatestChangeMeta(p.latestChange?.status) && (
-                                            <Badge
-                                              variant="outline"
-                                              className={`h-6 px-1.5 text-[10px] ${getLatestChangeMeta(p.latestChange?.status)?.className}`}
-                                            >
-                                              {getLatestChangeMeta(p.latestChange?.status)?.label}
-                                            </Badge>
-                                          )}
-                                          {canManageModerationNote && (
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (!p.id) return;
-                                                setEditingParticipant({
-                                                  ...p,
-                                                  id: p.id,
-                                                  teamOwnerEmail: team.ownerEmail || team.contactEmail,
-                                                  teamCanEdit: team.canCurrentUserEdit,
-                                                });
-                                              }}
-                                              className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
-                                              title="Moderationshinweis bearbeiten"
-                                            >
-                                              {p.moderationNote?.trim() ? "📝" : "📝+"}
-                                            </button>
-                                          )}
-                                          {(team.canCurrentUserEdit || (p.isCurrentUserParticipant && can("participant.edit.self"))) && (
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (!p.id) return;
-                                                setEditingParticipant({
-                                                  ...p,
-                                                  id: p.id,
-                                                  teamOwnerEmail: team.ownerEmail || team.contactEmail,
-                                                  teamCanEdit: team.canCurrentUserEdit,
-                                                });
-                                              }}
-                                              className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                                              title="Teilnehmer bearbeiten"
-                                            >
-                                              ✏️
-                                            </button>
-                                          )}
-                                          {emailInviteMeta && (
-                                            <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${emailInviteMeta.className}`}>
-                                              {emailInviteMeta.label}
-                                            </Badge>
-                                          )}
-                                        </div>
+                                      </div>
+
+                                      <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                                        <span className="shrink-0" title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
+                                        <span className="truncate">{disciplineDisplay.label}</span>
+                                      </div>
+
+                                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                        {latestChangeMeta && (
+                                          <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${latestChangeMeta.className}`}>
+                                            {latestChangeMeta.label}
+                                          </Badge>
+                                        )}
+                                        {p.isTeamManager && (
+                                          <Badge variant="outline" className="h-6 border-green-300 px-1.5 text-[10px] text-green-700">
+                                            Team Manager:in
+                                          </Badge>
+                                        )}
+                                        {emailInviteMeta && (
+                                          <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className}`}>
+                                            <Mail className="size-3" />
+                                            {emailInviteMeta.label}
+                                          </Badge>
+                                        )}
+                                        {canEditAll && (
+                                          <span className="min-w-0 truncate text-muted-foreground" title={p.email || "Keine E-Mail hinterlegt"}>
+                                            {p.email || "Keine E-Mail"}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-1 md:justify-end">
+                                        {canManageModerationNote && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (!p.id) return;
+                                              setEditingParticipant({
+                                                ...p,
+                                                id: p.id,
+                                                teamOwnerEmail: team.ownerEmail || team.contactEmail,
+                                                teamCanEdit: team.canCurrentUserEdit,
+                                              });
+                                            }}
+                                            className={`rounded border px-2 py-1 text-[10px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
+                                            title="Moderationshinweis bearbeiten"
+                                          >
+                                            {p.moderationNote?.trim() ? "Notiz" : "Notiz +"}
+                                          </button>
+                                        )}
+                                        {(team.canCurrentUserEdit || (p.isCurrentUserParticipant && can("participant.edit.self"))) && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (!p.id) return;
+                                              setEditingParticipant({
+                                                ...p,
+                                                id: p.id,
+                                                teamOwnerEmail: team.ownerEmail || team.contactEmail,
+                                                teamCanEdit: team.canCurrentUserEdit,
+                                              });
+                                            }}
+                                            className="rounded border border-border/60 px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:text-primary"
+                                            title="Teilnehmer bearbeiten"
+                                          >
+                                            Bearbeiten
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -1329,9 +1545,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             </div>
                           )}
 
-                          {/* Actions */}
                           {team.canCurrentUserEdit && (
-                            <div className="flex gap-2 pt-2">
+                            <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-end">
                               <Button 
                                 size="sm" 
                                 variant="outline"
@@ -1383,7 +1598,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                   )}
                 </AnimatePresence>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
