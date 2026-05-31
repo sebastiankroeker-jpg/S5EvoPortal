@@ -44,6 +44,27 @@ export type ApplyChangeRequestInput = {
   message?: string | null;
 };
 
+export type LegacyParticipantChangeRequestInput = {
+  tenantId: string;
+  competitionId?: string | null;
+  participantId: string;
+  requestedById: string;
+  beforeSnapshot: JsonInput;
+  requestedSnapshot: JsonInput;
+  legacyPendingChangeId: string;
+  message: string;
+};
+
+export type LegacyParticipantReviewInput = {
+  participantId: string;
+  actorId: string;
+  approved: boolean;
+  applied?: boolean;
+  comment?: string | null;
+  beforeSnapshot?: JsonInput;
+  requestedSnapshot?: JsonInput;
+};
+
 export async function createChangeRequest(input: CreateChangeRequestInput) {
   const now = new Date();
   const status: ChangeRequestStatus = input.submit ? "PENDING" : "DRAFT";
@@ -78,6 +99,139 @@ export async function createChangeRequest(input: CreateChangeRequestInput) {
 
     return request;
   });
+}
+
+export async function upsertLegacyParticipantChangeRequest(
+  tx: ChangeRequestTx,
+  input: LegacyParticipantChangeRequestInput,
+) {
+  const existing = await tx.changeRequest.findFirst({
+    where: {
+      targetType: "PARTICIPANT",
+      targetId: input.participantId,
+      changeType: "UPDATE",
+      status: "PENDING",
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (existing) {
+    const updated = await tx.changeRequest.update({
+      where: { id: existing.id },
+      data: {
+        tenantId: input.tenantId,
+        competitionId: input.competitionId ?? null,
+        requestedById: input.requestedById,
+        beforeSnapshot: input.beforeSnapshot,
+        requestedSnapshot: input.requestedSnapshot,
+        metadata: {
+          legacyPendingChangeId: input.legacyPendingChangeId,
+        },
+        reviewComment: null,
+        reviewedAt: null,
+        reviewedById: null,
+      },
+    });
+
+    await createChangeRequestAudit(tx, {
+      changeRequestId: updated.id,
+      actorId: input.requestedById,
+      action: "UPDATED",
+      beforeData: asInputJson(existing.requestedSnapshot),
+      afterData: input.requestedSnapshot,
+      message: input.message,
+    });
+
+    return updated;
+  }
+
+  const created = await tx.changeRequest.create({
+    data: {
+      tenantId: input.tenantId,
+      competitionId: input.competitionId ?? null,
+      targetType: "PARTICIPANT",
+      targetId: input.participantId,
+      changeType: "UPDATE",
+      source: "SELF_SERVICE",
+      status: "PENDING",
+      submittedAt: new Date(),
+      beforeSnapshot: input.beforeSnapshot,
+      requestedSnapshot: input.requestedSnapshot,
+      metadata: {
+        legacyPendingChangeId: input.legacyPendingChangeId,
+      },
+      requestedById: input.requestedById,
+    },
+  });
+
+  await createChangeRequestAudit(tx, {
+    changeRequestId: created.id,
+    actorId: input.requestedById,
+    action: "SUBMITTED",
+    afterData: input.requestedSnapshot,
+    message: input.message,
+  });
+
+  return created;
+}
+
+export async function reviewLegacyParticipantChangeRequest(
+  tx: ChangeRequestTx,
+  input: LegacyParticipantReviewInput,
+) {
+  const request = await tx.changeRequest.findFirst({
+    where: {
+      targetType: "PARTICIPANT",
+      targetId: input.participantId,
+      changeType: "UPDATE",
+      status: "PENDING",
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (!request) {
+    return null;
+  }
+
+  const nextStatus: ChangeRequestStatus = input.approved
+    ? input.applied === false
+      ? "APPROVED"
+      : "APPLIED"
+    : "REJECTED";
+  const now = new Date();
+  const updated = await tx.changeRequest.update({
+    where: { id: request.id },
+    data: {
+      status: nextStatus,
+      reviewedAt: now,
+      reviewedById: input.actorId,
+      appliedAt: nextStatus === "APPLIED" ? now : null,
+      appliedById: nextStatus === "APPLIED" ? input.actorId : null,
+      reviewComment: input.comment || null,
+    },
+  });
+
+  await createChangeRequestAudit(tx, {
+    changeRequestId: request.id,
+    actorId: input.actorId,
+    action: input.approved ? "APPROVED" : "REJECTED",
+    beforeData: input.beforeSnapshot ?? asInputJson(request.beforeSnapshot),
+    afterData: input.requestedSnapshot ?? asInputJson(request.requestedSnapshot),
+    message: input.comment || (input.approved ? "Aenderungsantrag genehmigt" : "Aenderungsantrag abgelehnt"),
+  });
+
+  if (nextStatus === "APPLIED") {
+    await createChangeRequestAudit(tx, {
+      changeRequestId: request.id,
+      actorId: input.actorId,
+      action: "APPLIED",
+      beforeData: input.beforeSnapshot ?? asInputJson(request.beforeSnapshot),
+      afterData: input.requestedSnapshot ?? asInputJson(request.requestedSnapshot),
+      message: "Aenderungsantrag angewendet",
+    });
+  }
+
+  return updated;
 }
 
 export async function submitChangeRequest(id: string, actorId: string, message = "Aenderungsantrag eingereicht") {

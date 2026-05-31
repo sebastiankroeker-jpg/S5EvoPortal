@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import type { Prisma, ShirtSize } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]/route';
+import { upsertLegacyParticipantChangeRequest } from '@/lib/change-request';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
 import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
@@ -685,6 +686,17 @@ export async function PUT(
                   message: 'Offene Aenderungsanfrage durch Team Manager:in aktualisiert',
                 },
               });
+
+              await upsertLegacyParticipantChangeRequest(tx, {
+                tenantId: existingTeam.competition.tenantId,
+                competitionId: existingTeam.competitionId,
+                participantId: existingParticipant.id,
+                requestedById: user!.id,
+                beforeSnapshot: approvalBaseSnapshot,
+                requestedSnapshot: approvalRequestedSnapshot,
+                legacyPendingChangeId: updatedPendingChange.id,
+                message: 'Offene Teilnehmer-Aenderungsanfrage durch Team Manager:in aktualisiert',
+              });
             });
           } else {
             createdRequests += 1;
@@ -709,6 +721,17 @@ export async function PUT(
                   afterData: serializeSnapshot(approvalRequestedSnapshot),
                   message: 'Aenderungsanfrage durch Team Manager:in eingereicht',
                 },
+              });
+
+              await upsertLegacyParticipantChangeRequest(tx, {
+                tenantId: existingTeam.competition.tenantId,
+                competitionId: existingTeam.competitionId,
+                participantId: existingParticipant.id,
+                requestedById: user!.id,
+                beforeSnapshot: approvalBaseSnapshot,
+                requestedSnapshot: approvalRequestedSnapshot,
+                legacyPendingChangeId: createdPendingChange.id,
+                message: 'Teilnehmer-Aenderungsanfrage durch Team Manager:in eingereicht',
               });
             });
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { reviewLegacyParticipantChangeRequest } from "@/lib/change-request";
 import { sendParticipantChangeDecisionEmail } from "@/lib/mail/participant-change";
 import {
   createParticipantClaimInvitation,
@@ -135,6 +136,16 @@ export async function PUT(
           message: comment || "Änderungsanfrage genehmigt",
         },
       });
+
+      await reviewLegacyParticipantChangeRequest(tx, {
+        participantId: pendingChange.participantId,
+        actorId: auth.user.id,
+        approved: true,
+        applied: true,
+        comment: comment || null,
+        beforeSnapshot: liveSnapshot,
+        requestedSnapshot,
+      });
     });
 
     if (requestedSnapshot.birthYear !== liveSnapshot.birthYear || requestedSnapshot.gender !== liveSnapshot.gender) {
@@ -229,6 +240,15 @@ export async function PUT(
           afterData: serializeSnapshot(requestedSnapshot),
         message: comment || "Änderungsanfrage abgelehnt",
       },
+    });
+
+    await reviewLegacyParticipantChangeRequest(tx, {
+      participantId: pendingChange.participantId,
+      actorId: auth.user.id,
+      approved: false,
+      comment: comment || null,
+      beforeSnapshot: pendingChange.beforeData ? beforeSnapshot : liveSnapshot,
+      requestedSnapshot,
     });
   });
 

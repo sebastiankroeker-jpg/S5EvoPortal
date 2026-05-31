@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { upsertLegacyParticipantChangeRequest } from "@/lib/change-request";
 import { birthYearToBirthDateInput } from "@/lib/domain/team";
 import { sendParticipantChangeSubmittedEmails } from "@/lib/mail/participant-change";
 import {
@@ -185,6 +186,7 @@ export async function PUT(
           },
           competition: {
             select: {
+              id: true,
               name: true,
               year: true,
               date: true,
@@ -364,6 +366,44 @@ export async function PUT(
           reviewComment: "Durch direkte Änderung überholt",
         },
       });
+
+      const overriddenChangeRequests = await tx.changeRequest.findMany({
+        where: {
+          targetType: "PARTICIPANT",
+          targetId: id,
+          changeType: "UPDATE",
+          status: "PENDING",
+        },
+        select: { id: true, requestedSnapshot: true },
+      });
+
+      await tx.changeRequest.updateMany({
+        where: {
+          targetType: "PARTICIPANT",
+          targetId: id,
+          changeType: "UPDATE",
+          status: "PENDING",
+        },
+        data: {
+          status: "REJECTED",
+          reviewedAt: new Date(),
+          reviewedById: user.id,
+          reviewComment: "Durch direkte Änderung überholt",
+        },
+      });
+
+      for (const changeRequest of overriddenChangeRequests) {
+        await tx.changeRequestAuditLog.create({
+          data: {
+            changeRequestId: changeRequest.id,
+            actorId: user.id,
+            action: "REJECTED",
+            beforeData: changeRequest.requestedSnapshot as Prisma.InputJsonValue,
+            afterData: requestedSnapshot,
+            message: "Durch direkte Änderung überholt",
+          },
+        });
+      }
 
       await tx.participantAuditLog.create({
         data: {
@@ -546,6 +586,17 @@ export async function PUT(
           },
         });
 
+        await upsertLegacyParticipantChangeRequest(tx, {
+          tenantId: participant.team.competition.tenantId,
+          competitionId: participant.team.competition.id,
+          participantId: id,
+          requestedById: user.id,
+          beforeSnapshot: approvalBaseSnapshot,
+          requestedSnapshot: approvalRequestedSnapshot,
+          legacyPendingChangeId: updatedPendingChange.id,
+          message: "Offene Teilnehmer-Änderungsanfrage aktualisiert",
+        });
+
         return updatedPendingChange;
       })
     : await prisma.$transaction(async (tx) => {
@@ -569,6 +620,17 @@ export async function PUT(
             afterData: serializeSnapshot(approvalRequestedSnapshot),
             message: "Änderungsanfrage eingereicht",
           },
+        });
+
+        await upsertLegacyParticipantChangeRequest(tx, {
+          tenantId: participant.team.competition.tenantId,
+          competitionId: participant.team.competition.id,
+          participantId: id,
+          requestedById: user.id,
+          beforeSnapshot: approvalBaseSnapshot,
+          requestedSnapshot: approvalRequestedSnapshot,
+          legacyPendingChangeId: createdPendingChange.id,
+          message: "Teilnehmer-Änderungsanfrage eingereicht",
         });
 
         return createdPendingChange;
