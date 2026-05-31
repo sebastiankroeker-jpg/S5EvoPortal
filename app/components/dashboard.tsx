@@ -433,6 +433,58 @@ function DirectFieldBadge() {
   );
 }
 
+function TeamDeleteDialog({
+  team,
+  deleting,
+  onDelete,
+  className,
+  onTriggerClick,
+}: {
+  team: Team;
+  deleting: string | null;
+  onDelete: (teamId: string) => void;
+  className?: string;
+  onTriggerClick?: (event: React.MouseEvent) => void;
+}) {
+  const participantCount = getParticipantCount(team);
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger
+        render={
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={deleting === team.id}
+            className={className}
+            onClick={onTriggerClick}
+          />
+        }
+      >
+        {deleting === team.id ? "..." : "🗑️ Löschen"}
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Mannschaft in den Papierkorb verschieben?</AlertDialogTitle>
+          <AlertDialogDescription>
+            „{team.name}“ wird aus Dashboards, Ergebnislisten und Exporten ausgeblendet. {participantCount} Teilnehmer:innen
+            werden mit ausgeblendet, Benutzerkonten bleiben erhalten. Admins können die Mannschaft im Papierkorb wiederherstellen.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => onDelete(team.id)}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            In Papierkorb verschieben
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function compareDates(a?: string, b?: string) {
   const aTime = a ? new Date(a).getTime() : 0;
   const bTime = b ? new Date(b).getTime() : 0;
@@ -1256,34 +1308,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               </Button>
 
                               {team.canManageTeamManagers && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger>
-                                    <button
-                                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-destructive px-3 py-1 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:pointer-events-none disabled:opacity-50"
-                                      disabled={deleting === team.id}
-                                    >
-                                      {deleting === team.id ? "..." : "🗑️ Löschen"}
-                                    </button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Team löschen?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Möchtest du das Team &quot;{team.name}&quot; wirklich löschen?
-                                        Diese Aktion kann nicht rückgängig gemacht werden.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteTeam(team.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        Löschen
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                <TeamDeleteDialog team={team} deleting={deleting} onDelete={handleDeleteTeam} />
                               )}
                             </div>
                           ) : (
@@ -1686,35 +1711,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               </Button>
                               
                               {team.canManageTeamManagers && (
-                              <AlertDialog>
-                                <AlertDialogTrigger>
-                                  <button 
-                                    className="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-8 px-3 py-1"
-                                    disabled={deleting === team.id}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {deleting === team.id ? "..." : "🗑️ Löschen"}
-                                  </button>
-                                </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Team löschen?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Möchtest du das Team &quot;{team.name}&quot; wirklich löschen? 
-                                    Diese Aktion kann nicht rückgängig gemacht werden.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => handleDeleteTeam(team.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Löschen
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                                <TeamDeleteDialog
+                                  team={team}
+                                  deleting={deleting}
+                                  onDelete={handleDeleteTeam}
+                                  className="flex-1"
+                                  onTriggerClick={(event) => event.stopPropagation()}
+                                />
                               )}
                             </div>
                           )}

@@ -1004,12 +1004,21 @@ export async function DELETE(
           deletedAt: null
         },
         include: {
-          owner: { select: { email: true, name: true } },
+          owner: { select: { id: true, email: true, name: true } },
+          participants: {
+            where: { deletedAt: null },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              userId: true,
+            },
+          },
           memberRoles: {
             where: { role: "TEAM_MANAGER", revokedAt: null },
             select: { userId: true, revokedAt: true },
           },
-          competition: { select: { tenantId: true } },
+          competition: { select: { id: true, tenantId: true } },
         },
       });
 
@@ -1030,23 +1039,51 @@ export async function DELETE(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
-      // Soft delete: setze deletedAt
-      await prisma.team.update({
-        where: { id: id },
-        data: { 
-          deletedAt: new Date()
-        }
-      });
+      const now = new Date();
+      const linkedParticipantCount = existingTeam.participants.filter((participant) => participant.userId).length;
 
-      // Auch alle Participants des Teams soft-deleten
-      await prisma.participant.updateMany({
-        where: { teamId: id },
-        data: { deletedAt: new Date() }
-      });
+      await prisma.$transaction([
+        prisma.team.update({
+          where: { id: id },
+          data: {
+            deletedAt: now,
+          },
+        }),
+        prisma.participant.updateMany({
+          where: { teamId: id, deletedAt: null },
+          data: { deletedAt: now },
+        }),
+        prisma.auditEvent.create({
+          data: {
+            action: "TEAM_SOFT_DELETED",
+            scopeType: "TEAM",
+            scopeId: existingTeam.id,
+            entityType: "TEAM",
+            entityId: existingTeam.id,
+            reason: "team_delete",
+            beforeData: {
+              teamName: existingTeam.name,
+              participantIds: existingTeam.participants.map((participant) => participant.id),
+            },
+            afterData: {
+              deletedAt: now.toISOString(),
+              deletedParticipants: existingTeam.participants.length,
+            },
+            meta: {
+              ownerEmail: existingTeam.owner.email,
+              sessionEmail: normalizeEmail(userEmail),
+              linkedParticipants: linkedParticipantCount,
+            },
+            tenantId: existingTeam.competition.tenantId,
+            competitionId: existingTeam.competition.id,
+            actorId: user?.id ?? null,
+          },
+        }),
+      ]);
 
       return NextResponse.json({ 
         success: true,
-        message: `Team "${existingTeam.name}" wurde gelöscht.`
+        message: `Team "${existingTeam.name}" wurde in den Papierkorb verschoben.`
       });
 
     } catch (dbError) {
