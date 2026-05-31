@@ -340,6 +340,17 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
 }
 
+function getGenderLabel(gender?: string | null) {
+  if (gender === "M" || gender === "MALE") return "Männlich";
+  if (gender === "W" || gender === "FEMALE") return "Weiblich";
+  return "Divers";
+}
+
+function getShirtSizeLabel(shirtSize?: string | null) {
+  if (!shirtSize) return null;
+  return SHIRT_SIZES.find((size) => size.id === shirtSize)?.label || shirtSize;
+}
+
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
@@ -1492,24 +1503,29 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     ? getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"))
                                     : null;
                                   const latestChangeMeta = getLatestChangeMeta(p.latestChange?.status);
+                                  const shirtSizeLabel = canEditAll ? getShirtSizeLabel(p.shirtSize) : null;
                                   const participantMeta = [
-                                    p.gender === "M" ? "Männlich" : p.gender === "W" ? "Weiblich" : "Divers",
+                                    disciplineDisplay.label,
+                                    getGenderLabel(p.gender),
                                     birthYear ? `Jg. ${birthYear}` : null,
-                                    canEditAll && p.shirtSize ? `Shirt ${p.shirtSize}` : null,
+                                    shirtSizeLabel ? `Shirt ${shirtSizeLabel}` : null,
                                   ].filter(Boolean).join(" · ");
+                                  const showRights = p.isTeamManager || p.canBeTeamManager || canEditAll;
 
                                   return (
-                                    <div key={i} className="grid gap-2 border-b border-border/40 bg-background px-3 py-2 text-xs last:border-b-0 md:grid-cols-[minmax(0,1.55fr)_minmax(0,1.2fr)_auto] md:items-center">
-                                      <div className="min-w-0 space-y-1">
-                                        <div className="flex min-w-0 items-start gap-2">
-                                          <span className="shrink-0 leading-5" title={disciplineDisplay.label}>{disciplineDisplay.icon}</span>
-                                          <div className="min-w-0 flex-1">
-                                            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                              <span className="shrink-0 text-muted-foreground">{disciplineDisplay.label}</span>
-                                              <span className="min-w-0 truncate font-medium" title={getParticipantDisplayName(p, i)}>
-                                                {getParticipantDisplayName(p, i)}
-                                              </span>
-                                            </div>
+                                    <div key={i} className="grid gap-3 border-b border-border/40 bg-background px-3 py-3 text-xs last:border-b-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(13rem,0.9fr)_auto] lg:items-start">
+                                      <div className="min-w-0">
+                                        <div className="flex min-w-0 items-start gap-3">
+                                          <span
+                                            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-sm"
+                                            title={disciplineDisplay.label}
+                                          >
+                                            {disciplineDisplay.icon}
+                                          </span>
+                                          <div className="min-w-0 flex-1 space-y-1">
+                                            <p className="truncate text-sm font-medium" title={getParticipantDisplayName(p, i)}>
+                                              {getParticipantDisplayName(p, i)}
+                                            </p>
                                             <p className="truncate text-muted-foreground" title={participantMeta}>
                                               {participantMeta}
                                             </p>
@@ -1517,57 +1533,75 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                         </div>
                                       </div>
 
-                                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                        {latestChangeMeta && (
-                                          <Badge
-                                            variant="outline"
-                                            className={`h-6 cursor-pointer px-1.5 text-[10px] ${latestChangeMeta.className}`}
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              window.location.href = "/aenderungen";
-                                            }}
-                                            role="link"
-                                            title="Zum Änderungsdashboard"
-                                          >
-                                            {latestChangeMeta.label}
-                                          </Badge>
-                                        )}
-                                        {p.isTeamManager && (
-                                          <Badge
-                                            variant="outline"
-                                            className={`h-6 border-green-300 px-1.5 text-[10px] text-green-700 ${p.linkedUserId ? "cursor-pointer" : ""}`}
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              if (p.linkedUserId) {
-                                                window.location.href = `/admin?tab=users&userId=${encodeURIComponent(p.linkedUserId)}`;
-                                              }
-                                            }}
-                                            role={p.linkedUserId ? "link" : undefined}
-                                            title={p.linkedUserId ? "Benutzer bearbeiten" : undefined}
-                                          >
-                                            Team Manager:in
-                                          </Badge>
-                                        )}
-                                        {emailInviteMeta && (
-                                          <Badge
-                                            variant="outline"
-                                            className={`h-6 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${p.linkedUserId ? "cursor-pointer" : ""}`}
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              if (p.linkedUserId) {
-                                                window.location.href = `/admin?tab=users&userId=${encodeURIComponent(p.linkedUserId)}`;
-                                              }
-                                            }}
-                                            role={p.linkedUserId ? "link" : undefined}
-                                            title={p.linkedUserId ? "Verknüpften Benutzer bearbeiten" : undefined}
-                                          >
-                                            <Mail className="size-3" />
-                                            {emailInviteMeta.label}
-                                          </Badge>
+                                      <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                                        <div className="space-y-1">
+                                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status</p>
+                                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                            {latestChangeMeta && (
+                                              <Badge
+                                                variant="outline"
+                                                className={`h-6 cursor-pointer px-1.5 text-[10px] ${latestChangeMeta.className}`}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  window.location.href = "/aenderungen";
+                                                }}
+                                                role="link"
+                                                title="Zum Änderungsdashboard"
+                                              >
+                                                {latestChangeMeta.label}
+                                              </Badge>
+                                            )}
+                                            {emailInviteMeta && (
+                                              <Badge
+                                                variant="outline"
+                                                className={`h-6 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${p.linkedUserId ? "cursor-pointer" : ""}`}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  if (p.linkedUserId) {
+                                                    window.location.href = `/admin?tab=users&userId=${encodeURIComponent(p.linkedUserId)}`;
+                                                  }
+                                                }}
+                                                role={p.linkedUserId ? "link" : undefined}
+                                                title={p.linkedUserId ? "Verknüpften Benutzer bearbeiten" : undefined}
+                                              >
+                                                <Mail className="size-3" />
+                                                {emailInviteMeta.label}
+                                              </Badge>
+                                            )}
+                                            {!latestChangeMeta && !emailInviteMeta && (
+                                              <span className="text-[11px] text-muted-foreground">Keine offenen Punkte</span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {showRights && (
+                                          <div className="space-y-1">
+                                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Rechte</p>
+                                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                              <Badge
+                                                variant="outline"
+                                                className={
+                                                  p.isTeamManager
+                                                    ? `h-6 border-green-300 px-1.5 text-[10px] text-green-700 ${p.linkedUserId ? "cursor-pointer" : ""}`
+                                                    : "h-6 border-muted px-1.5 text-[10px] text-muted-foreground"
+                                                }
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  if (p.isTeamManager && p.linkedUserId) {
+                                                    window.location.href = `/admin?tab=users&userId=${encodeURIComponent(p.linkedUserId)}`;
+                                                  }
+                                                }}
+                                                role={p.isTeamManager && p.linkedUserId ? "link" : undefined}
+                                                title={p.isTeamManager && p.linkedUserId ? "Benutzer bearbeiten" : undefined}
+                                              >
+                                                {p.isTeamManager ? "Team Manager:in" : p.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
+                                              </Badge>
+                                            </div>
+                                          </div>
                                         )}
                                       </div>
 
-                                      <div className="flex items-center gap-1 md:justify-end">
+                                      <div className="flex flex-wrap items-center gap-1 lg:justify-end">
                                         {canManageModerationNote && (
                                           <button
                                             onClick={(e) => {
