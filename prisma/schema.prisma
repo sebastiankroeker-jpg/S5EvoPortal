@@ -88,6 +88,48 @@ enum ParticipantAuditAction {
   DIRECT_CHANGE
 }
 
+enum ChangeRequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  APPLIED
+}
+
+enum ChangeRequestTargetType {
+  PARTICIPANT
+  TEAM
+  USER
+  CONTRACT
+  METERING_POINT
+}
+
+enum ChangeRequestChangeType {
+  UPDATE
+  DELETE
+  RESTORE
+  ROLE_CHANGE
+}
+
+enum ChangeRequestSource {
+  SELF_SERVICE
+  ADMIN
+  IMPORT
+  SYSTEM
+}
+
+enum ChangeRequestAuditAction {
+  CREATED
+  UPDATED
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+  APPLIED
+  FAILED
+}
+
 enum ShirtSize {
   K116
   K128
@@ -155,6 +197,7 @@ model Tenant {
   // Relations
   competitions   Competition[]
   tenantRoles    TenantRole[]
+  changeRequests ChangeRequest[]
   resetSnapshots CompetitionResetSnapshot[]
   auditEvents    AuditEvent[]
 
@@ -183,6 +226,10 @@ model User {
   linkedParticipants        Participant[]              @relation("ParticipantUser")
   requestedChanges          PendingChange[]            @relation("ChangeRequester")
   reviewedChanges           PendingChange[]            @relation("ChangeReviewer")
+  changeRequestsRequested   ChangeRequest[]            @relation("ChangeRequestRequester")
+  changeRequestsReviewed    ChangeRequest[]            @relation("ChangeRequestReviewer")
+  changeRequestsApplied     ChangeRequest[]            @relation("ChangeRequestApplier")
+  changeRequestAuditLogs    ChangeRequestAuditLog[]    @relation("ChangeRequestAuditActor")
   participantAuditLogs      ParticipantAuditLog[]      @relation("ParticipantAuditActor")
   changelogEntriesCreated   ChangelogEntry[]           @relation("EntryCreator")
   changelogEntriesResolved  ChangelogEntry[]           @relation("EntryResolver")
@@ -247,6 +294,7 @@ model Competition {
   teams           Team[]
   disciplines     Discipline[]
   classifications Classification[]
+  changeRequests ChangeRequest[]
   resetSnapshots  CompetitionResetSnapshot[]
   auditEvents     AuditEvent[]
 
@@ -584,6 +632,70 @@ model ParticipantAuditLog {
   @@index([participantId, createdAt])
   @@index([pendingChangeId])
   @@map("participant_audit_logs")
+}
+
+// ==================== GENERIC CHANGE REQUEST (Approval-Workflow v2) ====================
+
+model ChangeRequest {
+  id                String                  @id @default(cuid())
+  targetType        ChangeRequestTargetType
+  targetId          String
+  changeType        ChangeRequestChangeType @default(UPDATE)
+  status            ChangeRequestStatus     @default(DRAFT)
+  source            ChangeRequestSource     @default(SELF_SERVICE)
+  beforeSnapshot    Json?
+  requestedSnapshot Json
+  metadata          Json?
+  priority          Int                     @default(0)
+  reviewComment     String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  appliedAt         DateTime?
+
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+
+  requestedById String
+  requestedBy   User    @relation("ChangeRequestRequester", fields: [requestedById], references: [id])
+  reviewedById  String?
+  reviewedBy    User?   @relation("ChangeRequestReviewer", fields: [reviewedById], references: [id])
+  appliedById   String?
+  appliedBy     User?   @relation("ChangeRequestApplier", fields: [appliedById], references: [id])
+
+  supersedesRequestId String?
+  supersedesRequest   ChangeRequest?  @relation("ChangeRequestSupersession", fields: [supersedesRequestId], references: [id], onDelete: SetNull)
+  supersededBy        ChangeRequest[] @relation("ChangeRequestSupersession")
+
+  auditLogs ChangeRequestAuditLog[]
+
+  @@index([tenantId, status, updatedAt])
+  @@index([competitionId, status, updatedAt])
+  @@index([targetType, targetId, status])
+  @@index([requestedById, status])
+  @@index([reviewedById, status])
+  @@map("change_requests")
+}
+
+model ChangeRequestAuditLog {
+  id         String                   @id @default(cuid())
+  action     ChangeRequestAuditAction
+  beforeData Json?
+  afterData  Json?
+  message    String?
+  createdAt  DateTime                 @default(now())
+
+  changeRequestId String
+  changeRequest   ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  actorId         String?
+  actor           User?         @relation("ChangeRequestAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([changeRequestId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("change_request_audit_logs")
 }
 
 model CompetitionResetSnapshot {
