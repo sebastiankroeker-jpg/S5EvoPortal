@@ -257,6 +257,14 @@ function serializeTeam(
   );
   if (team.ownerId) activeTeamManagerUserIds.add(team.ownerId);
   if (team.teamChiefId) activeTeamManagerUserIds.add(team.teamChiefId);
+  const canCurrentUserEdit =
+    options?.canEditAllTeams === true ||
+    (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
+    (!!options?.currentUserId && activeTeamManagerUserIds.has(options.currentUserId)) ||
+    (!!normalizedCurrentUserEmail &&
+      (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
+        normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail));
+  const canSeeSensitiveParticipantFields = options?.canSeeSensitiveParticipantFields === true || canCurrentUserEdit;
   const visibleTeamName = resolveVisibleTeamName({
     actualTeamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel,
@@ -272,13 +280,7 @@ function serializeTeam(
     contactPhone: canSeeFullPublication ? team.contactPhone ?? "" : "",
     ownerEmail: canSeeFullPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
     ownerName: canSeeFullPublication ? team.owner?.name ?? team.contactName ?? "" : "",
-    canCurrentUserEdit:
-      options?.canEditAllTeams === true ||
-      (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
-      (!!options?.currentUserId && activeTeamManagerUserIds.has(options.currentUserId)) ||
-      (!!normalizedCurrentUserEmail &&
-        (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
-          normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail)),
+    canCurrentUserEdit,
     canManageTeamManagers:
       options?.canEditAllTeams === true ||
       (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
@@ -293,7 +295,7 @@ function serializeTeam(
             serializeParticipant(participant, {
               ...options,
               teamPublicationLevel: team.teamPublicationLevel,
-              canSeeSensitiveParticipantFields: options?.canEditAllTeams === true,
+              canSeeSensitiveParticipantFields,
               activeTeamManagerUserIds,
             }),
           )
