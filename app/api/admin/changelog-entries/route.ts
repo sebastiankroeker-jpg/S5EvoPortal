@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
@@ -15,6 +16,9 @@ type EntryStatus = (typeof statusEnum)[number];
 const createSchema = z.object({
   type: z.enum(typeEnum),
   status: z.enum(statusEnum).default("OPEN"),
+  title: z.string().trim().max(140).optional(),
+  perspective: z.string().trim().max(80).optional(),
+  priority: z.enum(["LOW", "NORMAL", "HIGH"]).default("NORMAL").optional(),
   description: z.string().min(3).max(2000),
 });
 
@@ -32,6 +36,35 @@ async function getAdminUser(): Promise<{ id: string } | NextResponse> {
   }
 
   return auth.user;
+}
+
+async function getAuthenticatedUser(): Promise<{ id: string } | NextResponse> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+  if (!user) {
+    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+  }
+
+  return user;
+}
+
+function buildEntryDescription(input: {
+  title?: string;
+  perspective?: string;
+  priority?: "LOW" | "NORMAL" | "HIGH";
+  description: string;
+}) {
+  const lines: string[] = [];
+  if (input.title?.trim()) lines.push(`Titel: ${input.title.trim()}`);
+  if (input.perspective?.trim()) lines.push(`Perspektive: ${input.perspective.trim()}`);
+  if (input.priority) lines.push(`Priorität: ${input.priority}`);
+  if (lines.length > 0) lines.push("");
+  lines.push(input.description.trim());
+  return lines.join("\n");
 }
 
 export async function GET(request: NextRequest) {
@@ -92,7 +125,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getAdminUser();
+  const user = await getAuthenticatedUser();
   if (user instanceof NextResponse) {
     return user;
   }
@@ -103,13 +136,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { type, status, description } = parsed.data;
+  const { type, title, perspective, priority, description } = parsed.data;
 
   const entry = await prisma.changelogEntry.create({
     data: {
       type,
-      status,
-      description,
+      status: "OPEN",
+      description: buildEntryDescription({ title, perspective, priority, description }),
       createdById: user.id,
     },
     include: {

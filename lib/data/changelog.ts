@@ -6,6 +6,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "v0.6.0",
+    date: "2026-05-31",
+    items: [
+      "Live-Test-Stand: rollenbasierte Team- und Detailansichten für Admin, Moderator:in, Team Manager:in und Teilnehmer:in geschärft",
+      "Datenschutzgrenzen serverseitig nachgezogen: sensible Teilnehmerfelder bleiben Admin-only",
+      "Orga- und Moderationslisten als Arbeitsflächen ausgebaut, inklusive interner Hinweise und Druckansicht",
+      "Feedback-Kanal geöffnet: angemeldete Rollen können Requests und Fehler direkt im Portal erfassen",
+      "Nächster Fokus: Zieleinlauf, Ergebnis-Erfassung und Live-Dashboard als zusammenhängender Wettkampffluss",
+    ],
+  },
+  {
     version: "v0.5.0",
     date: "2026-03-24",
     items: [

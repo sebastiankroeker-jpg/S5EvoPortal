@@ -16,9 +16,36 @@ import { APP_VERSION } from "@/lib/version";
 
 const ENTRY_TYPES = ["BUG", "REQUEST"] as const;
 const ENTRY_STATUSES = ["OPEN", "IN_PROGRESS", "DONE"] as const;
+const ENTRY_PRIORITIES = ["LOW", "NORMAL", "HIGH"] as const;
 
 type EntryType = (typeof ENTRY_TYPES)[number];
 type EntryStatus = (typeof ENTRY_STATUSES)[number];
+type EntryPriority = (typeof ENTRY_PRIORITIES)[number];
+
+const TYPE_LABELS: Record<EntryType, string> = {
+  BUG: "Fehler",
+  REQUEST: "Request",
+};
+
+const STATUS_LABELS: Record<EntryStatus, string> = {
+  OPEN: "Offen",
+  IN_PROGRESS: "In Arbeit",
+  DONE: "Erledigt",
+};
+
+const PRIORITY_LABELS: Record<EntryPriority, string> = {
+  LOW: "Niedrig",
+  NORMAL: "Normal",
+  HIGH: "Hoch",
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Admin",
+  MODERATOR: "Moderator:in",
+  TEAMCHEF: "Team Manager:in",
+  TEILNEHMER: "Teilnehmer:in",
+  ZUSCHAUER: "Zuschauer:in",
+};
 
 type AdminEntry = {
   id: string;
@@ -33,8 +60,8 @@ type AdminEntry = {
 
 export default function ChangelogPage() {
   const { status } = useSession();
-  const { can } = usePermissions();
-  const isAdmin = can("*") || can("team.edit.all");
+  const { activeRole, can } = usePermissions();
+  const canManageEntries = can("*") || can("team.edit.all");
 
   const [entries, setEntries] = useState<AdminEntry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
@@ -50,8 +77,10 @@ export default function ChangelogPage() {
     resolvedTo: "",
   });
   const [formState, setFormState] = useState({
-    type: "BUG" as EntryType,
-    status: "OPEN" as EntryStatus,
+    type: "REQUEST" as EntryType,
+    title: "",
+    perspective: "",
+    priority: "NORMAL" as EntryPriority,
     description: "",
   });
   const [formLoading, setFormLoading] = useState(false);
@@ -64,7 +93,7 @@ export default function ChangelogPage() {
   }, []);
 
   const fetchEntries = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canManageEntries) return;
     setEntriesLoading(true);
     setEntriesError(null);
 
@@ -91,7 +120,7 @@ export default function ChangelogPage() {
     } finally {
       setEntriesLoading(false);
     }
-  }, [filters, isAdmin]);
+  }, [filters, canManageEntries]);
 
   useEffect(() => {
     fetchEntries();
@@ -112,8 +141,8 @@ export default function ChangelogPage() {
         const descriptionError = Array.isArray(fieldErrors?.description) ? fieldErrors.description[0] : null;
         throw new Error(descriptionError || (error?.error ? "Validierungsfehler" : "API Fehler"));
       }
-      showAdminMessage("success", "Eintrag gespeichert");
-      setFormState({ type: "BUG", status: "OPEN", description: "" });
+      showAdminMessage("success", "Request gespeichert");
+      setFormState({ type: "REQUEST", title: "", perspective: ROLE_LABELS[activeRole] || activeRole, priority: "NORMAL", description: "" });
       fetchEntries();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Speichern fehlgeschlagen";
@@ -122,6 +151,12 @@ export default function ChangelogPage() {
       setFormLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!formState.perspective) {
+      setFormState((prev) => ({ ...prev, perspective: ROLE_LABELS[activeRole] || activeRole }));
+    }
+  }, [activeRole, formState.perspective]);
 
   const handleStatusUpdate = async (entryId: string, status: EntryStatus) => {
     setUpdatingEntryId(entryId);
@@ -168,7 +203,7 @@ export default function ChangelogPage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="max-w-md">
           <CardContent className="p-8 text-center space-y-4">
-            <p className="text-muted-foreground">Bitte melde dich an um den Changelog zu sehen.</p>
+            <p className="text-muted-foreground">Bitte melde dich an, um Projektstand und Requests zu sehen.</p>
             <Link href="/"><Button>Zur Startseite</Button></Link>
           </CardContent>
         </Card>
@@ -198,90 +233,136 @@ export default function ChangelogPage() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-2"
         >
-          <h1 className="text-3xl font-bold tracking-tight">📋 Changelog</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Projektstand & Changelog</h1>
           <p className="text-muted-foreground">
-            Versionshistorie und Änderungen am S5Evo Portal
+            Hohe Flughöhe für Release-Stand, bekannte Themen und neue Anforderungen.
           </p>
         </motion.div>
 
-        {isAdmin && (
+        <section className="grid gap-3 sm:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Aktueller Stand</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              MVP im Live-Test mit rollenbasierter Teamansicht, Datenschutzgrenzen und Orga-Listen.
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Nächste Kante</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Zieleinlauf, Ergebniserfassung und Moderationsfluss sauber ausmodellieren.
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Requests</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Alle angemeldeten Rollen dürfen Feedback und Anforderungen einstellen.
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Request erfassen</CardTitle>
+              <CardDescription>Feedback, Fehler oder Anforderungen mit Rolle/Perspektive festhalten</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {adminMessage && (
+                <div
+                  className={`mb-4 rounded-md border px-3 py-2 text-sm ${
+                    adminMessage.type === "success"
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      : "border-destructive/40 bg-destructive/10 text-destructive"
+                  }`}
+                >
+                  {adminMessage.text}
+                </div>
+              )}
+              <form onSubmit={handleCreateEntry} className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Typ</label>
+                    <Select
+                      value={formState.type}
+                      onValueChange={(value) => setFormState((prev) => ({ ...prev, type: value as EntryType }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Typ wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ENTRY_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>{TYPE_LABELS[type]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Perspektive</label>
+                    <Input
+                      value={formState.perspective}
+                      onChange={(e) => setFormState((prev) => ({ ...prev, perspective: e.target.value }))}
+                      placeholder="z.B. Moderator:in"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Priorität</label>
+                    <Select
+                      value={formState.priority}
+                      onValueChange={(value) => setFormState((prev) => ({ ...prev, priority: value as EntryPriority }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Priorität wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ENTRY_PRIORITIES.map((priority) => (
+                          <SelectItem key={priority} value={priority}>{PRIORITY_LABELS[priority]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Titel</label>
+                  <Input
+                    value={formState.title}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, title: e.target.value }))}
+                    placeholder="Kurzer Arbeitstitel"
+                    maxLength={140}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Beschreibung</label>
+                  <Textarea
+                    value={formState.description}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Was soll angepasst, geprüft oder korrigiert werden?"
+                    rows={4}
+                    minLength={3}
+                    required
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="submit" disabled={formLoading || formState.description.trim().length < 3}>
+                    {formLoading ? "Speichere..." : "Request speichern"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </section>
+
+        {canManageEntries && (
           <section className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Neuer Eintrag</CardTitle>
-                <CardDescription>Fehler oder Anforderungen erfassen</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {adminMessage && (
-                  <div
-                    className={`mb-4 rounded-md border px-3 py-2 text-sm ${
-                      adminMessage.type === "success"
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                        : "border-destructive/40 bg-destructive/10 text-destructive"
-                    }`}
-                  >
-                    {adminMessage.text}
-                  </div>
-                )}
-                <form onSubmit={handleCreateEntry} className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Typ</label>
-                      <Select
-                        value={formState.type}
-                        onValueChange={(value) => setFormState((prev) => ({ ...prev, type: value as EntryType }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Typ wählen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ENTRY_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium">Status</label>
-                      <Select
-                        value={formState.status}
-                        onValueChange={(value) => setFormState((prev) => ({ ...prev, status: value as EntryStatus }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Status wählen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ENTRY_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>{status}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Beschreibung</label>
-                    <Textarea
-                      value={formState.description}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, description: e.target.value }))}
-                      placeholder="Was soll angepasst oder korrigiert werden?"
-                      rows={4}
-                      minLength={3}
-                      required
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button type="submit" disabled={formLoading || formState.description.trim().length < 3}>
-                      {formLoading ? "Speichere..." : "Eintrag hinzufügen"}
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Admin-Liste</CardTitle>
-                <CardDescription>Filtere und aktualisiere Einträge</CardDescription>
+                <CardTitle className="text-lg">Request-Inbox</CardTitle>
+                <CardDescription>Einträge filtern und Status aktualisieren</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -296,7 +377,7 @@ export default function ChangelogPage() {
                         <SelectContent>
                           <SelectItem value="ALL">Alle</SelectItem>
                           {ENTRY_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                            <SelectItem key={type} value={type}>{TYPE_LABELS[type]}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -311,7 +392,7 @@ export default function ChangelogPage() {
                         <SelectContent>
                           <SelectItem value="ALL">Alle</SelectItem>
                           {ENTRY_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                            <SelectItem key={status} value={status}>{STATUS_LABELS[status]}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -420,7 +501,7 @@ export default function ChangelogPage() {
                       {entries.map((entry) => (
                         <tr key={entry.id} className="border-t">
                           <td className="px-3 py-2">
-                            <Badge variant="outline">{entry.type}</Badge>
+                            <Badge variant="outline">{TYPE_LABELS[entry.type]}</Badge>
                           </td>
                           <td className="px-3 py-2">
                             <Select
@@ -433,7 +514,7 @@ export default function ChangelogPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 {ENTRY_STATUSES.map((status) => (
-                                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                                  <SelectItem key={status} value={status}>{STATUS_LABELS[status]}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>

@@ -64,8 +64,11 @@ export default function NavBar() {
           <span className="text-lg">🏅</span>
           <span className="font-semibold text-sm">S5Evo</span>
         </Link>
-        <Link href="/changelog">
-          <Badge variant="secondary" className="text-[10px] hover:bg-primary/20 cursor-pointer">{APP_VERSION}</Badge>
+        <Link href="/changelog" aria-label="Projektstand und Changelog öffnen">
+          <Badge variant="secondary" className="gap-1 text-[10px] hover:bg-primary/20 cursor-pointer">
+            <span className="hidden sm:inline">Projektstand</span>
+            <span>{APP_VERSION}</span>
+          </Badge>
         </Link>
       </div>
 
