@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { usePermissions } from "@/lib/permissions-context";
 import { CHANGELOG } from "@/lib/data/changelog";
 import { APP_VERSION } from "@/lib/version";
+import NavBar from "@/app/components/nav-bar";
+import BottomTabBar from "@/app/components/bottom-tab-bar";
 
 const ENTRY_TYPES = ["BUG", "REQUEST"] as const;
 const ENTRY_STATUSES = ["OPEN", "IN_PROGRESS", "DONE"] as const;
@@ -59,6 +62,7 @@ type AdminEntry = {
 };
 
 export default function ChangelogPage() {
+  const router = useRouter();
   const { status } = useSession();
   const { activeRole, can } = usePermissions();
   const canManageEntries = can("*") || can("team.edit.all");
@@ -190,42 +194,51 @@ export default function ChangelogPage() {
     });
   };
 
+  const navigateFromBottomTab = (tabId: string) => {
+    if (tabId === "profile") {
+      router.push("/profile");
+      return;
+    }
+
+    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+  };
+
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-background pb-24 lg:pb-0">
+        <NavBar />
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+        <div className="lg:hidden">
+          <BottomTabBar activeTab="" onTabChange={navigateFromBottomTab} />
+        </div>
       </div>
     );
   }
 
   if (status === "unauthenticated") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="p-8 text-center space-y-4">
-            <p className="text-muted-foreground">Bitte melde dich an, um Projektstand und Requests zu sehen.</p>
-            <Link href="/"><Button>Zur Startseite</Button></Link>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background pb-24 lg:pb-0">
+        <NavBar />
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <Card className="max-w-md">
+            <CardContent className="p-8 text-center space-y-4">
+              <p className="text-muted-foreground">Bitte melde dich an, um Projektstand und Requests zu sehen.</p>
+              <Link href="/"><Button>Zur Startseite</Button></Link>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:hidden">
+          <BottomTabBar activeTab="" onTabChange={navigateFromBottomTab} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Simple Header */}
-      <nav className="flex items-center justify-between px-6 py-3 border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <span className="text-2xl">🏅</span>
-            <span className="font-bold text-lg tracking-tight">S5Evo Portal</span>
-          </Link>
-          <Badge variant="secondary" className="text-xs">{APP_VERSION}</Badge>
-        </div>
-        <Link href="/">
-          <Button variant="ghost" size="sm">← Zurück</Button>
-        </Link>
-      </nav>
+    <div className="min-h-screen bg-background pb-24 lg:pb-0">
+      <NavBar />
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         <motion.div
@@ -606,6 +619,10 @@ export default function ChangelogPage() {
           S5Evo Portal {APP_VERSION} • Mannschaftsfünfkampf • Built with ❤️
         </motion.footer>
       </main>
+
+      <div className="lg:hidden">
+        <BottomTabBar activeTab="" onTabChange={navigateFromBottomTab} />
+      </div>
     </div>
   );
 }
