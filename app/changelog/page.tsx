@@ -90,6 +90,8 @@ export default function ChangelogPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [adminMessage, setAdminMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [updatingEntryId, setUpdatingEntryId] = useState<string | null>(null);
+  const [editingEntry, setEditingEntry] = useState<{ id: string; type: EntryType; description: string } | null>(null);
+  const [lastSubmittedRequest, setLastSubmittedRequest] = useState<string | null>(null);
 
   const showAdminMessage = useCallback((type: "success" | "error", text: string) => {
     setAdminMessage({ type, text });
@@ -145,7 +147,8 @@ export default function ChangelogPage() {
         const descriptionError = Array.isArray(fieldErrors?.description) ? fieldErrors.description[0] : null;
         throw new Error(descriptionError || (error?.error ? "Validierungsfehler" : "API Fehler"));
       }
-      showAdminMessage("success", "Request gespeichert");
+      setLastSubmittedRequest(formState.title.trim() || formState.description.trim().slice(0, 120));
+      showAdminMessage("success", "Danke, ist in der Request-Inbox. Wir prüfen das.");
       setFormState({ type: "REQUEST", title: "", perspective: ROLE_LABELS[activeRole] || activeRole, priority: "NORMAL", description: "" });
       fetchEntries();
     } catch (error) {
@@ -176,6 +179,70 @@ export default function ChangelogPage() {
       fetchEntries();
     } catch (error) {
       showAdminMessage("error", "Status konnte nicht aktualisiert werden");
+    } finally {
+      setUpdatingEntryId(null);
+    }
+  };
+
+  const startEditingEntry = (entry: AdminEntry) => {
+    setEditingEntry({
+      id: entry.id,
+      type: entry.type,
+      description: entry.description,
+    });
+  };
+
+  const handleSaveEntry = async () => {
+    if (!editingEntry) return;
+
+    const description = editingEntry.description.trim();
+    if (description.length < 3) {
+      showAdminMessage("error", "Beschreibung ist zu kurz");
+      return;
+    }
+
+    setUpdatingEntryId(editingEntry.id);
+    try {
+      const res = await fetch(`/api/admin/changelog-entries/${editingEntry.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: editingEntry.type,
+          description,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Update fehlgeschlagen");
+      }
+      setEditingEntry(null);
+      showAdminMessage("success", "Eintrag aktualisiert");
+      fetchEntries();
+    } catch (error) {
+      showAdminMessage("error", "Eintrag konnte nicht gespeichert werden");
+    } finally {
+      setUpdatingEntryId(null);
+    }
+  };
+
+  const handleDeleteEntry = async (entry: AdminEntry) => {
+    const confirmed = window.confirm("Diesen Request dauerhaft löschen?");
+    if (!confirmed) return;
+
+    setUpdatingEntryId(entry.id);
+    try {
+      const res = await fetch(`/api/admin/changelog-entries/${entry.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error("Löschen fehlgeschlagen");
+      }
+      if (editingEntry?.id === entry.id) {
+        setEditingEntry(null);
+      }
+      showAdminMessage("success", "Eintrag gelöscht");
+      fetchEntries();
+    } catch (error) {
+      showAdminMessage("error", "Eintrag konnte nicht gelöscht werden");
     } finally {
       setUpdatingEntryId(null);
     }
@@ -246,7 +313,7 @@ export default function ChangelogPage() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-2"
         >
-          <h1 className="text-3xl font-bold tracking-tight">Projektstand & Changelog</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Feedback & Projektstand</h1>
           <p className="text-muted-foreground">
             Hohe Flughöhe für Release-Stand, bekannte Themen und neue Anforderungen.
           </p>
@@ -295,6 +362,11 @@ export default function ChangelogPage() {
                   }`}
                 >
                   {adminMessage.text}
+                </div>
+              )}
+              {lastSubmittedRequest && (
+                <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+                  Zuletzt gesendet: <span className="font-medium text-foreground">{lastSubmittedRequest}</span>
                 </div>
               )}
               <form onSubmit={handleCreateEntry} className="space-y-4">
@@ -360,7 +432,10 @@ export default function ChangelogPage() {
                     required
                   />
                 </div>
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    landet direkt in der Request-Inbox der Orga
+                  </p>
                   <Button type="submit" disabled={formLoading || formState.description.trim().length < 3}>
                     {formLoading ? "Speichere..." : "Request speichern"}
                   </Button>
@@ -507,14 +582,37 @@ export default function ChangelogPage() {
                       {entries.length === 0 && !entriesLoading && (
                         <tr>
                           <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
-                            Keine Einträge gefunden
+                            <div className="space-y-2">
+                              <p>Keine Einträge gefunden</p>
+                              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                                Filter zurücksetzen
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       )}
                       {entries.map((entry) => (
                         <tr key={entry.id} className="border-t">
                           <td className="px-3 py-2">
-                            <Badge variant="outline">{TYPE_LABELS[entry.type]}</Badge>
+                            {editingEntry?.id === entry.id ? (
+                              <Select
+                                value={editingEntry.type}
+                                onValueChange={(value) =>
+                                  setEditingEntry((prev) => prev ? { ...prev, type: value as EntryType } : prev)
+                                }
+                              >
+                                <SelectTrigger className="h-8 min-w-24 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ENTRY_TYPES.map((type) => (
+                                    <SelectItem key={type} value={type}>{TYPE_LABELS[type]}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge variant="outline">{TYPE_LABELS[entry.type]}</Badge>
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <Select
@@ -533,10 +631,23 @@ export default function ChangelogPage() {
                             </Select>
                           </td>
                           <td className="px-3 py-2 text-xs text-muted-foreground">
-                            <p className="line-clamp-3 whitespace-pre-wrap">{entry.description}</p>
-                            <p className="mt-1 text-[11px] text-muted-foreground/70">
-                              von {entry.createdBy?.name || entry.createdBy?.email || "Unbekannt"}
-                            </p>
+                            {editingEntry?.id === entry.id ? (
+                              <Textarea
+                                value={editingEntry.description}
+                                onChange={(event) =>
+                                  setEditingEntry((prev) => prev ? { ...prev, description: event.target.value } : prev)
+                                }
+                                rows={5}
+                                className="min-w-72 text-xs"
+                              />
+                            ) : (
+                              <>
+                                <p className="line-clamp-3 whitespace-pre-wrap">{entry.description}</p>
+                                <p className="mt-1 text-[11px] text-muted-foreground/70">
+                                  von {entry.createdBy?.name || entry.createdBy?.email || "Unbekannt"}
+                                </p>
+                              </>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-xs">
                             <p>{new Date(entry.createdAt).toLocaleString("de-DE")}</p>
@@ -554,19 +665,38 @@ export default function ChangelogPage() {
                             )}
                           </td>
                           <td className="px-3 py-2 text-xs">
-                            <Button
-                              variant={entry.status === "DONE" ? "ghost" : "secondary"}
-                              size="sm"
-                              disabled={updatingEntryId === entry.id}
-                              onClick={() =>
-                                handleStatusUpdate(
-                                  entry.id,
-                                  entry.status === "DONE" ? "OPEN" : "DONE"
-                                )
-                              }
-                            >
-                              {entry.status === "DONE" ? "Reopen" : "Erledigt"}
-                            </Button>
+                            {editingEntry?.id === entry.id ? (
+                              <div className="flex flex-col gap-1">
+                                <Button size="sm" disabled={updatingEntryId === entry.id} onClick={handleSaveEntry}>
+                                  Speichern
+                                </Button>
+                                <Button variant="ghost" size="sm" disabled={updatingEntryId === entry.id} onClick={() => setEditingEntry(null)}>
+                                  Abbrechen
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                <Button
+                                  variant={entry.status === "DONE" ? "ghost" : "secondary"}
+                                  size="sm"
+                                  disabled={updatingEntryId === entry.id}
+                                  onClick={() =>
+                                    handleStatusUpdate(
+                                      entry.id,
+                                      entry.status === "DONE" ? "OPEN" : "DONE"
+                                    )
+                                  }
+                                >
+                                  {entry.status === "DONE" ? "Reopen" : "Erledigt"}
+                                </Button>
+                                <Button variant="outline" size="sm" disabled={updatingEntryId === entry.id} onClick={() => startEditingEntry(entry)}>
+                                  Bearbeiten
+                                </Button>
+                                <Button variant="destructive" size="sm" disabled={updatingEntryId === entry.id} onClick={() => handleDeleteEntry(entry)}>
+                                  Löschen
+                                </Button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}

@@ -78,3 +78,25 @@ export async function PATCH(
     return NextResponse.json({ error: "Eintrag nicht gefunden" }, { status: 404 });
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ entryId: string }> }
+) {
+  const { entryId } = await params;
+
+  const user = await getAdminUser();
+  if (user instanceof NextResponse) {
+    return user;
+  }
+
+  try {
+    await prisma.changelogEntry.delete({
+      where: { id: entryId },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "Eintrag nicht gefunden" }, { status: 404 });
+  }
+}
