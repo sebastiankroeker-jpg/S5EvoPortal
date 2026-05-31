@@ -243,6 +243,7 @@ function getTeamCompletionMeta(team: Team) {
       label: `${participantCount}/5 besetzt`,
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
+      isImportant: true,
     };
   }
 
@@ -251,6 +252,7 @@ function getTeamCompletionMeta(team: Team) {
       label: `${missingNames} Name(n) offen`,
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
+      isImportant: true,
     };
   }
 
@@ -258,6 +260,7 @@ function getTeamCompletionMeta(team: Team) {
     label: "Vollständig",
     toneClass: "border-green-300 bg-green-50 text-green-800",
     icon: CheckCircle2,
+    isImportant: false,
   };
 }
 
@@ -275,6 +278,7 @@ function getTeamDisciplineMeta(team: Team) {
       label: `${missingDisciplines} Disziplin(en) offen`,
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
+      isImportant: true,
     };
   }
 
@@ -283,6 +287,7 @@ function getTeamDisciplineMeta(team: Team) {
       label: "Disziplinen prüfen",
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
+      isImportant: true,
     };
   }
 
@@ -290,6 +295,7 @@ function getTeamDisciplineMeta(team: Team) {
     label: "Disziplinen ok",
     toneClass: "border-green-300 bg-green-50 text-green-800",
     icon: CheckCircle2,
+    isImportant: false,
   };
 }
 
@@ -549,6 +555,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const canEditAll = can("team.edit.all");
   const canViewAll = can("team.view.all");
   const canUseAdminLinks = activeRole === "ADMIN";
+  const showAdminDashboardInfo = activeRole === "ADMIN";
   const userEmail = session?.user?.email;
   const { active: activeCompetition } = useCompetition();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
@@ -1334,6 +1341,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               const CompletionIcon = completionMeta.icon;
               const DisciplineIcon = disciplineMeta.icon;
               const isMetaOpen = expandedTeamMeta === team.id;
+              const showCompactStatusRow =
+                completionMeta.isImportant ||
+                disciplineMeta.isImportant ||
+                (showAdminDashboardInfo && pendingChangeCount > 0);
 
               return (
               <div key={team.id} className={`space-y-2 ${expandedTeam === team.id ? "md:col-span-2 lg:col-span-3 xl:col-span-4" : ""}`}>
@@ -1353,16 +1364,28 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                           {categoryEmojis[team.category] || "🏆"} {team.category}
                         </Badge>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
-                          <CompletionIcon className="size-3" />
-                          {completionMeta.label}
-                        </Badge>
-                        <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
-                          <DisciplineIcon className="size-3" />
-                          {disciplineMeta.label}
-                        </Badge>
-                      </div>
+                      {showCompactStatusRow && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {completionMeta.isImportant && (
+                            <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                              <CompletionIcon className="size-3" />
+                              {completionMeta.label}
+                            </Badge>
+                          )}
+                          {disciplineMeta.isImportant && (
+                            <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                              <DisciplineIcon className="size-3" />
+                              {disciplineMeta.label}
+                            </Badge>
+                          )}
+                          {showAdminDashboardInfo && pendingChangeCount > 0 && (
+                            <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                              <ClipboardList className="size-3" />
+                              {pendingChangeCount} Änderung(en)
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                       {/* Teilnehmer-Liste */}
                       {team.participants && team.participants.length > 0 ? (
                         <div className="space-y-0.5">
@@ -1439,30 +1462,36 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
                           {isMetaOpen && (
                             <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
-                              <div className="flex flex-wrap gap-1.5">
-                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
-                                  <CompletionIcon className="size-3" />
-                                  {completionMeta.label}
-                                </Badge>
-                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
-                                  <DisciplineIcon className="size-3" />
-                                  {disciplineMeta.label}
-                                </Badge>
-                                {pendingChangeCount > 0 && (
-                                  <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
-                                    <ClipboardList className="size-3" />
-                                    {pendingChangeCount} Änderung(en)
-                                  </Badge>
-                                )}
-                                {team.isCurrentUserTeam && (
-                                  <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px]">
-                                    <Star className="size-3" />
-                                    Eigenes Team
-                                  </Badge>
-                                )}
-                              </div>
+                              {(completionMeta.isImportant || disciplineMeta.isImportant || (showAdminDashboardInfo && pendingChangeCount > 0) || team.isCurrentUserTeam) && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {completionMeta.isImportant && (
+                                    <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                                      <CompletionIcon className="size-3" />
+                                      {completionMeta.label}
+                                    </Badge>
+                                  )}
+                                  {disciplineMeta.isImportant && (
+                                    <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                                      <DisciplineIcon className="size-3" />
+                                      {disciplineMeta.label}
+                                    </Badge>
+                                  )}
+                                  {showAdminDashboardInfo && pendingChangeCount > 0 && (
+                                    <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                                      <ClipboardList className="size-3" />
+                                      {pendingChangeCount} Änderung(en)
+                                    </Badge>
+                                  )}
+                                  {team.isCurrentUserTeam && (
+                                    <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px]">
+                                      <Star className="size-3" />
+                                      Eigenes Team
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
 
-                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              <div className={`grid gap-2 sm:grid-cols-2 ${showAdminDashboardInfo ? "xl:grid-cols-4" : "xl:grid-cols-2"}`}>
                                 <div className="rounded-md border border-border/60 bg-background p-3">
                                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                                     <UsersRound className="size-4" />
@@ -1473,10 +1502,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                       <span className="text-muted-foreground">Teilnehmer</span>
                                       <span className="font-medium">{getParticipantCount(team)}/5</span>
                                     </div>
-                                    <div className="flex justify-between gap-3">
-                                      <span className="text-muted-foreground">Portal-Konten</span>
-                                      <span className="font-medium">{linkedAccountCount}</span>
-                                    </div>
+                                    {showAdminDashboardInfo && (
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-muted-foreground">Portal-Konten</span>
+                                        <span className="font-medium">{linkedAccountCount}</span>
+                                      </div>
+                                    )}
                                     <div className="flex justify-between gap-3">
                                       <span className="text-muted-foreground">Sichtbarkeit</span>
                                       <span className="max-w-[9rem] truncate text-right font-medium" title={getTeamPublicationLabel(team)}>
@@ -1501,37 +1532,41 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   </div>
                                 </div>
 
-                                <div className="rounded-md border border-border/60 bg-background p-3">
-                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                    <ShieldCheck className="size-4" />
-                                    Verwaltung
+                                {showAdminDashboardInfo && (
+                                  <div className="rounded-md border border-border/60 bg-background p-3">
+                                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                      <ShieldCheck className="size-4" />
+                                      Verwaltung
+                                    </div>
+                                    <div className="mt-2 space-y-1 text-sm">
+                                      <p className="truncate font-medium" title={team.ownerName || team.ownerEmail || "Nicht sichtbar"}>
+                                        {team.ownerName || team.ownerEmail || "Nicht sichtbar"}
+                                      </p>
+                                      <p className="truncate text-muted-foreground" title={team.ownerEmail || "Keine Owner-Mail sichtbar"}>
+                                        {team.ownerEmail || "Keine Owner-Mail sichtbar"}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div className="mt-2 space-y-1 text-sm">
-                                    <p className="truncate font-medium" title={team.ownerName || team.ownerEmail || "Nicht sichtbar"}>
-                                      {team.ownerName || team.ownerEmail || "Nicht sichtbar"}
-                                    </p>
-                                    <p className="truncate text-muted-foreground" title={team.ownerEmail || "Keine Owner-Mail sichtbar"}>
-                                      {team.ownerEmail || "Keine Owner-Mail sichtbar"}
-                                    </p>
-                                  </div>
-                                </div>
+                                )}
 
-                                <div className="rounded-md border border-border/60 bg-background p-3">
-                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                    <CalendarClock className="size-4" />
-                                    Zeitstempel
-                                  </div>
-                                  <div className="mt-2 space-y-1 text-sm">
-                                    <div className="flex justify-between gap-3">
-                                      <span className="text-muted-foreground">Angelegt</span>
-                                      <span className="font-medium">{formatDatePart(team.createdAt)}, {formatTimePart(team.createdAt)}</span>
+                                {showAdminDashboardInfo && (
+                                  <div className="rounded-md border border-border/60 bg-background p-3">
+                                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                      <CalendarClock className="size-4" />
+                                      Zeitstempel
                                     </div>
-                                    <div className="flex justify-between gap-3">
-                                      <span className="text-muted-foreground">Geändert</span>
-                                      <span className="font-medium">{team.updatedAt ? new Date(team.updatedAt).toLocaleDateString("de-DE") : "Unbekannt"}</span>
+                                    <div className="mt-2 space-y-1 text-sm">
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-muted-foreground">Angelegt</span>
+                                        <span className="font-medium">{formatDatePart(team.createdAt)}, {formatTimePart(team.createdAt)}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-muted-foreground">Geändert</span>
+                                        <span className="font-medium">{team.updatedAt ? new Date(team.updatedAt).toLocaleDateString("de-DE") : "Unbekannt"}</span>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
+                                )}
                               </div>
                             </div>
                           )}
