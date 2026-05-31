@@ -134,6 +134,13 @@ function formatAuditAction(action: string) {
   return action;
 }
 
+function getStatusFilterLabel(status: "PENDING" | "APPROVED" | "REJECTED" | "ALL") {
+  if (status === "APPROVED") return "genehmigt";
+  if (status === "REJECTED") return "abgelehnt";
+  if (status === "ALL") return "alle";
+  return "offen";
+}
+
 function buildDiffs(change: PendingChange): ChangeField[] {
   const before = parseSnapshot(change.beforeData);
   const after = parseSnapshot(change.changeData);
@@ -314,6 +321,34 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     };
   }, [decoratedChanges]);
 
+  const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly);
+  const activeFilterLabel = useMemo(() => {
+    const labels: string[] = [];
+    const participantName = participantFilterId
+      ? decoratedChanges.find((change) => change.participant.id === participantFilterId)?.participantName
+      : null;
+    const teamName = teamFilterId
+      ? decoratedChanges.find((change) => change.participant.team.id === teamFilterId)?.participant.team.name
+      : null;
+
+    if (participantFilterId) labels.push("Teilnehmer: " + (participantName || "Auswahl"));
+    if (teamFilterId) labels.push("Team: " + (teamName || "Auswahl"));
+    if (statusFilter !== "PENDING") labels.push("Status: " + getStatusFilterLabel(statusFilter));
+    if (updatedOnly) labels.push("nur aktualisierte Anträge");
+    if (searchQuery.trim()) labels.push("Suche: " + searchQuery.trim());
+
+    return labels.join(" · ");
+  }, [decoratedChanges, participantFilterId, searchQuery, statusFilter, teamFilterId, updatedOnly]);
+
+  const resetDashboardFilters = () => {
+    setParticipantFilterId(null);
+    setTeamFilterId(null);
+    setSearchQuery("");
+    setStatusFilter("PENDING");
+    setUpdatedOnly(false);
+    window.history.replaceState(null, "", "/aenderungen");
+  };
+
   const handleAction = async (id: string, action: "approve" | "reject") => {
     setProcessing(id);
     setError(null);
@@ -360,13 +395,31 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
               {stats.lastUpdated ? " · letzte Aktivität " + formatDateTime(stats.lastUpdated) : ""}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => void fetchChanges("refresh")} disabled={refreshing}>
-            <RefreshCw className={"h-4 w-4" + (refreshing ? " animate-spin" : "")} />
-            <span className="sr-only">Aktualisieren</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            {hasActiveFilters && (
+              <Button type="button" variant="outline" size="sm" onClick={resetDashboardFilters}>
+                Filter lösen
+              </Button>
+            )}
+            <Button type="button" variant="ghost" size="sm" onClick={() => void fetchChanges("refresh")} disabled={refreshing}>
+              <RefreshCw className={"h-4 w-4" + (refreshing ? " animate-spin" : "")} />
+              <span className="sr-only">Aktualisieren</span>
+            </Button>
+          </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        {hasActiveFilters && (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/25 px-3 py-2 text-xs">
+            <span className="min-w-0 truncate text-muted-foreground">
+              Aktiver Filter: <span className="text-foreground">{activeFilterLabel}</span>
+            </span>
+            <button type="button" className="shrink-0 font-medium text-primary" onClick={resetDashboardFilters}>
+              lösen
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant={statusFilter === "PENDING" ? "default" : "outline"}
@@ -416,19 +469,12 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
           >
             Aktualisierte
           </Button>
-          {(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly) && (
+          {hasActiveFilters && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setParticipantFilterId(null);
-                setTeamFilterId(null);
-                setSearchQuery("");
-                setStatusFilter("PENDING");
-                setUpdatedOnly(false);
-                window.history.replaceState(null, "", "/aenderungen");
-              }}
+              onClick={resetDashboardFilters}
             >
               Zurücksetzen
             </Button>
@@ -584,32 +630,30 @@ function ChangeList({
           >
             <CardHeader className={compact ? "pb-2" : "pb-3"}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className={compact ? "text-base" : "text-lg"}>{change.participantName}</CardTitle>
+                    <CardTitle className={compact ? "text-base" : "text-xl leading-tight"}>{change.participantName}</CardTitle>
                     <Badge variant="outline" className={getStatusTone(change.status)}>
                       {getStatusLabel(change.status)}
                     </Badge>
                     <Badge variant="secondary">{change.fields.length} Feldwechsel</Badge>
-                    {change.isCritical ? (
-                      <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
-                        Kritisch
-                      </Badge>
-                    ) : null}
-                    {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
-                    {change.impact?.classificationWarnings?.length ? (
-                      <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-200">
-                        Klassenwirkung
-                      </Badge>
-                    ) : null}
-                    {change.impact?.hasLiveDrift ? (
-                      <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
-                        Seit Antrag geändert
-                      </Badge>
-                    ) : null}
                   </div>
-                  <CardDescription className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
-                    <span>Team</span>
+                  {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
+                    <div className="flex flex-wrap gap-2">
+                      {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
+                      {change.impact?.classificationWarnings?.length ? (
+                        <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-200">
+                          Klassenwirkung
+                        </Badge>
+                      ) : null}
+                      {change.impact?.hasLiveDrift ? (
+                        <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
+                          Live-Stand abweichend
+                        </Badge>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <CardDescription className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
                     <button
                       type="button"
                       className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
@@ -621,7 +665,7 @@ function ChangeList({
                     >
                       {change.participant.team.name}
                     </button>
-                    <span>· Beantragt von</span>
+                    <span>· Antrag von</span>
                     <button
                       type="button"
                       className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
@@ -634,14 +678,14 @@ function ChangeList({
                       {change.requesterLabel}
                     </button>
                   </CardDescription>
-                  <CardDescription>
-                    Eingang {formatDateTime(change.createdAt)}
-                    {change.wasUpdated ? " · Letztes Update " + formatDateTime(change.updatedAt) : ""}
-                    {change.reviewedAt ? " · Entscheiden am " + formatDateTime(change.reviewedAt) : ""}
+                  <CardDescription className="text-xs">
+                    {formatDateTime(change.createdAt)}
+                    {change.wasUpdated ? " · Update " + formatDateTime(change.updatedAt) : ""}
+                    {change.reviewedAt ? " · entschieden " + formatDateTime(change.reviewedAt) : ""}
                   </CardDescription>
                 </div>
                 {!compact && (
-                  <div className="grid gap-1 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground lg:min-w-56">
+                  <div className="hidden gap-1 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground lg:grid lg:min-w-56">
                     <button
                       type="button"
                       className={canUseAdminLinks && change.participant.email ? "truncate text-left hover:text-primary" : "truncate text-left"}
@@ -661,46 +705,38 @@ function ChangeList({
               </div>
             </CardHeader>
             <CardContent className="space-y-3 sm:space-y-4">
-              <div className="rounded-md border border-border/50 bg-muted/30 p-3">
+              <div className="rounded-md border border-border/50 bg-muted/20 p-3">
                 {(change.impact?.classificationWarnings?.length || change.impact?.disciplineWarnings?.length) ? (
-                  <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                    <div className="font-medium">
-                      Auswirkung auf Team/Klasse: {change.impact?.nextClassificationLabel || "Unbekannt"}
+                  <div className="mb-3 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
+                    <div className="text-xs font-medium uppercase tracking-[0.14em] opacity-80">Prüfhinweise</div>
+                    <div className="mt-1 font-medium">
+                      {change.impact?.nextClassificationLabel || "Unbekannte Klasse"}
                       {typeof change.impact?.nextTotalAge === "number" && change.impact.nextTotalAge > 0
                         ? ` · Gesamtalter ${change.impact.nextTotalAge}`
                         : ""}
                     </div>
-                    {change.impact?.classificationWarnings?.map((warning, index) => (
-                      <div key={`class-${index}`} className="mt-1">
-                        {warning}
-                      </div>
-                    ))}
-                    {change.impact?.disciplineWarnings?.map((warning, index) => (
-                      <div key={`disc-${index}`} className="mt-1">
-                        {warning}
-                      </div>
-                    ))}
+                    <ul className="mt-2 space-y-1">
+                      {change.impact?.classificationWarnings?.map((warning, index) => (
+                        <li key={`class-${index}`}>{warning}</li>
+                      ))}
+                      {change.impact?.disciplineWarnings?.map((warning, index) => (
+                        <li key={`disc-${index}`}>{warning}</li>
+                      ))}
+                    </ul>
                   </div>
                 ) : null}
 
                 {change.impact?.hasLiveDrift ? (
-                  <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
-                    <div className="font-medium">Achtung: Der Live-Stand wurde seit Antragstellung verändert.</div>
-                    <div className="mt-1 text-xs opacity-90">
-                      Bitte vor der Entscheidung prüfen, ob der Antrag noch zum aktuellen Datenstand passt.
-                    </div>
-                    <div className="mt-3 space-y-2">
+                  <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 px-3 py-2.5 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-100">
+                    <div className="font-medium">Live-Stand weicht vom Antrag ab</div>
+                    <div className="mt-2 space-y-2">
                       {change.impact.liveDriftSummary.map((field) => (
-                        <div key={`drift-${field.field}`} className="grid gap-2 md:grid-cols-[150px_1fr_1fr]">
-                          <span className="text-xs font-medium uppercase tracking-[0.14em]">
-                            {field.label}
-                          </span>
-                          <span className="rounded-md bg-background/70 px-3 py-2 text-sm">
-                            Damals: {field.before}
-                          </span>
-                          <span className="rounded-md bg-white/70 px-3 py-2 text-sm font-medium dark:bg-black/10">
-                            Jetzt: {field.after}
-                          </span>
+                        <div key={`drift-${field.field}`} className="rounded-md bg-background/60 px-3 py-2">
+                          <div className="text-xs font-medium uppercase tracking-[0.14em]">{field.label}</div>
+                          <div className="mt-1 grid gap-1 text-sm sm:grid-cols-2">
+                            <span>Damals: {field.before}</span>
+                            <span className="font-medium">Jetzt: {field.after}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -712,16 +748,20 @@ function ChangeList({
                 ) : (
                   <div className="space-y-2">
                     {change.fields.map((field) => (
-                      <div key={field.key} className="grid gap-2 md:grid-cols-[150px_1fr_1fr]">
-                        <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      <div key={field.key} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
+                        <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           {fieldLabels[field.key] || field.key}
-                        </span>
-                        <span className="rounded-md bg-background px-3 py-2 text-sm text-muted-foreground">
-                          {formatValue(field.before)}
-                        </span>
-                        <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
-                          {formatValue(field.after)}
-                        </span>
+                        </div>
+                        <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                          <div>
+                            <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Bisher</div>
+                            <div className="mt-1 text-muted-foreground">{formatValue(field.before)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">Beantragt</div>
+                            <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</div>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
