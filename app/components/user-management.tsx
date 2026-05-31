@@ -330,11 +330,11 @@ export default function UserManagement() {
         return (
           <motion.div key={user.id} layout>
             <Card>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-medium">{user.name || "Unbenannt"}</span>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <span className="min-w-0 max-w-full truncate text-sm font-medium">{user.name || "Unbenannt"}</span>
                       {isCurrentUser && (
                         <Badge variant="secondary" className="shrink-0 text-xs">Du</Badge>
                       )}
@@ -347,8 +347,8 @@ export default function UserManagement() {
                         <Badge className="shrink-0 text-xs">letzter Admin</Badge>
                       )}
                     </div>
-                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground" title={user.email}>{user.email}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       Registriert seit {formatCreatedAt(user.createdAt)}
                     </p>
 
@@ -380,7 +380,7 @@ export default function UserManagement() {
                         <p className="text-xs text-muted-foreground">
                           Wähle die globalen Portal-Rollen für diesen Benutzer. Teamchef- und Managerrechte werden pro Mannschaft in den Team-Zeilen darunter vergeben.
                         </p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                           {ALL_ROLES.map((role) => {
                             const info = ROLE_INFO[role];
                             const active = editRoles.includes(role);
@@ -413,7 +413,7 @@ export default function UserManagement() {
                             Dieser Benutzer ist aktuell der letzte Admin und kann diese Rolle deshalb nicht verlieren.
                           </p>
                         )}
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <Button size="sm" onClick={() => saveRoles(user.id)} disabled={saving}>
                             {saving ? "..." : "💾 Speichern"}
                           </Button>
@@ -439,7 +439,7 @@ export default function UserManagement() {
                               <div
                                 key={team.id}
                                 className={joinClasses(
-                                  "flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
+                                  "grid gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center",
                                   focusedTeamId === team.id && "bg-primary/5 ring-1 ring-inset ring-primary/20"
                                 )}
                               >
@@ -454,10 +454,10 @@ export default function UserManagement() {
                                     {team.relations.join(" · ")}
                                   </span>
                                 </button>
-                                <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                                   <Badge
                                     variant="outline"
-                                    className={team.isTeamManager ? "border-green-300 text-green-700" : "border-muted text-muted-foreground"}
+                                    className={`shrink-0 ${team.isTeamManager ? "border-green-300 text-green-700" : "border-muted text-muted-foreground"}`}
                                   >
                                     {team.isTeamManager ? "Team Manager:in" : "Keine Managerrechte"}
                                   </Badge>
@@ -465,7 +465,7 @@ export default function UserManagement() {
                                     type="button"
                                     size="sm"
                                     variant={team.isTeamManager ? "outline" : "secondary"}
-                                    className="h-7 px-2 text-[11px]"
+                                    className="h-7 flex-1 px-2 text-[11px] sm:flex-none"
                                     onClick={() => toggleTeamManager(user, team)}
                                     disabled={saving || isUpdating || isFixedManager}
                                     title={isFixedManager ? "Owner/Teamchef-Rechte kommen aus der Team-Zuordnung" : undefined}
@@ -485,10 +485,10 @@ export default function UserManagement() {
                     )}
                   </div>
 
-                  <div className="flex shrink-0 flex-col gap-2">
+                  <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-col">
                     {editingUser !== user.id && (
                       <Button size="sm" variant="outline" onClick={() => startEdit(user)}>
-                        Rollen ändern
+                        Rollen
                       </Button>
                     )}
                     <AlertDialog>
@@ -502,7 +502,7 @@ export default function UserManagement() {
                           />
                         )}
                       >
-                        {isDeleting ? "Löscht..." : "Benutzer löschen"}
+                        {isDeleting ? "Löscht..." : "Löschen"}
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>

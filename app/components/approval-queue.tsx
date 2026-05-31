@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { openTeamDashboard, openUserDashboard } from "@/lib/admin-routing";
+import { usePermissions } from "@/lib/permissions-context";
 
 interface PendingChange {
   id: string;
@@ -158,6 +160,7 @@ function resolvePriorityScore(change: PendingChange, wasUpdated: boolean) {
 }
 
 export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueueProps) {
+  const { activeRole } = usePermissions();
   const [changes, setChanges] = useState<PendingChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -171,6 +174,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [error, setError] = useState<string | null>(null);
 
   const dashboardMode = variant === "page";
+  const canUseAdminLinks = activeRole === "ADMIN";
 
   const fetchChanges = async (mode: "initial" | "refresh" = "initial") => {
     if (mode === "refresh") {
@@ -346,33 +350,33 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   if (dashboardMode) {
     return (
       <div className="space-y-6">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           <Card>
-            <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Offen</p>
-              <p className="mt-2 text-3xl font-semibold">{stats.openCount}</p>
-              <p className="text-xs text-muted-foreground">Aenderungsantraege in Pruefung</p>
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Offen</p>
+              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.openCount}</p>
+              <p className="text-[11px] text-muted-foreground">In Prüfung</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Genehmigt</p>
-              <p className="mt-2 text-3xl font-semibold">{stats.approvedCount}</p>
-              <p className="text-xs text-muted-foreground">Bereits erledigte Freigaben</p>
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Genehmigt</p>
+              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.approvedCount}</p>
+              <p className="text-[11px] text-muted-foreground">Erledigt</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Abgelehnt</p>
-              <p className="mt-2 text-3xl font-semibold">{stats.rejectedCount}</p>
-              <p className="text-xs text-muted-foreground">Bereits entschiedene Ablehnungen</p>
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Abgelehnt</p>
+              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.rejectedCount}</p>
+              <p className="text-[11px] text-muted-foreground">Entschieden</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Feldwechsel</p>
-              <p className="mt-2 text-3xl font-semibold">{stats.fieldCount}</p>
-              <p className="text-xs text-muted-foreground">
+            <CardContent className="p-3 sm:p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:text-xs">Feldwechsel</p>
+              <p className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{stats.fieldCount}</p>
+              <p className="truncate text-[11px] text-muted-foreground" title={stats.lastUpdated ? "Letzte Aktivitaet: " + formatDateTime(stats.lastUpdated) : "Noch keine Aktivitaet"}>
                 {stats.lastUpdated ? "Letzte Aktivitaet: " + formatDateTime(stats.lastUpdated) : "Noch keine Aktivitaet"}
               </p>
             </CardContent>
@@ -391,7 +395,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                   className="pl-9"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
                 {(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly) && (
                   <Button
                     type="button"
@@ -406,7 +410,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                       window.history.replaceState(null, "", "/aenderungen");
                     }}
                   >
-                    Filter zurücksetzen
+                    Zurücksetzen
                   </Button>
                 )}
                 <Button
@@ -447,7 +451,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                   size="sm"
                   onClick={() => setUpdatedOnly((current) => !current)}
                 >
-                  {updatedOnly ? "Nur aktualisierte an" : "Nur aktualisierte"}
+                  {updatedOnly ? "Aktualisierte an" : "Aktualisierte"}
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={() => void fetchChanges("refresh")} disabled={refreshing}>
                   <RefreshCw className={"mr-2 h-4 w-4" + (refreshing ? " animate-spin" : "")} />
@@ -483,6 +487,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
             setComments={setComments}
             processing={processing}
             onAction={handleAction}
+            canUseAdminLinks={canUseAdminLinks}
           />
         )}
       </div>
@@ -525,6 +530,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
             processing={processing}
             onAction={handleAction}
             compact
+            canUseAdminLinks={canUseAdminLinks}
           />
           {filteredChanges.length > visibleChanges.length && (
             <Card className="border-dashed">
@@ -552,6 +558,7 @@ function ChangeList({
   processing,
   onAction,
   compact = false,
+  canUseAdminLinks = false,
 }: {
   changes: DecoratedChange[];
   comments: Record<string, string>;
@@ -559,6 +566,7 @@ function ChangeList({
   processing: string | null;
   onAction: (id: string, action: "approve" | "reject") => Promise<void>;
   compact?: boolean;
+  canUseAdminLinks?: boolean;
 }) {
   const getStatusTone = (status: string) => {
     if (status === "APPROVED") return "border-green-300 text-green-700 dark:text-green-200";
@@ -617,8 +625,31 @@ function ChangeList({
                       </Badge>
                     ) : null}
                   </div>
-                  <CardDescription>
-                    Team {change.participant.team.name} · Beantragt von {change.requesterLabel}
+                  <CardDescription className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                    <span>Team</span>
+                    <button
+                      type="button"
+                      className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
+                      onClick={() => {
+                        if (canUseAdminLinks) openTeamDashboard({ teamId: change.participant.team.id });
+                      }}
+                      disabled={!canUseAdminLinks}
+                      title={canUseAdminLinks ? "Mannschaft öffnen" : undefined}
+                    >
+                      {change.participant.team.name}
+                    </button>
+                    <span>· Beantragt von</span>
+                    <button
+                      type="button"
+                      className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
+                      onClick={() => {
+                        if (canUseAdminLinks) openUserDashboard({ email: change.requestedBy.email, teamId: change.participant.team.id });
+                      }}
+                      disabled={!canUseAdminLinks}
+                      title={canUseAdminLinks ? "Benutzerverwaltung öffnen" : undefined}
+                    >
+                      {change.requesterLabel}
+                    </button>
                   </CardDescription>
                   <CardDescription>
                     Eingang {formatDateTime(change.createdAt)}
@@ -627,17 +658,29 @@ function ChangeList({
                   </CardDescription>
                 </div>
                 {!compact && (
-                  <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                    <div>{change.participant.email || "Keine Teilnehmer-Mail"}</div>
-                    <div>{change.participant.team.contactEmail || "Keine Team-Mail"}</div>
+                  <div className="grid gap-1 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground lg:min-w-56">
+                    <button
+                      type="button"
+                      className={canUseAdminLinks && change.participant.email ? "truncate text-left hover:text-primary" : "truncate text-left"}
+                      onClick={() => {
+                        if (canUseAdminLinks && change.participant.email) {
+                          openUserDashboard({ email: change.participant.email, teamId: change.participant.team.id });
+                        }
+                      }}
+                      disabled={!canUseAdminLinks || !change.participant.email}
+                      title={canUseAdminLinks && change.participant.email ? "Teilnehmerkonto suchen" : undefined}
+                    >
+                      {change.participant.email || "Keine Teilnehmer-Mail"}
+                    </button>
+                    <div className="truncate">{change.participant.team.contactEmail || "Keine Team-Mail"}</div>
                   </div>
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-2xl border border-border/50 bg-muted/30 p-3">
+            <CardContent className="space-y-3 sm:space-y-4">
+              <div className="rounded-md border border-border/50 bg-muted/30 p-3">
                 {(change.impact?.classificationWarnings?.length || change.impact?.disciplineWarnings?.length) ? (
-                  <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                  <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
                     <div className="font-medium">
                       Auswirkung auf Team/Klasse: {change.impact?.nextClassificationLabel || "Unbekannt"}
                       {typeof change.impact?.nextTotalAge === "number" && change.impact.nextTotalAge > 0
@@ -658,7 +701,7 @@ function ChangeList({
                 ) : null}
 
                 {change.impact?.hasLiveDrift ? (
-                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
+                  <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
                     <div className="font-medium">Achtung: Der Live-Stand wurde seit Antragstellung verändert.</div>
                     <div className="mt-1 text-xs opacity-90">
                       Bitte vor der Entscheidung prüfen, ob der Antrag noch zum aktuellen Datenstand passt.
@@ -669,10 +712,10 @@ function ChangeList({
                           <span className="text-xs font-medium uppercase tracking-[0.14em]">
                             {field.label}
                           </span>
-                          <span className="rounded-xl bg-background/70 px-3 py-2 text-sm">
+                          <span className="rounded-md bg-background/70 px-3 py-2 text-sm">
                             Damals: {field.before}
                           </span>
-                          <span className="rounded-xl bg-white/70 px-3 py-2 text-sm font-medium dark:bg-black/10">
+                          <span className="rounded-md bg-white/70 px-3 py-2 text-sm font-medium dark:bg-black/10">
                             Jetzt: {field.after}
                           </span>
                         </div>
@@ -690,10 +733,10 @@ function ChangeList({
                         <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           {fieldLabels[field.key] || field.key}
                         </span>
-                        <span className="rounded-xl bg-background px-3 py-2 text-sm text-muted-foreground">
+                        <span className="rounded-md bg-background px-3 py-2 text-sm text-muted-foreground">
                           {formatValue(field.before)}
                         </span>
-                        <span className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                        <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
                           {formatValue(field.after)}
                         </span>
                       </div>

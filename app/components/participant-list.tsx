@@ -244,12 +244,12 @@ export default function ParticipantList() {
                   exit={{ opacity: 0 }}
                   layout
                 >
-                  <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg border border-border/30 hover:bg-accent/50 transition-colors">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="text-lg shrink-0">{disc.icon}</span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">
+                  <div className="grid gap-2 rounded-lg border border-border/30 p-2.5 transition-colors hover:bg-accent/50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="mt-0.5 shrink-0 text-lg">{disc.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className="min-w-0 truncate text-sm font-medium">
                             {p.lastName}, {p.firstName}
                           </span>
                           <span className="text-xs">{gender}</span>
@@ -270,7 +270,7 @@ export default function ParticipantList() {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                           <button
                             type="button"
                             className={canSeeAdminOnlyFields ? "truncate hover:text-primary" : "truncate"}
@@ -303,22 +303,19 @@ export default function ParticipantList() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-end gap-1">
+                      {p.moderationNote?.trim() && (
+                        <Badge variant="secondary" className="h-7 shrink-0 text-[10px]">
+                          Hinweis
+                        </Badge>
+                      )}
                       <Button
                         size="sm"
-                        variant={p.moderationNote?.trim() ? "secondary" : "outline"}
+                        variant="outline"
                         onClick={() => setEditingParticipant(p)}
-                        className="shrink-0 text-[11px]"
+                        className="h-7 shrink-0 px-2 text-[11px]"
                       >
-                        {p.moderationNote?.trim() ? "📝 Hinweis" : "📝 Hinzufuegen"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditingParticipant(p)}
-                        className="shrink-0"
-                      >
-                        ✏️
+                        Bearbeiten
                       </Button>
                     </div>
                   </div>
