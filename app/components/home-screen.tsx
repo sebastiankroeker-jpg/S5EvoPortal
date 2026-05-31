@@ -290,15 +290,14 @@ export default function HomeScreen() {
               <Button
                 variant="outline"
                 onClick={() => window.location.href = '/anmeldung'}
-                className="w-full bg-background/80"
+                className="h-10 w-full bg-background/80"
               >
                 📋 Mannschaft anmelden
               </Button>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 <Button
-                  size="sm"
                   variant="ghost"
-                  className="w-full"
+                  className="h-10 w-full bg-background/80"
                   onClick={async () => {
                     setIsAuthActionPending(true);
                     try {
@@ -312,7 +311,6 @@ export default function HomeScreen() {
                   📝 Portal-Konto erstellen
                 </Button>
                 <Button
-                  size="sm"
                   variant="ghost"
                   onClick={async () => {
                     setIsAuthActionPending(true);
@@ -322,7 +320,7 @@ export default function HomeScreen() {
                       setIsAuthActionPending(false);
                     }
                   }}
-                  className="w-full"
+                  className="h-10 w-full bg-background/80"
                   disabled={isAuthActionPending}
                 >
                   🔐 Im Portal anmelden
