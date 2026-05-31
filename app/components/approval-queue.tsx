@@ -15,6 +15,10 @@ import { usePermissions } from "@/lib/permissions-context";
 
 interface PendingChange {
   id: string;
+  changeRequestId?: string;
+  targetType?: string;
+  changeType?: string;
+  source?: string;
   changeData: string;
   beforeData?: string | null;
   status: string;
@@ -131,7 +135,23 @@ function formatAuditAction(action: string) {
   if (action === "REQUEST_APPROVED") return "Genehmigt";
   if (action === "REQUEST_REJECTED") return "Abgelehnt";
   if (action === "DIRECT_CHANGE") return "Direkt geändert";
+  if (action === "SUBMITTED") return "Antrag gestellt";
+  if (action === "UPDATED") return "Antrag aktualisiert";
+  if (action === "APPROVED") return "Genehmigt";
+  if (action === "REJECTED") return "Abgelehnt";
+  if (action === "APPLIED") return "Angewendet";
+  if (action === "CANCELLED") return "Zurueckgezogen";
+  if (action === "FAILED") return "Fehlgeschlagen";
   return action;
+}
+
+function getTargetTypeLabel(targetType?: string) {
+  if (targetType === "PARTICIPANT") return "Teilnehmer";
+  if (targetType === "TEAM") return "Mannschaft";
+  if (targetType === "USER") return "Benutzer";
+  if (targetType === "CONTRACT") return "Vertrag";
+  if (targetType === "METERING_POINT") return "Zaehlpunkt";
+  return "Antrag";
 }
 
 function getStatusFilterLabel(status: "PENDING" | "APPROVED" | "REJECTED" | "ALL") {
@@ -636,7 +656,9 @@ function ChangeList({
                     <Badge variant="outline" className={getStatusTone(change.status)}>
                       {getStatusLabel(change.status)}
                     </Badge>
+                    <Badge variant="outline">{getTargetTypeLabel(change.targetType)}</Badge>
                     <Badge variant="secondary">{change.fields.length} Feldwechsel</Badge>
+                    {change.changeRequestId ? <Badge variant="secondary">ChangeRequest</Badge> : null}
                   </div>
                   {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
                     <div className="flex flex-wrap gap-2">
