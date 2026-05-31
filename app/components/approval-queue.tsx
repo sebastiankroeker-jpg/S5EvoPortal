@@ -374,7 +374,9 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     setError(null);
 
     try {
-      const res = await fetch("/api/admin/pending-changes/" + id, {
+      const change = changes.find((item) => item.id === id);
+      const reviewId = change?.changeRequestId || id;
+      const res = await fetch("/api/admin/pending-changes/" + reviewId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, comment: comments[id] || "" }),
@@ -385,7 +387,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         throw new Error(data.error || "Aktion fehlgeschlagen");
       }
 
-      setChanges((prev) => prev.filter((change) => change.id !== id));
+      setChanges((prev) => prev.filter((change) => change.id !== id && change.changeRequestId !== reviewId));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Aktion fehlgeschlagen";
       setError(message);

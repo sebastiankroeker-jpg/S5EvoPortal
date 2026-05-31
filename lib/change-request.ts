@@ -56,6 +56,7 @@ export type LegacyParticipantChangeRequestInput = {
 };
 
 export type LegacyParticipantReviewInput = {
+  changeRequestId?: string;
   participantId: string;
   actorId: string;
   approved: boolean;
@@ -179,15 +180,25 @@ export async function reviewLegacyParticipantChangeRequest(
   tx: ChangeRequestTx,
   input: LegacyParticipantReviewInput,
 ) {
-  const request = await tx.changeRequest.findFirst({
-    where: {
-      targetType: "PARTICIPANT",
-      targetId: input.participantId,
-      changeType: "UPDATE",
-      status: "PENDING",
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  const request = input.changeRequestId
+    ? await tx.changeRequest.findFirst({
+        where: {
+          id: input.changeRequestId,
+          targetType: "PARTICIPANT",
+          targetId: input.participantId,
+          changeType: "UPDATE",
+          status: "PENDING",
+        },
+      })
+    : await tx.changeRequest.findFirst({
+        where: {
+          targetType: "PARTICIPANT",
+          targetId: input.participantId,
+          changeType: "UPDATE",
+          status: "PENDING",
+        },
+        orderBy: { updatedAt: "desc" },
+      });
 
   if (!request) {
     return null;

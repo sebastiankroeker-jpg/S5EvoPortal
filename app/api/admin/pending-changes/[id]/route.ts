@@ -28,7 +28,7 @@ export async function PUT(
   const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
   if ("error" in auth) return auth.error;
 
-  const { id } = await params;
+  const { id: routeId } = await params;
   const body = await request.json().catch(() => ({}));
   const action = body.action;
   const comment = typeof body.comment === "string" ? body.comment.trim() : "";
@@ -41,8 +41,44 @@ export async function PUT(
     return NextResponse.json({ error: "Bitte bei einer Ablehnung einen kurzen Kommentar hinterlegen" }, { status: 400 });
   }
 
+  const changeRequest = await prisma.changeRequest.findUnique({
+    where: { id: routeId },
+    select: {
+      id: true,
+      tenantId: true,
+      targetType: true,
+      targetId: true,
+      changeType: true,
+      status: true,
+      metadata: true,
+    },
+  });
+  let pendingChangeId = routeId;
+  const activeChangeRequestId = changeRequest?.id ?? null;
+
+  if (changeRequest) {
+    if (changeRequest.tenantId !== auth.tenantId) {
+      return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+    }
+
+    if (changeRequest.targetType !== "PARTICIPANT" || changeRequest.changeType !== "UPDATE") {
+      return NextResponse.json({ error: "Dieser Antragstyp wird in der Teilnehmer-Queue noch nicht bearbeitet" }, { status: 409 });
+    }
+
+    if (changeRequest.status !== "PENDING") {
+      return NextResponse.json({ error: "Änderungsantrag nicht gefunden oder bereits bearbeitet" }, { status: 404 });
+    }
+
+    const legacyPendingChangeId = getLegacyPendingChangeId(changeRequest.metadata);
+    if (!legacyPendingChangeId) {
+      return NextResponse.json({ error: "Generischer Antrag hat noch keinen Legacy-Review-Link" }, { status: 409 });
+    }
+
+    pendingChangeId = legacyPendingChangeId;
+  }
+
   const pendingChange = await prisma.pendingChange.findUnique({
-    where: { id },
+    where: { id: pendingChangeId },
     include: {
       participant: {
         include: {
@@ -116,7 +152,7 @@ export async function PUT(
       });
 
       await tx.pendingChange.update({
-        where: { id },
+        where: { id: pendingChange.id },
         data: {
           status: "APPROVED",
           reviewedAt: new Date(),
@@ -138,6 +174,7 @@ export async function PUT(
       });
 
       await reviewLegacyParticipantChangeRequest(tx, {
+        changeRequestId: activeChangeRequestId ?? undefined,
         participantId: pendingChange.participantId,
         actorId: auth.user.id,
         approved: true,
@@ -221,7 +258,7 @@ export async function PUT(
 
   await prisma.$transaction(async (tx) => {
     await tx.pendingChange.update({
-      where: { id },
+      where: { id: pendingChange.id },
       data: {
           status: "REJECTED",
           reviewedAt: new Date(),
@@ -243,6 +280,7 @@ export async function PUT(
     });
 
     await reviewLegacyParticipantChangeRequest(tx, {
+      changeRequestId: activeChangeRequestId ?? undefined,
       participantId: pendingChange.participantId,
       actorId: auth.user.id,
       approved: false,
@@ -270,4 +308,13 @@ export async function PUT(
   });
 
   return NextResponse.json({ status: "rejected", message: "Änderung abgelehnt" });
+}
+
+function getLegacyPendingChangeId(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const value = (metadata as { legacyPendingChangeId?: unknown }).legacyPendingChangeId;
+  return typeof value === "string" ? value : null;
 }
