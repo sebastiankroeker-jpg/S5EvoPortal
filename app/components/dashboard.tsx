@@ -232,6 +232,10 @@ function isTeamIncomplete(team: Team) {
   return (team.participants ?? []).some((participant) => !participant.firstName || !participant.lastName);
 }
 
+function canShowTeamActionStatus(team: Team, showAdminDashboardInfo: boolean) {
+  return showAdminDashboardInfo || team.canCurrentUserEdit === true;
+}
+
 function getTeamCompletionMeta(team: Team) {
   const participantCount = getParticipantCount(team);
   const missingNames = (team.participants ?? []).filter(
@@ -724,7 +728,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         ownerFilter === "all" ||
         normalizeEmail(team.ownerEmail || team.contactEmail) === normalizeEmail(ownerFilter);
       const matchesOwnTeam = !ownTeamsOnly || team.isCurrentUserTeam === true;
-      const matchesCompleteness = !incompleteOnly || isTeamIncomplete(team);
+      const matchesCompleteness =
+        !incompleteOnly || (canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team));
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = createdFrom ? new Date(createdFrom).getTime() : null;
       const createdToMs = createdTo ? new Date(createdTo).getTime() : null;
@@ -743,7 +748,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       
       return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, createdFrom, createdTo, showOwnerFilter]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -826,7 +831,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   }
 
   const totalParticipants = filteredTeams.reduce((sum, team) => sum + (team.participants?.length || 0), 0);
-  const incompleteTeams = teams.filter((team) => isTeamIncomplete(team)).length;
+  const incompleteTeams = teams.filter((team) => canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team)).length;
   const hasActiveFilters =
     searchQuery !== "" ||
     categoryFilter !== "all" ||
@@ -1340,10 +1345,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               const linkedAccountCount = getTeamLinkedAccountCount(team);
               const CompletionIcon = completionMeta.icon;
               const DisciplineIcon = disciplineMeta.icon;
+              const showActionStatus = canShowTeamActionStatus(team, showAdminDashboardInfo);
               const isMetaOpen = expandedTeamMeta === team.id;
               const showCompactStatusRow =
-                completionMeta.isImportant ||
-                disciplineMeta.isImportant ||
+                (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
 
               return (
@@ -1366,13 +1371,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       </div>
                       {showCompactStatusRow && (
                         <div className="flex flex-wrap gap-1.5">
-                          {completionMeta.isImportant && (
+                          {showActionStatus && completionMeta.isImportant && (
                             <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                               <CompletionIcon className="size-3" />
                               {completionMeta.label}
                             </Badge>
                           )}
-                          {disciplineMeta.isImportant && (
+                          {showActionStatus && disciplineMeta.isImportant && (
                             <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                               <DisciplineIcon className="size-3" />
                               {disciplineMeta.label}
@@ -1462,15 +1467,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
                           {isMetaOpen && (
                             <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
-                              {(completionMeta.isImportant || disciplineMeta.isImportant || (showAdminDashboardInfo && pendingChangeCount > 0) || team.isCurrentUserTeam) && (
+                              {((showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
+                                (showAdminDashboardInfo && pendingChangeCount > 0) ||
+                                team.isCurrentUserTeam) && (
                                 <div className="flex flex-wrap gap-1.5">
-                                  {completionMeta.isImportant && (
+                                  {showActionStatus && completionMeta.isImportant && (
                                     <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                       <CompletionIcon className="size-3" />
                                       {completionMeta.label}
                                     </Badge>
                                   )}
-                                  {disciplineMeta.isImportant && (
+                                  {showActionStatus && disciplineMeta.isImportant && (
                                     <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                       <DisciplineIcon className="size-3" />
                                       {disciplineMeta.label}
