@@ -208,6 +208,7 @@ model TenantRole {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tenantId, role])
+  @@index([tenantId, role])
   @@map("tenant_roles")
 }
 
@@ -249,6 +250,8 @@ model Competition {
   resetSnapshots  CompetitionResetSnapshot[]
   auditEvents     AuditEvent[]
 
+  @@index([tenantId, status, year, createdAt])
+  @@index([status, year, createdAt])
   @@map("competitions")
 }
 
@@ -282,6 +285,11 @@ model Team {
   rankings                CompetitionRanking[]
   registrationClaimTokens RegistrationClaimToken[]
 
+  @@index([competitionId, deletedAt])
+  @@index([ownerId, deletedAt])
+  @@index([teamChiefId, deletedAt])
+  @@index([contactEmail])
+  @@index([updatedAt])
   @@map("teams")
 }
 
@@ -429,6 +437,9 @@ model Participant {
   auditLogs      ParticipantAuditLog[]
 
   @@index([userId])
+  @@index([userId, deletedAt])
+  @@index([teamId, deletedAt])
+  @@index([lastName, firstName])
   @@map("participants")
 }
 
@@ -469,6 +480,7 @@ model DisciplineResult {
   shots         Shot[]
 
   @@unique([disciplineId, participantId])
+  @@index([participantId])
   @@map("discipline_results")
 }
 
@@ -523,6 +535,7 @@ model CompetitionRanking {
   team             Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([classificationId, teamId])
+  @@index([teamId])
   @@map("competition_rankings")
 }
 
@@ -547,6 +560,9 @@ model PendingChange {
   reviewedBy    User?                 @relation("ChangeReviewer", fields: [reviewedById], references: [id])
   auditLogs     ParticipantAuditLog[]
 
+  @@index([status, updatedAt])
+  @@index([participantId, status])
+  @@index([requestedById, status])
   @@map("pending_changes")
 }
 
