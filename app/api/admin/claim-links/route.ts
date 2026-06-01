@@ -464,6 +464,10 @@ export async function PATCH(request: NextRequest) {
     const revokedAt = new Date();
     const previousUserId = participant.userId;
     const previousUserEmail = participant.user?.email || null;
+    const teamChiefMatchesPreviousUser = participant.team.teamChiefId === previousUserId;
+    const teamContactMatchesPreviousUser =
+      normalizeEmail(participant.team.contactEmail) === normalizeEmail(previousUserEmail) ||
+      normalizeEmail(participant.team.contactEmail) === normalizeEmail(participant.email);
     const activeTeamManagerRole = await prisma.teamMemberRole.findFirst({
       where: {
         teamId: participant.teamId,
@@ -498,6 +502,15 @@ export async function PATCH(request: NextRequest) {
           ...(targetEmail !== normalizeEmail(participant.email) ? { email: targetEmail } : {}),
         },
       });
+      if (teamChiefMatchesPreviousUser || teamContactMatchesPreviousUser) {
+        await tx.team.update({
+          where: { id: participant.teamId },
+          data: {
+            ...(teamChiefMatchesPreviousUser ? { teamChiefId: null } : {}),
+            ...(teamContactMatchesPreviousUser ? { contactEmail: targetEmail } : {}),
+          },
+        });
+      }
       await tx.teamMemberRole.updateMany({
         where: {
           teamId: participant.teamId,
@@ -607,6 +620,8 @@ export async function PATCH(request: NextRequest) {
       previousUser: participant.user,
       participantEmail: targetEmail,
       revokedTeamManagerAccess: Boolean(activeTeamManagerRole),
+      clearedLegacyTeamChiefAccess: teamChiefMatchesPreviousUser,
+      updatedLegacyContactEmail: teamContactMatchesPreviousUser,
       participantClaimMail,
     });
   }

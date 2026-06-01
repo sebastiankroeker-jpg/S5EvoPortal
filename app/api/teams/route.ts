@@ -20,6 +20,7 @@ import {
 import { getScopedRoleFlags } from '@/lib/server-permissions';
 import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
 import { resolveTeamAccess } from '@/lib/team-manager-access';
+import { syncDerivedTeamchefRole } from '@/lib/teamchef-role';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -250,19 +251,6 @@ function serializeTeam(
           .filter(Boolean)
       : [],
   };
-}
-
-// Ensure a default tenant + competition exist
-async function ensureTenantRole(userId: string, tenantId: string, role: 'ADMIN' | 'TEAMCHEF') {
-  const existingRole = await prisma.tenantRole.findFirst({
-    where: { userId, tenantId, role },
-  });
-
-  if (!existingRole) {
-    await prisma.tenantRole.create({
-      data: { userId, tenantId, role },
-    });
-  }
 }
 
 async function ensureDefaultCompetition(): Promise<string> {
@@ -669,9 +657,10 @@ export async function POST(request: NextRequest) {
       let mailSummary = null;
 
       if (competition) {
-        await Promise.all([
-          ensureTenantRole(user.id, competition.tenantId, "TEAMCHEF"),
-        ]);
+        await syncDerivedTeamchefRole(prisma, {
+          userId: user.id,
+          tenantId: competition.tenantId,
+        });
 
         const participantClaimTokens = await Promise.all(
           team.participants

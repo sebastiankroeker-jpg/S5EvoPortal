@@ -7,6 +7,22 @@ type TeamchefRoleInput = {
   tenantId: string;
 };
 
+export function collectTeamAccessUserIds(input: {
+  ownerId?: string | null;
+  teamChiefId?: string | null;
+  memberRoles?: Array<{ userId?: string | null }> | null;
+}) {
+  return Array.from(
+    new Set(
+      [
+        input.ownerId,
+        input.teamChiefId,
+        ...(input.memberRoles ?? []).map((memberRole) => memberRole.userId),
+      ].filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
 export async function hasDerivedTeamchefScope(
   db: RoleDbClient,
   { userId, tenantId }: TeamchefRoleInput,

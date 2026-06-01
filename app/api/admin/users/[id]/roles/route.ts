@@ -5,7 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
-const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER"];
+const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "TEILNEHMER"];
 
 // PUT /api/admin/users/[id]/roles — Rollen eines Users setzen
 export async function PUT(
@@ -18,7 +18,7 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
-  const { roles } = body; // string[] z.B. ["ADMIN", "TEAMCHEF"]
+  const { roles } = body; // string[] z.B. ["ADMIN", "TEILNEHMER"]
 
   if (!Array.isArray(roles)) {
     return NextResponse.json({ error: "roles muss ein Array sein" }, { status: 400 });

@@ -4,6 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { hashRegistrationClaimToken } from "@/lib/registration-claim";
+import { syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 import {
   assessClaimRequestRisk,
   logSuspiciousClaimPattern,
@@ -48,6 +49,7 @@ export async function GET(
               year: true,
               tenant: {
                 select: {
+                  id: true,
                   claimLinksEnabled: true,
                 },
               },
@@ -168,6 +170,7 @@ export async function POST(
             select: {
               tenant: {
                 select: {
+                  id: true,
                   claimLinksEnabled: true,
                 },
               },
@@ -295,8 +298,8 @@ export async function POST(
     return jsonNoStore({ error: "Link wurde bereits von einem anderen Account eingelöst" }, { status: 409 });
   }
 
-  await prisma.$transaction([
-    prisma.team.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.team.update({
       where: { id: claim.team.id },
       data: {
         ownerId: user.id,
@@ -304,15 +307,19 @@ export async function POST(
         contactEmail: normalizedSessionEmail,
         contactName: sessionUserName || claim.suggestedName || claim.team.contactEmail || "",
       },
-    }),
-    prisma.registrationClaimToken.update({
+    });
+    await tx.registrationClaimToken.update({
       where: { id: claim.id },
       data: {
         claimedAt: claim.claimedAt || new Date(),
         claimedByUserId: user.id,
       },
-    }),
-  ]);
+    });
+    await syncDerivedTeamchefRole(tx, {
+      userId: user.id,
+      tenantId: claim.team.competition.tenant.id,
+    });
+  });
 
   await recordClaimAuditEvent({
     request,

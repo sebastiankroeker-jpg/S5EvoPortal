@@ -6,6 +6,7 @@ import { recordAppliedChangeRequest } from "@/lib/change-request";
 import { sendTeamLifecycleOrgEmail } from "@/lib/mail/team-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
+import { collectTeamAccessUserIds, syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
 function getRequestMeta(request: NextRequest) {
   return {
@@ -50,6 +51,15 @@ export async function POST(
           userId: true,
         },
       },
+      memberRoles: {
+        where: {
+          role: "TEAM_MANAGER",
+          revokedAt: null,
+        },
+        select: {
+          userId: true,
+        },
+      },
     },
   });
 
@@ -77,6 +87,11 @@ export async function POST(
     restoredParticipants: deletedParticipants.length,
     teamDeletedAt: null,
   };
+  const affectedUserIds = collectTeamAccessUserIds({
+    ownerId: team.owner.id,
+    teamChiefId: team.teamChiefId,
+    memberRoles: team.memberRoles,
+  });
 
   await prisma.$transaction(async (tx) => {
     await tx.team.update({
@@ -90,6 +105,14 @@ export async function POST(
       },
       data: { deletedAt: null },
     });
+    await Promise.all(
+      affectedUserIds.map((affectedUserId) =>
+        syncDerivedTeamchefRole(tx, {
+          userId: affectedUserId,
+          tenantId: auth.tenantId,
+        }),
+      ),
+    );
     await tx.auditEvent.create({
       data: {
         action: "TEAM_RESTORED",
