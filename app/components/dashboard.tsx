@@ -562,7 +562,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const canUseAdminLinks = activeRole === "ADMIN";
   const showAdminDashboardInfo = activeRole === "ADMIN";
   const userEmail = session?.user?.email;
-  const { active: activeCompetition } = useCompetition();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const notifications = useNotifications();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
   const canBrowseAllTeams = canViewAll || canRoleViewAllTeams(activeRole, activeCompetition);
@@ -656,8 +656,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [pendingOwnerFilter, setPendingOwnerFilter] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchTeams();
-  }, [fetchTeams]);
+    if (competitionLoading) return;
+    void fetchTeams();
+  }, [competitionLoading, fetchTeams]);
 
   useEffect(() => {
     if (!showOwnerFilter) {

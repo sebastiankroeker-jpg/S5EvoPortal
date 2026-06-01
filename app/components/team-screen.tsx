@@ -21,7 +21,7 @@ function isTeamView(value: string | null): value is TeamView {
 export default function TeamScreen() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
-  const { active: activeCompetition } = useCompetition();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const [view, setView] = useState<TeamView>(() => {
     if (typeof window === "undefined") return "mannschaften";
     const storedView = window.sessionStorage.getItem(TEAM_VIEW_STORAGE_KEY);
@@ -50,9 +50,12 @@ export default function TeamScreen() {
   // Check if user has teams → default to Mannschaften tab with owner filter
   useEffect(() => {
     if (!session?.user?.email) return;
+    if (competitionLoading) return;
     (async () => {
       try {
-        const res = await fetch('/api/teams');
+        const params = new URLSearchParams();
+        if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
+        const res = await fetch(`/api/teams?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           const owns = (data.teams || []).length > 0;
@@ -60,7 +63,7 @@ export default function TeamScreen() {
         }
       } catch {}
     })();
-  }, [session?.user?.email]);
+  }, [activeCompetition?.id, competitionLoading, session?.user?.email]);
 
   if (!session?.user) return null;
 
