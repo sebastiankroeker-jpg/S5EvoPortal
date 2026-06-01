@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
+import { useNotifications } from "@/lib/notification-context";
 import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
 import RestoreCenter from "@/app/components/restore-center";
@@ -113,6 +114,14 @@ type InlineFeedback = {
   text: string;
 };
 
+type OpsClaimAuditEvent = {
+  id: string;
+  scope: "team" | "participant";
+  createdAt: string;
+  eventType: string;
+  suspicious: boolean;
+};
+
 const STATUS_OPTIONS = ["DRAFT", "OPEN", "RUNNING", "CLOSED"];
 const THEME_OPTIONS = ["LIGHT", "DARK", "ESV"];
 const BENCH_MODES = ["GROSS", "NETTO"];
@@ -170,6 +179,7 @@ export default function AdminPage() {
   const { data: session, status } = useSession();
   const { can, isLoading: permissionsLoading } = usePermissions();
   const { active: activeCompetition, all: competitions, switchTo } = useCompetition();
+  const notifications = useNotifications();
 
   const [tenant, setTenant] = useState<TenantConfig>({
     name: "ESV Rosenheim",
@@ -211,13 +221,14 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [activeAdminTab, setActiveAdminTab] = useState("tenant");
   const [saving, setSaving] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [resetReason, setResetReason] = useState("");
   const [resetConfirmationText, setResetConfirmationText] = useState("");
   const [resetForce, setResetForce] = useState(false);
   const [resetDryRunSummary, setResetDryRunSummary] = useState<ResetSummary | null>(null);
   const [resetSnapshots, setResetSnapshots] = useState<ResetSnapshotEntry[]>([]);
   const [resetAuditEvents, setResetAuditEvents] = useState<ResetAuditEntry[]>([]);
+  const [opsLifecycleMailFailures, setOpsLifecycleMailFailures] = useState(0);
+  const [opsSuspiciousClaimEvents, setOpsSuspiciousClaimEvents] = useState<OpsClaimAuditEvent[]>([]);
   const [loadingResetMeta, setLoadingResetMeta] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<InlineFeedback | null>(null);
   const hasAdminAccess = !!session && can("config.edit");
@@ -239,7 +250,7 @@ export default function AdminPage() {
     router.push(tabId === "home" ? "/" : `/#${tabId}`);
   };
 
-  const loadCompetitionDetails = async (compId: string) => {
+  const loadCompetitionDetails = useCallback(async (compId: string) => {
     const res = await fetch(`/api/admin/competition?id=${compId}`);
     if (res.ok) {
       const { competition: comp } = await res.json();
@@ -270,9 +281,9 @@ export default function AdminPage() {
         });
       }
     }
-  };
+  }, []);
 
-  const loadResetMetadata = async (compId: string) => {
+  const loadResetMetadata = useCallback(async (compId: string) => {
     setLoadingResetMeta(true);
     try {
       const res = await fetch(`/api/admin/competition/reset?id=${compId}`);
@@ -284,11 +295,48 @@ export default function AdminPage() {
       setResetAuditEvents(data.auditEvents || []);
     } catch (error) {
       console.error("Failed to load reset metadata:", error);
-      showMessage("error", error instanceof Error ? error.message : "Reset-Daten konnten nicht geladen werden");
+      notifications.error(
+        "Reset-Daten konnten nicht geladen werden",
+        error instanceof Error ? error.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setLoadingResetMeta(false);
     }
-  };
+  }, [notifications]);
+
+  const loadOpsSummary = useCallback(async (compId: string) => {
+    try {
+      const [mailRes, claimRes] = await Promise.all([
+        fetch(`/api/admin/audit-events?competitionId=${encodeURIComponent(compId)}&scopeType=TEAM&action=TEAM_LIFECYCLE_MAIL&limit=20`),
+        fetch(`/api/admin/claim-audit?competitionId=${encodeURIComponent(compId)}&suspiciousOnly=true&limit=20`),
+      ]);
+
+      const mailData = await mailRes.json().catch(() => ({ events: [] }));
+      const claimData = await claimRes.json().catch(() => ({ events: [] }));
+
+      if (mailRes.ok) {
+        const failedMailCount = Array.isArray(mailData.events)
+          ? mailData.events.filter((event: { afterData?: Record<string, unknown> | null }) => {
+              const mailStatus = event.afterData?.mailStatus;
+              return mailStatus === "failed";
+            }).length
+          : 0;
+        setOpsLifecycleMailFailures(failedMailCount);
+      } else {
+        setOpsLifecycleMailFailures(0);
+      }
+
+      if (claimRes.ok) {
+        setOpsSuspiciousClaimEvents(Array.isArray(claimData.events) ? claimData.events : []);
+      } else {
+        setOpsSuspiciousClaimEvents([]);
+      }
+    } catch (error) {
+      console.error("Failed to load ops summary:", error);
+      setOpsLifecycleMailFailures(0);
+      setOpsSuspiciousClaimEvents([]);
+    }
+  }, []);
 
   // Load tenant on mount
   useEffect(() => {
@@ -322,31 +370,25 @@ export default function AdminPage() {
         }
       } catch (error) {
         console.error('Failed to load tenant:', error);
-        setMessage({ type: 'error', text: 'Fehler beim Laden der Konfiguration' });
+        notifications.error('Fehler beim Laden der Konfiguration');
       } finally {
         setLoading(false);
       }
     })();
-  }, [hasAdminAccess, permissionsLoading, status]);
+  }, [hasAdminAccess, notifications, permissionsLoading, status]);
 
   // Load competition details when active competition changes
   useEffect(() => {
     if (hasAdminAccess && activeCompetition?.id) {
-      loadCompetitionDetails(activeCompetition.id);
-      loadResetMetadata(activeCompetition.id);
+      void loadCompetitionDetails(activeCompetition.id);
+      void loadResetMetadata(activeCompetition.id);
+      void loadOpsSummary(activeCompetition.id);
       setResetDryRunSummary(null);
       setResetConfirmationText("");
       setResetForce(false);
       setResetFeedback(null);
     }
-    // loadResetMetadata intentionally stays out of deps to avoid re-fetch loops from local state updates
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCompetition?.id, hasAdminAccess]);
-
-  const showMessage = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 3000);
-  };
+  }, [activeCompetition?.id, hasAdminAccess, loadCompetitionDetails, loadOpsSummary, loadResetMetadata]);
 
   const handleSaveTenant = async () => {
     setSaving('tenant');
@@ -359,14 +401,14 @@ export default function AdminPage() {
 
       if (response.ok) {
         const data = await response.json();
-        showMessage('success', data.message || 'Tenant erfolgreich gespeichert!');
+        notifications.success(data.message || 'Tenant erfolgreich gespeichert!');
       } else {
         const error = await response.json();
-        showMessage('error', error.error || 'Fehler beim Speichern');
+        notifications.error('Fehler beim Speichern', error.error || 'Tenant konnte nicht gespeichert werden.');
       }
     } catch (error) {
       console.error('Failed to save tenant:', error);
-      showMessage('error', 'Netzwerkfehler beim Speichern');
+      notifications.error('Netzwerkfehler beim Speichern');
     } finally {
       setSaving(null);
     }
@@ -383,14 +425,14 @@ export default function AdminPage() {
 
       if (response.ok) {
         const data = await response.json();
-        showMessage('success', data.message || 'Wettkampf erfolgreich gespeichert!');
+        notifications.success(data.message || 'Wettkampf erfolgreich gespeichert!');
       } else {
         const error = await response.json();
-        showMessage('error', error.error || 'Fehler beim Speichern');
+        notifications.error('Fehler beim Speichern', error.error || 'Wettkampf konnte nicht gespeichert werden.');
       }
     } catch (error) {
       console.error('Failed to save competition:', error);
-      showMessage('error', 'Netzwerkfehler beim Speichern');
+      notifications.error('Netzwerkfehler beim Speichern');
     } finally {
       setSaving(null);
     }
@@ -398,7 +440,7 @@ export default function AdminPage() {
 
   const handleSendCompetitionExport = async () => {
     if (!activeCompetition?.id) {
-      showMessage('error', 'Kein aktiver Wettkampf ausgewählt');
+      notifications.error('Kein aktiver Wettkampf ausgewählt');
       return;
     }
 
@@ -412,13 +454,13 @@ export default function AdminPage() {
 
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
-        showMessage('success', data.message || 'CSV erfolgreich versendet');
+        notifications.success(data.message || 'CSV erfolgreich versendet');
       } else {
-        showMessage('error', data.error || 'CSV konnte nicht versendet werden');
+        notifications.error('CSV konnte nicht versendet werden', data.error || 'Bitte später erneut versuchen.');
       }
     } catch (error) {
       console.error('Failed to send daily orga export:', error);
-      showMessage('error', 'Netzwerkfehler beim CSV-Versand');
+      notifications.error('Netzwerkfehler beim CSV-Versand');
     } finally {
       setSaving(null);
     }
@@ -427,13 +469,13 @@ export default function AdminPage() {
   const handleCompetitionReset = async (dryRun: boolean) => {
     if (!activeCompetition?.id) {
       setResetFeedback({ type: "error", text: "Kein aktiver Wettkampf ausgewählt." });
-      showMessage("error", "Kein aktiver Wettkampf ausgewählt");
+      notifications.error("Kein aktiver Wettkampf ausgewählt");
       return;
     }
 
     if (resetReason.trim().length < 10) {
       setResetFeedback({ type: "error", text: "Bitte gib eine aussagekräftige Begründung mit mindestens 10 Zeichen an." });
-      showMessage("error", "Bitte gib eine aussagekräftige Begründung mit mindestens 10 Zeichen an.");
+      notifications.error("Bitte gib eine aussagekräftige Begründung mit mindestens 10 Zeichen an.");
       return;
     }
 
@@ -442,7 +484,7 @@ export default function AdminPage() {
         type: "error",
         text: `Bestätigungstext fehlt oder stimmt nicht exakt. Bitte genau "${expectedResetConfirmationText}" eingeben.`,
       });
-      showMessage("error", "Bestätigungstext fehlt oder stimmt nicht exakt.");
+      notifications.error("Bestätigungstext fehlt oder stimmt nicht exakt.");
       return;
     }
 
@@ -474,20 +516,21 @@ export default function AdminPage() {
         setResetConfirmationText("");
         setResetForce(false);
         setResetFeedback({ type: "success", text: `Wettkampf zurückgesetzt. Snapshot ${data.snapshotId} wurde erstellt.` });
-        showMessage("success", `Wettkampf zurückgesetzt. Snapshot ${data.snapshotId} wurde erstellt.`);
+        notifications.success(`Wettkampf zurückgesetzt. Snapshot ${data.snapshotId} wurde erstellt.`);
       } else {
         setResetFeedback({ type: "success", text: "Dry Run erfolgreich berechnet." });
-        showMessage("success", "Dry Run erfolgreich berechnet.");
+        notifications.success("Dry Run erfolgreich berechnet.");
       }
 
       await loadResetMetadata(activeCompetition.id);
+      await loadOpsSummary(activeCompetition.id);
     } catch (error) {
       console.error("Competition reset failed:", error);
       setResetFeedback({
         type: "error",
         text: error instanceof Error ? error.message : "Competition Reset fehlgeschlagen",
       });
-      showMessage("error", error instanceof Error ? error.message : "Competition Reset fehlgeschlagen");
+      notifications.error(error instanceof Error ? error.message : "Competition Reset fehlgeschlagen");
     } finally {
       setSaving(null);
     }
@@ -540,17 +583,6 @@ export default function AdminPage() {
     <div className="min-h-screen bg-background pb-24 lg:pb-0">
       <NavBar />
 
-      {/* Success/Error Message */}
-      {message && (
-        <div className={`mx-4 mt-4 p-3 rounded-lg text-sm ${
-          message.type === 'success' 
-            ? 'bg-green-100 text-green-800 border border-green-200' 
-            : 'bg-red-100 text-red-800 border border-red-200'
-        }`}>
-          {message.type === 'success' ? '✓' : '✗'} {message.text}
-        </div>
-      )}
-
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -562,6 +594,42 @@ export default function AdminPage() {
             Tenant-, Wettkampf- und Benutzerverwaltung
           </p>
         </motion.div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Ops-Quickcheck</CardTitle>
+            <CardDescription>
+              Kompakte Sicht auf die aktuell wichtigsten Betriebs-Hinweise der Administration.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-md border border-border/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Fehlgeschlagene Lifecycle-Mails</p>
+                <p className="text-lg font-semibold">{opsLifecycleMailFailures}</p>
+              </div>
+              <div className="rounded-md border border-border/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Auffällige Claim-Ereignisse</p>
+                <p className="text-lg font-semibold">{opsSuspiciousClaimEvents.length}</p>
+              </div>
+              <div className="rounded-md border border-border/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Letzter Reset-Audit</p>
+                <p className="text-sm font-medium">
+                  {resetAuditEvents[0] ? formatDateTime(resetAuditEvents[0].createdAt) : "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => setActiveAdminTab("restore")}>
+                Zum Archiv-Tab
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => router.push("/claim-links")}>
+                Zum Claim-Dashboard
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">

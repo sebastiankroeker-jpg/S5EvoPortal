@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertDialog,
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { openTeamDashboard } from "@/lib/admin-routing";
+import { useNotifications } from "@/lib/notification-context";
 
 interface UserRole {
   id: string;
@@ -69,6 +70,7 @@ function joinClasses(...classes: Array<string | false | null | undefined>) {
 }
 
 export default function UserManagement() {
+  const notifications = useNotifications();
   const [focusedUserId, setFocusedUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -81,15 +83,16 @@ export default function UserManagement() {
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/users");
       if (!res.ok) {
-        const data = await res.json();
-        setErrorMessage(data.error || "Fehler beim Laden der Benutzer");
+        const data = await res.json().catch(() => ({}));
+        notifications.error(
+          "Fehler beim Laden der Benutzer",
+          data.error || "Bitte später erneut versuchen.",
+        );
         return;
       }
 
@@ -97,14 +100,16 @@ export default function UserManagement() {
       setUsers(data.users || []);
       setCurrentUserId(data.currentUserId || null);
       setAdminCount(data.adminCount || 0);
-      setErrorMessage(null);
     } catch (err) {
       console.error("Fehler beim Laden:", err);
-      setErrorMessage("Fehler beim Laden der Benutzer");
+      notifications.error(
+        "Fehler beim Laden der Benutzer",
+        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [notifications]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -114,14 +119,12 @@ export default function UserManagement() {
     if (userQuery) {
       setSearchQuery(userQuery);
     }
-    fetchUsers();
-  }, []);
+    void fetchUsers();
+  }, [fetchUsers]);
 
   const startEdit = (user: UserEntry) => {
     setEditingUser(user.id);
     setEditRoles(user.roles.map((role) => role.role).filter((role) => role !== "TEAMCHEF"));
-    setStatusMessage(null);
-    setErrorMessage(null);
   };
 
   useEffect(() => {
@@ -140,8 +143,6 @@ export default function UserManagement() {
 
   const saveRoles = async (userId: string) => {
     setSaving(true);
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     try {
       const res = await fetch("/api/admin/users/" + userId + "/roles", {
@@ -151,17 +152,20 @@ export default function UserManagement() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setErrorMessage(data.error || "Fehler beim Speichern");
+        const data = await res.json().catch(() => ({}));
+        notifications.error("Fehler beim Speichern", data.error || "Rollen konnten nicht gespeichert werden.");
         return;
       }
 
       setEditingUser(null);
-      setStatusMessage("Rollen gespeichert");
+      notifications.success("Rollen gespeichert");
       await fetchUsers();
     } catch (err) {
       console.error("Fehler:", err);
-      setErrorMessage("Fehler beim Speichern");
+      notifications.error(
+        "Fehler beim Speichern",
+        err instanceof Error ? err.message : "Rollen konnten nicht gespeichert werden.",
+      );
     } finally {
       setSaving(false);
     }
@@ -169,26 +173,27 @@ export default function UserManagement() {
 
   const deleteUser = async (user: UserEntry) => {
     setDeletingUserId(user.id);
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     try {
       const res = await fetch("/api/admin/users/" + user.id, {
         method: "DELETE",
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErrorMessage(data.error || "Fehler beim Löschen");
+        notifications.error("Fehler beim Löschen", data.error || "Benutzer konnte nicht gelöscht werden.");
         return;
       }
 
       setEditingUser((current) => (current === user.id ? null : current));
-      setStatusMessage(data.message || "Benutzer gelöscht");
+      notifications.success(data.message || "Benutzer gelöscht");
       await fetchUsers();
     } catch (err) {
       console.error("Fehler beim Löschen:", err);
-      setErrorMessage("Fehler beim Löschen");
+      notifications.error(
+        "Fehler beim Löschen",
+        err instanceof Error ? err.message : "Benutzer konnte nicht gelöscht werden.",
+      );
     } finally {
       setDeletingUserId(null);
     }
@@ -201,8 +206,6 @@ export default function UserManagement() {
   const toggleTeamManager = async (user: UserEntry, team: UserEntry["teamScopes"][number]) => {
     const scopeKey = `${user.id}:${team.id}`;
     setUpdatingTeamScopeKey(scopeKey);
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     try {
       const res = await fetch(
@@ -215,17 +218,26 @@ export default function UserManagement() {
           body: team.isTeamManager ? undefined : JSON.stringify({ userId: user.id }),
         },
       );
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErrorMessage(data.error || "Team-Rechte konnten nicht gespeichert werden");
+        notifications.error(
+          "Team-Rechte konnten nicht gespeichert werden",
+          data.error || "Bitte später erneut versuchen.",
+        );
         return;
       }
 
-      setStatusMessage(team.isTeamManager ? "Team-Manager-Rechte entfernt" : "Team-Manager-Rechte vergeben");
+      notifications.success(
+        team.isTeamManager ? "Team-Manager-Rechte entfernt" : "Team-Manager-Rechte vergeben",
+        team.name,
+      );
       await fetchUsers();
     } catch (err) {
       console.error("Fehler beim Speichern der Team-Rechte:", err);
-      setErrorMessage("Team-Rechte konnten nicht gespeichert werden");
+      notifications.error(
+        "Team-Rechte konnten nicht gespeichert werden",
+        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setUpdatingTeamScopeKey(null);
     }
@@ -308,17 +320,6 @@ export default function UserManagement() {
               </div>
             ))}
           </div>
-
-          {statusMessage && (
-            <div className="rounded-lg border border-green-200 bg-green-100 p-3 text-sm text-green-800">
-              ✓ {statusMessage}
-            </div>
-          )}
-          {errorMessage && (
-            <div className="rounded-lg border border-red-200 bg-red-100 p-3 text-sm text-red-800">
-              ✗ {errorMessage}
-            </div>
-          )}
         </CardHeader>
       </Card>
 

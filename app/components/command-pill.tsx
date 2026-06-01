@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { fullSignOut } from "@/lib/auth-helpers";
 import { usePermissions } from "@/lib/permissions-context";
+import { useNotifications } from "@/lib/notification-context";
 import { useTheme, type Theme } from "@/lib/theme-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { X, Search, Menu, ExternalLink } from "lucide-react";
+import { X, Search, Menu } from "lucide-react";
 import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
 
 type SearchResult =
@@ -46,6 +47,7 @@ export default function CommandPill() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { can, activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
+  const notifications = useNotifications();
   const { theme, setTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
@@ -61,7 +63,7 @@ export default function CommandPill() {
   });
 
   // Search implementation
-  const performSearch = async (query: string) => {
+  const performSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
@@ -101,14 +103,14 @@ export default function CommandPill() {
 
     // Combine results: menu items first, then teams
     setSearchResults([...menuResults, ...teamResults]);
-  };
+  }, [permittedMenuItems]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
       performSearch(searchQuery);
     }, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery]);
+  }, [performSearch, searchQuery]);
 
   // Close overlays with ESC
   useEffect(() => {
@@ -379,7 +381,7 @@ export default function CommandPill() {
                           variant="ghost"
                           className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
-                            alert("Ergebnisse werden hier angezeigt sobald der Wettkampf läuft");
+                            notifications.info("Ergebnisse", "Ergebnisse werden hier angezeigt, sobald der Wettkampf läuft.");
                             closeBurger();
                           }}
                         >
@@ -389,7 +391,7 @@ export default function CommandPill() {
                           variant="ghost"
                           className="w-full justify-start h-7 px-2 text-sm"
                           onClick={() => {
-                            alert("Ranglisten werden hier angezeigt sobald der Wettkampf läuft");
+                            notifications.info("Ranglisten", "Ranglisten werden hier angezeigt, sobald der Wettkampf läuft.");
                             closeBurger();
                           }}
                         >
@@ -419,7 +421,7 @@ export default function CommandPill() {
                               variant="ghost"
                               className="w-full justify-start h-7 px-2 text-sm"
                               onClick={() => {
-                                alert("Ergebnis-Erfassung wird hier implementiert");
+                                notifications.info("Ergebnis-Erfassung", "Die Ergebnis-Erfassung wird hier als Nächstes angebunden.");
                                 closeBurger();
                               }}
                             >

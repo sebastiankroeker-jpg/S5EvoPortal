@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import { classifyTeam, validateDisciplineAssignment } from "@/lib/domain/classif
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
+import { useNotifications } from "@/lib/notification-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import {
   TEAM_FOCUS_STORAGE_KEY,
@@ -562,24 +563,32 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const showAdminDashboardInfo = activeRole === "ADMIN";
   const userEmail = session?.user?.email;
   const { active: activeCompetition } = useCompetition();
+  const notifications = useNotifications();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
   const canBrowseAllTeams = canViewAll || canRoleViewAllTeams(activeRole, activeCompetition);
 
-  const fetchTeams = async () => {
+  const fetchTeams = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
       if (canBrowseAllTeams) params.set('scope', 'all');
       params.set("roleContext", activeRole);
       const response = await fetch(`/api/teams?${params}`);
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Teams konnten nicht geladen werden.");
+      }
       setTeams(data.teams || []);
     } catch (error) {
       console.error('Failed to fetch teams:', error);
+      notifications.error(
+        "Teams konnten nicht geladen werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompetition?.id, activeRole, canBrowseAllTeams, notifications]);
 
   const handleDeleteTeam = async (teamId: string) => {
     setDeleting(teamId);
@@ -589,14 +598,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       });
       
       if (response.ok) {
+        const data = await response.json().catch(() => null);
         await fetchTeams(); // Refresh list
+        notifications.success(
+          data?.message || "Team archiviert",
+          "Die Teamliste wurde aktualisiert.",
+        );
       } else {
-        const error = await response.json();
-        alert(`Fehler beim Löschen: ${error.error}`);
+        const error = await response.json().catch(() => null);
+        notifications.error("Fehler beim Löschen", error?.error || "Das Team konnte nicht archiviert werden.");
       }
     } catch (error) {
       console.error('Failed to delete team:', error);
-      alert('Fehler beim Löschen des Teams');
+      notifications.error(
+        "Fehler beim Löschen des Teams",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
     } finally {
       setDeleting(null);
     }
@@ -618,16 +635,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           ...(data.message ? [data.message] : []),
           ...((Array.isArray(data.classificationWarnings) ? data.classificationWarnings : []) as string[]),
         ];
-        if (notices.length > 0) {
-          alert(notices.join("\n"));
-        }
+        notifications.success(
+          notices[0] || "Team gespeichert",
+          notices.length > 1 ? notices.slice(1).join("\n") : "Die Änderungen wurden übernommen.",
+        );
       } else {
-        const error = await response.json();
-        alert(`Fehler beim Speichern: ${error.error}`);
+        const error = await response.json().catch(() => null);
+        notifications.error("Fehler beim Speichern", error?.error || "Das Team konnte nicht gespeichert werden.");
       }
     } catch (error) {
       console.error('Failed to edit team:', error);
-      alert('Fehler beim Speichern des Teams');
+      notifications.error(
+        "Fehler beim Speichern des Teams",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
     }
   };
 
@@ -636,7 +657,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   useEffect(() => {
     fetchTeams();
-  }, [activeCompetition?.id, canBrowseAllTeams, activeRole]);
+  }, [fetchTeams]);
 
   useEffect(() => {
     if (!showOwnerFilter) {

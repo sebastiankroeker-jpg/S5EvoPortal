@@ -6,6 +6,7 @@ import AuthRedirectBridge from "@/app/components/auth-redirect-bridge";
 import { PermissionsProvider } from "@/lib/permissions-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { CompetitionProvider } from "@/lib/competition-context";
+import { NotificationProvider } from "@/lib/notification-context";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -15,9 +16,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       </Suspense>
       <PermissionsProvider>
         <ThemeProvider>
-          <CompetitionProvider>
-            {children}
-          </CompetitionProvider>
+          <NotificationProvider>
+            <CompetitionProvider>
+              {children}
+            </CompetitionProvider>
+          </NotificationProvider>
         </ThemeProvider>
       </PermissionsProvider>
     </SessionProvider>

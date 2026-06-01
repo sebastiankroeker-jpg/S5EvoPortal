@@ -10,25 +10,52 @@ export async function GET(request: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const url = new URL(request.url);
+  const competitionId = url.searchParams.get("competitionId");
   const suspiciousOnly = url.searchParams.get("suspiciousOnly") === "true";
   const limit = Math.min(Number(url.searchParams.get("limit") || 50), 200);
   const tenantTeams = await prisma.team.findMany({
     where: {
       competition: {
         tenantId: auth.tenantId,
+        ...(competitionId ? { id: competitionId } : {}),
       },
     },
     select: { id: true },
   });
+  const teamIds = tenantTeams.map((team) => team.id);
 
-  const events = await prisma.registrationClaimAuditEvent.findMany({
-    where: {
-      ...(suspiciousOnly ? { suspicious: true } : {}),
-      teamId: { in: tenantTeams.map((team) => team.id) },
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+  const [registrationEvents, participantEvents] = await Promise.all([
+    prisma.registrationClaimAuditEvent.findMany({
+      where: {
+        ...(suspiciousOnly ? { suspicious: true } : {}),
+        teamId: { in: teamIds },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+    prisma.participantClaimAuditEvent.findMany({
+      where: {
+        ...(suspiciousOnly ? { suspicious: true } : {}),
+        teamId: { in: teamIds },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+  ]);
+
+  const events = [
+    ...registrationEvents.map((event) => ({
+      ...event,
+      scope: "team" as const,
+      participantId: null,
+    })),
+    ...participantEvents.map((event) => ({
+      ...event,
+      scope: "participant" as const,
+    })),
+  ]
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .slice(0, limit);
 
   return NextResponse.json({ events });
 }

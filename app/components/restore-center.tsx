@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useCompetition } from "@/lib/competition-context";
+import { useNotifications } from "@/lib/notification-context";
 
 type DeletedTeam = {
   id: string;
@@ -144,8 +145,15 @@ function getAuditTeamName(event: AuditEvent) {
   return getStringValue(event.meta, "teamName") || getStringValue(event.beforeData, "teamName") || "Mannschaft";
 }
 
+function getLifecycleMailIssueLabel(event: AuditEvent) {
+  const lifecycleAction = getStringValue(event.meta, "lifecycleAction");
+  if (lifecycleAction === "restored") return "Wiederherstellungs-Mail";
+  return "Archivierungs-Mail";
+}
+
 export default function RestoreCenter() {
   const { active: activeCompetition } = useCompetition();
+  const notifications = useNotifications();
   const [teams, setTeams] = useState<DeletedTeam[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [accessAudit, setAccessAudit] = useState<TeamAccessAuditResponse | null>(null);
@@ -154,10 +162,8 @@ export default function RestoreCenter() {
   const [accessAuditLoading, setAccessAuditLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchDeletedTeams = async () => {
+  const fetchDeletedTeams = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -165,20 +171,22 @@ export default function RestoreCenter() {
       const response = await fetch(`/api/admin/deleted-teams?${params}`);
       const data = (await response.json().catch(() => ({}))) as Partial<DeletedTeamsResponse> & { error?: string };
       if (!response.ok) {
-        setErrorMessage(data.error || "Archiv konnte nicht geladen werden");
+        notifications.error("Archiv konnte nicht geladen werden", data.error || "Bitte später erneut versuchen.");
         return;
       }
       setTeams(data.teams || []);
-      setErrorMessage(null);
     } catch (error) {
       console.error("Failed to load deleted teams:", error);
-      setErrorMessage("Archiv konnte nicht geladen werden");
+      notifications.error(
+        "Archiv konnte nicht geladen werden",
+        error instanceof Error ? error.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompetition?.id, notifications]);
 
-  const fetchAuditEvents = async () => {
+  const fetchAuditEvents = useCallback(async () => {
     setAuditLoading(true);
     try {
       const params = new URLSearchParams();
@@ -191,43 +199,47 @@ export default function RestoreCenter() {
       const response = await fetch(`/api/admin/audit-events?${params}`);
       const data = (await response.json().catch(() => ({}))) as Partial<AuditEventsResponse> & { error?: string };
       if (!response.ok) {
-        setErrorMessage(data.error || "Audit-Verlauf konnte nicht geladen werden");
+        notifications.error("Audit-Verlauf konnte nicht geladen werden", data.error || "Bitte später erneut versuchen.");
         return;
       }
       setAuditEvents(data.events || []);
     } catch (error) {
       console.error("Failed to load audit events:", error);
-      setErrorMessage("Audit-Verlauf konnte nicht geladen werden");
+      notifications.error(
+        "Audit-Verlauf konnte nicht geladen werden",
+        error instanceof Error ? error.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setAuditLoading(false);
     }
-  };
+  }, [activeCompetition?.id, notifications]);
 
-  const fetchAccessAudit = async () => {
+  const fetchAccessAudit = useCallback(async () => {
     setAccessAuditLoading(true);
     try {
       const response = await fetch("/api/admin/team-access-audit");
       const data = (await response.json().catch(() => ({}))) as Partial<TeamAccessAuditResponse> & { error?: string };
       if (!response.ok) {
-        setErrorMessage(data.error || "Rechte-Audit konnte nicht geladen werden");
+        notifications.error("Rechte-Audit konnte nicht geladen werden", data.error || "Bitte später erneut versuchen.");
         return;
       }
       setAccessAudit((data as TeamAccessAuditResponse) || null);
     } catch (error) {
       console.error("Failed to load team access audit:", error);
-      setErrorMessage("Rechte-Audit konnte nicht geladen werden");
+      notifications.error(
+        "Rechte-Audit konnte nicht geladen werden",
+        error instanceof Error ? error.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setAccessAuditLoading(false);
     }
-  };
+  }, [notifications]);
 
   useEffect(() => {
     void fetchDeletedTeams();
     void fetchAuditEvents();
     void fetchAccessAudit();
-    // fetchDeletedTeams intentionally stays local to keep dependencies compact.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCompetition?.id]);
+  }, [fetchAccessAudit, fetchAuditEvents, fetchDeletedTeams]);
 
   const filteredTeams = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -247,10 +259,18 @@ export default function RestoreCenter() {
     });
   }, [query, teams]);
 
+  const failingLifecycleMailEvents = useMemo(
+    () =>
+      auditEvents.filter((event) => {
+        if (event.action !== "TEAM_LIFECYCLE_MAIL") return false;
+        const mailStatus = getStringValue(event.afterData, "mailStatus");
+        return mailStatus === "failed";
+      }),
+    [auditEvents],
+  );
+
   const restoreTeam = async (team: DeletedTeam) => {
     setRestoringId(team.id);
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     try {
       const response = await fetch(`/api/admin/deleted-teams/${team.id}/restore`, {
@@ -258,17 +278,26 @@ export default function RestoreCenter() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setErrorMessage(data.error || "Mannschaft konnte nicht wiederhergestellt werden");
+        notifications.error(
+          "Mannschaft konnte nicht wiederhergestellt werden",
+          data.error || "Bitte später erneut versuchen.",
+        );
         return;
       }
 
-      setStatusMessage(data.message || "Mannschaft wurde wiederhergestellt");
+      notifications.success(
+        data.message || "Mannschaft wurde wiederhergestellt",
+        `${team.deletedParticipantCount} Teilnehmer:innen wurden mit berücksichtigt.`,
+      );
       await fetchDeletedTeams();
       await fetchAuditEvents();
       await fetchAccessAudit();
     } catch (error) {
       console.error("Failed to restore team:", error);
-      setErrorMessage("Mannschaft konnte nicht wiederhergestellt werden");
+      notifications.error(
+        "Mannschaft konnte nicht wiederhergestellt werden",
+        error instanceof Error ? error.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setRestoringId(null);
     }
@@ -295,18 +324,6 @@ export default function RestoreCenter() {
               Aktualisieren
             </Button>
           </div>
-
-          {statusMessage && (
-            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-              {statusMessage}
-            </div>
-          )}
-          {errorMessage && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-              {errorMessage}
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="rounded-md border border-border/60 bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">Archivierte Teams</p>
@@ -395,6 +412,56 @@ export default function RestoreCenter() {
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Audit-Daten konnten nicht geladen werden.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Ops-Hinweise</CardTitle>
+          <CardDescription>
+            Sichtbare Problemfälle rund um Archivierung und Wiederherstellung, damit fehlgeschlagene Seiteneffekte nicht nur im Audit landen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-md border border-border/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Fehlgeschlagene Lifecycle-Mails</p>
+              <p className="text-lg font-semibold">{failingLifecycleMailEvents.length}</p>
+            </div>
+            <div className="rounded-md border border-border/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Letztes Mailproblem</p>
+              <p className="text-sm font-medium">
+                {failingLifecycleMailEvents[0] ? formatDateTime(failingLifecycleMailEvents[0].createdAt) : "—"}
+              </p>
+            </div>
+            <div className="rounded-md border border-border/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Empfehlung</p>
+              <p className="text-sm font-medium">
+                {failingLifecycleMailEvents.length > 0 ? "Audit prüfen" : "Keine offenen Hinweise"}
+              </p>
+            </div>
+          </div>
+
+          {failingLifecycleMailEvents.length > 0 ? (
+            <div className="space-y-2">
+              {failingLifecycleMailEvents.slice(0, 5).map((event) => {
+                const teamName = getAuditTeamName(event);
+                const reason = getStringValue(event.afterData, "error") || getStringValue(event.afterData, "reason") || "Unbekannter Fehler";
+                return (
+                  <div key={event.id} className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="destructive">{getLifecycleMailIssueLabel(event)}</Badge>
+                      <span className="font-medium">{teamName}</span>
+                      <span className="text-xs text-red-800/80">{formatDateTime(event.createdAt)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-red-800/90">{reason}</p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Keine fehlgeschlagenen Archivierungs- oder Wiederherstellungs-Mails in den letzten Audit-Einträgen.</p>
           )}
         </CardContent>
       </Card>

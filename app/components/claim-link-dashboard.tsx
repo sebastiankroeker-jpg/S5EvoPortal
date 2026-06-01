@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useCompetition } from "@/lib/competition-context";
+import { useNotifications } from "@/lib/notification-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -36,6 +37,20 @@ type ClaimItem = {
   token: ClaimTokenInfo | null;
 };
 
+type ClaimAuditEvent = {
+  id: string;
+  scope: "team" | "participant";
+  createdAt: string;
+  eventType: string;
+  outcome?: string | null;
+  reason?: string | null;
+  suspicious: boolean;
+  sessionEmail?: string | null;
+  ipAddress?: string | null;
+  teamId?: string | null;
+  participantId?: string | null;
+};
+
 const STATUS_META: Record<ClaimTokenInfo["status"] | "none", { label: string; variant: "default" | "secondary" | "outline" | "destructive"; }> = {
   none: { label: "Kein Link", variant: "outline" },
   active: { label: "Offen", variant: "default" },
@@ -51,8 +66,17 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString("de-DE");
 }
 
+function maskEmail(email?: string | null) {
+  if (!email) return "—";
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return email;
+  if (local.length <= 2) return `${local[0] ?? "*"}*@${domain}`;
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
 export default function ClaimLinkDashboard() {
   const { active: activeCompetition } = useCompetition();
+  const notifications = useNotifications();
   const [items, setItems] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -63,9 +87,9 @@ export default function ClaimLinkDashboard() {
   const [togglingGlobal, setTogglingGlobal] = useState(false);
   const [claimLinksEnabled, setClaimLinksEnabled] = useState(true);
   const [generatedLinks, setGeneratedLinks] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [opsEvents, setOpsEvents] = useState<ClaimAuditEvent[]>([]);
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -75,16 +99,29 @@ export default function ClaimLinkDashboard() {
       if (!res.ok) throw new Error(data.error || "Claim-Links konnten nicht geladen werden");
       setClaimLinksEnabled(data.claimLinksEnabled !== false);
       setItems(data.items || []);
+
+      const opsParams = new URLSearchParams();
+      opsParams.set("suspiciousOnly", "true");
+      opsParams.set("limit", "12");
+      if (activeCompetition?.id) opsParams.set("competitionId", activeCompetition.id);
+      const opsRes = await fetch(`/api/admin/claim-audit?${opsParams.toString()}`);
+      const opsData = await opsRes.json().catch(() => ({ events: [] }));
+      if (opsRes.ok) {
+        setOpsEvents(Array.isArray(opsData.events) ? opsData.events : []);
+      }
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Claim-Links konnten nicht geladen werden" });
+      notifications.error(
+        "Claim-Links konnten nicht geladen werden",
+        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCompetition?.id, notifications]);
 
   useEffect(() => {
     void loadItems();
-  }, [activeCompetition?.id]);
+  }, [loadItems]);
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -110,9 +147,9 @@ export default function ClaimLinkDashboard() {
   const copyToClipboard = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      setMessage({ type: "success", text: "Claim-Link kopiert" });
+      notifications.success("Claim-Link kopiert");
     } catch {
-      setMessage({ type: "error", text: "Kopieren fehlgeschlagen" });
+      notifications.error("Kopieren fehlgeschlagen");
     }
   };
 
@@ -131,10 +168,16 @@ export default function ClaimLinkDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Claim-Link konnte nicht erzeugt werden");
       setGeneratedLinks((current) => ({ ...current, [`${item.itemType}:${item.itemId}`]: data.claimUrl }));
-      setMessage({ type: "success", text: item.itemType === "participant" ? "Neuer Teilnehmer-Claim-Link erzeugt" : "Neuer Team-Claim-Link erzeugt" });
+      notifications.success(
+        item.itemType === "participant" ? "Neuer Teilnehmer-Claim-Link erzeugt" : "Neuer Team-Claim-Link erzeugt",
+        "Der neue Link kann direkt kopiert werden.",
+      );
       await loadItems();
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Claim-Link konnte nicht erzeugt werden" });
+      notifications.error(
+        "Claim-Link konnte nicht erzeugt werden",
+        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setBusyTeamId(null);
     }
@@ -150,10 +193,13 @@ export default function ClaimLinkDashboard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Claim-Link konnte nicht gesperrt werden");
-      setMessage({ type: "success", text: "Claim-Link gesperrt" });
+      notifications.success("Claim-Link gesperrt");
       await loadItems();
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Claim-Link konnte nicht gesperrt werden" });
+      notifications.error(
+        "Claim-Link konnte nicht gesperrt werden",
+        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setBusyTokenId(null);
     }
@@ -176,15 +222,17 @@ export default function ClaimLinkDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verknüpfung konnte nicht gelöst werden");
       const mailStatus = data.participantClaimMail?.status;
-      setMessage({
-        type: "success",
-        text: mailStatus === "sent" || mailStatus === "queued"
+      notifications.success(
+        mailStatus === "sent" || mailStatus === "queued"
           ? "Verknüpfung gelöst und neue Einladung versendet"
           : "Verknüpfung gelöst und neue Einladung erzeugt",
-      });
+      );
       await loadItems();
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Verknüpfung konnte nicht gelöst werden" });
+      notifications.error(
+        "Verknüpfung konnte nicht gelöst werden",
+        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setBusyResetParticipantId(null);
     }
@@ -201,9 +249,14 @@ export default function ClaimLinkDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Globaler Claim-Schalter konnte nicht aktualisiert werden");
       setClaimLinksEnabled(data.claimLinksEnabled !== false);
-      setMessage({ type: "success", text: enabled ? "Claim-Einlösung global aktiviert" : "Claim-Einlösung global deaktiviert" });
+      notifications.success(
+        enabled ? "Claim-Einlösung global aktiviert" : "Claim-Einlösung global deaktiviert",
+      );
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Globaler Claim-Schalter konnte nicht aktualisiert werden" });
+      notifications.error(
+        "Globaler Claim-Schalter konnte nicht aktualisiert werden",
+        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+      );
     } finally {
       setTogglingGlobal(false);
     }
@@ -218,12 +271,6 @@ export default function ClaimLinkDashboard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {message && (
-          <div className={`rounded-md border px-3 py-2 text-sm ${message.type === "success" ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-800"}`}>
-            {message.text}
-          </div>
-        )}
-
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Input
@@ -263,6 +310,39 @@ export default function ClaimLinkDashboard() {
 
         <div className={`rounded-md border px-3 py-2 text-sm ${claimLinksEnabled ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
           Die globale Claim-Einlösung ist aktuell <strong>{claimLinksEnabled ? "freigeschaltet" : "deaktiviert"}</strong>.
+        </div>
+
+        <div className="rounded-md border border-border/50 bg-muted/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Ops-Hinweise</p>
+              <p className="text-xs text-muted-foreground">
+                Auffällige Claim-Aktivität aus Team- und Teilnehmer-Claims.
+              </p>
+            </div>
+            <Badge variant={opsEvents.length > 0 ? "destructive" : "outline"}>
+              {opsEvents.length > 0 ? `${opsEvents.length} auffällig` : "unauffällig"}
+            </Badge>
+          </div>
+
+          {opsEvents.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {opsEvents.slice(0, 5).map((event) => (
+                <div key={event.id} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{event.scope === "participant" ? "Teilnehmer-Claim" : "Team-Claim"}</Badge>
+                    <span className="font-medium">{event.eventType}</span>
+                    <span className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {event.reason || event.outcome || "auffälliges Muster"} · Session: {maskEmail(event.sessionEmail)} · IP: {event.ipAddress || "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">Keine auffälligen Claim-Ereignisse in den zuletzt geprüften Einträgen.</p>
+          )}
         </div>
 
         {loading ? (

@@ -1,13 +1,42 @@
 #!/usr/bin/env node
 
+// Optional auth coverage:
+// - SMOKE_NON_ADMIN_COOKIE="next-auth.session-token=..."
+// - SMOKE_ADMIN_COOKIE="next-auth.session-token=..."
+// - SMOKE_REQUIRE_AUTH_CHECKS=1 to fail when neither auth cookie is provided
 const baseUrl = (process.env.SMOKE_BASE_URL || "https://portal.s5evo.de").replace(/\/+$/, "");
 const legacyUrl = process.env.SMOKE_LEGACY_URL || "https://s5-evo-portal.vercel.app";
 const expectedRedirectHost = new URL(baseUrl).host;
+const adminCookie = normalizeCookie(process.env.SMOKE_ADMIN_COOKIE);
+const nonAdminCookie = normalizeCookie(process.env.SMOKE_NON_ADMIN_COOKIE);
+const requireAuthChecks = isTruthy(process.env.SMOKE_REQUIRE_AUTH_CHECKS);
 
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function normalizeCookie(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function isTruthy(value) {
+  return typeof value === "string" && ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function withCookie(init = {}, cookie) {
+  if (!cookie) {
+    return init;
+  }
+
+  return {
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      cookie,
+    },
+  };
 }
 
 async function fetchJson(url, init) {
@@ -35,6 +64,75 @@ async function fetchHead(path) {
   });
 
   return response;
+}
+
+async function runNonAdminChecks({ checks, competitionId }) {
+  assert(nonAdminCookie, "SMOKE_NON_ADMIN_COOKIE is required for non-admin auth checks");
+
+  const profileResult = await fetchJson(baseUrl + "/api/profile", withCookie({}, nonAdminCookie));
+  assert(profileResult.response.status === 200, `/api/profile expected 200, got ${profileResult.response.status}`);
+  assert(profileResult.json?.user?.id, "/api/profile did not return user.id");
+  assert(typeof profileResult.json?.user?.email === "string", "/api/profile did not return user.email");
+  checks.push("/api/profile -> 200 with non-admin session");
+
+  const rolesResult = await fetchJson(baseUrl + "/api/profile/roles", withCookie({}, nonAdminCookie));
+  assert(rolesResult.response.status === 200, `/api/profile/roles expected 200, got ${rolesResult.response.status}`);
+  assert(Array.isArray(rolesResult.json?.roles), "/api/profile/roles did not return roles array");
+  checks.push("/api/profile/roles -> 200 with non-admin session");
+
+  const teamsResult = await fetchJson(
+    `${baseUrl}/api/teams?competitionId=${encodeURIComponent(competitionId)}`,
+    withCookie({}, nonAdminCookie),
+  );
+  assert(teamsResult.response.status === 200, `/api/teams expected 200 for non-admin session, got ${teamsResult.response.status}`);
+  assert(Array.isArray(teamsResult.json?.teams), "/api/teams did not return teams array for non-admin session");
+  checks.push("/api/teams -> 200 with non-admin session");
+
+  const pendingChangesForbidden = await fetchJson(
+    baseUrl + "/api/admin/pending-changes",
+    withCookie({}, nonAdminCookie),
+  );
+  assert(
+    pendingChangesForbidden.response.status === 403,
+    `/api/admin/pending-changes expected 403 for non-admin session, got ${pendingChangesForbidden.response.status}`,
+  );
+  checks.push("/api/admin/pending-changes -> 403 with non-admin session");
+}
+
+async function runAdminChecks({ checks }) {
+  assert(adminCookie, "SMOKE_ADMIN_COOKIE is required for admin auth checks");
+
+  const rolesResult = await fetchJson(baseUrl + "/api/profile/roles", withCookie({}, adminCookie));
+  assert(rolesResult.response.status === 200, `/api/profile/roles expected 200, got ${rolesResult.response.status}`);
+  assert(Array.isArray(rolesResult.json?.roles), "/api/profile/roles did not return roles array for admin session");
+  assert(
+    rolesResult.json.roles.includes("ADMIN") || rolesResult.json.roles.includes("MODERATOR"),
+    "/api/profile/roles did not expose an elevated role for admin session",
+  );
+  checks.push("/api/profile/roles -> elevated role with admin session");
+
+  const pendingChangesResult = await fetchJson(
+    `${baseUrl}/api/admin/pending-changes?scope=all`,
+    withCookie({}, adminCookie),
+  );
+  assert(
+    pendingChangesResult.response.status === 200,
+    `/api/admin/pending-changes expected 200 for admin session, got ${pendingChangesResult.response.status}`,
+  );
+  assert(Array.isArray(pendingChangesResult.json?.changes), "/api/admin/pending-changes did not return changes array");
+  checks.push("/api/admin/pending-changes -> 200 with admin session");
+
+  const participantsResult = await fetchJson(
+    baseUrl + "/api/admin/participants",
+    withCookie({}, adminCookie),
+  );
+  assert(
+    participantsResult.response.status === 200,
+    `/api/admin/participants expected 200 for admin session, got ${participantsResult.response.status}`,
+  );
+  assert(Array.isArray(participantsResult.json?.participants), "/api/admin/participants did not return participants array");
+  assert(typeof participantsResult.json?.total === "number", "/api/admin/participants did not return total");
+  checks.push("/api/admin/participants -> 200 with admin session");
 }
 
 async function main() {
@@ -96,6 +194,22 @@ async function main() {
     `/api/admin/pending-changes without session expected 401, got ${pendingChangesUnauthorized.status}`,
   );
   checks.push("/api/admin/pending-changes -> 401 without session");
+
+  if (nonAdminCookie) {
+    await runNonAdminChecks({ checks, competitionId });
+  } else {
+    checks.push("non-admin auth checks skipped (set SMOKE_NON_ADMIN_COOKIE)");
+  }
+
+  if (adminCookie) {
+    await runAdminChecks({ checks });
+  } else {
+    checks.push("admin auth checks skipped (set SMOKE_ADMIN_COOKIE)");
+  }
+
+  if (requireAuthChecks) {
+    assert(nonAdminCookie || adminCookie, "SMOKE_REQUIRE_AUTH_CHECKS is set, but no auth cookies were provided");
+  }
 
   process.stdout.write(`Smoke ok for ${baseUrl}\n`);
   for (const check of checks) {
