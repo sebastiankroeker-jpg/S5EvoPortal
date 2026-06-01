@@ -13,6 +13,9 @@ export interface NavigationMenuItem {
     | "changes"
     | "claim-links"
     | "administration"
+    | "admin-competition"
+    | "admin-users"
+    | "admin-archive"
     | "architecture"
     | "infrastructure"
     | "changelog"
@@ -84,7 +87,7 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
   {
     id: "changes",
     label: "Aenderungen",
-    keywords: ["aenderungen", "freigaben", "approval", "antraege", "queue"],
+    keywords: ["aenderungen", "freigaben", "approval", "antraege", "queue", "review", "pruefung"],
     icon: "📝",
     permission: "team.view.all",
     requiresAuth: true,
@@ -92,7 +95,7 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
   {
     id: "claim-links",
     label: "Claim-Links",
-    keywords: ["claim", "claim links", "uebernahmelinks", "support links"],
+    keywords: ["claim", "claim links", "uebernahmelinks", "support links", "uebernahme", "tokens", "token"],
     icon: "🔐",
     permission: "team.view.all",
     requiresAuth: true,
@@ -100,8 +103,32 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
   {
     id: "administration",
     label: "Administration",
-    keywords: ["admin", "einstellungen", "konfiguration", "config"],
+    keywords: ["admin", "einstellungen", "konfiguration", "config", "verwaltung"],
     icon: "🏢",
+    permission: "config.edit",
+    requiresAuth: true,
+  },
+  {
+    id: "admin-competition",
+    label: "Admin: Wettkampf",
+    keywords: ["wettkampf", "competition", "reset", "dry run", "orga mails", "konfiguration wettkampf"],
+    icon: "🏆",
+    permission: "config.edit",
+    requiresAuth: true,
+  },
+  {
+    id: "admin-users",
+    label: "Admin: Benutzer",
+    keywords: ["user", "users", "benutzer", "rollen", "rechte", "rollenverwaltung", "nutzer"],
+    icon: "👥",
+    permission: "config.edit",
+    requiresAuth: true,
+  },
+  {
+    id: "admin-archive",
+    label: "Admin: Archiv",
+    keywords: ["archiv", "restore", "wiederherstellen", "geloescht", "gelöschte teams", "papierkorb"],
+    icon: "♻️",
     permission: "config.edit",
     requiresAuth: true,
   },

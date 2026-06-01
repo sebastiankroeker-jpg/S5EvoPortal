@@ -186,6 +186,15 @@ export default function CommandPill() {
       case "claim-links":
         navigateAndClose("/claim-links");
         break;
+      case "admin-competition":
+        navigateAndClose("/admin?tab=competition");
+        break;
+      case "admin-users":
+        navigateAndClose("/admin?tab=users");
+        break;
+      case "admin-archive":
+        navigateAndClose("/admin?tab=restore");
+        break;
       case "live":
         switchToTab("live");
         break;

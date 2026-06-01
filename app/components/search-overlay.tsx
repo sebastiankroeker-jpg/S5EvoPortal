@@ -89,6 +89,15 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "claim-links":
         router.push("/claim-links");
         break;
+      case "admin-competition":
+        router.push("/admin?tab=competition");
+        break;
+      case "admin-users":
+        router.push("/admin?tab=users");
+        break;
+      case "admin-archive":
+        router.push("/admin?tab=restore");
+        break;
       case "live":
         switchToTab("live");
         break;
