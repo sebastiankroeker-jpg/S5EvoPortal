@@ -10,6 +10,7 @@ import ParticipantList from "@/app/components/participant-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermissions } from "@/lib/permissions-context";
+import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 
 export default function ParticipantsPage() {
   const router = useRouter();
@@ -18,12 +19,7 @@ export default function ParticipantsPage() {
   const hasAccess = !!session && (can("team.view.all") || can("results.edit"));
 
   const navigateFromBottomTab = (tabId: string) => {
-    if (tabId === "profile") {
-      router.push("/profile");
-      return;
-    }
-
-    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+    navigateFromExternalBottomTab(router, tabId);
   };
 
   if (status === "loading" || permissionsLoading) {

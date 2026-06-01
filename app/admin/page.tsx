@@ -19,6 +19,7 @@ import RestoreCenter from "@/app/components/restore-center";
 import UserManagement from "@/app/components/user-management";
 import NavBar from "@/app/components/nav-bar";
 import BottomTabBar from "@/app/components/bottom-tab-bar";
+import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 
 type TenantConfig = {
   name: string;
@@ -242,12 +243,7 @@ export default function AdminPage() {
   }, []);
 
   const navigateFromBottomTab = (tabId: string) => {
-    if (tabId === "profile") {
-      router.push("/profile");
-      return;
-    }
-
-    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+    navigateFromExternalBottomTab(router, tabId);
   };
 
   const loadCompetitionDetails = useCallback(async (compId: string) => {

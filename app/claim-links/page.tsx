@@ -10,6 +10,7 @@ import NavBar from "@/app/components/nav-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermissions } from "@/lib/permissions-context";
+import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 
 export default function ClaimLinksPage() {
   const router = useRouter();
@@ -18,12 +19,7 @@ export default function ClaimLinksPage() {
   const hasAccess = !!session && can("team.view.all");
 
   const navigateFromBottomTab = (tabId: string) => {
-    if (tabId === "profile") {
-      router.push("/profile");
-      return;
-    }
-
-    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+    navigateFromExternalBottomTab(router, tabId);
   };
 
   if (status === "loading" || permissionsLoading) {

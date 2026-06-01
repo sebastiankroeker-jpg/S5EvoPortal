@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { usePermissions } from "@/lib/permissions-context";
 import { CHANGELOG } from "@/lib/data/changelog";
 import { APP_VERSION } from "@/lib/version";
+import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import NavBar from "@/app/components/nav-bar";
 import BottomTabBar from "@/app/components/bottom-tab-bar";
 
@@ -262,12 +263,7 @@ export default function ChangelogPage() {
   };
 
   const navigateFromBottomTab = (tabId: string) => {
-    if (tabId === "profile") {
-      router.push("/profile");
-      return;
-    }
-
-    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+    navigateFromExternalBottomTab(router, tabId);
   };
 
   if (status === "loading") {

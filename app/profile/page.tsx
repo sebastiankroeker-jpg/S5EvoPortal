@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { fullSignOut } from "@/lib/auth-helpers";
+import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -132,12 +133,7 @@ export default function ProfilePage() {
   };
 
   const navigateFromBottomTab = (tabId: string) => {
-    if (tabId === "profile") {
-      router.push("/profile");
-      return;
-    }
-
-    router.push(tabId === "home" ? "/" : `/#${tabId}`);
+    navigateFromExternalBottomTab(router, tabId);
   };
 
   if (status === "loading") {
