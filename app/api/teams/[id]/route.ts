@@ -1242,9 +1242,9 @@ export async function DELETE(
         }).catch((auditError) => console.error("Team delete mail audit failed", auditError));
       }
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
-        message: `Team "${existingTeam.name}" wurde in den Papierkorb verschoben.`
+        message: `Team "${existingTeam.name}" wurde archiviert.`
       });
 
     } catch (dbError) {

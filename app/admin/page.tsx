@@ -568,7 +568,7 @@ export default function AdminPage() {
             <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
             <TabsTrigger value="competition">🏆 Wettkampf</TabsTrigger>
             <TabsTrigger value="users">👥 Benutzer</TabsTrigger>
-            <TabsTrigger value="restore">♻️ Papierkorb</TabsTrigger>
+            <TabsTrigger value="restore">♻️ Archiv</TabsTrigger>
           </TabsList>
 
           {/* ==================== TENANT TAB ==================== */}

@@ -475,10 +475,10 @@ function TeamDeleteDialog({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Mannschaft in den Papierkorb verschieben?</AlertDialogTitle>
+          <AlertDialogTitle>Mannschaft archivieren?</AlertDialogTitle>
           <AlertDialogDescription>
             „{team.name}“ wird aus Dashboards, Ergebnislisten und Exporten ausgeblendet. {participantCount} Teilnehmer:innen
-            werden mit ausgeblendet, Benutzerkonten bleiben erhalten. Admins können die Mannschaft im Papierkorb wiederherstellen.
+            werden mit ausgeblendet, Benutzerkonten bleiben erhalten. Admins können die Mannschaft später im Archiv wiederherstellen.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -487,7 +487,7 @@ function TeamDeleteDialog({
             onClick={() => onDelete(team.id)}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            In Papierkorb verschieben
+            Archivieren
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

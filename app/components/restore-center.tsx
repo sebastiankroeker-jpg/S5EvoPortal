@@ -78,6 +78,27 @@ type AuditEventsResponse = {
   events: AuditEvent[];
 };
 
+type TeamAccessAuditResponse = {
+  summary: {
+    teamchefRoleCount: number;
+    staleTeamchefRoleCount: number;
+    archivedTeamCount: number;
+    archivedTeamsWithLinkedParticipantsCount: number;
+  };
+  staleTeamchefRoles: Array<{
+    roleId: string;
+    userId: string;
+    email: string;
+    name?: string | null;
+  }>;
+  archivedTeamsWithLinkedParticipants: Array<{
+    id: string;
+    name: string;
+    deletedAt: string | null;
+    linkedParticipantCount: number;
+  }>;
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return "unbekannt";
   const date = new Date(value);
@@ -101,7 +122,7 @@ function getStringArrayValue(record: AuditRecord | null | undefined, key: string
 }
 
 function getAuditLabel(action: string) {
-  if (action === "TEAM_SOFT_DELETED") return "Gelöscht";
+  if (action === "TEAM_SOFT_DELETED") return "Archiviert";
   if (action === "TEAM_RESTORED") return "Wiederhergestellt";
   if (action === "TEAM_LIFECYCLE_MAIL") return "Mail";
   return action;
@@ -127,8 +148,10 @@ export default function RestoreCenter() {
   const { active: activeCompetition } = useCompetition();
   const [teams, setTeams] = useState<DeletedTeam[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [accessAudit, setAccessAudit] = useState<TeamAccessAuditResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [auditLoading, setAuditLoading] = useState(true);
+  const [accessAuditLoading, setAccessAuditLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -142,14 +165,14 @@ export default function RestoreCenter() {
       const response = await fetch(`/api/admin/deleted-teams?${params}`);
       const data = (await response.json().catch(() => ({}))) as Partial<DeletedTeamsResponse> & { error?: string };
       if (!response.ok) {
-        setErrorMessage(data.error || "Papierkorb konnte nicht geladen werden");
+        setErrorMessage(data.error || "Archiv konnte nicht geladen werden");
         return;
       }
       setTeams(data.teams || []);
       setErrorMessage(null);
     } catch (error) {
       console.error("Failed to load deleted teams:", error);
-      setErrorMessage("Papierkorb konnte nicht geladen werden");
+      setErrorMessage("Archiv konnte nicht geladen werden");
     } finally {
       setLoading(false);
     }
@@ -180,9 +203,28 @@ export default function RestoreCenter() {
     }
   };
 
+  const fetchAccessAudit = async () => {
+    setAccessAuditLoading(true);
+    try {
+      const response = await fetch("/api/admin/team-access-audit");
+      const data = (await response.json().catch(() => ({}))) as Partial<TeamAccessAuditResponse> & { error?: string };
+      if (!response.ok) {
+        setErrorMessage(data.error || "Rechte-Audit konnte nicht geladen werden");
+        return;
+      }
+      setAccessAudit((data as TeamAccessAuditResponse) || null);
+    } catch (error) {
+      console.error("Failed to load team access audit:", error);
+      setErrorMessage("Rechte-Audit konnte nicht geladen werden");
+    } finally {
+      setAccessAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     void fetchDeletedTeams();
     void fetchAuditEvents();
+    void fetchAccessAudit();
     // fetchDeletedTeams intentionally stays local to keep dependencies compact.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompetition?.id]);
@@ -223,6 +265,7 @@ export default function RestoreCenter() {
       setStatusMessage(data.message || "Mannschaft wurde wiederhergestellt");
       await fetchDeletedTeams();
       await fetchAuditEvents();
+      await fetchAccessAudit();
     } catch (error) {
       console.error("Failed to restore team:", error);
       setErrorMessage("Mannschaft konnte nicht wiederhergestellt werden");
@@ -235,9 +278,9 @@ export default function RestoreCenter() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Papierkorb</CardTitle>
+          <CardTitle className="text-lg">Archiv</CardTitle>
           <CardDescription>
-            Gelöschte Mannschaften des aktiven Wettkampfs wiederherstellen. Teilnehmer:innen werden dabei mit zurückgeholt.
+            Archivierte Mannschaften des aktiven Wettkampfs wiederherstellen. Teilnehmer:innen werden dabei mit zurückgeholt.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -266,7 +309,7 @@ export default function RestoreCenter() {
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="rounded-md border border-border/60 bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">Gelöschte Teams</p>
+              <p className="text-xs text-muted-foreground">Archivierte Teams</p>
               <p className="text-lg font-semibold">{teams.length}</p>
             </div>
             <div className="rounded-md border border-border/60 bg-muted/30 p-3">
@@ -286,6 +329,73 @@ export default function RestoreCenter() {
               <p className="text-lg font-semibold">{filteredTeams.length}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Rechte-Audit</CardTitle>
+          <CardDescription>
+            Prüft abgeleitete Teamchef-Rechte und archivierte Teams mit noch verknüpften Teilnehmerkonten.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {accessAuditLoading ? (
+            <p className="text-sm text-muted-foreground">Audit wird geladen...</p>
+          ) : accessAudit ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="rounded-md border border-border/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Abgeleitete Teamchef-Rollen</p>
+                  <p className="text-lg font-semibold">{accessAudit.summary.teamchefRoleCount}</p>
+                </div>
+                <div className="rounded-md border border-border/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Verwaiste Teamchef-Rollen</p>
+                  <p className="text-lg font-semibold">{accessAudit.summary.staleTeamchefRoleCount}</p>
+                </div>
+                <div className="rounded-md border border-border/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Archivierte Teams</p>
+                  <p className="text-lg font-semibold">{accessAudit.summary.archivedTeamCount}</p>
+                </div>
+                <div className="rounded-md border border-border/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Archivierte Teams mit Kontolinks</p>
+                  <p className="text-lg font-semibold">{accessAudit.summary.archivedTeamsWithLinkedParticipantsCount}</p>
+                </div>
+              </div>
+
+              {accessAudit.summary.staleTeamchefRoleCount === 0 ? (
+                <p className="text-sm text-green-700">Keine verwaisten Teamchef-Rollen gefunden.</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Verwaiste Teamchef-Rollen</p>
+                  <div className="space-y-2">
+                    {accessAudit.staleTeamchefRoles.map((entry) => (
+                      <div key={entry.roleId} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+                        {(entry.name || entry.email).trim()} · {entry.email}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {accessAudit.summary.archivedTeamsWithLinkedParticipantsCount > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Archivierte Teams mit noch verknüpften Teilnehmerkonten</p>
+                  <div className="space-y-2">
+                    {accessAudit.archivedTeamsWithLinkedParticipants.map((team) => (
+                      <div key={team.id} className="rounded-md border border-border/50 px-3 py-2 text-sm">
+                        {team.name} · {team.linkedParticipantCount} verknüpfte Teilnehmerkonten · archiviert am {formatDateTime(team.deletedAt)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Keine archivierten Teams mit aktiven Teilnehmerkontolinks gefunden.</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Audit-Daten konnten nicht geladen werden.</p>
+          )}
         </CardContent>
       </Card>
 
@@ -339,7 +449,7 @@ export default function RestoreCenter() {
                         </span>
                       )}
                       {event.action === "TEAM_LIFECYCLE_MAIL" && lifecycleAction && (
-                        <span>{lifecycleAction === "restored" ? "nach Restore" : "nach Löschen"}</span>
+                        <span>{lifecycleAction === "restored" ? "nach Wiederherstellung" : "nach Archivierung"}</span>
                       )}
                       {event.competition && <span>{event.competition.name}</span>}
                     </div>
@@ -359,13 +469,13 @@ export default function RestoreCenter() {
       {loading ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Lade Papierkorb...
+            Lade Archiv...
           </CardContent>
         </Card>
       ) : filteredTeams.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Keine gelöschten Mannschaften gefunden.
+            Keine archivierten Mannschaften gefunden.
           </CardContent>
         </Card>
       ) : (
@@ -383,7 +493,7 @@ export default function RestoreCenter() {
                         {ownerDeleted && <Badge variant="destructive">Besitzer gelöscht</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Gelöscht: {formatDateTime(team.deletedAt)} • Angelegt: {formatDateTime(team.createdAt)}
+                        Archiviert: {formatDateTime(team.deletedAt)} • Angelegt: {formatDateTime(team.createdAt)}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Besitzer: {team.owner.name || team.owner.email}
