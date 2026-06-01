@@ -111,12 +111,14 @@ export async function GET() {
         upsertTeamScope(memberRole.team, "Team Manager:in", { isTeamManager: true });
       }
 
+      const visibleRoles = u.tenantRoles.filter((tenantRole) => tenantRole.role !== "TEAMCHEF" || teamScopes.size > 0);
+
       return {
         id: u.id,
         email: u.email,
         name: u.name,
         createdAt: u.createdAt,
-        roles: u.tenantRoles.map((tr) => ({
+        roles: visibleRoles.map((tr) => ({
           id: tr.id,
           role: tr.role,
           tenantId: tr.tenantId,

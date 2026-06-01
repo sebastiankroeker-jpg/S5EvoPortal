@@ -9,6 +9,7 @@ import { buildParticipantClaimUrl, buildRegistrationClaimUrl, createRegistration
 import { recordParticipantClaimAuditEvent } from "@/lib/participant-claim-audit";
 import { recordClaimAuditEvent } from "@/lib/registration-claim-audit";
 import { requireTenantRoles } from "@/lib/server-permissions";
+import { syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
 function isExpired(value?: Date | string | null) {
   if (!value) return false;
@@ -480,8 +481,8 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    await prisma.$transaction([
-      prisma.participantClaimToken.updateMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.participantClaimToken.updateMany({
         where: {
           participantId,
           revokedAt: null,
@@ -489,15 +490,15 @@ export async function PATCH(request: NextRequest) {
         data: {
           revokedAt,
         },
-      }),
-      prisma.participant.update({
+      });
+      await tx.participant.update({
         where: { id: participantId },
         data: {
           userId: null,
           ...(targetEmail !== normalizeEmail(participant.email) ? { email: targetEmail } : {}),
         },
-      }),
-      prisma.teamMemberRole.updateMany({
+      });
+      await tx.teamMemberRole.updateMany({
         where: {
           teamId: participant.teamId,
           userId: previousUserId,
@@ -509,8 +510,12 @@ export async function PATCH(request: NextRequest) {
           revokedByUserId: auth.user.id,
           reason: "participant_replaced",
         },
-      }),
-    ]);
+      });
+      await syncDerivedTeamchefRole(tx, {
+        userId: previousUserId,
+        tenantId: auth.tenantId,
+      });
+    });
 
     await Promise.all([
       recordParticipantClaimAuditEvent({

@@ -28,6 +28,7 @@ import { prisma } from '@/lib/prisma';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
 import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
 import { resolveTeamAccess } from '@/lib/team-manager-access';
+import { syncDerivedTeamchefRole } from '@/lib/teamchef-role';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -1090,6 +1091,15 @@ export async function DELETE(
         deletedAt: now.toISOString(),
         deletedParticipants: existingTeam.participants.length,
       };
+      const affectedUserIds = Array.from(
+        new Set(
+          [
+            existingTeam.ownerId,
+            existingTeam.teamChiefId,
+            ...existingTeam.memberRoles.map((memberRole) => memberRole.userId),
+          ].filter((value): value is string => Boolean(value)),
+        ),
+      );
 
       await prisma.$transaction(async (tx) => {
         await tx.team.update({
@@ -1102,6 +1112,14 @@ export async function DELETE(
           where: { teamId: id, deletedAt: null },
           data: { deletedAt: now },
         });
+        await Promise.all(
+          affectedUserIds.map((affectedUserId) =>
+            syncDerivedTeamchefRole(tx, {
+              userId: affectedUserId,
+              tenantId: existingTeam.competition.tenantId,
+            }),
+          ),
+        );
         await tx.auditEvent.create({
           data: {
             action: "TEAM_SOFT_DELETED",

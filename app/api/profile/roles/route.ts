@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { resolveCurrentUser } from '@/lib/current-user';
+import { hasDerivedTeamchefScope } from '@/lib/teamchef-role';
 
 export async function GET() {
   try {
@@ -18,28 +19,16 @@ export async function GET() {
     const tenantRoles = user
       ? await prisma.tenantRole.findMany({
           where: { userId: user.id },
-          select: { role: true },
+          select: { role: true, tenantId: true },
         })
       : [];
-    const activeTeamManagerRole = await prisma.teamMemberRole.findFirst({
-      where: {
-        userId: user.id,
-        role: "TEAM_MANAGER",
-        revokedAt: null,
-        team: { deletedAt: null },
-      },
-      select: { id: true },
-    });
-    const legacyManagedTeam = await prisma.team.findFirst({
-      where: {
-        deletedAt: null,
-        OR: [
-          { ownerId: user.id },
-          { teamChiefId: user.id },
-        ],
-      },
-      select: { id: true },
-    });
+    const tenantId = tenantRoles[0]?.tenantId ?? (await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } }))?.id ?? null;
+    const hasTeamchefScope = tenantId
+      ? await hasDerivedTeamchefScope(prisma, {
+          userId: user.id,
+          tenantId,
+        })
+      : false;
 
     if (tenantRoles.length === 0) {
       // Eingeloggt aber noch keine DB-Rollen:
@@ -57,13 +46,13 @@ export async function GET() {
       }
 
       const roles = ["TEILNEHMER"];
-      if (activeTeamManagerRole || legacyManagedTeam) roles.unshift("TEAMCHEF");
+      if (hasTeamchefScope) roles.unshift("TEAMCHEF");
       return NextResponse.json({ roles });
     }
 
     // Unique Rollen extrahieren - keine implizite Hochstufung
-    const roles = [...new Set(tenantRoles.map(tr => tr.role))] as string[];
-    if ((activeTeamManagerRole || legacyManagedTeam) && !roles.includes("TEAMCHEF")) {
+    const roles = [...new Set(tenantRoles.map((tr) => tr.role).filter((role) => role !== "TEAMCHEF"))] as string[];
+    if (hasTeamchefScope && !roles.includes("TEAMCHEF")) {
       roles.push("TEAMCHEF");
     }
 

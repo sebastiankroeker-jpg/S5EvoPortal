@@ -6,6 +6,7 @@ import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { getScopedRoleFlags } from "@/lib/server-permissions";
 import { resolveTeamAccess } from "@/lib/team-manager-access";
+import { syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
 function getRequestMeta(request: NextRequest) {
   return {
@@ -216,6 +217,11 @@ export async function POST(
       },
     });
 
+    await syncDerivedTeamchefRole(tx, {
+      userId: targetUser.id,
+      tenantId: team.competition.tenantId,
+    });
+
     return nextRole;
   });
 
@@ -332,6 +338,11 @@ export async function DELETE(
         competitionId: team.competition.id,
         actorId: user.id,
       },
+    });
+
+    await syncDerivedTeamchefRole(tx, {
+      userId: targetUserId,
+      tenantId: team.competition.tenantId,
     });
   });
 
