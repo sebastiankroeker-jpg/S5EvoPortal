@@ -16,6 +16,7 @@ import { X, Search, Menu } from "lucide-react";
 import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
+import { useCompetition } from "@/lib/competition-context";
 
 type SearchResult =
   | {
@@ -51,6 +52,8 @@ export default function CommandPill() {
   const { can, activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
   const notifications = useNotifications();
   const { theme, setTheme } = useTheme();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
+  const activeCompetitionId = activeCompetition?.id ?? null;
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,23 +92,26 @@ export default function CommandPill() {
 
     // Search teams via API
     let teamResults: SearchResult[] = [];
-    try {
-      const response = await fetch(`/api/teams?q=${encodeURIComponent(query)}`);
-      if (response.ok) {
-        const teamsData = (await response.json()) as TeamsSearchResponse;
-        teamResults = (teamsData.teams ?? []).map((team) => ({
-          type: 'team',
-          ...team,
-          icon: "🏅"
-        }));
+    if (!competitionLoading && activeCompetitionId) {
+      try {
+        const params = new URLSearchParams({ q: query, competitionId: activeCompetitionId });
+        const response = await fetch(`/api/teams?${params.toString()}`);
+        if (response.ok) {
+          const teamsData = (await response.json()) as TeamsSearchResponse;
+          teamResults = (teamsData.teams ?? []).map((team) => ({
+            type: 'team',
+            ...team,
+            icon: "🏅"
+          }));
+        }
+      } catch (error) {
+        console.error("Search error:", error);
       }
-    } catch (error) {
-      console.error("Search error:", error);
     }
 
     // Combine results: menu items first, then teams
     setSearchResults([...menuResults, ...teamResults]);
-  }, [permittedMenuItems]);
+  }, [activeCompetitionId, competitionLoading, permittedMenuItems]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {

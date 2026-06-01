@@ -11,6 +11,7 @@ import { X, Search } from "lucide-react";
 import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
+import { useCompetition } from "@/lib/competition-context";
 
 interface SearchItem {
   type: "menu" | "team";
@@ -40,6 +41,8 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const pathname = usePathname();
   const { status } = useSession();
   const { can, roles } = usePermissions();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
+  const activeCompetitionId = activeCompetition?.id ?? null;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const isClaimPath = isClaimNavigationPath(pathname);
@@ -145,9 +148,10 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
 
     // Search teams via API (only if query)
     let teamResults: SearchItem[] = [];
-    if (lowerQuery.length >= 2) {
+    if (lowerQuery.length >= 2 && !competitionLoading && activeCompetitionId) {
       try {
-        const response = await fetch(`/api/teams?q=${encodeURIComponent(query)}`);
+        const params = new URLSearchParams({ q: query, competitionId: activeCompetitionId });
+        const response = await fetch(`/api/teams?${params.toString()}`);
         if (response.ok) {
           const data = await response.json();
           const teams: SearchTeamResult[] = Array.isArray(data) ? data : data.teams || [];
@@ -166,7 +170,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     }
 
     setSearchResults([...menuResults, ...teamResults]);
-  }, [permittedMenuItems]);
+  }, [activeCompetitionId, competitionLoading, permittedMenuItems]);
 
   useEffect(() => {
     if (!isOpen) return;

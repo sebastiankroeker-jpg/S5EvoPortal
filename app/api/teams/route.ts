@@ -305,6 +305,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const url = new URL(request.url);
+      const query = url.searchParams.get("q")?.trim() ?? "";
       const scope = url.searchParams.get('scope');
       const roleContext = url.searchParams.get('roleContext');
       const competitionId = url.searchParams.get('competitionId');
@@ -333,46 +334,96 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
+      const accessFilter = wantsAllTeams
+        ? {}
+        : {
+            OR: [
+              ...(user ? [{ teamChiefId: user.id }] : []),
+              ...(user
+                ? [{
+                    participants: {
+                      some: {
+                        userId: user.id,
+                        deletedAt: null,
+                      },
+                    },
+                  }]
+                : []),
+              ...(user
+                ? [{
+                    memberRoles: {
+                      some: {
+                        userId: user.id,
+                        role: "TEAM_MANAGER" as const,
+                        revokedAt: null,
+                      },
+                    },
+                  }]
+                : []),
+              ...(normalizedUserEmail
+                ? [{
+                    contactEmail: {
+                      equals: normalizedUserEmail,
+                      mode: 'insensitive' as const,
+                    },
+                  }]
+                : []),
+            ],
+          };
+      const queryFilter = query
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: query,
+                  mode: "insensitive" as const,
+                },
+              },
+              {
+                contactName: {
+                  contains: query,
+                  mode: "insensitive" as const,
+                },
+              },
+              {
+                participants: {
+                  some: {
+                    deletedAt: null,
+                    OR: [
+                      {
+                        firstName: {
+                          contains: query,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                      {
+                        lastName: {
+                          contains: query,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                      {
+                        email: {
+                          contains: query,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {};
+
       const teams = await prisma.team.findMany({
         where: {
-          ...(wantsAllTeams
-            ? {}
-            : {
-                OR: [
-                  ...(user ? [{ teamChiefId: user.id }] : []),
-                  ...(user
-                    ? [{
-                        participants: {
-                          some: {
-                            userId: user.id,
-                            deletedAt: null,
-                          },
-                        },
-                      }]
-                    : []),
-                  ...(user
-                    ? [{
-                        memberRoles: {
-                          some: {
-                            userId: user.id,
-                            role: "TEAM_MANAGER" as const,
-                            revokedAt: null,
-                          },
-                        },
-                      }]
-                    : []),
-                  ...(normalizedUserEmail
-                    ? [{
-                        contactEmail: {
-                          equals: normalizedUserEmail,
-                          mode: 'insensitive' as const,
-                        },
-                      }]
-                    : []),
-                ],
-              }),
-          ...(competitionId ? { competitionId } : {}),
-          deletedAt: null
+          AND: [
+            accessFilter,
+            queryFilter,
+            ...(competitionId ? [{ competitionId }] : []),
+            { deletedAt: null },
+          ],
         },
         include: {
           participants: {
