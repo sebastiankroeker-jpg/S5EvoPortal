@@ -17,6 +17,7 @@ import { getPermittedNavigationMenuItems, isClaimNavigationPath, type Navigation
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import { useCompetition } from "@/lib/competition-context";
+import { canRoleViewAllTeams } from "@/lib/team-access-config";
 
 type SearchResult =
   | {
@@ -54,6 +55,7 @@ export default function CommandPill() {
   const { theme, setTheme } = useTheme();
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const activeCompetitionId = activeCompetition?.id ?? null;
+  const canBrowseAllTeams = can("team.view.all") || canRoleViewAllTeams(activeRole, activeCompetition);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,9 +94,14 @@ export default function CommandPill() {
 
     // Search teams via API
     let teamResults: SearchResult[] = [];
-    if (!competitionLoading && activeCompetitionId) {
+    if (lowerQuery.trim().length >= 2 && !competitionLoading && activeCompetitionId) {
       try {
-        const params = new URLSearchParams({ q: query, competitionId: activeCompetitionId });
+        const params = new URLSearchParams({
+          q: query,
+          competitionId: activeCompetitionId,
+          roleContext: activeRole,
+        });
+        if (canBrowseAllTeams) params.set("scope", "all");
         const response = await fetch(`/api/teams?${params.toString()}`);
         if (response.ok) {
           const teamsData = (await response.json()) as TeamsSearchResponse;
@@ -111,7 +118,7 @@ export default function CommandPill() {
 
     // Combine results: menu items first, then teams
     setSearchResults([...menuResults, ...teamResults]);
-  }, [activeCompetitionId, competitionLoading, permittedMenuItems]);
+  }, [activeCompetitionId, activeRole, canBrowseAllTeams, competitionLoading, permittedMenuItems]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {

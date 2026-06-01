@@ -12,6 +12,7 @@ import { getPermittedNavigationMenuItems, isClaimNavigationPath, type Navigation
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import { useCompetition } from "@/lib/competition-context";
+import { canRoleViewAllTeams } from "@/lib/team-access-config";
 
 interface SearchItem {
   type: "menu" | "team";
@@ -40,9 +41,10 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { status } = useSession();
-  const { can, roles } = usePermissions();
+  const { can, roles, activeRole } = usePermissions();
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const activeCompetitionId = activeCompetition?.id ?? null;
+  const canBrowseAllTeams = can("team.view.all") || canRoleViewAllTeams(activeRole, activeCompetition);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const isClaimPath = isClaimNavigationPath(pathname);
@@ -150,7 +152,12 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     let teamResults: SearchItem[] = [];
     if (lowerQuery.length >= 2 && !competitionLoading && activeCompetitionId) {
       try {
-        const params = new URLSearchParams({ q: query, competitionId: activeCompetitionId });
+        const params = new URLSearchParams({
+          q: query,
+          competitionId: activeCompetitionId,
+          roleContext: activeRole,
+        });
+        if (canBrowseAllTeams) params.set("scope", "all");
         const response = await fetch(`/api/teams?${params.toString()}`);
         if (response.ok) {
           const data = await response.json();
@@ -170,7 +177,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     }
 
     setSearchResults([...menuResults, ...teamResults]);
-  }, [activeCompetitionId, competitionLoading, permittedMenuItems]);
+  }, [activeCompetitionId, activeRole, canBrowseAllTeams, competitionLoading, permittedMenuItems]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -232,7 +239,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                 </Button>
               </div>
               
-              {searchResults.length > 0 && (
+              {(searchResults.length > 0 || searchQuery.trim().length >= 2) && (
                 <div className="min-h-0 space-y-1 overflow-y-auto overscroll-contain pr-1">
                   {searchResults.length > 0 ? (
                     searchResults.map((result, index) => (
@@ -269,7 +276,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                     ))
                   ) : (
                     <div className="text-center text-muted-foreground py-4">
-                      Keine Ergebnisse gefunden
+                      Keine Treffer fuer Team, Teilnehmer oder Navigation
                     </div>
                   )}
                 </div>
