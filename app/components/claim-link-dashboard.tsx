@@ -75,7 +75,7 @@ function maskEmail(email?: string | null) {
 }
 
 export default function ClaimLinkDashboard() {
-  const { active: activeCompetition } = useCompetition();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const notifications = useNotifications();
   const [items, setItems] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,8 +120,9 @@ export default function ClaimLinkDashboard() {
   }, [activeCompetition?.id, notifications]);
 
   useEffect(() => {
+    if (competitionLoading) return;
     void loadItems();
-  }, [loadItems]);
+  }, [competitionLoading, loadItems]);
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();

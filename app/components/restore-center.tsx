@@ -152,7 +152,7 @@ function getLifecycleMailIssueLabel(event: AuditEvent) {
 }
 
 export default function RestoreCenter() {
-  const { active: activeCompetition } = useCompetition();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const notifications = useNotifications();
   const [teams, setTeams] = useState<DeletedTeam[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
@@ -238,10 +238,11 @@ export default function RestoreCenter() {
   }, [activeCompetition?.id, notifications]);
 
   useEffect(() => {
+    if (competitionLoading) return;
     void fetchDeletedTeams();
     void fetchAuditEvents();
     void fetchAccessAudit();
-  }, [fetchAccessAudit, fetchAuditEvents, fetchDeletedTeams]);
+  }, [competitionLoading, fetchAccessAudit, fetchAuditEvents, fetchDeletedTeams]);
 
   const filteredTeams = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
