@@ -217,7 +217,9 @@ export default function RestoreCenter() {
   const fetchAccessAudit = useCallback(async () => {
     setAccessAuditLoading(true);
     try {
-      const response = await fetch("/api/admin/team-access-audit");
+      const params = new URLSearchParams();
+      if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
+      const response = await fetch(`/api/admin/team-access-audit?${params}`);
       const data = (await response.json().catch(() => ({}))) as Partial<TeamAccessAuditResponse> & { error?: string };
       if (!response.ok) {
         notifications.error("Rechte-Audit konnte nicht geladen werden", data.error || "Bitte später erneut versuchen.");
@@ -233,7 +235,7 @@ export default function RestoreCenter() {
     } finally {
       setAccessAuditLoading(false);
     }
-  }, [notifications]);
+  }, [activeCompetition?.id, notifications]);
 
   useEffect(() => {
     void fetchDeletedTeams();
