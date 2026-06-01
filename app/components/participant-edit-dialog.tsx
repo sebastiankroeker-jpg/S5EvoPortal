@@ -38,10 +38,13 @@ interface Participant {
   shirtSize?: string | null;
   moderationNote?: string | null;
   email?: string | null;
+  linkedUserId?: string | null;
   teamName?: string;
   teamCategory?: string;
   emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
+  isTeamManager?: boolean;
+  canBeTeamManager?: boolean;
   pendingChanges?: { id: string; status: string; updatedAt?: string | null; reviewedAt?: string | null; reviewComment?: string | null }[];
 }
 
@@ -224,6 +227,7 @@ export default function ParticipantEditDialog({
   const [savedEmail, setSavedEmail] = useState("");
   const [emailInvitation, setEmailInvitation] = useState<EmailInvitationStatus | null>(null);
   const [sendingInvitation, setSendingInvitation] = useState(false);
+  const [resettingLinkedAccount, setResettingLinkedAccount] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [participantPublicationPreference, setParticipantPublicationPreference] = useState<"NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN">("NAME_VERBERGEN");
   const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
@@ -317,13 +321,26 @@ export default function ParticipantEditDialog({
 
   const shirtLocked = !isAdminEdit && isShirtOrderClosed(shirtOrderDeadline);
   const emailDiffersFromSaved = email.trim().toLowerCase() !== savedEmail.trim().toLowerCase();
-  const effectiveEmailInvitationStatus = emailDiffersFromSaved ? (email ? "none" : "missing_email") : emailInvitation?.status;
+  const effectiveEmailInvitationStatus =
+    emailInvitation?.status === "linked"
+      ? "linked"
+      : emailDiffersFromSaved
+        ? (email ? "none" : "missing_email")
+        : emailInvitation?.status;
   const emailInvitationMeta = getEmailInvitationMeta(effectiveEmailInvitationStatus || (email ? "none" : "missing_email"));
   const canSendInvitation =
     Boolean(participant?.id) &&
     (directEdit || showModerationNote) &&
     isValidEmail(email) &&
     (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(emailInvitation?.status || "none"));
+  const canResetLinkedAccount =
+    Boolean(participant?.id) &&
+    isAdminEdit &&
+    emailInvitation?.status === "linked";
+  const replaceActionLabel =
+    participant?.isTeamManager
+      ? "Teilnehmer ersetzen & Rechte entziehen"
+      : "Teilnehmer ersetzen";
   const sendsInvitationOnSave =
     Boolean(participant?.id) &&
     emailDiffersFromSaved &&
@@ -381,6 +398,62 @@ export default function ParticipantEditDialog({
       setInviteMessage({ type: "error", text: err instanceof Error ? err.message : "Einladung konnte nicht gesendet werden" });
     } finally {
       setSendingInvitation(false);
+    }
+  };
+
+  const handleResetLinkedAccount = async () => {
+    if (!participant?.id) return;
+    if (!isValidEmail(email)) {
+      setInviteMessage({ type: "error", text: "Bitte zuerst eine gültige E-Mail-Adresse hinterlegen." });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Teilnehmer wirklich ersetzen? Die bestehende Portal-Verknüpfung wird gelöst${participant?.isTeamManager ? " und aktive Team-Manager-Rechte werden entzogen" : ""}. Danach geht eine neue Einladung an ${email.trim()}.`,
+    );
+    if (!confirmed) return;
+
+    setResettingLinkedAccount(true);
+    setInviteMessage(null);
+    setError("");
+
+    try {
+      const res = await fetch("/api/admin/claim-links", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "resetParticipantLink",
+          participantId: participant.id,
+          email,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verknüpfung konnte nicht gelöst werden");
+
+      setEmailInvitation({
+        status: "active",
+        tokenStatus: "active",
+        sentAt: new Date().toISOString(),
+        expiresAt: data.participantClaimMail?.expiresAt ?? null,
+        claimedAt: null,
+        revokedAt: null,
+      });
+      setSavedEmail(data.participantEmail || email);
+      setInviteMessage({
+        type: "success",
+        text:
+          data.participantClaimMail?.status === "sent" || data.participantClaimMail?.status === "queued"
+            ? `Teilnehmer ersetzt, alte Verknüpfung gelöst${data.revokedTeamManagerAccess ? " und Team-Manager-Rechte entzogen" : ""}, neue Einladung versendet.`
+            : `Teilnehmer ersetzt, alte Verknüpfung gelöst${data.revokedTeamManagerAccess ? " und Team-Manager-Rechte entzogen" : ""}, neue Einladung erzeugt.`,
+      });
+      onSaved();
+    } catch (err) {
+      setInviteMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Verknüpfung konnte nicht gelöst werden",
+      });
+    } finally {
+      setResettingLinkedAccount(false);
     }
   };
 
@@ -688,7 +761,17 @@ export default function ParticipantEditDialog({
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="teilnehmer@example.de"
                 />
-                {canSendInvitation ? (
+                {canResetLinkedAccount ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleResetLinkedAccount}
+                    disabled={resettingLinkedAccount}
+                  >
+                    {resettingLinkedAccount ? "Ersetzt..." : replaceActionLabel}
+                  </Button>
+                ) : canSendInvitation ? (
                   <Button type="button" size="sm" variant="outline" onClick={handleSendInvitation} disabled={sendingInvitation}>
                     <Send className="size-4" />
                     {sendingInvitation ? "Sendet..." : "Einladung senden"}
@@ -700,6 +783,14 @@ export default function ParticipantEditDialog({
                 {emailInvitation?.expiresAt ? <p>Gültig bis: {formatDateTime(emailInvitation.expiresAt)}</p> : null}
                 {emailInvitation?.claimedAt ? <p>Eingelöst: {formatDateTime(emailInvitation.claimedAt)}</p> : null}
                 {email && !isValidEmail(email) ? <p className="text-red-600">Bitte eine gültige E-Mail-Adresse eintragen.</p> : null}
+                {canResetLinkedAccount ? (
+                  <p>
+                    Dieser Datensatz ist noch mit einem bestehenden Portal-Konto verknüpft. Nutze diese Aktion nur für einen echten Personenwechsel im Team.
+                  </p>
+                ) : null}
+                {canResetLinkedAccount && participant?.isTeamManager ? (
+                  <p>Bestehende Team-Manager-Rechte des alten Accounts werden dabei automatisch entzogen.</p>
+                ) : null}
                 {inviteMessage ? (
                   <p className={inviteMessage.type === "success" ? "text-green-700" : "text-red-600"}>{inviteMessage.text}</p>
                 ) : null}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { normalizeEmail } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { createParticipantClaimInvitation } from "@/lib/participant-claim-invitation";
 import { buildParticipantClaimUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from "@/lib/registration-claim";
@@ -24,6 +25,17 @@ function getTokenStatus(token?: {
   if (token.claimedAt) return "claimed";
   if (isExpired(token.expiresAt)) return "expired";
   return "active";
+}
+
+function isValidEmail(value?: string | null) {
+  return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()));
+}
+
+function getRequestMeta(request: NextRequest) {
+  return {
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+    userAgent: request.headers.get("user-agent") || null,
+  };
 }
 
 async function requireAdminAccess() {
@@ -360,6 +372,7 @@ export async function PATCH(request: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const body = await request.json().catch(() => ({}));
+  const requestMeta = getRequestMeta(request);
   if (body.action === "toggleGlobal") {
     const enabled = Boolean(body.enabled);
     const tenant = await prisma.tenant.findUnique({
@@ -383,8 +396,12 @@ export async function PATCH(request: NextRequest) {
 
   if (body.action === "resetParticipantLink") {
     const participantId = typeof body.participantId === "string" ? body.participantId : null;
+    const requestedEmail = typeof body.email === "string" ? normalizeEmail(body.email) : null;
     if (!participantId) {
       return NextResponse.json({ error: "participantId fehlt" }, { status: 400 });
+    }
+    if (requestedEmail && !isValidEmail(requestedEmail)) {
+      return NextResponse.json({ error: "Bitte zuerst eine gültige E-Mail-Adresse hinterlegen" }, { status: 400 });
     }
 
     const participant = await prisma.participant.findFirst({
@@ -433,7 +450,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Teilnehmer nicht gefunden" }, { status: 404 });
     }
 
-    if (!participant.email) {
+    const targetEmail = requestedEmail || normalizeEmail(participant.email);
+
+    if (!targetEmail) {
       return NextResponse.json({ error: "Für diesen Teilnehmer ist keine Kontakt-E-Mail hinterlegt" }, { status: 400 });
     }
 
@@ -444,6 +463,22 @@ export async function PATCH(request: NextRequest) {
     const revokedAt = new Date();
     const previousUserId = participant.userId;
     const previousUserEmail = participant.user?.email || null;
+    const activeTeamManagerRole = await prisma.teamMemberRole.findFirst({
+      where: {
+        teamId: participant.teamId,
+        userId: previousUserId,
+        role: "TEAM_MANAGER",
+        revokedAt: null,
+      },
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        revokedAt: true,
+        grantedByUserId: true,
+        createdAt: true,
+      },
+    });
 
     await prisma.$transaction([
       prisma.participantClaimToken.updateMany({
@@ -457,7 +492,23 @@ export async function PATCH(request: NextRequest) {
       }),
       prisma.participant.update({
         where: { id: participantId },
-        data: { userId: null },
+        data: {
+          userId: null,
+          ...(targetEmail !== normalizeEmail(participant.email) ? { email: targetEmail } : {}),
+        },
+      }),
+      prisma.teamMemberRole.updateMany({
+        where: {
+          teamId: participant.teamId,
+          userId: previousUserId,
+          role: "TEAM_MANAGER",
+          revokedAt: null,
+        },
+        data: {
+          revokedAt,
+          revokedByUserId: auth.user.id,
+          reason: "participant_replaced",
+        },
       }),
     ]);
 
@@ -485,6 +536,45 @@ export async function PATCH(request: NextRequest) {
           sessionEmail: auth.user.email,
         }),
       ),
+      ...(activeTeamManagerRole
+        ? [
+            prisma.auditEvent.create({
+              data: {
+                action: "TEAM_MANAGER_REVOKED",
+                scopeType: "TEAM",
+                scopeId: participant.teamId,
+                entityType: "TEAM_MEMBER_ROLE",
+                entityId: activeTeamManagerRole.id,
+                reason: "participant_replaced",
+                beforeData: {
+                  id: activeTeamManagerRole.id,
+                  userId: activeTeamManagerRole.userId,
+                  role: activeTeamManagerRole.role,
+                  revokedAt: activeTeamManagerRole.revokedAt?.toISOString() ?? null,
+                  grantedByUserId: activeTeamManagerRole.grantedByUserId ?? null,
+                  createdAt: activeTeamManagerRole.createdAt?.toISOString() ?? null,
+                },
+                afterData: {
+                  id: activeTeamManagerRole.id,
+                  userId: activeTeamManagerRole.userId,
+                  role: activeTeamManagerRole.role,
+                  revokedAt: revokedAt.toISOString(),
+                  revokedByUserId: auth.user.id,
+                },
+                meta: {
+                  ...requestMeta,
+                  sessionEmail: auth.user.email,
+                  targetUserEmail: previousUserEmail,
+                  participantId: participant.id,
+                  participantName: `${participant.firstName} ${participant.lastName}`.trim(),
+                },
+                tenantId: auth.tenantId,
+                competitionId: participant.team.competitionId,
+                actorId: auth.user.id,
+              },
+            }),
+          ]
+        : []),
     ]);
 
     const participantClaimMail = await createParticipantClaimInvitation({
@@ -493,7 +583,7 @@ export async function PATCH(request: NextRequest) {
         id: participant.id,
         firstName: participant.firstName,
         lastName: participant.lastName,
-        email: participant.email,
+        email: targetEmail,
         userId: null,
       },
       team: {
@@ -510,6 +600,8 @@ export async function PATCH(request: NextRequest) {
       success: true,
       tokenType: "participant",
       previousUser: participant.user,
+      participantEmail: targetEmail,
+      revokedTeamManagerAccess: Boolean(activeTeamManagerRole),
       participantClaimMail,
     });
   }
