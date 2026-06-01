@@ -267,22 +267,32 @@ function serializeTeam(
     (!!normalizedCurrentUserEmail &&
       (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
         normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail));
+  const isCurrentUserTeam =
+    canCurrentUserEdit ||
+    ((team.participants ?? []).some((participant) => {
+      const normalizedParticipantEmail = normalizeEmail(participant.email);
+      return (
+        (!!options?.currentUserId && participant.userId === options.currentUserId) ||
+        (!!normalizedCurrentUserEmail && normalizedParticipantEmail === normalizedCurrentUserEmail)
+      );
+    }));
   const canSeeSensitiveParticipantFields = options?.canSeeSensitiveParticipantFields === true || canCurrentUserEdit;
+  const canSeeFullTeamPublication = canSeeFullPublication || isCurrentUserTeam;
   const visibleTeamName = resolveVisibleTeamName({
     actualTeamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel,
-    canSeeFullPublication,
+    canSeeFullPublication: canSeeFullTeamPublication,
   });
   return {
     id: team.id,
     name: visibleTeamName,
     teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
     category: team.classificationCode ?? "unclassified",
-    contactName: canSeeFullPublication ? team.contactName ?? team.owner?.name ?? "" : "",
-    contactEmail: canSeeFullPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
-    contactPhone: canSeeFullPublication ? team.contactPhone ?? "" : "",
-    ownerEmail: canSeeFullPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
-    ownerName: canSeeFullPublication ? team.owner?.name ?? team.contactName ?? "" : "",
+    contactName: canSeeFullTeamPublication ? team.contactName ?? team.owner?.name ?? "" : "",
+    contactEmail: canSeeFullTeamPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
+    contactPhone: canSeeFullTeamPublication ? team.contactPhone ?? "" : "",
+    ownerEmail: canSeeFullTeamPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
+    ownerName: canSeeFullTeamPublication ? team.owner?.name ?? team.contactName ?? "" : "",
     canCurrentUserEdit,
     canManageTeamManagers:
       options?.canEditAllTeams === true ||
@@ -298,6 +308,7 @@ function serializeTeam(
             serializeParticipant(participant, {
               ...options,
               teamPublicationLevel: team.teamPublicationLevel,
+              canSeeFullPublication: canSeeFullTeamPublication,
               canSeeSensitiveParticipantFields,
               activeTeamManagerUserIds,
             }),

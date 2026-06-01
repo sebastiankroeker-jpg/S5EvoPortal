@@ -210,21 +210,22 @@ function serializeTeam(
         (!!normalizedCurrentUserEmail && normalizedParticipantEmail === normalizedCurrentUserEmail)
       );
     }));
+  const canSeeFullTeamPublication = canSeeFullPublication || isCurrentUserTeam;
   const visibleTeamName = resolveVisibleTeamName({
     actualTeamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel,
-    canSeeFullPublication,
+    canSeeFullPublication: canSeeFullTeamPublication,
   });
   return {
     id: team.id,
     name: visibleTeamName,
     teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
     category: team.classificationCode ?? "unclassified",
-    contactName: canSeeFullPublication ? team.contactName ?? team.owner?.name ?? "" : "",
-    contactEmail: canSeeFullPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
-    contactPhone: canSeeFullPublication ? team.contactPhone ?? "" : "",
-    ownerEmail: canSeeFullPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
-    ownerName: canSeeFullPublication ? team.owner?.name ?? team.contactName ?? "" : "",
+    contactName: canSeeFullTeamPublication ? team.contactName ?? team.owner?.name ?? "" : "",
+    contactEmail: canSeeFullTeamPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
+    contactPhone: canSeeFullTeamPublication ? team.contactPhone ?? "" : "",
+    ownerEmail: canSeeFullTeamPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
+    ownerName: canSeeFullTeamPublication ? team.owner?.name ?? team.contactName ?? "" : "",
     isCurrentUserTeam,
     canCurrentUserEdit,
     canManageTeamManagers:
@@ -241,6 +242,7 @@ function serializeTeam(
             serializeParticipant(participant, {
               ...options,
               teamPublicationLevel: team.teamPublicationLevel,
+              canSeeFullPublication: canSeeFullTeamPublication,
               canSeeSensitiveParticipantFields,
               activeTeamManagerUserIds,
             }),
