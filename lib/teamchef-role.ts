@@ -15,7 +15,6 @@ export function collectTeamAccessUserIds(input: {
   return Array.from(
     new Set(
       [
-        input.ownerId,
         input.teamChiefId,
         ...(input.memberRoles ?? []).map((memberRole) => memberRole.userId),
       ].filter((value): value is string => Boolean(value)),
@@ -32,7 +31,7 @@ export async function hasDerivedTeamchefScope(
       where: {
         deletedAt: null,
         competition: { tenantId },
-        OR: [{ ownerId: userId }, { teamChiefId: userId }],
+        teamChiefId: userId,
       },
       select: { id: true },
     }),

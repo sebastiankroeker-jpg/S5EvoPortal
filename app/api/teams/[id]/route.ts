@@ -258,15 +258,20 @@ function serializeTeam(
       ?.filter((memberRole) => !memberRole.revokedAt)
       .map((memberRole) => memberRole.userId) ?? [],
   );
-  if (team.ownerId) activeTeamManagerUserIds.add(team.ownerId);
   if (team.teamChiefId) activeTeamManagerUserIds.add(team.teamChiefId);
-  const canCurrentUserEdit =
-    options?.canEditAllTeams === true ||
-    (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
-    (!!options?.currentUserId && activeTeamManagerUserIds.has(options.currentUserId)) ||
-    (!!normalizedCurrentUserEmail &&
-      (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
-        normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail));
+  const teamAccess = resolveTeamAccess({
+    team: {
+      teamChiefId: team.teamChiefId,
+      contactEmail: team.contactEmail,
+      memberRoles: (team as SerializableTeam & {
+        memberRoles?: Array<{ userId: string; revokedAt?: Date | null }>;
+      }).memberRoles,
+    },
+    user: { id: options?.currentUserId },
+    userEmail: options?.currentUserEmail,
+    canEditAllTeams: options?.canEditAllTeams,
+  });
+  const canCurrentUserEdit = teamAccess.canEditTeam;
   const isCurrentUserTeam =
     canCurrentUserEdit ||
     ((team.participants ?? []).some((participant) => {
@@ -294,12 +299,7 @@ function serializeTeam(
     ownerEmail: canSeeFullTeamPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
     ownerName: canSeeFullTeamPublication ? team.owner?.name ?? team.contactName ?? "" : "",
     canCurrentUserEdit,
-    canManageTeamManagers:
-      options?.canEditAllTeams === true ||
-      (!!options?.currentUserId && (team.ownerId === options.currentUserId || team.teamChiefId === options.currentUserId)) ||
-      (!!normalizedCurrentUserEmail &&
-        (normalizeEmail(team.owner?.email) === normalizedCurrentUserEmail ||
-          normalizeEmail(team.contactEmail) === normalizedCurrentUserEmail)),
+    canManageTeamManagers: teamAccess.canManageTeamManagers,
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updatedAt: team.updatedAt?.toISOString?.() ?? team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     participants: Array.isArray(team.participants)

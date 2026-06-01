@@ -17,10 +17,8 @@ export function resolveTeamAccess(input: TeamAccessInput) {
   const userId = input.user?.id ?? null;
   const normalizedUserEmail = normalizeEmail(input.userEmail);
   const isLegacyOwner =
-    (!!userId && (input.team.ownerId === userId || input.team.teamChiefId === userId)) ||
-    (!!normalizedUserEmail &&
-      (normalizeEmail(input.team.owner?.email) === normalizedUserEmail ||
-        normalizeEmail(input.team.contactEmail) === normalizedUserEmail));
+    (!!userId && input.team.teamChiefId === userId) ||
+    (!!normalizedUserEmail && normalizeEmail(input.team.contactEmail) === normalizedUserEmail);
   const isTeamManager =
     !!userId &&
     (input.team.memberRoles ?? []).some((memberRole) => memberRole.userId === userId && !memberRole.revokedAt);
