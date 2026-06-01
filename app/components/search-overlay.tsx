@@ -13,23 +13,13 @@ import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams } from "@/lib/team-access-config";
-
-interface SearchItem {
-  type: "menu" | "team";
-  id?: string;
-  label?: string;
-  name?: string;
-  keywords?: string[];
-  icon: string;
-  discipline?: string;
-  participants?: Array<{ id?: string }>;
-}
+import { buildSearchResults, groupSearchResults, type SearchResult } from "@/lib/search-results";
 
 interface SearchTeamResult {
   id?: string;
   name: string;
-  discipline?: string;
-  participants?: Array<{ id?: string }>;
+  discipline?: string | null;
+  participants?: Array<{ id?: string; firstName?: string; lastName?: string; email?: string | null }>;
 }
 
 interface SearchOverlayProps {
@@ -46,7 +36,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const activeCompetitionId = activeCompetition?.id ?? null;
   const canBrowseAllTeams = can("team.view.all") || canRoleViewAllTeams(activeRole, activeCompetition);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const isClaimPath = isClaimNavigationPath(pathname);
 
   const switchToTab = (tabId: string, detail?: Record<string, string>) => {
@@ -138,18 +128,8 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   // Search implementation
   const performSearch = useCallback(async (query: string) => {
     const lowerQuery = query.toLowerCase().trim();
-    
-    // Filter menu items (show all if no query)
-    const menuResults = permittedMenuItems
-      .filter(item => {
-        if (!lowerQuery) return true; // show all when empty
-        return item.label.toLowerCase().includes(lowerQuery) ||
-               item.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery));
-      })
-      .map(item => ({ type: 'menu' as const, id: item.id, label: item.label, keywords: item.keywords, icon: item.icon }));
+    let teams: SearchTeamResult[] = [];
 
-    // Search teams via API (only if query)
-    let teamResults: SearchItem[] = [];
     if (lowerQuery.length >= 2 && !competitionLoading && activeCompetitionId) {
       try {
         const params = new URLSearchParams({
@@ -161,22 +141,18 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         const response = await fetch(`/api/teams?${params.toString()}`);
         if (response.ok) {
           const data = await response.json();
-          const teams: SearchTeamResult[] = Array.isArray(data) ? data : data.teams || [];
-          teamResults = teams.map((team) => ({
-            type: 'team' as const,
-            id: team.id,
-            name: team.name,
-            discipline: team.discipline,
-            participants: team.participants || [],
-            icon: "🏅",
-          }));
+          teams = Array.isArray(data) ? data : data.teams || [];
         }
       } catch (error) {
         console.error("Search error:", error);
       }
     }
 
-    setSearchResults([...menuResults, ...teamResults]);
+    setSearchResults(buildSearchResults({
+      query,
+      permittedMenuItems,
+      teams,
+    }));
   }, [activeCompetitionId, activeRole, canBrowseAllTeams, competitionLoading, permittedMenuItems]);
 
   useEffect(() => {
@@ -201,6 +177,8 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  const resultSections = groupSearchResults(searchResults);
 
   return (
     <AnimatePresence>
@@ -242,36 +220,52 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
               {(searchResults.length > 0 || searchQuery.trim().length >= 2) && (
                 <div className="min-h-0 space-y-1 overflow-y-auto overscroll-contain pr-1">
                   {searchResults.length > 0 ? (
-                    searchResults.map((result, index) => (
-                      <div
-                        key={`${result.type}-${index}`}
-                        className="p-2 rounded-md hover:bg-accent cursor-pointer"
-                        onClick={() => {
-                          if (result.type === "menu" && result.id) {
-                            const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
-                            if (item) {
-                              handleMenuSelection(item);
-                            }
-                          }
-                          if (result.type === "team" && result.id) {
-                            openTeamDashboard({ teamId: result.id, search: result.name });
-                          }
-                          handleClose();
-                        }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">{result.icon}</span>
-                          <div className="flex-1">
-                            <div className="font-medium">
-                              {result.type === 'menu' ? result.label : result.name}
-                            </div>
-                            {result.type === 'team' && (
-                              <div className="text-sm text-muted-foreground">
-                                {result.discipline} • {result.participants?.length || 0} Teilnehmer
-                              </div>
-                            )}
-                          </div>
+                    resultSections.map((section) => (
+                      <div key={section.key} className="space-y-1 pb-2 last:pb-0">
+                        <div className="px-2 pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {section.label}
                         </div>
+                        {section.results.map((result) => (
+                          <div
+                            key={`${result.type}-${result.id}`}
+                            className="rounded-md p-2 hover:bg-accent cursor-pointer"
+                            onClick={() => {
+                              if (result.type === "menu") {
+                                const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
+                                if (item) {
+                                  handleMenuSelection(item);
+                                }
+                              }
+                              if (result.type === "team") {
+                                openTeamDashboard({ teamId: result.id, search: result.name });
+                              }
+                              if (result.type === "participant") {
+                                openTeamDashboard({ teamId: result.teamId, search: result.name });
+                              }
+                              handleClose();
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">{result.icon}</span>
+                              <div className="flex-1">
+                                <div className="font-medium">
+                                  {result.type === "menu" ? result.label : result.name}
+                                </div>
+                                {result.type === "team" && (
+                                  <div className="text-sm text-muted-foreground">
+                                    {(result.discipline || "Offen") + " • " + (result.participants?.length || 0) + " Teilnehmer"}
+                                  </div>
+                                )}
+                                {result.type === "participant" && (
+                                  <div className="text-sm text-muted-foreground">
+                                    {result.teamName}
+                                    {result.discipline ? ` • ${result.discipline}` : ""}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ))
                   ) : (

@@ -18,31 +18,14 @@ import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams } from "@/lib/team-access-config";
-
-type SearchResult =
-  | {
-      type: "menu";
-      id: string;
-      label: string;
-      icon: NavigationMenuItem["icon"];
-    }
-  | {
-      type: "team";
-      id: string;
-      name?: string;
-      label?: string;
-      discipline?: string | null;
-      participants?: unknown[];
-      icon: string;
-    };
+import { buildSearchResults, groupSearchResults, type SearchResult } from "@/lib/search-results";
 
 type TeamsSearchResponse = {
   teams?: Array<{
     id: string;
     name?: string;
-    label?: string;
     discipline?: string | null;
-    participants?: unknown[];
+    participants?: Array<{ id?: string; firstName?: string; lastName?: string; email?: string | null }>;
   }>;
 };
 
@@ -77,23 +60,7 @@ export default function CommandPill() {
     }
 
     const lowerQuery = query.toLowerCase();
-    
-    // Search menu items first
-    const menuResults: SearchResult[] = permittedMenuItems
-      .filter(item => {
-        // Check if query matches label or keywords
-        return item.label.toLowerCase().includes(lowerQuery) ||
-               item.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery));
-      })
-      .map(item => ({
-        type: 'menu' as const,
-        id: item.id,
-        label: item.label,
-        icon: item.icon,
-      }));
-
-    // Search teams via API
-    let teamResults: SearchResult[] = [];
+    let teams: TeamsSearchResponse["teams"] = [];
     if (lowerQuery.trim().length >= 2 && !competitionLoading && activeCompetitionId) {
       try {
         const params = new URLSearchParams({
@@ -105,19 +72,18 @@ export default function CommandPill() {
         const response = await fetch(`/api/teams?${params.toString()}`);
         if (response.ok) {
           const teamsData = (await response.json()) as TeamsSearchResponse;
-          teamResults = (teamsData.teams ?? []).map((team) => ({
-            type: 'team',
-            ...team,
-            icon: "🏅"
-          }));
+          teams = teamsData.teams ?? [];
         }
       } catch (error) {
         console.error("Search error:", error);
       }
     }
 
-    // Combine results: menu items first, then teams
-    setSearchResults([...menuResults, ...teamResults]);
+    setSearchResults(buildSearchResults({
+      query,
+      permittedMenuItems,
+      teams: teams ?? [],
+    }));
   }, [activeCompetitionId, activeRole, canBrowseAllTeams, competitionLoading, permittedMenuItems]);
 
   useEffect(() => {
@@ -248,6 +214,7 @@ export default function CommandPill() {
     { id: "esv", label: "ESV", icon: "🏔️" },
     { id: "bunt", label: "Bunt", icon: "🎨" },
   ];
+  const resultSections = groupSearchResults(searchResults);
 
   return (
     <>
@@ -324,36 +291,52 @@ export default function CommandPill() {
                 {searchQuery && (
                   <div className="min-h-0 space-y-2 overflow-y-auto overscroll-contain pr-1">
                     {searchResults.length > 0 ? (
-                      searchResults.map((result, index) => (
-                        <div
-                          key={`${result.type}-${result.id || index}`}
-                        className="p-2 rounded-md hover:bg-accent cursor-pointer"
-                        onClick={() => {
-                          if (result.type === 'menu') {
-                              const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
-                              if (item) {
-                                handleMenuSelection(item);
-                              }
-                          }
-                          if (result.type === "team" && result.id) {
-                            openTeamDashboard({ teamId: result.id, search: result.name });
-                          }
-                          closeSearch();
-                        }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{result.icon}</span>
-                            <div className="flex-1">
-                              <div className="font-medium">
-                                {result.type === 'menu' ? result.label : result.name}
-                              </div>
-                              {result.type === 'team' && (
-                                <div className="text-sm text-muted-foreground">
-                                  {result.discipline} • {result.participants?.length || 0} Teilnehmer
-                                </div>
-                              )}
-                            </div>
+                      resultSections.map((section) => (
+                        <div key={section.key} className="space-y-1 pb-2 last:pb-0">
+                          <div className="px-2 pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {section.label}
                           </div>
+                          {section.results.map((result) => (
+                            <div
+                              key={`${result.type}-${result.id}`}
+                              className="rounded-md p-2 hover:bg-accent cursor-pointer"
+                              onClick={() => {
+                                if (result.type === "menu") {
+                                  const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
+                                  if (item) {
+                                    handleMenuSelection(item);
+                                  }
+                                }
+                                if (result.type === "team") {
+                                  openTeamDashboard({ teamId: result.id, search: result.name });
+                                }
+                                if (result.type === "participant") {
+                                  openTeamDashboard({ teamId: result.teamId, search: result.name });
+                                }
+                                closeSearch();
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">{result.icon}</span>
+                                <div className="flex-1">
+                                  <div className="font-medium">
+                                    {result.type === "menu" ? result.label : result.name}
+                                  </div>
+                                  {result.type === "team" && (
+                                    <div className="text-sm text-muted-foreground">
+                                      {(result.discipline || "Offen") + " • " + (result.participants?.length || 0) + " Teilnehmer"}
+                                    </div>
+                                  )}
+                                  {result.type === "participant" && (
+                                    <div className="text-sm text-muted-foreground">
+                                      {result.teamName}
+                                      {result.discipline ? ` • ${result.discipline}` : ""}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       ))
                     ) : (
