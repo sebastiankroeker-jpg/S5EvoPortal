@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { X, Search } from "lucide-react";
 import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
+import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
+import { openTeamDashboard } from "@/lib/admin-routing";
 
 interface SearchItem {
   type: "menu" | "team";
@@ -44,7 +46,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
 
   const switchToTab = (tabId: string, detail?: Record<string, string>) => {
     if (pathname !== "/") {
-      router.push(tabId === "home" ? "/" : `/#${tabId}`);
+      navigateFromExternalBottomTab(router, tabId, detail);
       return;
     }
     const event = new CustomEvent("switchTab", { detail: { tabId, ...detail } });
@@ -75,8 +77,17 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "all-teams":
         switchToTab("dashboard");
         break;
+      case "orga":
+        switchToTab("orga");
+        break;
+      case "participants":
+        router.push("/teilnehmer");
+        break;
       case "changes":
         router.push("/aenderungen");
+        break;
+      case "claim-links":
+        router.push("/claim-links");
         break;
       case "live":
         switchToTab("live");
@@ -96,6 +107,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "changelog":
         router.push("/changelog");
         break;
+      case "sign-out":
+        router.push("/logout");
+        break;
       default:
         break;
     }
@@ -108,7 +122,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   };
 
   // Search implementation
-  const performSearch = async (query: string) => {
+  const performSearch = useCallback(async (query: string) => {
     const lowerQuery = query.toLowerCase().trim();
     
     // Filter menu items (show all if no query)
@@ -143,7 +157,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     }
 
     setSearchResults([...menuResults, ...teamResults]);
-  };
+  }, [permittedMenuItems]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -153,7 +167,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     }, searchQuery ? 200 : 0);
 
     return () => clearTimeout(debounce);
-  }, [isOpen, searchQuery, pathname, permittedMenuItems, roles, status]);
+  }, [isOpen, pathname, performSearch, searchQuery, roles, status]);
 
   // Close overlay with ESC
   useEffect(() => {
@@ -179,13 +193,13 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
           onClick={handleClose}
         >
           <motion.div
-            className="fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-lg mx-4"
+            className="fixed inset-x-4 top-20 mx-auto w-auto max-w-lg"
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -50, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-card border border-border/50 rounded-md shadow-xl p-4">
+            <div className="flex max-h-[min(75vh,40rem)] flex-col overflow-hidden rounded-md border border-border/50 bg-card p-4 shadow-xl">
               <div className="flex items-center gap-2 mb-4">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <Input
@@ -206,7 +220,7 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
               </div>
               
               {searchResults.length > 0 && (
-                <div className="space-y-1 max-h-72 overflow-y-auto thin-scrollbar">
+                <div className="min-h-0 space-y-1 overflow-y-auto overscroll-contain pr-1">
                   {searchResults.length > 0 ? (
                     searchResults.map((result, index) => (
                       <div
@@ -218,6 +232,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                             if (item) {
                               handleMenuSelection(item);
                             }
+                          }
+                          if (result.type === "team" && result.id) {
+                            openTeamDashboard({ teamId: result.id, search: result.name });
                           }
                           handleClose();
                         }}

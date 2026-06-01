@@ -3,12 +3,15 @@ import type { Permission, Role } from "@/lib/permissions";
 export interface NavigationMenuItem {
   id:
     | "home"
+    | "orga"
     | "registration"
     | "my-teams"
     | "live"
     | "profile"
     | "all-teams"
+    | "participants"
     | "changes"
+    | "claim-links"
     | "administration"
     | "architecture"
     | "infrastructure"
@@ -28,6 +31,13 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Home",
     keywords: ["home", "start", "hauptseite"],
     icon: "🏠",
+  },
+  {
+    id: "orga",
+    label: "Orga",
+    keywords: ["orga", "orga-bereich", "wettkampfleitung", "support"],
+    icon: "⚙️",
+    requiresAuth: true,
   },
   {
     id: "registration",
@@ -65,10 +75,25 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     requiresAuth: true,
   },
   {
+    id: "participants",
+    label: "Teilnehmerübersicht",
+    keywords: ["teilnehmer", "teilnehmeruebersicht", "teilnehmerliste", "orga teilnehmer"],
+    icon: "📋",
+    requiresAuth: true,
+  },
+  {
     id: "changes",
     label: "Aenderungen",
     keywords: ["aenderungen", "freigaben", "approval", "antraege", "queue"],
     icon: "📝",
+    permission: "team.view.all",
+    requiresAuth: true,
+  },
+  {
+    id: "claim-links",
+    label: "Claim-Links",
+    keywords: ["claim", "claim links", "uebernahmelinks", "support links"],
+    icon: "🔐",
     permission: "team.view.all",
     requiresAuth: true,
   },
@@ -143,6 +168,8 @@ export function getPermittedNavigationMenuItems({
     .filter((item) => {
       if (claimPath && !CLAIM_ROUTE_ITEM_IDS.has(item.id)) return false;
       if (item.requiresAuth && !authenticated) return false;
+      if (item.id === "orga" && !(can("team.view.all") || can("results.edit"))) return false;
+      if (item.id === "participants" && !(can("team.view.all") || can("results.edit"))) return false;
       if (item.permission && !can(item.permission)) return false;
       if (item.roles && !roles.some((role) => item.roles?.includes(role))) return false;
       return true;

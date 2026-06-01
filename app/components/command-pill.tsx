@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { X, Search, Menu } from "lucide-react";
 import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
+import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
+import { openTeamDashboard } from "@/lib/admin-routing";
 
 type SearchResult =
   | {
@@ -149,7 +151,7 @@ export default function CommandPill() {
       const event = new CustomEvent("switchTab", { detail: { tabId, ...detail } });
       window.dispatchEvent(event);
     } else {
-      router.push(tabId === "home" ? "/" : `/#${tabId}`);
+      navigateFromExternalBottomTab(router, tabId, detail);
     }
     closeBurger();
   };
@@ -171,6 +173,18 @@ export default function CommandPill() {
       case "my-teams":
       case "all-teams":
         switchToTab("dashboard");
+        break;
+      case "orga":
+        switchToTab("orga");
+        break;
+      case "participants":
+        navigateAndClose("/teilnehmer");
+        break;
+      case "changes":
+        navigateAndClose("/aenderungen");
+        break;
+      case "claim-links":
+        navigateAndClose("/claim-links");
         break;
       case "live":
         switchToTab("live");
@@ -259,13 +273,13 @@ export default function CommandPill() {
             onClick={closeSearch}
           >
             <motion.div
-              className="fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-lg mx-4"
+              className="fixed inset-x-4 top-20 mx-auto w-auto max-w-lg"
               initial={{ y: -50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -50, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-card border border-border/50 rounded-md shadow-xl p-4">
+              <div className="flex max-h-[min(75vh,40rem)] flex-col overflow-hidden rounded-md border border-border/50 bg-card p-4 shadow-xl">
                 <div className="flex items-center gap-2 mb-4">
                   <Search className="h-4 w-4 text-muted-foreground" />
                   <Input
@@ -286,7 +300,7 @@ export default function CommandPill() {
                 </div>
                 
                 {searchQuery && (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="min-h-0 space-y-2 overflow-y-auto overscroll-contain pr-1">
                     {searchResults.length > 0 ? (
                       searchResults.map((result, index) => (
                         <div
@@ -298,6 +312,9 @@ export default function CommandPill() {
                               if (item) {
                                 handleMenuSelection(item);
                               }
+                          }
+                          if (result.type === "team" && result.id) {
+                            openTeamDashboard({ teamId: result.id, search: result.name });
                           }
                           closeSearch();
                         }}
