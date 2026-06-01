@@ -14,6 +14,7 @@ import {
   serializeSnapshot,
   snapshotToParticipantUpdateData,
   summarizeParticipantChanges,
+  summarizeParticipantRequestConflicts,
   toParticipantSnapshot,
 } from "@/lib/participant-change";
 import { prisma } from "@/lib/prisma";
@@ -132,7 +133,7 @@ export async function PUT(
   const beforeSnapshot = pendingChange.beforeData ? parseSnapshot(pendingChange.beforeData) : liveSnapshot;
   const requestedSnapshot = parseSnapshot(pendingChange.changeData);
   const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
-  const liveDriftSummary = summarizeParticipantChanges(beforeSnapshot, liveSnapshot);
+  const liveDriftSummary = summarizeParticipantRequestConflicts(beforeSnapshot, requestedSnapshot, liveSnapshot);
 
   if (action === "approve") {
     if (liveDriftSummary.length > 0) {

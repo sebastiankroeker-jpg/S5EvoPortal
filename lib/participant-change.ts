@@ -251,6 +251,36 @@ export function summarizeParticipantChanges(before: ParticipantSnapshot, after: 
   });
 }
 
+export function summarizeParticipantRequestConflicts(
+  before: ParticipantSnapshot,
+  requested: ParticipantSnapshot,
+  live: ParticipantSnapshot,
+): ParticipantChangeSummaryItem[] {
+  const requestedDiff = diffParticipantSnapshots(before, requested);
+
+  return PARTICIPANT_CHANGE_FIELDS.flatMap((field) => {
+    const requestedChange = requestedDiff[field];
+    if (!requestedChange) {
+      return [];
+    }
+
+    const normalizedBefore = normalizeParticipantSnapshotValue(field, before[field]);
+    const normalizedRequested = normalizeParticipantSnapshotValue(field, requested[field]);
+    const normalizedLive = normalizeParticipantSnapshotValue(field, live[field]);
+
+    if (normalizedLive === normalizedBefore || normalizedLive === normalizedRequested) {
+      return [];
+    }
+
+    return [{
+      field,
+      label: PARTICIPANT_FIELD_LABELS[field],
+      before: formatParticipantFieldValue(field, before[field]),
+      after: formatParticipantFieldValue(field, live[field]),
+    }];
+  });
+}
+
 export async function recalculateTeamClassification(teamId: string) {
   let classificationWarnings: string[] = [];
 

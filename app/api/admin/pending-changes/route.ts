@@ -3,7 +3,13 @@ import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 
 import { evaluateTeamState, type TeamStateParticipantInput } from "@/lib/domain/classification";
-import { parseSnapshot, serializeSnapshot, summarizeParticipantChanges, toParticipantSnapshot, type ParticipantSnapshot } from "@/lib/participant-change";
+import {
+  parseSnapshot,
+  serializeSnapshot,
+  summarizeParticipantRequestConflicts,
+  toParticipantSnapshot,
+  type ParticipantSnapshot,
+} from "@/lib/participant-change";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
@@ -302,7 +308,7 @@ function decorateParticipantChange(input: {
   const beforeSnapshot = input.beforeSnapshot ?? parseSnapshot(input.beforeData);
   const liveSnapshot = toParticipantSnapshot(input.participant);
   const liveDriftSummary = input.beforeData
-    ? summarizeParticipantChanges(beforeSnapshot, liveSnapshot)
+    ? summarizeParticipantRequestConflicts(beforeSnapshot, requestedSnapshot, liveSnapshot)
     : [];
   const projectedParticipants: TeamStateParticipantInput[] = input.participant.team.participants.map((participant) => {
     const birthYear =
