@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { fullSignOut } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function NavBar() {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { activeRole, roles, setSimulatedRole, isSimulating } = usePermissions();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -100,8 +102,10 @@ export default function NavBar() {
                 {THEMES.map((t) => (
                   <button
                     key={t.id}
-                    className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
-                      theme === t.id ? "text-primary font-medium" : "text-muted-foreground"
+                    className={`flex w-full items-center justify-between rounded-sm px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
+                      theme === t.id
+                        ? "bg-primary/15 text-primary font-medium"
+                        : "text-muted-foreground"
                     }`}
                     onClick={() => {
                       setTheme(t.id);
@@ -171,8 +175,10 @@ export default function NavBar() {
                       {simulatable.map((role) => (
                         <button
                           key={role}
-                          className={`w-full px-3 py-1.5 text-left text-xs hover:bg-accent transition-colors ${
-                            activeRole === role ? "text-primary font-medium" : "text-muted-foreground"
+                          className={`w-full rounded-sm px-3 py-1.5 text-left text-xs hover:bg-accent transition-colors ${
+                            activeRole === role
+                              ? "bg-primary/15 text-primary font-medium"
+                              : "text-muted-foreground"
                           }`}
                           onClick={() => { setSimulatedRole(role); setShowRoleMenu(false); }}
                         >
@@ -222,7 +228,11 @@ export default function NavBar() {
                     <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Konto</p>
                     <Link
                       href="/profile"
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className={`flex items-center gap-2 rounded-sm px-3 py-1.5 text-xs transition-colors ${
+                        pathname === "/profile"
+                          ? "bg-primary/15 text-primary font-medium"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      }`}
                       onClick={() => setShowAccountMenu(false)}
                     >
                       <UserCircle2 className="h-3.5 w-3.5" />
@@ -246,8 +256,10 @@ export default function NavBar() {
                         {simulatable.map((role) => (
                           <button
                             key={role}
-                            className={`w-full px-3 py-1.5 text-left text-xs hover:bg-accent transition-colors ${
-                              activeRole === role ? "text-primary font-medium" : "text-muted-foreground"
+                            className={`w-full rounded-sm px-3 py-1.5 text-left text-xs hover:bg-accent transition-colors ${
+                              activeRole === role
+                                ? "bg-primary/15 text-primary font-medium"
+                                : "text-muted-foreground"
                             }`}
                             onClick={() => {
                               setSimulatedRole(role);
@@ -260,9 +272,8 @@ export default function NavBar() {
                         <div className="my-1 border-t border-border/40" />
                       </>
                     )}
-                    <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-red-500">Danger Zone</p>
                     <button
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-red-500 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
+                      className="flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                       onClick={() => {
                         setShowAccountMenu(false);
                         fullSignOut();
