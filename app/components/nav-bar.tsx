@@ -74,12 +74,12 @@ export default function NavBar() {
 
       {/* Center: Theme-Switcher + Dropdown */}
       <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-card/90 p-1 shadow-sm">
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-0.5">
           {THEMES.map((t) => (
             <button
               key={t.id}
               onClick={() => setTheme(t.id)}
-              className={`h-8 rounded-full px-2 text-xs flex items-center justify-center gap-1 transition-all ${
+              className={`inline-flex h-8 items-center justify-center gap-1 rounded-full px-1.5 text-[11px] transition-all ${
                 theme === t.id
                   ? "bg-primary text-primary-foreground ring-1 ring-primary/60 scale-[1.02] shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/80"
@@ -89,7 +89,7 @@ export default function NavBar() {
               aria-pressed={theme === t.id}
             >
               <span className="text-[13px] leading-none">{t.icon}</span>
-              <span className="hidden md:inline font-medium tracking-wide">{t.label}</span>
+              <span className="hidden md:inline whitespace-nowrap font-medium">{t.label}</span>
             </button>
           ))}
         </div>
