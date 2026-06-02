@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -43,6 +43,8 @@ export default function CommandPill() {
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const resultItemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const isClaimPath = isClaimNavigationPath(pathname);
 
   const permittedMenuItems = getPermittedNavigationMenuItems({
@@ -53,7 +55,7 @@ export default function CommandPill() {
   });
 
   // Search implementation
-  const performSearch = useCallback(async (query: string) => {
+  const performSearch = useCallback(async (query: string, signal?: AbortSignal) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
@@ -69,16 +71,18 @@ export default function CommandPill() {
           roleContext: activeRole,
         });
         if (canBrowseAllTeams) params.set("scope", "all");
-        const response = await fetch(`/api/teams?${params.toString()}`);
+        const response = await fetch(`/api/teams?${params.toString()}`, { signal });
         if (response.ok) {
           const teamsData = (await response.json()) as TeamsSearchResponse;
           teams = teamsData.teams ?? [];
         }
       } catch (error) {
+        if (signal?.aborted) return;
         console.error("Search error:", error);
       }
     }
 
+    if (signal?.aborted) return;
     setSearchResults(buildSearchResults({
       query,
       permittedMenuItems,
@@ -87,11 +91,17 @@ export default function CommandPill() {
   }, [activeCompetitionId, activeRole, canBrowseAllTeams, competitionLoading, permittedMenuItems]);
 
   useEffect(() => {
+    if (!isSearchOpen) return;
+
+    const controller = new AbortController();
     const debounce = setTimeout(() => {
-      performSearch(searchQuery);
+      void performSearch(searchQuery, controller.signal);
     }, 300);
-    return () => clearTimeout(debounce);
-  }, [performSearch, searchQuery]);
+    return () => {
+      controller.abort();
+      clearTimeout(debounce);
+    };
+  }, [isSearchOpen, performSearch, searchQuery]);
 
   // Close overlays with ESC
   useEffect(() => {
@@ -99,6 +109,7 @@ export default function CommandPill() {
       if (e.key === "Escape") {
         setIsSearchOpen(false);
         setIsBurgerOpen(false);
+        setHighlightedIndex(-1);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -109,12 +120,14 @@ export default function CommandPill() {
     setIsSearchOpen(true);
     setSearchQuery("");
     setSearchResults([]);
+    setHighlightedIndex(-1);
   };
 
   const closeSearch = () => {
     setIsSearchOpen(false);
     setSearchQuery("");
     setSearchResults([]);
+    setHighlightedIndex(-1);
   };
 
   const openBurger = () => {
@@ -215,6 +228,38 @@ export default function CommandPill() {
     { id: "bunt", label: "Bunt", icon: "🎨" },
   ];
   const resultSections = groupSearchResults(searchResults);
+  const flatSearchResults = resultSections.flatMap((section) => section.results);
+  const effectiveHighlightedIndex =
+    flatSearchResults.length === 0 ? -1 : Math.min(highlightedIndex, flatSearchResults.length - 1);
+  let runningResultIndex = -1;
+  const indexedResultSections = resultSections.map((section) => ({
+    ...section,
+    entries: section.results.map((result) => {
+      runningResultIndex += 1;
+      return { result, index: runningResultIndex };
+    }),
+  }));
+
+  useEffect(() => {
+    if (effectiveHighlightedIndex < 0) return;
+    resultItemRefs.current[effectiveHighlightedIndex]?.scrollIntoView({ block: "nearest" });
+  }, [effectiveHighlightedIndex]);
+
+  const activateSearchResult = (result: SearchResult) => {
+    if (result.type === "menu") {
+      const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
+      if (item) {
+        handleMenuSelection(item);
+      }
+    }
+    if (result.type === "team") {
+      openTeamDashboard({ teamId: result.id, search: result.name });
+    }
+    if (result.type === "participant") {
+      openTeamDashboard({ teamId: result.teamId, search: result.name });
+    }
+    closeSearch();
+  };
 
   return (
     <>
@@ -275,6 +320,31 @@ export default function CommandPill() {
                     placeholder={isClaimPath ? "Navigation oder mein Team suchen..." : "Teams, Navigation oder Teilnehmer suchen..."}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setHighlightedIndex((current) =>
+                          flatSearchResults.length === 0 ? -1 : Math.min(current + 1, flatSearchResults.length - 1),
+                        );
+                      }
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setHighlightedIndex((current) =>
+                          flatSearchResults.length === 0 ? -1 : Math.max(current - 1, 0),
+                        );
+                      }
+                      if (e.key === "Enter" && highlightedIndex >= 0) {
+                        e.preventDefault();
+                        const result = flatSearchResults[effectiveHighlightedIndex];
+                        if (result) {
+                          activateSearchResult(result);
+                        }
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        closeSearch();
+                      }
+                    }}
                     className="flex-1"
                     autoFocus
                   />
@@ -291,52 +361,47 @@ export default function CommandPill() {
                 {searchQuery && (
                   <div className="min-h-0 space-y-2 overflow-y-auto overscroll-contain pr-1">
                     {searchResults.length > 0 ? (
-                      resultSections.map((section) => (
+                      indexedResultSections.map((section) => (
                         <div key={section.key} className="space-y-1 pb-2 last:pb-0">
                           <div className="px-2 pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             {section.label}
                           </div>
-                          {section.results.map((result) => (
-                            <div
-                              key={`${result.type}-${result.id}`}
-                              className="rounded-md p-2 hover:bg-accent cursor-pointer"
-                              onClick={() => {
-                                if (result.type === "menu") {
-                                  const item = permittedMenuItems.find((candidate) => candidate.id === result.id);
-                                  if (item) {
-                                    handleMenuSelection(item);
-                                  }
-                                }
-                                if (result.type === "team") {
-                                  openTeamDashboard({ teamId: result.id, search: result.name });
-                                }
-                                if (result.type === "participant") {
-                                  openTeamDashboard({ teamId: result.teamId, search: result.name });
-                                }
-                                closeSearch();
-                              }}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="text-base">{result.icon}</span>
-                                <div className="flex-1">
-                                  <div className="font-medium">
-                                    {result.type === "menu" ? result.label : result.name}
+                          {section.entries.map(({ result, index }) => {
+                            const isHighlighted = effectiveHighlightedIndex === index;
+                            return (
+                              <div
+                                key={`${result.type}-${result.id}`}
+                                ref={(element) => {
+                                  resultItemRefs.current[index] = element;
+                                }}
+                                className={`cursor-pointer rounded-md p-2 ${isHighlighted ? "bg-accent" : "hover:bg-accent"}`}
+                                onMouseEnter={() => setHighlightedIndex(index)}
+                                onClick={() => activateSearchResult(result)}
+                                role="option"
+                                aria-selected={isHighlighted}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">{result.icon}</span>
+                                  <div className="flex-1">
+                                    <div className="font-medium">
+                                      {result.type === "menu" ? result.label : result.name}
+                                    </div>
+                                    {result.type === "team" && (
+                                      <div className="text-sm text-muted-foreground">
+                                        {(result.discipline || "Offen") + " • " + (result.participants?.length || 0) + " Teilnehmer"}
+                                      </div>
+                                    )}
+                                    {result.type === "participant" && (
+                                      <div className="text-sm text-muted-foreground">
+                                        {result.teamName}
+                                        {result.discipline ? ` • ${result.discipline}` : ""}
+                                      </div>
+                                    )}
                                   </div>
-                                  {result.type === "team" && (
-                                    <div className="text-sm text-muted-foreground">
-                                      {(result.discipline || "Offen") + " • " + (result.participants?.length || 0) + " Teilnehmer"}
-                                    </div>
-                                  )}
-                                  {result.type === "participant" && (
-                                    <div className="text-sm text-muted-foreground">
-                                      {result.teamName}
-                                      {result.discipline ? ` • ${result.discipline}` : ""}
-                                    </div>
-                                  )}
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ))
                     ) : (
