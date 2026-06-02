@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, RefreshCw, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -198,6 +198,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "ALL">("PENDING");
   const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
   const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const dashboardMode = variant === "page";
@@ -342,6 +343,13 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   }, [decoratedChanges]);
 
   const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly);
+  const activeFilterCount = [
+    Boolean(participantFilterId),
+    Boolean(teamFilterId),
+    searchQuery.trim() !== "",
+    statusFilter !== "PENDING",
+    updatedOnly,
+  ].filter(Boolean).length;
   const activeFilterLabel = useMemo(() => {
     const labels: string[] = [];
     const participantName = participantFilterId
@@ -417,12 +425,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
               {stats.lastUpdated ? " · letzte Aktivität " + formatDateTime(stats.lastUpdated) : ""}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {hasActiveFilters && (
-              <Button type="button" variant="outline" size="sm" onClick={resetDashboardFilters}>
-                Filter lösen
-              </Button>
-            )}
+          <div className="flex shrink-0 items-center gap-1.5">
             <Button type="button" variant="ghost" size="sm" onClick={() => void fetchChanges("refresh")} disabled={refreshing}>
               <RefreshCw className={"h-4 w-4" + (refreshing ? " animate-spin" : "")} />
               <span className="sr-only">Aktualisieren</span>
@@ -430,87 +433,100 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
           </div>
         </div>
 
-        {hasActiveFilters && (
-          <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/25 px-3 py-2 text-xs">
-            <span className="min-w-0 truncate text-muted-foreground">
-              Aktiver Filter: <span className="text-foreground">{activeFilterLabel}</span>
-            </span>
-            <button type="button" className="shrink-0 font-medium text-primary" onClick={resetDashboardFilters}>
-              lösen
-            </button>
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant={statusFilter === "PENDING" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("PENDING")}
-            className="justify-between gap-2"
-          >
-            <span>Offen</span>
-            <span className="rounded bg-background/30 px-1 text-[10px]">{stats.openCount}</span>
-          </Button>
-          <Button
-            type="button"
-            variant={statusFilter === "APPROVED" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("APPROVED")}
-            className="justify-between gap-2"
-          >
-            <span>Genehmigt</span>
-            <span className="rounded bg-background/30 px-1 text-[10px]">{stats.approvedCount}</span>
-          </Button>
-          <Button
-            type="button"
-            variant={statusFilter === "REJECTED" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("REJECTED")}
-            className="justify-between gap-2"
-          >
-            <span>Abgelehnt</span>
-            <span className="rounded bg-background/30 px-1 text-[10px]">{stats.rejectedCount}</span>
-          </Button>
-          <Button
-            type="button"
-            variant={statusFilter === "ALL" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("ALL")}
-            className="justify-between gap-2"
-          >
-            <span>Alle</span>
-            <span className="rounded bg-background/30 px-1 text-[10px]">{decoratedChanges.length}</span>
-          </Button>
-          <Button
-            type="button"
-            variant={updatedOnly ? "default" : "outline"}
-            size="sm"
-            onClick={() => setUpdatedOnly((current) => !current)}
-            className="whitespace-nowrap"
-          >
-            Aktualisierte
-          </Button>
-          {hasActiveFilters && (
+        <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
+                {activeFilterCount} aktiv
+              </Badge>
+              {hasActiveFilters && (
+                <Button className="whitespace-nowrap" size="xs" variant="outline" onClick={resetDashboardFilters}>
+                  Filter löschen
+                </Button>
+              )}
+            </div>
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              onClick={resetDashboardFilters}
+              size="icon-xs"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
             >
-              Zurücksetzen
+              {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
             </Button>
-          )}
-        </div>
+          </div>
 
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Suche Teilnehmer, Team, Antragsteller oder Änderung"
-            className="pl-9"
-          />
+          <div className="relative mt-2">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Suche Teilnehmer, Team, Antragsteller oder Änderung"
+            />
+          </div>
+
+          {filtersOpen && (
+            <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+              {hasActiveFilters && (
+                <div className="rounded-md border border-border/60 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+                  Aktiver Filter: <span className="text-foreground">{activeFilterLabel}</span>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={statusFilter === "PENDING" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("PENDING")}
+                  className="justify-between gap-2"
+                >
+                  <span>Offen</span>
+                  <span className="rounded bg-background/30 px-1 text-[10px]">{stats.openCount}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={statusFilter === "APPROVED" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("APPROVED")}
+                  className="justify-between gap-2"
+                >
+                  <span>Genehmigt</span>
+                  <span className="rounded bg-background/30 px-1 text-[10px]">{stats.approvedCount}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={statusFilter === "REJECTED" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("REJECTED")}
+                  className="justify-between gap-2"
+                >
+                  <span>Abgelehnt</span>
+                  <span className="rounded bg-background/30 px-1 text-[10px]">{stats.rejectedCount}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={statusFilter === "ALL" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter("ALL")}
+                  className="justify-between gap-2"
+                >
+                  <span>Alle</span>
+                  <span className="rounded bg-background/30 px-1 text-[10px]">{decoratedChanges.length}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={updatedOnly ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setUpdatedOnly((current) => !current)}
+                  className="whitespace-nowrap"
+                >
+                  Aktualisierte
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {error && (
