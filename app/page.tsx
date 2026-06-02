@@ -19,6 +19,7 @@ type SwitchTabDetail = {
   tabId?: string;
   teamView?: string;
   ownerFilter?: string;
+  dashboardScope?: string;
 };
 
 type OrgaSummary = {
@@ -261,15 +262,10 @@ export default function Home() {
                       <p className="text-xs text-muted-foreground">Tenant & Wettkampf konfigurieren</p>
                     </button>
                   )}
-                  <button onClick={() => window.open("/architecture", "_blank")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                    <span className="text-lg">🔗</span>
-                    <p className="font-medium text-sm">Referenzarchitektur</p>
-                    <p className="text-xs text-muted-foreground">Technische Übersicht</p>
-                  </button>
-                  <button onClick={() => router.push('/tech')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                    <span className="text-lg">🖥️</span>
-                    <p className="font-medium text-sm">Infrastruktur</p>
-                    <p className="text-xs text-muted-foreground">System-Übersicht</p>
+                  <button onClick={() => router.push('/orga-links')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                    <span className="text-lg">🗂️</span>
+                    <p className="font-medium text-sm">Orga-Links</p>
+                    <p className="text-xs text-muted-foreground">Geparkte Technik- und Referenzseiten gesammelt an einem Ort</p>
                   </button>
                 </div>
               </div>

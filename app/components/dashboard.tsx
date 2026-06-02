@@ -39,6 +39,7 @@ import {
   openChangesDashboard,
   openUserDashboard,
 } from "@/lib/admin-routing";
+import { DASHBOARD_SCOPE_STORAGE_KEY, getStoredDashboardScope, setStoredDashboardScope } from "@/lib/dashboard-navigation";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -537,7 +538,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
-  const [ownTeamsOnly, setOwnTeamsOnly] = useState(false);
+  const [ownTeamsOnly, setOwnTeamsOnly] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return getStoredDashboardScope() === "mine";
+  });
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
@@ -667,6 +671,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   }, [showOwnerFilter]);
 
   useEffect(() => {
+    setStoredDashboardScope(ownTeamsOnly ? "mine" : "all");
+  }, [ownTeamsOnly]);
+
+  useEffect(() => {
     if (viewMode === "list") {
       setExpandedTeam(null);
       setExpandedTeamMeta(null);
@@ -691,9 +699,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   useEffect(() => {
     // Listen for switchTab events to handle owner filter
     const handleSwitchTab = (e: CustomEvent) => {
-      if (showOwnerFilter && e.detail.ownerFilter && e.detail.tabId === "dashboard") {
+      if (e.detail.tabId !== "dashboard") {
+        return;
+      }
+
+      if (showOwnerFilter && e.detail.ownerFilter) {
         setOwnerFilter(e.detail.ownerFilter);
         setPendingOwnerFilter(e.detail.ownerFilter);
+      }
+
+      if (e.detail.dashboardScope === "mine" || e.detail.dashboardScope === "all") {
+        setOwnTeamsOnly(e.detail.dashboardScope === "mine");
       }
     };
     
@@ -701,6 +717,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     window.addEventListener("switchTab", listener);
     return () => window.removeEventListener("switchTab", listener);
   }, [showOwnerFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedScope = window.sessionStorage.getItem(DASHBOARD_SCOPE_STORAGE_KEY);
+    if (storedScope === "mine" || storedScope === "all") {
+      setOwnTeamsOnly(storedScope === "mine");
+    }
+  }, []);
 
   // Apply pending owner filter after teams are loaded
   useEffect(() => {
@@ -812,12 +839,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       }
 
       if (result === 0) {
+        if (!ownTeamsOnly && left.isCurrentUserTeam !== right.isCurrentUserTeam) {
+          result = left.isCurrentUserTeam ? -1 : 1;
+        }
+      }
+
+      if (result === 0) {
         result = collator.compare(left.name, right.name);
       }
 
       return sortDirection === "asc" ? result : -result;
     });
-  }, [filteredTeams, sortField, sortDirection]);
+  }, [filteredTeams, ownTeamsOnly, sortField, sortDirection]);
 
   const visibleColumnDefs = LIST_OPTIONAL_COLUMNS.filter((column) => visibleColumns.includes(column.key));
 
@@ -877,7 +910,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     setSearchQuery("");
     setCategoryFilter("all");
     setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
-    setOwnTeamsOnly(false);
+    setOwnTeamsOnly(getStoredDashboardScope() === "mine");
     setIncompleteOnly(false);
     setCreatedFrom("");
     setCreatedTo("");

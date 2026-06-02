@@ -173,8 +173,10 @@ export default function CommandPill() {
         }
         break;
       case "my-teams":
+        switchToTab("dashboard", { dashboardScope: "mine" });
+        break;
       case "all-teams":
-        switchToTab("dashboard");
+        switchToTab("dashboard", { dashboardScope: "all" });
         break;
       case "orga":
         switchToTab("orga");
@@ -206,12 +208,8 @@ export default function CommandPill() {
       case "administration":
         navigateAndClose("/admin");
         break;
-      case "architecture":
-        window.open("/architecture", "_blank", "noopener,noreferrer");
-        closeBurger();
-        break;
-      case "infrastructure":
-        navigateAndClose("/tech");
+      case "orga-links":
+        navigateAndClose("/orga-links");
         break;
       case "changelog":
         navigateAndClose("/changelog");
@@ -546,23 +544,15 @@ export default function CommandPill() {
                             ⚙️ Administration
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start h-7 px-2 text-sm"
-                          onClick={() => {
-                            window.open("/architecture", "_blank");
-                            closeBurger();
-                          }}
-                        >
-                          🔗 Architektur
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start h-7 px-2 text-sm"
-                          onClick={() => navigateAndClose("/tech")}
-                        >
-                          🖥️ Infrastruktur
-                        </Button>
+                        {(can("team.view.all") || can("results.edit")) && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start h-7 px-2 text-sm"
+                            onClick={() => navigateAndClose("/orga-links")}
+                          >
+                            🗂️ Orga-Links
+                          </Button>
+                        )}
                       </div>
                     </div>
 

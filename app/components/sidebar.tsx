@@ -90,7 +90,6 @@ export default function Sidebar() {
   });
   const isClaimPath = isClaimNavigationPath(pathname);
   const showOrgaSection = !isClaimPath && (can("team.view.all") || can("results.edit"));
-  const showTechSection = !isClaimPath;
   const participantCanBrowseTeams = canRoleViewAllTeams(activeRole, activeCompetition);
   const teamLabel = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "Mein Team" : "Mannschaften";
   const teamIcon = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "🏃" : "📋";
@@ -125,11 +124,14 @@ export default function Sidebar() {
     window.dispatchEvent(new Event("sidebar-toggle"));
   };
 
-  const switchToTab = (tabId: string) => {
+  const switchToTab = (tabId: string, detail?: Record<string, string>) => {
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem("s5evo-active-tab", tabId);
       if (tabId === "registration") {
         window.sessionStorage.setItem("s5evo-team-view", "mannschaften");
+      }
+      if (tabId === "dashboard" && detail?.dashboardScope) {
+        window.sessionStorage.setItem("s5evo-dashboard-scope", detail.dashboardScope);
       }
     }
     setActiveTab(tabId as MainTab);
@@ -142,7 +144,7 @@ export default function Sidebar() {
     }
 
     setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("switchTab", { detail: { tabId } }));
+      window.dispatchEvent(new CustomEvent("switchTab", { detail: { tabId, ...detail } }));
     }, 50);
   };
 
@@ -204,13 +206,14 @@ export default function Sidebar() {
         <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} isCollapsed={isCollapsed} />
         <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} isCollapsed={isCollapsed} />
         <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
+        <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
 
         {showOrgaSection && (
           <>
             <SectionLabel label="Orga" isCollapsed={isCollapsed} />
             <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isActive={pathname === "/" && activeTab === "orga"} isCollapsed={isCollapsed} />
             {can("team.view.all") && (
-              <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard")} isActive={pathname === "/" && activeTab === "dashboard"} isCollapsed={isCollapsed} />
+              <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard", { dashboardScope: "all" })} isActive={pathname === "/" && activeTab === "dashboard"} isCollapsed={isCollapsed} />
             )}
             {can("team.view.all") && (
               <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} isCollapsed={isCollapsed} />
@@ -221,15 +224,7 @@ export default function Sidebar() {
             {can("config.edit") && (
               <SidebarItem icon="🏢" label="Administration" onClick={() => router.push("/admin")} isActive={pathname === "/admin"} isCollapsed={isCollapsed} />
             )}
-          </>
-        )}
-
-        {showTechSection && (
-          <>
-            <SectionLabel label="Tech" isCollapsed={isCollapsed} />
-            <SidebarItem icon="🔗" label="Architektur" onClick={() => window.open("/architecture", "_blank")} isCollapsed={isCollapsed} />
-            <SidebarItem icon="🖥️" label="Infrastruktur" onClick={() => router.push("/tech")} isActive={pathname === "/tech"} isCollapsed={isCollapsed} />
-            <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
+            <SidebarItem icon="🗂️" label="Orga-Links" onClick={() => router.push("/orga-links")} isActive={pathname === "/orga-links"} isCollapsed={isCollapsed} />
           </>
         )}
 

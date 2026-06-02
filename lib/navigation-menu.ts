@@ -12,12 +12,11 @@ export interface NavigationMenuItem {
     | "participants"
     | "changes"
     | "claim-links"
+    | "orga-links"
     | "administration"
     | "admin-competition"
     | "admin-users"
     | "admin-archive"
-    | "architecture"
-    | "infrastructure"
     | "changelog"
     | "sign-out";
   label: string;
@@ -101,6 +100,13 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     requiresAuth: true,
   },
   {
+    id: "orga-links",
+    label: "Orga-Links",
+    keywords: ["orga links", "links", "sammlung", "referenz", "architektur", "infrastruktur", "toolbox"],
+    icon: "🗂️",
+    requiresAuth: true,
+  },
+  {
     id: "administration",
     label: "Administration",
     keywords: ["admin", "einstellungen", "konfiguration", "config", "verwaltung"],
@@ -129,22 +135,6 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Admin: Archiv",
     keywords: ["archiv", "restore", "wiederherstellen", "geloescht", "gelöschte teams", "papierkorb"],
     icon: "♻️",
-    permission: "config.edit",
-    requiresAuth: true,
-  },
-  {
-    id: "architecture",
-    label: "Architektur",
-    keywords: ["architektur", "referenz", "technik"],
-    icon: "🔗",
-    roles: ["ADMIN", "MODERATOR"],
-    requiresAuth: true,
-  },
-  {
-    id: "infrastructure",
-    label: "Infrastruktur",
-    keywords: ["infrastruktur", "system", "sysadmin"],
-    icon: "🖥️",
     permission: "config.edit",
     requiresAuth: true,
   },
@@ -197,6 +187,7 @@ export function getPermittedNavigationMenuItems({
       if (item.requiresAuth && !authenticated) return false;
       if (item.id === "orga" && !(can("team.view.all") || can("results.edit"))) return false;
       if (item.id === "participants" && !(can("team.view.all") || can("results.edit"))) return false;
+      if (item.id === "orga-links" && !(can("team.view.all") || can("results.edit"))) return false;
       if (item.permission && !can(item.permission)) return false;
       if (item.roles && !roles.some((role) => item.roles?.includes(role))) return false;
       return true;

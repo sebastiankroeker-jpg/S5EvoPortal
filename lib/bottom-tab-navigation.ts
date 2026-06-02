@@ -14,6 +14,9 @@ export function navigateFromExternalBottomTab(
     if (tabId === "registration") {
       window.sessionStorage.setItem("s5evo-team-view", detail?.teamView || "mannschaften");
     }
+    if (tabId === "dashboard" && detail?.dashboardScope) {
+      window.sessionStorage.setItem("s5evo-dashboard-scope", detail.dashboardScope);
+    }
   }
 
   if (tabId === "profile") {

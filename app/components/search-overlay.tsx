@@ -81,8 +81,10 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         }
         break;
       case "my-teams":
+        switchToTab("dashboard", { dashboardScope: "mine" });
+        break;
       case "all-teams":
-        switchToTab("dashboard");
+        switchToTab("dashboard", { dashboardScope: "all" });
         break;
       case "orga":
         switchToTab("orga");
@@ -114,11 +116,8 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "administration":
         router.push("/admin");
         break;
-      case "architecture":
-        window.open("/architecture", "_blank", "noopener,noreferrer");
-        break;
-      case "infrastructure":
-        router.push("/tech");
+      case "orga-links":
+        router.push("/orga-links");
         break;
       case "changelog":
         router.push("/changelog");
