@@ -11,7 +11,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
-import { EllipsisVertical, FlaskConical, LogOut, Search, UserCircle2 } from "lucide-react";
+import { Check, ChevronDown, EllipsisVertical, FlaskConical, LogOut, Search, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -28,6 +28,7 @@ export default function NavBar() {
   const { activeRole, roles, setSimulatedRole, isSimulating } = usePermissions();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const THEMES: Array<{ id: Theme; icon: string; label: string }> = [
@@ -36,6 +37,7 @@ export default function NavBar() {
     { id: "esv", icon: "🏔️", label: "ESV" },
     { id: "bunt", icon: "🎨", label: "Bunt" },
   ];
+  const activeTheme = THEMES.find((t) => t.id === theme) || THEMES[0];
   const realRole = roles.length > 0 ? roles[0] : "ZUSCHAUER";
   const simulatable = getSimulatableRoles(realRole as Role);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -76,7 +78,7 @@ export default function NavBar() {
       </div>
 
       {/* Center: Theme-Switcher + Dropdown */}
-      <div className="flex items-center gap-1 rounded-full border border-primary/30 bg-card/90 p-0 md:p-0.5 shadow-sm">
+      <div className="relative flex items-center gap-1 rounded-full border border-primary/30 bg-card/90 p-0 md:p-0.5 shadow-sm">
         <div className="hidden md:flex items-center gap-px">
           {THEMES.map((t) => (
             <button
@@ -96,12 +98,21 @@ export default function NavBar() {
             </button>
           ))}
         </div>
+        <button
+          onClick={() => setShowThemeMenu(!showThemeMenu)}
+          className="inline-flex h-6 w-10 items-center justify-center gap-0.5 rounded-full border border-border/60 bg-background/95 text-[11px] font-medium text-foreground transition-colors hover:bg-accent/60 md:hidden"
+          aria-label="Theme-Menü öffnen"
+          title="Theme-Menü öffnen"
+        >
+          <span className="text-[12px] leading-none">{activeTheme.icon}</span>
+          <ChevronDown className="h-3 w-3" />
+        </button>
         <label htmlFor="theme-dropdown" className="sr-only">Theme wählen</label>
         <select
           id="theme-dropdown"
           value={theme}
           onChange={(e) => setTheme(e.target.value as Theme)}
-          className="h-6 w-[78px] md:h-7 md:w-auto md:min-w-[92px] rounded-full border border-border/60 bg-background/95 px-1 md:px-1.5 text-[10px] md:text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+          className="hidden md:inline-flex h-7 w-auto min-w-[92px] rounded-full border border-border/60 bg-background/95 px-1.5 text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
           aria-label="Theme auswählen"
           title="Theme auswählen"
         >
@@ -111,6 +122,28 @@ export default function NavBar() {
             </option>
           ))}
         </select>
+        {showThemeMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)} />
+            <div className="absolute left-0 top-full mt-1 w-32 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50 md:hidden">
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
+                    theme === t.id ? "text-primary font-medium" : "text-muted-foreground"
+                  }`}
+                  onClick={() => {
+                    setTheme(t.id);
+                    setShowThemeMenu(false);
+                  }}
+                >
+                  <span>{t.icon} {t.label}</span>
+                  {theme === t.id && <Check className="h-3.5 w-3.5" />}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right: Search + Role-Switcher + User + Abmelden */}
