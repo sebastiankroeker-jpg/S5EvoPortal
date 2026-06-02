@@ -905,6 +905,44 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     createdTo !== "",
   ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
+  const ownTeamsCount = teams.filter((team) => team.isCurrentUserTeam === true).length;
+  const roleStats = (() => {
+    const common = [
+      { value: `${filteredTeams.length}/${teams.length}`, label: "Teams" },
+      { value: `${categories.length}`, label: "Klassen" },
+    ];
+
+    if (activeRole === "ADMIN" || activeRole === "MODERATOR") {
+      return [
+        common[0],
+        { value: `${totalParticipants}`, label: "Teilnehmer:innen" },
+        common[1],
+        { value: `${incompleteTeams}`, label: "unvollständig" },
+      ];
+    }
+
+    if (activeRole === "TEAMCHEF") {
+      return [
+        common[0],
+        { value: `${ownTeamsCount}`, label: "meine Teams" },
+        { value: `${totalParticipants}`, label: "Teilnehmer:innen" },
+      ];
+    }
+
+    if (activeRole === "TEILNEHMER") {
+      return [
+        common[0],
+        { value: `${ownTeamsCount}`, label: "mein Team" },
+        common[1],
+      ];
+    }
+
+    return [
+      common[0],
+      { value: `${totalParticipants}`, label: "Teilnehmer:innen" },
+      common[1],
+    ];
+  })();
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -949,28 +987,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     <div className="space-y-4">
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span><span className="font-semibold text-primary">{filteredTeams.length}</span>/{teams.length} Teams</span>
-          <span>·</span>
-          <span><span className="font-semibold text-primary">{totalParticipants}</span> Teilnehmer:innen</span>
-          <span>·</span>
-          <span><span className="font-semibold text-primary">{categories.length}</span> Klassen</span>
-          <span>·</span>
-          <span><span className="font-semibold text-primary">{incompleteTeams}</span> unvollständig</span>
+          {roleStats.map((stat, index) => (
+            <span key={`${stat.label}-${index}`}>
+              {index > 0 && <span className="mr-2">·</span>}
+              <span className="font-semibold text-primary">{stat.value}</span> {stat.label}
+            </span>
+          ))}
         </div>
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          {categories.length > 0 && (
-            <div className="flex min-w-0 flex-wrap gap-1.5">
-              {categoryStats.map((cat) => (
-                <Badge key={cat.category} variant="outline" className="h-6 gap-1">
-                  <span>{categoryEmojis[cat.category] || "🏆"}</span>
-                  {cat.category} ({cat.count})
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          <div className="flex shrink-0 gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Button
               size="sm"
               variant={viewMode === "cards" ? "default" : "outline"}
@@ -985,65 +1011,87 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
             >
               Liste
             </Button>
-          </div>
-        </div>
-      </div>
-
-      <Card size="sm">
-        <CardHeader className="border-b pb-3">
-          <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            <button
+            <Button
               type="button"
-              onClick={() => setFiltersOpen((open) => !open)}
-              className="min-w-0 flex-1 text-left"
+              size="xs"
+              variant={ownTeamsOnly ? "default" : "outline"}
+              onClick={() => setOwnTeamsOnly((current) => !current)}
+              title="Eigene Mannschaften anzeigen"
             >
-              <div className="space-y-0.5">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <SlidersHorizontal className="size-4" />
-                  Filter & Suche
-                </CardTitle>
-                <p className="hidden text-xs text-muted-foreground sm:block">
-                  {showOwnerFilter
-                    ? "Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen"
-                    : "Suche, Klasse, Vollständigkeit und Zeitraum eingrenzen"}
-                </p>
-              </div>
-            </button>
-            <div className="flex shrink-0 items-center gap-1.5">
+              <Star className="size-3" />
+              Meine
+            </Button>
+            <Badge variant={hasActiveFilters ? "default" : "outline"}>
+              {activeFilterCount} aktiv
+            </Badge>
+            {hasActiveFilters && (
+              <Button size="xs" variant="outline" onClick={resetFilters}>
+                <X className="size-3" />
+                Filter löschen
+              </Button>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            {viewMode === "list" && (
               <Button
                 type="button"
                 size="xs"
-                variant={ownTeamsOnly ? "default" : "outline"}
-                onClick={() => setOwnTeamsOnly((current) => !current)}
-                title="Eigene Mannschaften anzeigen"
+                variant={listOptionsOpen ? "default" : "outline"}
+                onClick={() => setListOptionsOpen((open) => !open)}
               >
-                <Star className="size-3" />
-                Meine
+                Listenoptionen
               </Button>
-              <Badge variant={hasActiveFilters ? "default" : "outline"}>
-                {activeFilterCount} aktiv
-              </Badge>
-              {hasActiveFilters && (
-                <Button size="xs" variant="outline" onClick={resetFilters}>
-                  <X className="size-3" />
-                  Filter löschen
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => setFiltersOpen((open) => !open)}
-                aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
-              >
-                {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-              </Button>
-            </div>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
+            >
+              {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+            </Button>
           </div>
-        </CardHeader>
-
+        </div>
         {filtersOpen && (
-          <CardContent className="space-y-4 pt-4">
+          <div className="mt-3 space-y-4 border-t border-border/60 pt-3">
+            <div className="space-y-0.5">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <SlidersHorizontal className="size-4" />
+                Filter & Suche
+              </CardTitle>
+              <p className="hidden text-xs text-muted-foreground sm:block">
+                {showOwnerFilter
+                  ? "Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen"
+                  : "Suche, Klasse, Vollständigkeit und Zeitraum eingrenzen"}
+              </p>
+            </div>
+
+            {categories.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">Klassen-Pillen (setzt direkt den Filter)</p>
+                  <Button size="xs" variant={categoryFilter === "all" ? "default" : "outline"} onClick={() => setCategoryFilter("all")}>
+                    Alle Klassen
+                  </Button>
+                </div>
+                <div className="flex min-w-0 flex-wrap gap-1.5">
+                  {categoryStats.map((cat) => (
+                    <Button
+                      key={cat.category}
+                      size="xs"
+                      variant={categoryFilter === cat.category ? "default" : "outline"}
+                      onClick={() => setCategoryFilter(cat.category)}
+                    >
+                      <span>{categoryEmojis[cat.category] || "🏆"}</span>
+                      {cat.category} ({cat.count})
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className={`grid gap-4 md:grid-cols-2 ${showOwnerFilter ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
               <div className="space-y-1 xl:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">Suche</label>
@@ -1141,101 +1189,89 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 </Button>
               </div>
             </div>
-          </CardContent>
-        )}
-      </Card>
 
-      {viewMode === "list" && (
-        <Card size="sm">
-          <CardHeader className="border-b">
-            <button
-              type="button"
-              onClick={() => setListOptionsOpen((open) => !open)}
-              className="flex w-full items-center justify-between gap-3 text-left"
-            >
-              <div className="space-y-1">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <ArrowDownUp className="size-4" />
-                  Listenoptionen
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Sortierung festlegen, per Tabellenkopf umschalten und sichtbare Spalten anpassen
-                </p>
-              </div>
-              {listOptionsOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-            </button>
-          </CardHeader>
-          {listOptionsOpen && (
-            <CardContent className="space-y-4 pt-4">
-              <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_200px]">
+            {viewMode === "list" && listOptionsOpen && (
+              <div className="space-y-4 border-t border-border/60 pt-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Sortieren nach</label>
-                  <Select value={sortField} onValueChange={(value) => setSortField(value as TeamSortField)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sortierfeld wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SORT_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Reihenfolge</label>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between"
-                    onClick={() => setSortDirection((direction) => direction === "asc" ? "desc" : "asc")}
-                  >
-                    {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
+                  <CardTitle className="flex items-center gap-2 text-sm">
                     <ArrowDownUp className="size-4" />
-                  </Button>
+                    Listenoptionen
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Sortierung festlegen, per Tabellenkopf umschalten und sichtbare Spalten anpassen
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_200px]">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Sortieren nach</label>
+                    <Select value={sortField} onValueChange={(value) => setSortField(value as TeamSortField)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sortierfeld wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SORT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Reihenfolge</label>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-between"
+                      onClick={() => setSortDirection((direction) => direction === "asc" ? "desc" : "asc")}
+                    >
+                      {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
+                      <ArrowDownUp className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten</p>
+                  <div className="flex flex-wrap gap-2">
+                    {LIST_OPTIONAL_COLUMNS.map((column) => {
+                      const selected = visibleColumns.includes(column.key);
+                      const disableRemoval = selected && visibleColumns.length === 1;
+
+                      return (
+                        <label
+                          key={column.key}
+                          className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${selected ? "border-primary bg-primary/5" : "border-border/60 bg-background"} ${disableRemoval ? "opacity-70" : "cursor-pointer hover:bg-muted/40"}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={selected}
+                            disabled={disableRemoval}
+                            onChange={() => {
+                              setVisibleColumns((current) => {
+                                if (current.includes(column.key)) {
+                                  if (current.length === 1) return current;
+                                  return current.filter((entry) => entry !== column.key);
+                                }
+
+                                return [...current, column.key];
+                              });
+                            }}
+                          />
+                          <span>{column.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Die Teamspalte bleibt immer sichtbar.</p>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten</p>
-                <div className="flex flex-wrap gap-2">
-                  {LIST_OPTIONAL_COLUMNS.map((column) => {
-                    const selected = visibleColumns.includes(column.key);
-                    const disableRemoval = selected && visibleColumns.length === 1;
-
-                    return (
-                      <label
-                        key={column.key}
-                        className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${selected ? "border-primary bg-primary/5" : "border-border/60 bg-background"} ${disableRemoval ? "opacity-70" : "cursor-pointer hover:bg-muted/40"}`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4"
-                          checked={selected}
-                          disabled={disableRemoval}
-                          onChange={() => {
-                            setVisibleColumns((current) => {
-                              if (current.includes(column.key)) {
-                                if (current.length === 1) return current;
-                                return current.filter((entry) => entry !== column.key);
-                              }
-
-                              return [...current, column.key];
-                            });
-                          }}
-                        />
-                        <span>{column.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-muted-foreground">Die Teamspalte bleibt immer sichtbar.</p>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      )}
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Team-Kacheln (kompakt) */}
       {filteredTeams.length === 0 ? (
