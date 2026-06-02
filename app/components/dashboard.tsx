@@ -980,7 +980,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     setSearchQuery("");
     setCategoryFilter("all");
     setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
-    setOwnTeamsOnly(getStoredDashboardScope() === "mine");
+    setOwnTeamsOnly(false);
     setIncompleteOnly(false);
     setCreatedFrom("");
     setCreatedTo("");
@@ -1027,7 +1027,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           ))}
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-2 space-y-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Button
               size="sm"
@@ -1053,37 +1053,42 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               <Star className="size-3" />
               Meine
             </Button>
-            <Badge variant={hasActiveFilters ? "default" : "outline"}>
-              {activeFilterCount} aktiv
-            </Badge>
-            {hasActiveFilters && (
-              <Button size="xs" variant="outline" onClick={resetFilters}>
-                <X className="size-3" />
-                Filter löschen
-              </Button>
-            )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
-            {viewMode === "list" && (
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
+                {activeFilterCount} aktiv
+              </Badge>
+              {hasActiveFilters && (
+                <Button className="whitespace-nowrap" size="xs" variant="outline" onClick={resetFilters}>
+                  <X className="size-3" />
+                  Filter löschen
+                </Button>
+              )}
+            </div>
+
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {viewMode === "list" && (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={listOptionsOpen ? "default" : "outline"}
+                  onClick={() => setListOptionsOpen((open) => !open)}
+                >
+                  Listenoptionen
+                </Button>
+              )}
               <Button
                 type="button"
-                size="xs"
-                variant={listOptionsOpen ? "default" : "outline"}
-                onClick={() => setListOptionsOpen((open) => !open)}
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
               >
-                Listenoptionen
+                {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setFiltersOpen((open) => !open)}
-              aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
-            >
-              {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-            </Button>
+            </div>
           </div>
         </div>
         {filtersOpen && (
