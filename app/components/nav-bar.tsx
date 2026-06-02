@@ -25,7 +25,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function NavBar() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
-  const { activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
+  const { activeRole, roles, setSimulatedRole, isSimulating } = usePermissions();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -53,50 +53,58 @@ export default function NavBar() {
   }, []);
 
   return (
-    <nav 
-      className={`flex items-center justify-between px-4 py-1 border-b border-border/30 bg-card/80 backdrop-blur-sm sticky top-0 z-30 lg:transition-all lg:duration-200 ${
+    <nav
+      className={`flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/30 bg-card/85 backdrop-blur-sm sticky top-0 z-30 lg:transition-all lg:duration-200 ${
         showDesktopOffset ? (isCollapsed ? "lg:ml-12" : "lg:ml-52") : ""
       }`}
     >
       {/* Left: Logo + Version */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 min-w-0">
         <Link href="/" className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <span className="text-lg">🏅</span>
           <span className="font-semibold text-sm">S5Evo</span>
         </Link>
-        <Link href="/changelog" aria-label="Projektstand und Changelog öffnen">
-          <Badge variant="secondary" className="gap-1 text-[10px] hover:bg-primary/20 cursor-pointer">
+        <Link href="/changelog" aria-label="Projektstand und Changelog öffnen" className="hidden sm:inline-flex">
+          <Badge variant="secondary" className="gap-1 text-[10px] hover:bg-primary/20 cursor-pointer whitespace-nowrap">
             <span className="hidden sm:inline">Projektstand</span>
             <span>{APP_VERSION}</span>
           </Badge>
         </Link>
       </div>
 
-      {/* Center: Theme-Dots */}
-      <div className="flex items-center gap-0.5">
+      {/* Center: Theme-Switcher */}
+      <div className="flex items-center gap-1 rounded-full border border-primary/30 bg-card/90 p-1 shadow-sm">
         {THEMES.map((t) => (
           <button
             key={t.id}
             onClick={() => setTheme(t.id)}
-            className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center transition-all hover:scale-110 ${
-              theme === t.id ? "ring-1 ring-primary ring-offset-1 ring-offset-background scale-110" : "opacity-40 hover:opacity-80"
+            className={`h-8 rounded-full px-2 text-xs flex items-center justify-center gap-1 transition-all ${
+              theme === t.id
+                ? "bg-primary text-primary-foreground ring-1 ring-primary/60 scale-[1.02] shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/80"
             }`}
             title={t.label}
+            aria-label={`Theme ${t.label}`}
+            aria-pressed={theme === t.id}
           >
-            {t.icon}
+            <span className="text-[13px] leading-none">{t.icon}</span>
+            <span className="hidden md:inline font-medium tracking-wide">{t.label}</span>
           </button>
         ))}
       </div>
 
       {/* Right: Search + Role-Switcher + User + Abmelden */}
-      <div className="flex items-center gap-2">
-        {/* Search Icon */}
-        <button 
+      <div className="flex items-center gap-1.5">
+        {/* Search */}
+        <button
           onClick={() => setSearchOpen(true)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-2 rounded-full border-2 border-primary/50 bg-primary px-3 py-1.5 text-primary-foreground shadow-md transition-transform hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]"
           title="Suchen (Strg+K)"
+          aria-label="Suche öffnen"
         >
           <Search className="h-4 w-4" />
+          <span className="text-[12px] font-semibold tracking-wide">Suche</span>
+          <span className="hidden md:inline rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-medium tracking-wide">Strg+K</span>
         </button>
 
         {status === "authenticated" && session?.user && (
@@ -147,10 +155,10 @@ export default function NavBar() {
               </div>
             );
           })()}
-            <Link href="/profile" className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">
+            <Link href="/profile" className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden md:inline">
               👤 {session.user.name}
             </Link>
-            <Button variant="ghost" size="sm" onClick={() => fullSignOut()} className="text-xs text-muted-foreground h-6 px-2">
+            <Button variant="ghost" size="sm" onClick={() => fullSignOut()} className="text-xs text-muted-foreground h-7 px-2">
               Abmelden
             </Button>
           </>

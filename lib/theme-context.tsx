@@ -15,17 +15,31 @@ interface ThemeProviderProps {
   children: ReactNode;
 }
 
+const THEME_STORAGE_KEY = "s5evo-theme";
+const LEGACY_THEME_KEYS = ["theme", "app-theme", "color-theme"];
+
+function isTheme(value: string | null): value is Theme {
+  return value === "light" || value === "dark" || value === "bunt" || value === "esv";
+}
+
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === "undefined") return "light";
-
-    const savedTheme = localStorage.getItem("s5evo-theme") as Theme | null;
-    return savedTheme ?? "light";
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    if (isTheme(savedTheme)) return savedTheme;
+    for (const key of LEGACY_THEME_KEYS) {
+      const legacyTheme = localStorage.getItem(key);
+      if (isTheme(legacyTheme)) return legacyTheme;
+    }
+    return "light";
   });
 
   useEffect(() => {
     // Theme speichern und auf DOM anwenden
-    localStorage.setItem("s5evo-theme", theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    for (const key of LEGACY_THEME_KEYS) {
+      localStorage.setItem(key, theme);
+    }
     document.documentElement.setAttribute("data-theme", theme);
     
     // Set dark class for shadcn
