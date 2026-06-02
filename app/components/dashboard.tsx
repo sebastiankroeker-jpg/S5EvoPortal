@@ -151,17 +151,15 @@ const SORT_OPTIONS: Array<{ value: TeamSortField; label: string; adminOnly?: boo
   { value: "category", label: "Klasse" },
   { value: "contactName", label: "Team Manager:in" },
   { value: "contactEmail", label: "Kontakt E-Mail" },
-  { value: "ownerEmail", label: "Angelegt von" },
-  { value: "participantCount", label: "Teilnehmer", adminOnly: true },
+  { value: "participantCount", label: "Teilnehmer" },
 ];
 
 const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string; adminOnly?: boolean }> = [
   { key: "category", label: "Klasse" },
   { key: "contactName", label: "Team Manager:in" },
   { key: "contactEmail", label: "Kontakt E-Mail" },
-  { key: "ownerEmail", label: "Angelegt von" },
-  { key: "participantCount", label: "Teilnehmer", adminOnly: true },
-  { key: "participants", label: "Mitglieder", adminOnly: true },
+  { key: "participantCount", label: "Teilnehmer" },
+  { key: "participants", label: "Mitglieder" },
   { key: "createdAt", label: "Anmeldedatum", adminOnly: true },
   { key: "updatedAt", label: "Geändert" },
 ];
@@ -557,7 +555,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>([
     "category",
-    "ownerEmail",
+    "participantCount",
     "createdAt",
   ]);
 
