@@ -39,10 +39,17 @@ export type SearchResult =
       icon: string;
     };
 
+type ParticipantSearchResult = Extract<SearchResult, { type: "participant" }>;
+
 export type SearchResultSection = {
   key: "menu" | "team" | "participant";
   label: string;
   results: SearchResult[];
+};
+
+export type HighlightPart = {
+  text: string;
+  highlighted: boolean;
 };
 
 function normalizeQuery(value: string) {
@@ -55,6 +62,27 @@ function participantName(participant: SearchableParticipant) {
 
 function valueMatchesQuery(value: string | null | undefined, query: string) {
   return typeof value === "string" && value.toLowerCase().includes(query);
+}
+
+function scoreValue(value: string | null | undefined, query: string) {
+  if (!value) return -1;
+  const normalized = value.toLowerCase();
+  if (normalized === query) return 300;
+  if (normalized.startsWith(query)) return 200;
+  if (normalized.includes(` ${query}`)) return 120;
+  if (normalized.includes(query)) return 100;
+  return -1;
+}
+
+function scoreMenuItem(item: NavigationMenuItem, query: string) {
+  return Math.max(
+    scoreValue(item.label, query),
+    ...item.keywords.map((keyword) => scoreValue(keyword, query)),
+  );
+}
+
+function scoreTeam(team: SearchableTeam, query: string) {
+  return scoreValue(team.name, query);
 }
 
 function participantMatchesQuery(participant: SearchableParticipant, query: string) {
@@ -75,12 +103,11 @@ export function buildSearchResults(input: {
   const lowerQuery = normalizeQuery(input.query);
 
   const menuResults: SearchResult[] = input.permittedMenuItems
-    .filter((item) => {
-      if (!lowerQuery) return true;
-      return (
-        item.label.toLowerCase().includes(lowerQuery) ||
-        item.keywords.some((keyword) => keyword.toLowerCase().includes(lowerQuery))
-      );
+    .filter((item) => !lowerQuery || scoreMenuItem(item, lowerQuery) >= 0)
+    .sort((left, right) => {
+      if (!lowerQuery) return left.label.localeCompare(right.label, "de");
+      return scoreMenuItem(right, lowerQuery) - scoreMenuItem(left, lowerQuery) ||
+        left.label.localeCompare(right.label, "de");
     })
     .map((item) => ({
       type: "menu",
@@ -94,8 +121,12 @@ export function buildSearchResults(input: {
   }
 
   const teamResults: SearchResult[] = input.teams
-    .filter((team) => valueMatchesQuery(team.name, lowerQuery))
+    .filter((team) => scoreTeam(team, lowerQuery) >= 0)
     .filter((team) => Boolean(team.id && team.name))
+    .sort((left, right) =>
+      scoreTeam(right, lowerQuery) - scoreTeam(left, lowerQuery) ||
+      (left.name ?? "").localeCompare(right.name ?? "", "de"),
+    )
     .map((team) => ({
       type: "team",
       id: team.id as string,
@@ -105,7 +136,7 @@ export function buildSearchResults(input: {
       icon: "🏅",
     }));
 
-  const participantResults: SearchResult[] = [];
+  const participantResults: ParticipantSearchResult[] = [];
   const seenParticipantKeys = new Set<string>();
 
   for (const team of input.teams) {
@@ -131,6 +162,11 @@ export function buildSearchResults(input: {
     }
   }
 
+  participantResults.sort((left, right) =>
+    scoreValue(right.name, lowerQuery) - scoreValue(left.name, lowerQuery) ||
+    left.name.localeCompare(right.name, "de"),
+  );
+
   return [...menuResults, ...teamResults, ...participantResults];
 }
 
@@ -149,4 +185,33 @@ export function groupSearchResults(results: SearchResult[]): SearchResultSection
   }
 
   return sections.filter((section) => section.results.length > 0);
+}
+
+export function splitHighlightedText(text: string, query: string): HighlightPart[] {
+  const normalizedQuery = normalizeQuery(query);
+  if (!normalizedQuery || !text) {
+    return [{ text, highlighted: false }];
+  }
+
+  const normalizedText = text.toLowerCase();
+  const startIndex = normalizedText.indexOf(normalizedQuery);
+
+  if (startIndex < 0) {
+    return [{ text, highlighted: false }];
+  }
+
+  const endIndex = startIndex + normalizedQuery.length;
+  const parts: HighlightPart[] = [];
+
+  if (startIndex > 0) {
+    parts.push({ text: text.slice(0, startIndex), highlighted: false });
+  }
+
+  parts.push({ text: text.slice(startIndex, endIndex), highlighted: true });
+
+  if (endIndex < text.length) {
+    parts.push({ text: text.slice(endIndex), highlighted: false });
+  }
+
+  return parts;
 }

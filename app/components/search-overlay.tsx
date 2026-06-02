@@ -13,7 +13,7 @@ import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams } from "@/lib/team-access-config";
-import { buildSearchResults, groupSearchResults, type SearchResult } from "@/lib/search-results";
+import { buildSearchResults, groupSearchResults, splitHighlightedText, type SearchResult } from "@/lib/search-results";
 
 interface SearchTeamResult {
   id?: string;
@@ -40,6 +40,16 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const resultItemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const isClaimPath = isClaimNavigationPath(pathname);
+
+  const renderHighlightedText = (text: string) =>
+    splitHighlightedText(text, searchQuery).map((part, index) => (
+      <span
+        key={`${part.text}-${index}`}
+        className={part.highlighted ? "rounded bg-primary/15 px-0.5 text-foreground" : undefined}
+      >
+        {part.text}
+      </span>
+    ));
 
   const switchToTab = (tabId: string, detail?: Record<string, string>) => {
     if (pathname !== "/") {
@@ -310,7 +320,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                                 <span className="text-base">{result.icon}</span>
                                 <div className="flex-1">
                                   <div className="font-medium">
-                                    {result.type === "menu" ? result.label : result.name}
+                                    {result.type === "menu"
+                                      ? renderHighlightedText(result.label)
+                                      : renderHighlightedText(result.name)}
                                   </div>
                                   {result.type === "team" && (
                                     <div className="text-sm text-muted-foreground">
