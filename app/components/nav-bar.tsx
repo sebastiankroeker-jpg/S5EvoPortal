@@ -72,25 +72,42 @@ export default function NavBar() {
         </Link>
       </div>
 
-      {/* Center: Theme-Switcher */}
-      <div className="flex items-center gap-1 rounded-full border border-primary/30 bg-card/90 p-1 shadow-sm">
-        {THEMES.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTheme(t.id)}
-            className={`h-8 rounded-full px-2 text-xs flex items-center justify-center gap-1 transition-all ${
-              theme === t.id
-                ? "bg-primary text-primary-foreground ring-1 ring-primary/60 scale-[1.02] shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/80"
-            }`}
-            title={t.label}
-            aria-label={`Theme ${t.label}`}
-            aria-pressed={theme === t.id}
-          >
-            <span className="text-[13px] leading-none">{t.icon}</span>
-            <span className="hidden md:inline font-medium tracking-wide">{t.label}</span>
-          </button>
-        ))}
+      {/* Center: Theme-Switcher + Dropdown */}
+      <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-card/90 p-1 shadow-sm">
+        <div className="flex items-center gap-1">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              className={`h-8 rounded-full px-2 text-xs flex items-center justify-center gap-1 transition-all ${
+                theme === t.id
+                  ? "bg-primary text-primary-foreground ring-1 ring-primary/60 scale-[1.02] shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/80"
+              }`}
+              title={t.label}
+              aria-label={`Theme ${t.label}`}
+              aria-pressed={theme === t.id}
+            >
+              <span className="text-[13px] leading-none">{t.icon}</span>
+              <span className="hidden md:inline font-medium tracking-wide">{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <label htmlFor="theme-dropdown" className="sr-only">Theme wählen</label>
+        <select
+          id="theme-dropdown"
+          value={theme}
+          onChange={(e) => setTheme(e.target.value as Theme)}
+          className="h-8 rounded-full border border-border/60 bg-background/95 px-2 text-xs font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+          aria-label="Theme auswählen"
+          title="Theme auswählen"
+        >
+          {THEMES.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.icon} {t.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Right: Search + Role-Switcher + User + Abmelden */}
