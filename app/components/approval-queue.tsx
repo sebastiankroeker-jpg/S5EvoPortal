@@ -704,6 +704,18 @@ function ChangeList({
                       <span>·</span>
                       <span>{formatDateTime(change.updatedAt)}</span>
                     </div>
+                    {change.fields.length > 0 && (
+                      <div className="rounded-md border border-border/50 bg-muted/25 px-2 py-1.5 text-[11px] text-muted-foreground">
+                        <span className="font-medium text-foreground">Betroffen:</span>{" "}
+                        {change.fields.slice(0, 2).map((field, index) => (
+                          <span key={field.key} className="mr-2">
+                            {index > 0 ? "· " : ""}
+                            {fieldLabels[field.key] || field.key}: {formatValue(field.before)} {"->"} {formatValue(field.after)}
+                          </span>
+                        ))}
+                        {change.fields.length > 2 ? `+${change.fields.length - 2} weitere` : ""}
+                      </div>
+                    )}
                     {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {change.wasUpdated && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Aktualisiert</Badge>}
