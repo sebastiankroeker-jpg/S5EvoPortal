@@ -73,7 +73,7 @@ export default function NavBar() {
       </div>
 
       {/* Center: Theme-Switcher + Dropdown */}
-      <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-card/90 p-1 shadow-sm">
+      <div className="flex items-center gap-1 rounded-full border border-primary/30 bg-card/90 p-0.5 shadow-sm">
         <div className="hidden md:flex items-center gap-px">
           {THEMES.map((t) => (
             <button
@@ -98,7 +98,7 @@ export default function NavBar() {
           id="theme-dropdown"
           value={theme}
           onChange={(e) => setTheme(e.target.value as Theme)}
-          className="h-8 min-w-[108px] rounded-full border border-border/60 bg-background/95 px-2 text-xs font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+          className="h-7 min-w-[92px] rounded-full border border-border/60 bg-background/95 px-1.5 text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
           aria-label="Theme auswählen"
           title="Theme auswählen"
         >
