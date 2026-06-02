@@ -53,6 +53,7 @@ import {
   Info,
   Mail,
   RotateCcw,
+  Search,
   Send,
   ShieldCheck,
   SlidersHorizontal,
@@ -1090,6 +1091,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </Button>
             </div>
           </div>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
+              placeholder="Teamname, Team Manager:in oder Teilnehmer:in"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
         {filtersOpen && (
           <div className="mt-3 space-y-4 border-t border-border/60 pt-3">
@@ -1137,22 +1148,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               className={`grid gap-4 md:grid-cols-2 ${
                 showOwnerFilter
                   ? isAdmin
-                    ? "xl:grid-cols-6"
+                    ? "xl:grid-cols-5"
                     : "xl:grid-cols-4"
                   : isAdmin
-                    ? "xl:grid-cols-5"
+                    ? "xl:grid-cols-4"
                     : "xl:grid-cols-3"
               }`}
             >
-              <div className="space-y-1 xl:col-span-2">
-                <label className="text-xs font-medium text-muted-foreground">Suche</label>
-                <Input
-                  placeholder="Teamname, Team Manager:in oder Teilnehmer:in"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Klasse</label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -1483,7 +1485,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         </Card>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="space-y-2">
             {sortedTeams.map((team) => {
               const completionMeta = getTeamCompletionMeta(team);
               const disciplineMeta = getTeamDisciplineMeta(team);
@@ -1498,7 +1500,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 (showAdminDashboardInfo && pendingChangeCount > 0);
 
               return (
-              <div key={team.id} className={`space-y-2 ${expandedTeam === team.id ? "md:col-span-2 lg:col-span-3 xl:col-span-4" : ""}`}>
+              <div key={team.id} className="space-y-2">
                 {/* Team-Kachel mit Teilnehmern */}
                 {expandedTeam !== team.id && (
                   <Card
@@ -1508,57 +1510,66 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       setExpandedTeamMeta(null);
                     }}
                   >
-                    <CardContent className="p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-sm truncate">{team.name}</h3>
-                        <Badge variant="outline" className="text-xs shrink-0">
-                          {categoryEmojis[team.category] || "🏆"} {team.category}
-                        </Badge>
+                    <CardContent className="p-2.5">
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            <h3 className="min-w-0 truncate text-sm font-medium">{team.name}</h3>
+                            <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
+                              <span>{categoryEmojis[team.category] || "🏆"}</span>
+                              {team.category}
+                            </Badge>
+                            {team.isCurrentUserTeam && (
+                              <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
+                                <Star className="size-3" />
+                                Mein Team
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                            <span>{getParticipantCount(team)} / 5 Teilnehmer:innen</span>
+                            <span>·</span>
+                            <span className="truncate">{team.contactName || getContactFallbackLabel(team)}</span>
+                          </div>
+                          {showCompactStatusRow && (
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                              {showActionStatus && completionMeta.isImportant && (
+                                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                                  <CompletionIcon className="size-3" />
+                                  {completionMeta.label}
+                                </Badge>
+                              )}
+                              {showActionStatus && disciplineMeta.isImportant && (
+                                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                                  <DisciplineIcon className="size-3" />
+                                  {disciplineMeta.label}
+                                </Badge>
+                              )}
+                              {showAdminDashboardInfo && pendingChangeCount > 0 && (
+                                <Badge variant="outline" className="h-5 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                                  <ClipboardList className="size-3" />
+                                  {pendingChangeCount} Änderung(en)
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 shrink-0 px-2 text-[11px]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setExpandedTeam(team.id);
+                              setExpandedTeamMeta(null);
+                            }}
+                          >
+                            Details
+                          </Button>
+                        </div>
                       </div>
-                      {showCompactStatusRow && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {showActionStatus && completionMeta.isImportant && (
-                            <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
-                              <CompletionIcon className="size-3" />
-                              {completionMeta.label}
-                            </Badge>
-                          )}
-                          {showActionStatus && disciplineMeta.isImportant && (
-                            <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
-                              <DisciplineIcon className="size-3" />
-                              {disciplineMeta.label}
-                            </Badge>
-                          )}
-                          {showAdminDashboardInfo && pendingChangeCount > 0 && (
-                            <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
-                              <ClipboardList className="size-3" />
-                              {pendingChangeCount} Änderung(en)
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                      {/* Teilnehmer-Liste */}
-                      {team.participants && team.participants.length > 0 ? (
-                        <div className="space-y-0.5">
-                          {team.participants.map((p, i) => {
-                            const disc = getDisciplineDisplay(p.discipline);
-                            return (
-                              <div key={i} className="flex items-start justify-between gap-2 text-xs text-muted-foreground">
-                                <span className="min-w-0 break-words pr-2">{getParticipantDisplayName(p, i)}</span>
-                                <span className="shrink-0" title={disc.label}>{disc.icon} {p.gender === "M" ? "♂" : "♀"}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                      {/* Team Manager:in extra Zeile wenn nicht Teilnehmer */}
-                      {team.contactName && (!team.participants || !team.participants.some(p =>
-                        team.contactName?.includes(p.firstName) || team.contactName?.includes(p.lastName)
-                      )) && (
-                        <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
-                          ⭐ {team.contactName} <span className="text-muted-foreground/60">(Team Manager:in)</span>
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 )}
