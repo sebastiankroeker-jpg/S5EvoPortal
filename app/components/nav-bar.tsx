@@ -11,7 +11,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
-import { Check, ChevronDown, EllipsisVertical, FlaskConical, LogOut, Search, UserCircle2 } from "lucide-react";
+import { Check, EllipsisVertical, FlaskConical, LogOut, Search, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -77,42 +77,22 @@ export default function NavBar() {
         </Link>
       </div>
 
-      {/* Center: Theme-Switcher + Dropdown */}
-      <div className="relative flex items-center gap-1 rounded-full border border-primary/30 bg-card/90 p-0 md:p-0.5 shadow-sm">
-        <div className="hidden md:flex items-center gap-px">
-          {THEMES.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTheme(t.id)}
-              className={`inline-flex h-7 items-center justify-center gap-0.5 rounded-full px-1 text-[10px] leading-none transition-all ${
-                theme === t.id
-                  ? "bg-primary text-primary-foreground ring-1 ring-primary/60 scale-[1.02] shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/80"
-              }`}
-              title={t.label}
-              aria-label={`Theme ${t.label}`}
-              aria-pressed={theme === t.id}
-            >
-              <span className="text-[12px] leading-none">{t.icon}</span>
-              <span className="hidden md:inline whitespace-nowrap font-medium leading-none">{t.label}</span>
-            </button>
-          ))}
-        </div>
+      {/* Center: Theme-Dropdown (Desktop) + Icon-Menü (Mobile) */}
+      <div className="relative flex items-center">
         <button
           onClick={() => setShowThemeMenu(!showThemeMenu)}
-          className="inline-flex h-6 w-10 items-center justify-center gap-0.5 rounded-full border border-border/60 bg-background/95 text-[11px] font-medium text-foreground transition-colors hover:bg-accent/60 md:hidden"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-background/95 text-foreground transition-colors hover:bg-accent/60 md:hidden"
           aria-label="Theme-Menü öffnen"
           title="Theme-Menü öffnen"
         >
           <span className="text-[12px] leading-none">{activeTheme.icon}</span>
-          <ChevronDown className="h-3 w-3" />
         </button>
         <label htmlFor="theme-dropdown" className="sr-only">Theme wählen</label>
         <select
           id="theme-dropdown"
           value={theme}
           onChange={(e) => setTheme(e.target.value as Theme)}
-          className="hidden md:inline-flex h-7 w-auto min-w-[92px] rounded-full border border-border/60 bg-background/95 px-1.5 text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+          className="hidden md:inline-flex h-7 min-w-[84px] rounded-full border border-border/60 bg-background/95 px-1 text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
           aria-label="Theme auswählen"
           title="Theme auswählen"
         >
@@ -151,12 +131,12 @@ export default function NavBar() {
         {/* Search */}
         <button
           onClick={() => setSearchOpen(true)}
-          className="inline-flex items-center gap-2 rounded-full border-2 border-primary/50 bg-primary px-3 py-1.5 text-primary-foreground shadow-md transition-transform hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary/70 bg-primary text-primary-foreground shadow-md transition-transform hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] md:h-auto md:w-auto md:gap-2 md:px-3 md:py-1.5"
           title="Suchen (Strg+K)"
           aria-label="Suche öffnen"
         >
           <Search className="h-4 w-4" />
-          <span className="text-[12px] font-semibold tracking-wide">Suche</span>
+          <span className="hidden text-[12px] font-semibold tracking-wide md:inline">Suche</span>
           <span className="hidden md:inline rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-medium tracking-wide">Strg+K</span>
         </button>
 
@@ -230,7 +210,7 @@ export default function NavBar() {
             <div className="relative md:hidden">
               <button
                 onClick={() => setShowAccountMenu(!showAccountMenu)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/50 text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/60"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/95 text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/60"
                 aria-label="Konto-Menü öffnen"
                 title="Konto-Menü öffnen"
               >
@@ -240,6 +220,16 @@ export default function NavBar() {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowAccountMenu(false)} />
                   <div className="absolute right-0 top-full mt-1 w-44 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50">
+                    <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Konto</p>
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                      onClick={() => setShowAccountMenu(false)}
+                    >
+                      <UserCircle2 className="h-3.5 w-3.5" />
+                      Profil
+                    </Link>
+                    <div className="my-1 border-t border-border/40" />
                     {simulatable.length > 0 && (
                       <>
                         <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Rolle</p>
@@ -271,16 +261,9 @@ export default function NavBar() {
                         <div className="my-1 border-t border-border/40" />
                       </>
                     )}
-                    <Link
-                      href="/profile"
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                      onClick={() => setShowAccountMenu(false)}
-                    >
-                      <UserCircle2 className="h-3.5 w-3.5" />
-                      Profil
-                    </Link>
+                    <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-red-500">Danger Zone</p>
                     <button
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-red-500 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                       onClick={() => {
                         setShowAccountMenu(false);
                         fullSignOut();
