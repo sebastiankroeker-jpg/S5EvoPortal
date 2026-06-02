@@ -691,7 +691,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     const storedColumns = getStoredVisibleColumns();
     if (!storedColumns) return;
 
-    const nextColumns =
+    const nextColumns: TeamOptionalColumnKey[] =
       shouldAutoShowMembersColumn && !storedColumns.includes("participants")
         ? [...storedColumns, "participants"]
         : storedColumns;
