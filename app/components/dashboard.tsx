@@ -556,6 +556,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>([
     "category",
     "participantCount",
+    "participants",
     "createdAt",
   ]);
 
@@ -564,6 +565,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const isAdmin = activeRole === "ADMIN";
   const canUseAdminLinks = activeRole === "ADMIN";
   const showAdminDashboardInfo = activeRole === "ADMIN";
+  const shouldAutoShowMembersColumn = activeRole !== "TEILNEHMER";
   const userEmail = session?.user?.email;
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const notifications = useNotifications();
@@ -687,10 +689,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   useEffect(() => {
     const storedColumns = getStoredVisibleColumns();
-    if (storedColumns) {
-      setVisibleColumns(storedColumns);
-    }
-  }, []);
+    if (!storedColumns) return;
+
+    const nextColumns =
+      shouldAutoShowMembersColumn && !storedColumns.includes("participants")
+        ? [...storedColumns, "participants"]
+        : storedColumns;
+
+    setVisibleColumns(nextColumns);
+  }, [shouldAutoShowMembersColumn]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
