@@ -1056,6 +1056,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
             </Button>
           </div>
 
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
+              placeholder="Teamname, Team Manager:in oder Teilnehmer:in"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
@@ -1090,16 +1100,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
               </Button>
             </div>
-          </div>
-
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
-              placeholder="Teamname, Team Manager:in oder Teilnehmer:in"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
           </div>
         </div>
         {filtersOpen && (

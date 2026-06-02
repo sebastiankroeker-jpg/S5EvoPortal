@@ -434,7 +434,17 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         </div>
 
         <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
+          <div className="relative mt-2">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Suche Teilnehmer, Team, Antragsteller oder Änderung"
+            />
+          </div>
+
+          <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
               <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
                 {activeFilterCount} aktiv
@@ -454,16 +464,6 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
             >
               {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
             </Button>
-          </div>
-
-          <div className="relative mt-2">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Suche Teilnehmer, Team, Antragsteller oder Änderung"
-            />
           </div>
 
           {filtersOpen && (
@@ -555,6 +555,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
             processing={processing}
             onAction={handleAction}
             canUseAdminLinks={canUseAdminLinks}
+            dashboardCompact
           />
         )}
       </div>
@@ -626,6 +627,7 @@ function ChangeList({
   onAction,
   compact = false,
   canUseAdminLinks = false,
+  dashboardCompact = false,
 }: {
   changes: DecoratedChange[];
   comments: Record<string, string>;
@@ -634,7 +636,10 @@ function ChangeList({
   onAction: (id: string, action: "approve" | "reject") => Promise<void>;
   compact?: boolean;
   canUseAdminLinks?: boolean;
+  dashboardCompact?: boolean;
 }) {
+  const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
+
   const getStatusTone = (status: string) => {
     if (status === "APPROVED") return "border-green-300 text-green-700 dark:text-green-200";
     if (status === "REJECTED") return "border-red-300 text-red-700 dark:text-red-200";
@@ -657,94 +662,316 @@ function ChangeList({
           exit={{ opacity: 0, x: -80 }}
           layout
         >
-          <Card
-            className={
-              change.status === "APPROVED"
-                ? "border-green-200/80 dark:border-green-900/70"
-                : change.status === "REJECTED"
-                  ? "border-red-200/80 dark:border-red-900/70"
-                  : "border-amber-200/80 dark:border-amber-900/70"
-            }
-          >
-            <CardHeader className={compact ? "pb-2" : "pb-3"}>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className={compact ? "text-base" : "text-xl leading-tight"}>{change.participantName}</CardTitle>
-                    <Badge variant="outline" className={getStatusTone(change.status)}>
-                      {getStatusLabel(change.status)}
-                    </Badge>
-                    <Badge variant="outline">{getTargetTypeLabel(change.targetType)}</Badge>
-                    <Badge variant="secondary">{change.fields.length} Feldwechsel</Badge>
-                    {change.changeRequestId ? <Badge variant="secondary">ChangeRequest</Badge> : null}
-                  </div>
-                  {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
-                    <div className="flex flex-wrap gap-2">
-                      {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
-                      {change.impact?.classificationWarnings?.length ? (
-                        <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-200">
-                          Klassenwirkung
-                        </Badge>
-                      ) : null}
-                      {change.impact?.hasLiveDrift ? (
-                        <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
-                          Live-Stand abweichend
-                        </Badge>
-                      ) : null}
+          {dashboardCompact ? (
+            <Card
+              className={
+                change.status === "APPROVED"
+                  ? "border-green-200/80 dark:border-green-900/70"
+                  : change.status === "REJECTED"
+                    ? "border-red-200/80 dark:border-red-900/70"
+                    : "border-amber-200/80 dark:border-amber-900/70"
+              }
+            >
+              <CardContent className="space-y-2 p-2.5">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className="min-w-0 truncate text-sm font-medium">{change.participantName}</span>
+                      <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${getStatusTone(change.status)}`}>
+                        {getStatusLabel(change.status)}
+                      </Badge>
+                      <Badge variant="outline" className="h-6 px-1.5 text-[10px]">
+                        {getTargetTypeLabel(change.targetType)}
+                      </Badge>
+                      <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
+                        {change.fields.length} Felder
+                      </Badge>
                     </div>
-                  ) : null}
-                  <CardDescription className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
-                    <button
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                      <button
+                        type="button"
+                        className={canUseAdminLinks ? "truncate hover:text-primary" : "truncate"}
+                        onClick={() => {
+                          if (canUseAdminLinks) openTeamDashboard({ teamId: change.participant.team.id });
+                        }}
+                        disabled={!canUseAdminLinks}
+                        title={canUseAdminLinks ? "Mannschaft öffnen" : undefined}
+                      >
+                        {change.participant.team.name}
+                      </button>
+                      <span>·</span>
+                      <span>Antrag von {change.requesterLabel}</span>
+                      <span>·</span>
+                      <span>{formatDateTime(change.updatedAt)}</span>
+                    </div>
+                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {change.wasUpdated && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Aktualisiert</Badge>}
+                        {change.impact?.classificationWarnings?.length ? (
+                          <Badge variant="outline" className="h-5 border-amber-300 px-1.5 text-[10px] text-amber-700 dark:text-amber-200">
+                            Klassenwirkung
+                          </Badge>
+                        ) : null}
+                        {change.impact?.hasLiveDrift ? (
+                          <Badge variant="outline" className="h-5 border-red-300 px-1.5 text-[10px] text-red-700 dark:text-red-200">
+                            Live-Stand abweichend
+                          </Badge>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <Button
                       type="button"
-                      className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
-                      onClick={() => {
-                        if (canUseAdminLinks) openTeamDashboard({ teamId: change.participant.team.id });
-                      }}
-                      disabled={!canUseAdminLinks}
-                      title={canUseAdminLinks ? "Mannschaft öffnen" : undefined}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0 px-2 text-[11px]"
+                      onClick={() => setExpandedChangeId((current) => current === change.id ? null : change.id)}
                     >
-                      {change.participant.team.name}
-                    </button>
-                    <span>· Antrag von</span>
-                    <button
-                      type="button"
-                      className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
-                      onClick={() => {
-                        if (canUseAdminLinks) openUserDashboard({ email: change.requestedBy.email, teamId: change.participant.team.id });
-                      }}
-                      disabled={!canUseAdminLinks}
-                      title={canUseAdminLinks ? "Benutzerverwaltung öffnen" : undefined}
-                    >
-                      {change.requesterLabel}
-                    </button>
-                  </CardDescription>
-                  <CardDescription className="text-xs">
-                    {formatDateTime(change.createdAt)}
-                    {change.wasUpdated ? " · Update " + formatDateTime(change.updatedAt) : ""}
-                    {change.reviewedAt ? " · entschieden " + formatDateTime(change.reviewedAt) : ""}
-                  </CardDescription>
+                      {expandedChangeId === change.id ? "Details zu" : "Details"}
+                    </Button>
+                  </div>
                 </div>
-                {!compact && (
-                  <div className="hidden gap-1 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground lg:grid lg:min-w-56">
-                    <button
-                      type="button"
-                      className={canUseAdminLinks && change.participant.email ? "truncate text-left hover:text-primary" : "truncate text-left"}
-                      onClick={() => {
-                        if (canUseAdminLinks && change.participant.email) {
-                          openUserDashboard({ email: change.participant.email, teamId: change.participant.team.id });
-                        }
-                      }}
-                      disabled={!canUseAdminLinks || !change.participant.email}
-                      title={canUseAdminLinks && change.participant.email ? "Teilnehmerkonto suchen" : undefined}
-                    >
-                      {change.participant.email || "Keine Teilnehmer-Mail"}
-                    </button>
-                    <div className="truncate">{change.participant.team.contactEmail || "Keine Team-Mail"}</div>
+
+                {expandedChangeId === change.id && (
+                  <div className="space-y-3 border-t border-border/50 pt-3 sm:space-y-4">
+                    <div className="rounded-md border border-border/50 bg-muted/20 p-3">
+                      {(change.impact?.classificationWarnings?.length || change.impact?.disciplineWarnings?.length) ? (
+                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
+                          <div className="text-xs font-medium uppercase tracking-[0.14em] opacity-80">Prüfhinweise</div>
+                          <div className="mt-1 font-medium">
+                            {change.impact?.nextClassificationLabel || "Unbekannte Klasse"}
+                            {typeof change.impact?.nextTotalAge === "number" && change.impact.nextTotalAge > 0
+                              ? ` · Gesamtalter ${change.impact.nextTotalAge}`
+                              : ""}
+                          </div>
+                          <ul className="mt-2 space-y-1">
+                            {change.impact?.classificationWarnings?.map((warning, index) => (
+                              <li key={`class-${index}`}>{warning}</li>
+                            ))}
+                            {change.impact?.disciplineWarnings?.map((warning, index) => (
+                              <li key={`disc-${index}`}>{warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {change.impact?.hasLiveDrift ? (
+                        <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 px-3 py-2.5 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-100">
+                          <div className="font-medium">Live-Stand weicht vom Antrag ab</div>
+                          <div className="mt-2 space-y-2">
+                            {change.impact.liveDriftSummary.map((field) => (
+                              <div key={`drift-${field.field}`} className="rounded-md bg-background/60 px-3 py-2">
+                                <div className="text-xs font-medium uppercase tracking-[0.14em]">{field.label}</div>
+                                <div className="mt-1 grid gap-1 text-sm sm:grid-cols-2">
+                                  <span>Damals: {field.before}</span>
+                                  <span className="font-medium">Jetzt: {field.after}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {change.fields.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {change.fields.map((field) => (
+                            <div key={field.key} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
+                              <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                                {fieldLabels[field.key] || field.key}
+                              </div>
+                              <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Bisher</div>
+                                  <div className="mt-1 text-muted-foreground">{formatValue(field.before)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">Beantragt</div>
+                                  <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {change.recentHistory?.length ? (
+                      <div className="rounded-2xl border border-border/50 bg-muted/20 p-3">
+                        <div className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                          Letzte Vorgänge
+                        </div>
+                        <div className="space-y-2">
+                          {change.recentHistory.map((entry) => (
+                            <div key={entry.id} className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="text-sm font-medium">
+                                  {formatAuditAction(entry.action)}
+                                  {entry.pendingChangeId === change.id ? " · aktueller Antrag" : ""}
+                                </div>
+                                <div className="text-xs text-muted-foreground">{formatDateTime(entry.createdAt)}</div>
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {entry.actor?.name || entry.actor?.email || "System"}
+                              </div>
+                              {entry.message ? (
+                                <div className="mt-2 text-sm text-muted-foreground">{entry.message}</div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        Kommentar der Orga
+                      </label>
+                      {change.status === "PENDING" ? (
+                        <>
+                          {change.impact?.hasLiveDrift ? (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+                              Genehmigen ist fuer diesen Antrag gesperrt, bis der geaenderte Live-Stand geklaert oder ein neuer Antrag gestellt wurde.
+                            </div>
+                          ) : null}
+                          <Textarea
+                            value={comments[change.id] || ""}
+                            onChange={(event) => setComments((current) => ({ ...current, [change.id]: event.target.value }))}
+                            placeholder="Kommentar fuer Rueckmeldung an Team/Teilnehmer"
+                            className={compact ? "min-h-[84px]" : "min-h-[110px]"}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Bei einer Ablehnung ist ein kurzer Kommentar Pflicht. Bei Genehmigung bleibt er optional.
+                          </p>
+                        </>
+                      ) : (
+                        <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+                          {change.reviewComment || "Kein Kommentar hinterlegt"}
+                          {change.reviewedBy ? (
+                            <div className="mt-2 text-xs">
+                              Bearbeitet von {change.reviewedBy.name || change.reviewedBy.email}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+
+                    {change.status === "PENDING" ? (
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          size="sm"
+                          onClick={() => void onAction(change.id, "approve")}
+                          disabled={processing === change.id || change.impact?.hasLiveDrift}
+                          className="sm:flex-1"
+                        >
+                          {processing === change.id ? "Bearbeite..." : "Genehmigen"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void onAction(change.id, "reject")}
+                          disabled={processing === change.id || !(comments[change.id] || "").trim()}
+                          className="sm:flex-1"
+                        >
+                          {processing === change.id ? "Bearbeite..." : "Ablehnen"}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4">
+              </CardContent>
+            </Card>
+          ) : (
+            <Card
+              className={
+                change.status === "APPROVED"
+                  ? "border-green-200/80 dark:border-green-900/70"
+                  : change.status === "REJECTED"
+                    ? "border-red-200/80 dark:border-red-900/70"
+                    : "border-amber-200/80 dark:border-amber-900/70"
+              }
+            >
+              <CardHeader className={compact ? "pb-2" : "pb-3"}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className={compact ? "text-base" : "text-xl leading-tight"}>{change.participantName}</CardTitle>
+                      <Badge variant="outline" className={getStatusTone(change.status)}>
+                        {getStatusLabel(change.status)}
+                      </Badge>
+                      <Badge variant="outline">{getTargetTypeLabel(change.targetType)}</Badge>
+                      <Badge variant="secondary">{change.fields.length} Feldwechsel</Badge>
+                      {change.changeRequestId ? <Badge variant="secondary">ChangeRequest</Badge> : null}
+                    </div>
+                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
+                      <div className="flex flex-wrap gap-2">
+                        {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
+                        {change.impact?.classificationWarnings?.length ? (
+                          <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-200">
+                            Klassenwirkung
+                          </Badge>
+                        ) : null}
+                        {change.impact?.hasLiveDrift ? (
+                          <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
+                            Live-Stand abweichend
+                          </Badge>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <CardDescription className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
+                      <button
+                        type="button"
+                        className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
+                        onClick={() => {
+                          if (canUseAdminLinks) openTeamDashboard({ teamId: change.participant.team.id });
+                        }}
+                        disabled={!canUseAdminLinks}
+                        title={canUseAdminLinks ? "Mannschaft öffnen" : undefined}
+                      >
+                        {change.participant.team.name}
+                      </button>
+                      <span>· Antrag von</span>
+                      <button
+                        type="button"
+                        className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
+                        onClick={() => {
+                          if (canUseAdminLinks) openUserDashboard({ email: change.requestedBy.email, teamId: change.participant.team.id });
+                        }}
+                        disabled={!canUseAdminLinks}
+                        title={canUseAdminLinks ? "Benutzerverwaltung öffnen" : undefined}
+                      >
+                        {change.requesterLabel}
+                      </button>
+                    </CardDescription>
+                    <CardDescription className="text-xs">
+                      {formatDateTime(change.createdAt)}
+                      {change.wasUpdated ? " · Update " + formatDateTime(change.updatedAt) : ""}
+                      {change.reviewedAt ? " · entschieden " + formatDateTime(change.reviewedAt) : ""}
+                    </CardDescription>
+                  </div>
+                  {!compact && (
+                    <div className="hidden gap-1 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground lg:grid lg:min-w-56">
+                      <button
+                        type="button"
+                        className={canUseAdminLinks && change.participant.email ? "truncate text-left hover:text-primary" : "truncate text-left"}
+                        onClick={() => {
+                          if (canUseAdminLinks && change.participant.email) {
+                            openUserDashboard({ email: change.participant.email, teamId: change.participant.team.id });
+                          }
+                        }}
+                        disabled={!canUseAdminLinks || !change.participant.email}
+                        title={canUseAdminLinks && change.participant.email ? "Teilnehmerkonto suchen" : undefined}
+                      >
+                        {change.participant.email || "Keine Teilnehmer-Mail"}
+                      </button>
+                      <div className="truncate">{change.participant.team.contactEmail || "Keine Team-Mail"}</div>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 sm:space-y-4">
               <div className="rounded-md border border-border/50 bg-muted/20 p-3">
                 {(change.impact?.classificationWarnings?.length || change.impact?.disciplineWarnings?.length) ? (
                   <div className="mb-3 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
@@ -891,6 +1118,7 @@ function ChangeList({
               ) : null}
             </CardContent>
           </Card>
+          )}
         </motion.div>
       ))}
     </AnimatePresence>
