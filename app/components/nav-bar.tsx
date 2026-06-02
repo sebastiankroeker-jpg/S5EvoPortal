@@ -63,12 +63,59 @@ export default function NavBar() {
         showDesktopOffset ? (isCollapsed ? "lg:ml-12" : "lg:ml-52") : ""
       }`}
     >
-      {/* Left: Logo + Version */}
+      {/* Left: Logo + Theme + Version */}
       <div className="flex items-center gap-1.5 min-w-0">
         <Link href="/" className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <span className="text-lg">🏅</span>
           <span className="font-semibold text-sm">S5Evo</span>
         </Link>
+        <div className="relative flex items-center">
+          <button
+            onClick={() => setShowThemeMenu(!showThemeMenu)}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-background/95 text-foreground transition-colors hover:bg-accent/60 md:hidden"
+            aria-label="Theme-Menü öffnen"
+            title="Theme-Menü öffnen"
+          >
+            <span className="text-[12px] leading-none">{activeTheme.icon}</span>
+          </button>
+          <label htmlFor="theme-dropdown" className="sr-only">Theme wählen</label>
+          <select
+            id="theme-dropdown"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as Theme)}
+            className="hidden md:inline-flex h-7 min-w-[84px] rounded-full border border-border/60 bg-background/95 px-1 text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+            aria-label="Theme auswählen"
+            title="Theme auswählen"
+          >
+            {THEMES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.icon} {t.label}
+              </option>
+            ))}
+          </select>
+          {showThemeMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)} />
+              <div className="absolute left-0 top-full mt-1 w-32 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50 md:hidden">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
+                      theme === t.id ? "text-primary font-medium" : "text-muted-foreground"
+                    }`}
+                    onClick={() => {
+                      setTheme(t.id);
+                      setShowThemeMenu(false);
+                    }}
+                  >
+                    <span>{t.icon} {t.label}</span>
+                    {theme === t.id && <Check className="h-3.5 w-3.5" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <Link href="/changelog" aria-label="Projektstand und Changelog öffnen" className="hidden sm:inline-flex">
           <Badge variant="secondary" className="gap-1 text-[10px] hover:bg-primary/20 cursor-pointer whitespace-nowrap">
             <span className="hidden sm:inline">Projektstand</span>
@@ -77,61 +124,12 @@ export default function NavBar() {
         </Link>
       </div>
 
-      {/* Center: Theme-Dropdown (Desktop) + Icon-Menü (Mobile) */}
-      <div className="relative flex items-center">
-        <button
-          onClick={() => setShowThemeMenu(!showThemeMenu)}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-background/95 text-foreground transition-colors hover:bg-accent/60 md:hidden"
-          aria-label="Theme-Menü öffnen"
-          title="Theme-Menü öffnen"
-        >
-          <span className="text-[12px] leading-none">{activeTheme.icon}</span>
-        </button>
-        <label htmlFor="theme-dropdown" className="sr-only">Theme wählen</label>
-        <select
-          id="theme-dropdown"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value as Theme)}
-          className="hidden md:inline-flex h-7 min-w-[84px] rounded-full border border-border/60 bg-background/95 px-1 text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
-          aria-label="Theme auswählen"
-          title="Theme auswählen"
-        >
-          {THEMES.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.icon} {t.label}
-            </option>
-          ))}
-        </select>
-        {showThemeMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)} />
-            <div className="absolute left-0 top-full mt-1 w-32 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50 md:hidden">
-              {THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
-                    theme === t.id ? "text-primary font-medium" : "text-muted-foreground"
-                  }`}
-                  onClick={() => {
-                    setTheme(t.id);
-                    setShowThemeMenu(false);
-                  }}
-                >
-                  <span>{t.icon} {t.label}</span>
-                  {theme === t.id && <Check className="h-3.5 w-3.5" />}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
       {/* Right: Search + Role-Switcher + User + Abmelden */}
       <div className="flex items-center gap-1.5 min-w-0">
         {/* Search */}
         <button
           onClick={() => setSearchOpen(true)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary/70 bg-primary text-primary-foreground shadow-md transition-transform hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] md:h-auto md:w-auto md:gap-2 md:px-3 md:py-1.5"
+          className="inline-flex h-8 min-w-[42px] items-center justify-center rounded-full border-2 border-primary/70 bg-primary px-2 text-primary-foreground shadow-md transition-transform hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] md:h-auto md:w-auto md:gap-2 md:px-3 md:py-1.5"
           title="Suchen (Strg+K)"
           aria-label="Suche öffnen"
         >
@@ -210,10 +208,11 @@ export default function NavBar() {
             <div className="relative md:hidden">
               <button
                 onClick={() => setShowAccountMenu(!showAccountMenu)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/95 text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/60"
+                className="inline-flex h-8 items-center gap-1 rounded-full border border-border/60 bg-background/95 px-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
                 aria-label="Konto-Menü öffnen"
                 title="Konto-Menü öffnen"
               >
+                <UserCircle2 className="h-4 w-4" />
                 <EllipsisVertical className="h-4 w-4" />
               </button>
               {showAccountMenu && (
