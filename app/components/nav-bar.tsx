@@ -11,7 +11,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
-import { Search } from "lucide-react";
+import { FlaskConical, LogOut, Search, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -74,7 +74,7 @@ export default function NavBar() {
 
       {/* Center: Theme-Switcher + Dropdown */}
       <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-card/90 p-1 shadow-sm">
-        <div className="flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-1">
           {THEMES.map((t) => (
             <button
               key={t.id}
@@ -98,7 +98,7 @@ export default function NavBar() {
           id="theme-dropdown"
           value={theme}
           onChange={(e) => setTheme(e.target.value as Theme)}
-          className="h-8 rounded-full border border-border/60 bg-background/95 px-2 text-xs font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+          className="h-8 min-w-[108px] rounded-full border border-border/60 bg-background/95 px-2 text-xs font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
           aria-label="Theme auswählen"
           title="Theme auswählen"
         >
@@ -111,7 +111,7 @@ export default function NavBar() {
       </div>
 
       {/* Right: Search + Role-Switcher + User + Abmelden */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 min-w-0">
         {/* Search */}
         <button
           onClick={() => setSearchOpen(true)}
@@ -135,13 +135,16 @@ export default function NavBar() {
               <div className="relative">
                 <button
                   onClick={() => setShowRoleMenu(!showRoleMenu)}
-                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                  className={`inline-flex h-7 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
                     isSimulating
                       ? "border-amber-400 bg-amber-400/10 text-amber-600 dark:text-amber-300"
                       : "border-border/50 text-muted-foreground hover:text-foreground"
                   }`}
+                  aria-label="Rollenansicht wechseln"
+                  title="Rollenansicht wechseln"
                 >
-                  🔬 {ROLE_LABELS[activeRole] || activeRole}
+                  <FlaskConical className="h-3.5 w-3.5" />
+                  <span className="hidden md:inline">{ROLE_LABELS[activeRole] || activeRole}</span>
                 </button>
                 {showRoleMenu && (
                   <>
@@ -172,11 +175,25 @@ export default function NavBar() {
               </div>
             );
           })()}
-            <Link href="/profile" className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden md:inline">
-              👤 {session.user.name}
+            <Link
+              href="/profile"
+              className="inline-flex h-7 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              title="Profil"
+              aria-label="Profil öffnen"
+            >
+              <UserCircle2 className="h-4 w-4" />
+              <span className="hidden md:inline truncate max-w-32">{session.user.name}</span>
             </Link>
-            <Button variant="ghost" size="sm" onClick={() => fullSignOut()} className="text-xs text-muted-foreground h-7 px-2">
-              Abmelden
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => fullSignOut()}
+              className="h-7 px-2 text-xs text-muted-foreground"
+              title="Abmelden"
+              aria-label="Abmelden"
+            >
+              <LogOut className="h-4 w-4 md:hidden" />
+              <span className="hidden md:inline">Abmelden</span>
             </Button>
           </>
         )}
