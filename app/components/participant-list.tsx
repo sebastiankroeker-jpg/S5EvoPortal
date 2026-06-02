@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { openChangesDashboard, openTeamDashboard } from "@/lib/admin-routing";
@@ -63,6 +64,7 @@ export default function ParticipantList() {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
   const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const [editingParticipant, setEditingParticipant] = useState<ParticipantEntry | null>(null);
@@ -143,6 +145,24 @@ export default function ParticipantList() {
     window.history.replaceState(null, "", "/teilnehmer");
   };
 
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+      categoryFilter !== "all" ||
+      disciplineFilter !== "all" ||
+      quickFilter !== "all" ||
+      participantFilterId ||
+      teamFilterId,
+  );
+
+  const activeFilterCount = [
+    search.trim() !== "",
+    categoryFilter !== "all",
+    disciplineFilter !== "all",
+    quickFilter !== "all",
+    Boolean(participantFilterId),
+    Boolean(teamFilterId),
+  ].filter(Boolean).length;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -167,56 +187,87 @@ export default function ParticipantList() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(QUICK_FILTER_LABELS) as QuickFilter[])
-          .filter((filter) => filter !== "missingEmail" || canSeeAdminOnlyFields)
-          .map((filter) => (
-            <Button
-              key={filter}
-              type="button"
-              size="sm"
-              variant={quickFilter === filter ? "default" : "outline"}
-              onClick={() => setQuickFilter(filter)}
-              className="justify-between gap-2"
-            >
-              <span>{QUICK_FILTER_LABELS[filter]}</span>
-              <span className="rounded bg-background/30 px-1 text-[10px]">
-                {quickFilterCounts[filter]}
-              </span>
-            </Button>
-          ))}
-      </div>
+      <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
+              {activeFilterCount} aktiv
+            </Badge>
+            {hasActiveFilters && (
+              <Button className="whitespace-nowrap" size="xs" variant="outline" onClick={resetFilters}>
+                Filter löschen
+              </Button>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
+          >
+            {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+          </Button>
+        </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Input
-          placeholder={canSeeAdminOnlyFields ? "Suche Name, Team, E-Mail..." : "Suche Name oder Team..."}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1"
-        />
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-full sm:w-[160px]">
-            <SelectValue placeholder="Klasse" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Klassen</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={disciplineFilter} onValueChange={setDisciplineFilter}>
-          <SelectTrigger className="w-full sm:w-[160px]">
-            <SelectValue placeholder="Disziplin" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Disziplinen</SelectItem>
-            {Object.entries(DISCIPLINE_LABELS).map(([code, d]) => (
-              <SelectItem key={code} value={code}>{d.icon} {d.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="relative mt-2">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
+            placeholder={canSeeAdminOnlyFields ? "Suche Name, Team, E-Mail..." : "Suche Name oder Team..."}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {filtersOpen && (
+          <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(QUICK_FILTER_LABELS) as QuickFilter[])
+                .filter((filter) => filter !== "missingEmail" || canSeeAdminOnlyFields)
+                .map((filter) => (
+                  <Button
+                    key={filter}
+                    type="button"
+                    size="sm"
+                    variant={quickFilter === filter ? "default" : "outline"}
+                    onClick={() => setQuickFilter(filter)}
+                    className="justify-between gap-2"
+                  >
+                    <span>{QUICK_FILTER_LABELS[filter]}</span>
+                    <span className="rounded bg-background/30 px-1 text-[10px]">
+                      {quickFilterCounts[filter]}
+                    </span>
+                  </Button>
+                ))}
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Klasse" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Klassen</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={disciplineFilter} onValueChange={setDisciplineFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Disziplin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Disziplinen</SelectItem>
+                  {Object.entries(DISCIPLINE_LABELS).map(([code, d]) => (
+                    <SelectItem key={code} value={code}>{d.icon} {d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Participant Cards */}
