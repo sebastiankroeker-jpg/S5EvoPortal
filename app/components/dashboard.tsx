@@ -161,7 +161,7 @@ const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string; 
   { key: "contactEmail", label: "Kontakt E-Mail" },
   { key: "ownerEmail", label: "Angelegt von" },
   { key: "participantCount", label: "Teilnehmer", adminOnly: true },
-  { key: "participants", label: "Mitglieder" },
+  { key: "participants", label: "Mitglieder", adminOnly: true },
   { key: "createdAt", label: "Anmeldedatum", adminOnly: true },
   { key: "updatedAt", label: "Geändert" },
 ];
