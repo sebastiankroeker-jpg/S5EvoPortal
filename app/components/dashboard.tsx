@@ -144,25 +144,25 @@ type TeamOptionalColumnKey =
   | "updatedAt";
 
 const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
-const SORT_OPTIONS: Array<{ value: TeamSortField; label: string }> = [
+const SORT_OPTIONS: Array<{ value: TeamSortField; label: string; adminOnly?: boolean }> = [
   { value: "updatedAt", label: "Zuletzt geändert" },
-  { value: "createdAt", label: "Angelegt" },
+  { value: "createdAt", label: "Anmeldedatum", adminOnly: true },
   { value: "name", label: "Mannschaftsname" },
   { value: "category", label: "Klasse" },
   { value: "contactName", label: "Team Manager:in" },
   { value: "contactEmail", label: "Kontakt E-Mail" },
   { value: "ownerEmail", label: "Angelegt von" },
-  { value: "participantCount", label: "Teilnehmerzahl" },
+  { value: "participantCount", label: "Teilnehmer", adminOnly: true },
 ];
 
-const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string }> = [
+const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string; adminOnly?: boolean }> = [
   { key: "category", label: "Klasse" },
   { key: "contactName", label: "Team Manager:in" },
   { key: "contactEmail", label: "Kontakt E-Mail" },
   { key: "ownerEmail", label: "Angelegt von" },
-  { key: "participantCount", label: "Teilnehmer" },
+  { key: "participantCount", label: "Teilnehmer", adminOnly: true },
   { key: "participants", label: "Mitglieder" },
-  { key: "createdAt", label: "Angelegt am" },
+  { key: "createdAt", label: "Anmeldedatum", adminOnly: true },
   { key: "updatedAt", label: "Geändert" },
 ];
 
@@ -563,6 +563,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
   const canEditAll = can("team.edit.all");
   const canViewAll = can("team.view.all");
+  const isAdmin = activeRole === "ADMIN";
   const canUseAdminLinks = activeRole === "ADMIN";
   const showAdminDashboardInfo = activeRole === "ADMIN";
   const userEmail = session?.user?.email;
@@ -570,6 +571,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const notifications = useNotifications();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
   const canBrowseAllTeams = canViewAll || canRoleViewAllTeams(activeRole, activeCompetition);
+  const sortOptions = useMemo(() => SORT_OPTIONS.filter((option) => !option.adminOnly || isAdmin), [isAdmin]);
+  const listOptionalColumns = useMemo(
+    () => LIST_OPTIONAL_COLUMNS.filter((column) => !column.adminOnly || isAdmin),
+    [isAdmin],
+  );
 
   const fetchTeams = useCallback(async () => {
     try {
@@ -697,6 +703,27 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   }, [visibleColumns]);
 
   useEffect(() => {
+    const allowedKeys = new Set(listOptionalColumns.map((column) => column.key));
+    const fallback = listOptionalColumns[0]?.key;
+
+    setVisibleColumns((current) => {
+      const sanitized = current.filter((key) => allowedKeys.has(key));
+      if (sanitized.length > 0) {
+        return sanitized;
+      }
+      return fallback ? [fallback] : current;
+    });
+  }, [listOptionalColumns]);
+
+  useEffect(() => {
+    const selectedOption = sortOptions.some((option) => option.value === sortField);
+    if (!selectedOption) {
+      setSortField("updatedAt");
+      setSortDirection("desc");
+    }
+  }, [sortField, sortOptions]);
+
+  useEffect(() => {
     // Listen for switchTab events to handle owner filter
     const handleSwitchTab = (e: CustomEvent) => {
       if (e.detail.tabId !== "dashboard") {
@@ -782,10 +809,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = createdFrom ? new Date(createdFrom).getTime() : null;
       const createdToMs = createdTo ? new Date(createdTo).getTime() : null;
-      const matchesCreatedAt = Number.isNaN(createdAtMs)
+      const matchesCreatedAt = !isAdmin || (Number.isNaN(createdAtMs)
         ? createdFrom === "" && createdTo === ""
         : (createdFromMs === null || createdAtMs >= createdFromMs) &&
-          (createdToMs === null || createdAtMs <= createdToMs);
+          (createdToMs === null || createdAtMs <= createdToMs));
       
       // Search filter (team name, contact name, participant names)
       const matchesSearch = searchQuery === "" || 
@@ -797,7 +824,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       
       return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -852,7 +879,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     });
   }, [filteredTeams, ownTeamsOnly, sortField, sortDirection]);
 
-  const visibleColumnDefs = LIST_OPTIONAL_COLUMNS.filter((column) => visibleColumns.includes(column.key));
+  const visibleColumnDefs = listOptionalColumns.filter((column) => visibleColumns.includes(column.key));
 
   const categoryEmojis: { [key: string]: string } = {
     "schueler-a": "🧒",
@@ -893,16 +920,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     (showOwnerFilter && ownerFilter !== "all") ||
     ownTeamsOnly ||
     incompleteOnly ||
-    createdFrom !== "" ||
-    createdTo !== "";
+    (isAdmin && createdFrom !== "") ||
+    (isAdmin && createdTo !== "");
   const activeFilterCount = [
     searchQuery !== "",
     categoryFilter !== "all",
     showOwnerFilter && ownerFilter !== "all",
     ownTeamsOnly,
     incompleteOnly,
-    createdFrom !== "",
-    createdTo !== "",
+    isAdmin && createdFrom !== "",
+    isAdmin && createdTo !== "",
   ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
   const ownTeamsCount = teams.filter((team) => team.isCurrentUserTeam === true).length;
@@ -1063,8 +1090,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </CardTitle>
               <p className="hidden text-xs text-muted-foreground sm:block">
                 {showOwnerFilter
-                  ? "Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen"
-                  : "Suche, Klasse, Vollständigkeit und Zeitraum eingrenzen"}
+                  ? isAdmin
+                    ? "Suche, Klasse, Anleger:in, Vollständigkeit und Zeitraum eingrenzen"
+                    : "Suche, Klasse, Anleger:in und Vollständigkeit eingrenzen"
+                  : isAdmin
+                    ? "Suche, Klasse, Vollständigkeit und Zeitraum eingrenzen"
+                    : "Suche, Klasse und Vollständigkeit eingrenzen"}
               </p>
             </div>
 
@@ -1092,7 +1123,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </div>
             )}
 
-            <div className={`grid gap-4 md:grid-cols-2 ${showOwnerFilter ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
+            <div
+              className={`grid gap-4 md:grid-cols-2 ${
+                showOwnerFilter
+                  ? isAdmin
+                    ? "xl:grid-cols-6"
+                    : "xl:grid-cols-4"
+                  : isAdmin
+                    ? "xl:grid-cols-5"
+                    : "xl:grid-cols-3"
+              }`}
+            >
               <div className="space-y-1 xl:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">Suche</label>
                 <Input
@@ -1150,25 +1191,29 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 </Button>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Angelegt ab</label>
-                <Input
-                  type="datetime-local"
-                  value={createdFrom}
-                  onChange={(e) => setCreatedFrom(e.target.value)}
-                  aria-label="Angelegt ab"
-                />
-              </div>
+              {isAdmin && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Angemeldet ab</label>
+                  <Input
+                    type="datetime-local"
+                    value={createdFrom}
+                    onChange={(e) => setCreatedFrom(e.target.value)}
+                    aria-label="Angemeldet ab"
+                  />
+                </div>
+              )}
 
-              <div className="space-y-1 md:col-span-2 xl:col-span-1">
-                <label className="text-xs font-medium text-muted-foreground">Angelegt bis</label>
-                <Input
-                  type="datetime-local"
-                  value={createdTo}
-                  onChange={(e) => setCreatedTo(e.target.value)}
-                  aria-label="Angelegt bis"
-                />
-              </div>
+              {isAdmin && (
+                <div className="space-y-1 md:col-span-2 xl:col-span-1">
+                  <label className="text-xs font-medium text-muted-foreground">Angemeldet bis</label>
+                  <Input
+                    type="datetime-local"
+                    value={createdTo}
+                    onChange={(e) => setCreatedTo(e.target.value)}
+                    aria-label="Angemeldet bis"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1210,7 +1255,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                         <SelectValue placeholder="Sortierfeld wählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        {SORT_OPTIONS.map((option) => (
+                        {sortOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -1235,7 +1280,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten</p>
                   <div className="flex flex-wrap gap-2">
-                    {LIST_OPTIONAL_COLUMNS.map((column) => {
+                    {listOptionalColumns.map((column) => {
                       const selected = visibleColumns.includes(column.key);
                       const disableRemoval = selected && visibleColumns.length === 1;
 
