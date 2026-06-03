@@ -219,6 +219,9 @@ export async function GET(request: NextRequest) {
 
     return decorateParticipantChange({
       id: change.id,
+      bundleId: change.bundleId,
+      bundleType: change.bundleType,
+      bundleStatus: change.bundleStatus,
       changeData: change.changeData,
       beforeData: change.beforeData,
       status: change.status,

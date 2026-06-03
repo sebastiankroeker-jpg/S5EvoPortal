@@ -124,6 +124,13 @@ export async function PUT(
     return NextResponse.json({ error: "Änderungsantrag nicht gefunden oder bereits bearbeitet" }, { status: 404 });
   }
 
+  if (pendingChange.bundleId) {
+    return NextResponse.json(
+      { error: "Dieser Antrag gehoert zu einem Tausch-Bundle und kann nur gesammelt bearbeitet werden." },
+      { status: 409 },
+    );
+  }
+
   const pendingChangeTenantId = pendingChange.participant.team.competition?.tenant?.id;
   if (pendingChangeTenantId && pendingChangeTenantId !== auth.tenantId) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });

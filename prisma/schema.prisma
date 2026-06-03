@@ -130,6 +130,17 @@ enum ChangeRequestAuditAction {
   FAILED
 }
 
+enum PendingChangeBundleType {
+  SWAP
+}
+
+enum PendingChangeBundleStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CONFLICT
+}
+
 enum ShirtSize {
   K116
   K128
@@ -594,6 +605,9 @@ model PendingChange {
   changeData    String
   beforeData    String?
   status        ApprovalStatus @default(DRAFT)
+  bundleId      String?
+  bundleType    PendingChangeBundleType?
+  bundleStatus  PendingChangeBundleStatus?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   reviewedAt    DateTime?
@@ -611,6 +625,8 @@ model PendingChange {
   @@index([status, updatedAt])
   @@index([participantId, status])
   @@index([requestedById, status])
+  @@index([bundleId])
+  @@index([bundleStatus, updatedAt])
   @@map("pending_changes")
 }
 
