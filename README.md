@@ -58,4 +58,32 @@ Environment Variables im Vercel Dashboard setzen.
 3. Flag in Staging aktivieren (`ENABLE_PENDING_CHANGE_BUNDLES=true`) und Bundle-Flow testen
 4. Flag in Produktion aktivieren
 5. Nachkontrolle in Orga-Queue: Bundle-Kachel, Sammel-Genehmigung, Konfliktfall
+
+### Go-Live Runbook (Copy/Paste)
+```bash
+cd /home/ocadmin/.openclaw/workspace/authentik-nextjs-demo
+
+# 0) optional: sicherstellen, dass alle Commits remote sind
+git push origin main
+
+# 1) produktive Migration anwenden (nur additive Felder/Indizes)
+npx prisma migrate deploy
+
+# 2) Build-Sicherheit pruefen
+npm run build
+```
+
+Danach in der produktiven Runtime setzen:
+- `ENABLE_PENDING_CHANGE_BUNDLES=true`
+
+Schneller Smoke-Test nach Aktivierung:
+1. Zwei offene `PENDING`-Antraege derselben Mannschaft bundlen
+2. `/aenderungen` zeigt eine gemeinsame Bundle-Kachel
+3. Bundle `approve` -> alle Teilantraege werden gemeinsam `APPROVED`
+4. Konfliktfall (Live-Drift) -> Bundle-Status `CONFLICT`, kein Teil-Commit
+
+### Rollback (ohne DB-Rueckmigration)
+- Feature sofort deaktivieren: `ENABLE_PENDING_CHANGE_BUNDLES=false`
+- Wirkung: Bundle-Endpunkte nicht erreichbar, bestehender Einzelantrags-Flow bleibt aktiv
+- DB-Struktur bleibt unveraendert/additiv erhalten
 # Force redeploy Sun Mar 22 08:28:25 AM UTC 2026
