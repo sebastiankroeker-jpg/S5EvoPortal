@@ -830,7 +830,7 @@ function ChangeList({
                         <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 px-3 py-2.5 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-100">
                           <div className="font-medium">Live-Stand weicht vom Antrag ab</div>
                           <div className="mt-2 space-y-2">
-                            {change.impact.liveDriftSummary.map((field) => (
+                            {(change.impact?.liveDriftSummary || []).map((field) => (
                               <div key={`drift-${field.field}`} className="rounded-md bg-background/60 px-3 py-2">
                                 <div className="text-xs font-medium uppercase tracking-[0.14em]">{field.label}</div>
                                 <div className="mt-1 grid gap-1 text-sm sm:grid-cols-2">
