@@ -908,6 +908,41 @@ export async function PUT(
           userId: existingParticipant.userId,
         }));
 
+      const invalidShirtSizeEntries = matchedParticipantsResult.matches
+        .map(({ submittedParticipant }) => {
+          const rawShirtSize = submittedParticipant.shirtSize;
+          if (typeof rawShirtSize !== "string") {
+            return null;
+          }
+
+          const normalizedShirtSize = rawShirtSize.trim();
+          if (!normalizedShirtSize) {
+            return null;
+          }
+
+          const parsedShirtSize = parseShirtSize(rawShirtSize);
+          if (parsedShirtSize !== null) {
+            return null;
+          }
+
+          return {
+            participantName: `${normalizeSubmittedText(submittedParticipant.firstName)} ${normalizeSubmittedText(submittedParticipant.lastName)}`.trim(),
+            value: normalizedShirtSize,
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+      if (invalidShirtSizeEntries.length > 0) {
+        const firstInvalid = invalidShirtSizeEntries[0];
+        const allowedSizes = ["K116", "K128", "K140", "K152", "K164", "XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+        return NextResponse.json(
+          {
+            error: `Ungueltige T-Shirt-Groesse "${firstInvalid.value}"${firstInvalid.participantName ? ` bei ${firstInvalid.participantName}` : ""}. Erlaubt sind: ${allowedSizes.join(", ")}.`,
+          },
+          { status: 400 }
+        );
+      }
+
       const participantUpdates = matchedParticipantsResult.matches
         .map(({ submittedParticipant, existingParticipant }) => {
           const birthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
@@ -923,7 +958,7 @@ export async function PUT(
               birthYear,
               gender: mapGender(submittedParticipant.gender),
               disciplineCode: mapDiscipline(submittedParticipant.discipline),
-              shirtSize: submittedParticipant.shirtSize || null,
+              shirtSize: parseShirtSize(submittedParticipant.shirtSize),
               moderationNote: submittedParticipant.moderationNote?.trim() || null,
               consentGiven: true,
               email: normalizeSubmittedText(submittedParticipant.email) || null,
