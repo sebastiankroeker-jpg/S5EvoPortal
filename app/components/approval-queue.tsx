@@ -19,6 +19,9 @@ interface PendingChange {
   targetType?: string;
   changeType?: string;
   source?: string;
+  bundleId?: string | null;
+  bundleType?: "SWAP" | null;
+  bundleStatus?: "PENDING" | "APPROVED" | "REJECTED" | "CONFLICT" | null;
   changeData: string;
   beforeData?: string | null;
   status: string;
@@ -87,6 +90,10 @@ type DecoratedChange = PendingChange & {
   requesterLabel: string;
   priorityScore: number;
   isCritical: boolean;
+  bundleMembers?: DecoratedChange[];
+  bundleGroupSize?: number;
+  bundleFieldCount?: number;
+  bundleHasLiveDrift?: boolean;
 };
 
 const fieldLabels: Record<string, string> = {
@@ -186,6 +193,11 @@ function resolvePriorityScore(change: PendingChange, wasUpdated: boolean) {
   return score;
 }
 
+function resolveDisplayStatus(change: PendingChange) {
+  if (change.bundleStatus === "CONFLICT") return "CONFLICT";
+  return change.status;
+}
+
 export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueueProps) {
   const { activeRole } = usePermissions();
   const [changes, setChanges] = useState<PendingChange[]>([]);
@@ -275,7 +287,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const filteredChanges = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return decoratedChanges
+    const sortedChanges = decoratedChanges
       .filter((change) => {
         if (statusFilter !== "ALL" && change.status !== statusFilter) {
           return false;
@@ -316,6 +328,37 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
 
         return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
       });
+
+    const bundlesById = new Map<string, DecoratedChange[]>();
+    for (const change of sortedChanges) {
+      if (!change.bundleId) continue;
+      const current = bundlesById.get(change.bundleId) || [];
+      current.push(change);
+      bundlesById.set(change.bundleId, current);
+    }
+
+    const collapsed: DecoratedChange[] = [];
+    const seenBundleIds = new Set<string>();
+    for (const change of sortedChanges) {
+      if (!change.bundleId) {
+        collapsed.push(change);
+        continue;
+      }
+      if (seenBundleIds.has(change.bundleId)) continue;
+      seenBundleIds.add(change.bundleId);
+
+      const bundleMembers = bundlesById.get(change.bundleId) || [change];
+      collapsed.push({
+        ...change,
+        bundleMembers,
+        bundleGroupSize: bundleMembers.length,
+        bundleFieldCount: bundleMembers.reduce((sum, member) => sum + member.fields.length, 0),
+        bundleHasLiveDrift: bundleMembers.some((member) => member.impact?.hasLiveDrift),
+        isCritical: bundleMembers.some((member) => member.isCritical),
+      });
+    }
+
+    return collapsed;
   }, [decoratedChanges, participantFilterId, searchQuery, statusFilter, teamFilterId, updatedOnly]);
 
   const visibleChanges = useMemo(() => {
@@ -377,17 +420,21 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     window.history.replaceState(null, "", "/aenderungen");
   };
 
-  const handleAction = async (id: string, action: "approve" | "reject") => {
-    setProcessing(id);
+  const handleAction = async (change: DecoratedChange, action: "approve" | "reject") => {
+    const processingKey = change.bundleId ? `bundle:${change.bundleId}` : change.id;
+    const commentKey = change.bundleId ? `bundle:${change.bundleId}` : change.id;
+    setProcessing(processingKey);
     setError(null);
 
     try {
-      const change = changes.find((item) => item.id === id);
-      const reviewId = change?.changeRequestId || id;
-      const res = await fetch("/api/admin/pending-changes/" + reviewId, {
+      const reviewId = change.changeRequestId || change.id;
+      const endpoint = change.bundleId
+        ? `/api/admin/participant-change-bundles/${change.bundleId}/decision`
+        : "/api/admin/pending-changes/" + reviewId;
+      const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, comment: comments[id] || "" }),
+        body: JSON.stringify({ action, comment: comments[commentKey] || "" }),
       });
 
       if (!res.ok) {
@@ -395,7 +442,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         throw new Error(data.error || "Aktion fehlgeschlagen");
       }
 
-      setChanges((prev) => prev.filter((change) => change.id !== id && change.changeRequestId !== reviewId));
+      await fetchChanges("refresh");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Aktion fehlgeschlagen";
       setError(message);
@@ -633,7 +680,7 @@ function ChangeList({
   comments: Record<string, string>;
   setComments: Dispatch<SetStateAction<Record<string, string>>>;
   processing: string | null;
-  onAction: (id: string, action: "approve" | "reject") => Promise<void>;
+  onAction: (change: DecoratedChange, action: "approve" | "reject") => Promise<void>;
   compact?: boolean;
   canUseAdminLinks?: boolean;
   dashboardCompact?: boolean;
@@ -641,12 +688,14 @@ function ChangeList({
   const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
 
   const getStatusTone = (status: string) => {
+    if (status === "CONFLICT") return "border-red-300 text-red-700 dark:text-red-200";
     if (status === "APPROVED") return "border-green-300 text-green-700 dark:text-green-200";
     if (status === "REJECTED") return "border-red-300 text-red-700 dark:text-red-200";
     return "border-amber-300 text-amber-700 dark:text-amber-200";
   };
 
   const getStatusLabel = (status: string) => {
+    if (status === "CONFLICT") return "Konflikt";
     if (status === "APPROVED") return "Genehmigt";
     if (status === "REJECTED") return "Abgelehnt";
     return "In Pruefung";
@@ -654,7 +703,11 @@ function ChangeList({
 
   return (
     <AnimatePresence>
-      {changes.map((change) => (
+      {changes.map((change) => {
+        const displayStatus = resolveDisplayStatus(change);
+        const commentKey = change.bundleId ? `bundle:${change.bundleId}` : change.id;
+        const processingKey = change.bundleId ? `bundle:${change.bundleId}` : change.id;
+        return (
         <motion.div
           key={change.id}
           initial={{ opacity: 0, y: 12 }}
@@ -665,9 +718,9 @@ function ChangeList({
           {dashboardCompact ? (
             <Card
               className={
-                change.status === "APPROVED"
+                displayStatus === "APPROVED"
                   ? "border-green-200/80 dark:border-green-900/70"
-                  : change.status === "REJECTED"
+                  : displayStatus === "REJECTED" || displayStatus === "CONFLICT"
                     ? "border-red-200/80 dark:border-red-900/70"
                     : "border-amber-200/80 dark:border-amber-900/70"
               }
@@ -676,16 +729,21 @@ function ChangeList({
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                   <div className="min-w-0 space-y-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className="min-w-0 truncate text-sm font-medium">{change.participantName}</span>
-                      <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${getStatusTone(change.status)}`}>
-                        {getStatusLabel(change.status)}
+                      <span className="min-w-0 truncate text-sm font-medium">
+                        {change.bundleId && (change.bundleGroupSize || 0) > 1
+                          ? `Tausch-Bundle (${change.bundleGroupSize})`
+                          : change.participantName}
+                      </span>
+                      <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${getStatusTone(displayStatus)}`}>
+                        {getStatusLabel(displayStatus)}
                       </Badge>
                       <Badge variant="outline" className="h-6 px-1.5 text-[10px]">
                         {getTargetTypeLabel(change.targetType)}
                       </Badge>
                       <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
-                        {change.fields.length} Felder
+                        {change.bundleFieldCount ?? change.fields.length} Felder
                       </Badge>
+                      {change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
                     </div>
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                       <button
@@ -716,7 +774,7 @@ function ChangeList({
                         {change.fields.length > 2 ? `+${change.fields.length - 2} weitere` : ""}
                       </div>
                     )}
-                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
+                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {change.wasUpdated && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Aktualisiert</Badge>}
                         {change.impact?.classificationWarnings?.length ? (
@@ -724,7 +782,7 @@ function ChangeList({
                             Klassenwirkung
                           </Badge>
                         ) : null}
-                        {change.impact?.hasLiveDrift ? (
+                        {(change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                           <Badge variant="outline" className="h-5 border-red-300 px-1.5 text-[10px] text-red-700 dark:text-red-200">
                             Live-Stand abweichend
                           </Badge>
@@ -768,7 +826,7 @@ function ChangeList({
                         </div>
                       ) : null}
 
-                      {change.impact?.hasLiveDrift ? (
+                      {(change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                         <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 px-3 py-2.5 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-100">
                           <div className="font-medium">Live-Stand weicht vom Antrag ab</div>
                           <div className="mt-2 space-y-2">
@@ -841,16 +899,16 @@ function ChangeList({
                       <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                         Kommentar der Orga
                       </label>
-                      {change.status === "PENDING" ? (
+                      {displayStatus === "PENDING" ? (
                         <>
-                          {change.impact?.hasLiveDrift ? (
+                          {(change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                             <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
                               Genehmigen ist fuer diesen Antrag gesperrt, bis der geaenderte Live-Stand geklaert oder ein neuer Antrag gestellt wurde.
                             </div>
                           ) : null}
                           <Textarea
-                            value={comments[change.id] || ""}
-                            onChange={(event) => setComments((current) => ({ ...current, [change.id]: event.target.value }))}
+                            value={comments[commentKey] || ""}
+                            onChange={(event) => setComments((current) => ({ ...current, [commentKey]: event.target.value }))}
                             placeholder="Kommentar fuer Rueckmeldung an Team/Teilnehmer"
                             className={compact ? "min-h-[84px]" : "min-h-[110px]"}
                           />
@@ -870,24 +928,24 @@ function ChangeList({
                       )}
                     </div>
 
-                    {change.status === "PENDING" ? (
+                    {displayStatus === "PENDING" ? (
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <Button
                           size="sm"
-                          onClick={() => void onAction(change.id, "approve")}
-                          disabled={processing === change.id || change.impact?.hasLiveDrift}
+                          onClick={() => void onAction(change, "approve")}
+                          disabled={processing === processingKey || change.bundleHasLiveDrift || change.impact?.hasLiveDrift}
                           className="sm:flex-1"
                         >
-                          {processing === change.id ? "Bearbeite..." : "Genehmigen"}
+                          {processing === processingKey ? "Bearbeite..." : change.bundleId ? "Bundle genehmigen" : "Genehmigen"}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => void onAction(change.id, "reject")}
-                          disabled={processing === change.id || !(comments[change.id] || "").trim()}
+                          onClick={() => void onAction(change, "reject")}
+                          disabled={processing === processingKey || !(comments[commentKey] || "").trim()}
                           className="sm:flex-1"
                         >
-                          {processing === change.id ? "Bearbeite..." : "Ablehnen"}
+                          {processing === processingKey ? "Bearbeite..." : change.bundleId ? "Bundle ablehnen" : "Ablehnen"}
                         </Button>
                       </div>
                     ) : null}
@@ -898,9 +956,9 @@ function ChangeList({
           ) : (
             <Card
               className={
-                change.status === "APPROVED"
+                displayStatus === "APPROVED"
                   ? "border-green-200/80 dark:border-green-900/70"
-                  : change.status === "REJECTED"
+                  : displayStatus === "REJECTED" || displayStatus === "CONFLICT"
                     ? "border-red-200/80 dark:border-red-900/70"
                     : "border-amber-200/80 dark:border-amber-900/70"
               }
@@ -909,15 +967,20 @@ function ChangeList({
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className={compact ? "text-base" : "text-xl leading-tight"}>{change.participantName}</CardTitle>
-                      <Badge variant="outline" className={getStatusTone(change.status)}>
-                        {getStatusLabel(change.status)}
+                      <CardTitle className={compact ? "text-base" : "text-xl leading-tight"}>
+                        {change.bundleId && (change.bundleGroupSize || 0) > 1
+                          ? `Tausch-Bundle (${change.bundleGroupSize})`
+                          : change.participantName}
+                      </CardTitle>
+                      <Badge variant="outline" className={getStatusTone(displayStatus)}>
+                        {getStatusLabel(displayStatus)}
                       </Badge>
                       <Badge variant="outline">{getTargetTypeLabel(change.targetType)}</Badge>
-                      <Badge variant="secondary">{change.fields.length} Feldwechsel</Badge>
+                      <Badge variant="secondary">{change.bundleFieldCount ?? change.fields.length} Feldwechsel</Badge>
+                      {change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
                       {change.changeRequestId ? <Badge variant="secondary">ChangeRequest</Badge> : null}
                     </div>
-                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.impact?.hasLiveDrift) ? (
+                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                       <div className="flex flex-wrap gap-2">
                         {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
                         {change.impact?.classificationWarnings?.length ? (
@@ -925,7 +988,7 @@ function ChangeList({
                             Klassenwirkung
                           </Badge>
                         ) : null}
-                        {change.impact?.hasLiveDrift ? (
+                        {(change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                           <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-200">
                             Live-Stand abweichend
                           </Badge>
@@ -1005,7 +1068,7 @@ function ChangeList({
                   </div>
                 ) : null}
 
-                {change.impact?.hasLiveDrift ? (
+                {(change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                   <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 px-3 py-2.5 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-100">
                     <div className="font-medium">Live-Stand weicht vom Antrag ab</div>
                     <div className="mt-2 space-y-2">
@@ -1078,16 +1141,16 @@ function ChangeList({
                 <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                   Kommentar der Orga
                 </label>
-                {change.status === "PENDING" ? (
+                {displayStatus === "PENDING" ? (
                   <>
-                    {change.impact?.hasLiveDrift ? (
+                    {(change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                       <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
                         Genehmigen ist fuer diesen Antrag gesperrt, bis der geaenderte Live-Stand geklaert oder ein neuer Antrag gestellt wurde.
                       </div>
                     ) : null}
                     <Textarea
-                      value={comments[change.id] || ""}
-                      onChange={(event) => setComments((current) => ({ ...current, [change.id]: event.target.value }))}
+                      value={comments[commentKey] || ""}
+                      onChange={(event) => setComments((current) => ({ ...current, [commentKey]: event.target.value }))}
                       placeholder="Kommentar fuer Rueckmeldung an Team/Teilnehmer"
                       className={compact ? "min-h-[84px]" : "min-h-[110px]"}
                     />
@@ -1107,24 +1170,24 @@ function ChangeList({
                 )}
               </div>
 
-              {change.status === "PENDING" ? (
+              {displayStatus === "PENDING" ? (
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Button
                     size="sm"
-                    onClick={() => void onAction(change.id, "approve")}
-                    disabled={processing === change.id || change.impact?.hasLiveDrift}
+                    onClick={() => void onAction(change, "approve")}
+                    disabled={processing === processingKey || change.bundleHasLiveDrift || change.impact?.hasLiveDrift}
                     className="sm:flex-1"
                   >
-                    {processing === change.id ? "Bearbeite..." : "Genehmigen"}
+                    {processing === processingKey ? "Bearbeite..." : change.bundleId ? "Bundle genehmigen" : "Genehmigen"}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => void onAction(change.id, "reject")}
-                    disabled={processing === change.id || !(comments[change.id] || "").trim()}
+                    onClick={() => void onAction(change, "reject")}
+                    disabled={processing === processingKey || !(comments[commentKey] || "").trim()}
                     className="sm:flex-1"
                   >
-                    {processing === change.id ? "Bearbeite..." : "Ablehnen"}
+                    {processing === processingKey ? "Bearbeite..." : change.bundleId ? "Bundle ablehnen" : "Ablehnen"}
                   </Button>
                 </div>
               ) : null}
@@ -1132,7 +1195,7 @@ function ChangeList({
           </Card>
           )}
         </motion.div>
-      ))}
+      )})}
     </AnimatePresence>
   );
 }

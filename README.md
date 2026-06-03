@@ -16,6 +16,7 @@ Kopiere `.env.local.example` nach `.env.local` und trage die Werte ein:
 - `AUTHENTIK_CLIENT_SECRET` – aus Authentik Provider
 - `AUTHENTIK_ISSUER` – `https://auth.s5evo.de/application/o/s5-evo-portal`
 - `CRON_SECRET` – geheimes Token fuer geschuetzte Cron-Routen
+- `ENABLE_PENDING_CHANGE_BUNDLES` – `false` (Standard), nur fuer Bundle-MVP auf `true` setzen
 
 ### 2. Lokal testen
 ```bash
@@ -40,4 +41,21 @@ Environment Variables im Vercel Dashboard setzen.
 - Die Produktiv-Domain ist `https://portal.s5evo.de`.
 - Die alte Vercel-Domain `https://s5-evo-portal.vercel.app` sollte im Projekt hinterlegt bleiben, aber per Redirect auf die Produktiv-Domain zeigen.
 - Die taegliche CSV-Automation bleibt unter `/api/cron/daily-orga-export` aktiv und laeuft laut `vercel.json` taeglich um `04:00 UTC`.
+
+## Pending-Change-Bundles (Feature-Flag)
+- Status: implementiert, standardmaessig deaktiviert (`ENABLE_PENDING_CHANGE_BUNDLES=false`)
+- Zweck: atomare Freigabe von Disziplin-Tausch/Rotation fuer 2+ Teilnehmer
+- Backward-Compatibility: bestehende Einzelantraege und bestehende Daten bleiben unveraendert
+
+### API (nur bei aktiviertem Feature-Flag)
+- `POST /api/admin/participant-change-bundles`
+- `GET /api/admin/participant-change-bundles/:id`
+- `PUT /api/admin/participant-change-bundles/:id/decision`
+
+### Rollout-Checkliste (Produktion)
+1. Migration deployen (`pending_changes.bundleId/bundleType/bundleStatus` + Indizes)
+2. Build in Staging pruefen (`npm run build`)
+3. Flag in Staging aktivieren (`ENABLE_PENDING_CHANGE_BUNDLES=true`) und Bundle-Flow testen
+4. Flag in Produktion aktivieren
+5. Nachkontrolle in Orga-Queue: Bundle-Kachel, Sammel-Genehmigung, Konfliktfall
 # Force redeploy Sun Mar 22 08:28:25 AM UTC 2026
