@@ -620,6 +620,9 @@ export default function AdminPage() {
               <Button variant="outline" size="sm" onClick={() => setActiveAdminTab("restore")}>
                 Zum Archiv-Tab
               </Button>
+              <Button variant="outline" size="sm" onClick={() => router.push("/admin/logs")}>
+                Zu Runtime-Logs
+              </Button>
               <Button variant="outline" size="sm" onClick={() => router.push("/claim-links")}>
                 Zum Claim-Dashboard
               </Button>
