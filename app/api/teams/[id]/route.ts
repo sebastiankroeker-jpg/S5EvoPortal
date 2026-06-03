@@ -45,6 +45,20 @@ function normalizeSubmittedText(value?: string | null) {
   return value?.normalize("NFC").trim() || "";
 }
 
+function parseShirtSize(value: unknown): ShirtSize | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const validSizes: readonly ShirtSize[] = ["K116", "K128", "K140", "K152", "K164", "XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+  return validSizes.includes(normalized as ShirtSize) ? (normalized as ShirtSize) : null;
+}
+
 function toDirectParticipantUpdateInput(changeData: Record<string, unknown>): Prisma.ParticipantUpdateInput {
   const data: Prisma.ParticipantUpdateInput = {};
 
@@ -53,7 +67,7 @@ function toDirectParticipantUpdateInput(changeData: Record<string, unknown>): Pr
   }
 
   if (Object.prototype.hasOwnProperty.call(changeData, "shirtSize")) {
-    data.shirtSize = typeof changeData.shirtSize === "string" ? (changeData.shirtSize as ShirtSize) : null;
+    data.shirtSize = parseShirtSize(changeData.shirtSize);
   }
 
   if (Object.prototype.hasOwnProperty.call(changeData, "moderationNote")) {
@@ -894,25 +908,15 @@ export async function PUT(
           userId: existingParticipant.userId,
         }));
 
-      await prisma.$transaction(async (tx) => {
-        await tx.team.update({
-          where: { id },
-          data: {
-            name: finalTeamName,
-            teamPublicationLevel: requestedTeamPublicationLevel,
-            contactName: body.contactName || existingTeam.contactName,
-            contactEmail: body.contactEmail || existingTeam.contactEmail,
-            classificationCode: autoCategory,
-            totalAge: totalAge || null,
-          },
-        });
-
-        for (const { submittedParticipant } of matchedParticipantsResult.matches) {
+      const participantUpdates = matchedParticipantsResult.matches
+        .map(({ submittedParticipant, existingParticipant }) => {
           const birthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
-          if (birthYear === null || !submittedParticipant.id) continue;
+          if (birthYear === null || !submittedParticipant.id) return null;
 
-          await tx.participant.update({
-            where: { id: submittedParticipant.id },
+          return {
+            id: submittedParticipant.id,
+            currentDisciplineCode: existingParticipant.disciplineCode || "TBD",
+            nextDisciplineCode: mapDiscipline(submittedParticipant.discipline),
             data: {
               firstName: normalizeSubmittedText(submittedParticipant.firstName),
               lastName: normalizeSubmittedText(submittedParticipant.lastName),
@@ -926,6 +930,39 @@ export async function PUT(
               participantPublicationPreference: submittedParticipant.participantPublicationPreference || "NAME_VERBERGEN",
               deletedAt: null,
             },
+          };
+        })
+        .filter((update): update is NonNullable<typeof update> => update !== null);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.team.update({
+          where: { id },
+          data: {
+            name: finalTeamName,
+            teamPublicationLevel: requestedTeamPublicationLevel,
+            contactName: body.contactName || existingTeam.contactName,
+            contactEmail: body.contactEmail || existingTeam.contactEmail,
+            classificationCode: autoCategory,
+            totalAge: totalAge || null,
+          },
+        });
+
+        const disciplineSwaps = participantUpdates.filter(
+          (update) => update.currentDisciplineCode !== update.nextDisciplineCode,
+        );
+
+        // Prevent transient discipline collisions during swaps by clearing changed slots first.
+        for (const update of disciplineSwaps) {
+          await tx.participant.update({
+            where: { id: update.id },
+            data: { disciplineCode: "TBD" },
+          });
+        }
+
+        for (const update of participantUpdates) {
+          await tx.participant.update({
+            where: { id: update.id },
+            data: update.data,
           });
         }
       });
