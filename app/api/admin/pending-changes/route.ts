@@ -283,6 +283,9 @@ type ParticipantForApproval = {
 function decorateParticipantChange(input: {
   id: string;
   changeRequestId?: string;
+  bundleId?: string | null;
+  bundleType?: string | null;
+  bundleStatus?: string | null;
   changeData: string;
   beforeData?: string | null;
   status: string;
@@ -342,6 +345,9 @@ function decorateParticipantChange(input: {
   return {
     id: input.id,
     changeRequestId: input.changeRequestId,
+    bundleId: input.bundleId ?? null,
+    bundleType: input.bundleType ?? null,
+    bundleStatus: input.bundleStatus ?? null,
     targetType: input.targetType,
     changeType: input.changeType,
     source: input.source,
