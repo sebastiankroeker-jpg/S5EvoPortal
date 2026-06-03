@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Block rebase if there are uncommitted or untracked local changes.
+if ! git diff --quiet || ! git diff --cached --quiet || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+  echo "[pre-rebase] Working tree is not clean."
+  echo "Commit or stash changes (including untracked files) before rebasing."
+  exit 1
+fi

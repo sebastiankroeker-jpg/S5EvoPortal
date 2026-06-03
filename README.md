@@ -29,6 +29,22 @@ Push zu GitHub → Vercel baut automatisch.
 Environment Variables im Vercel Dashboard setzen.
 `vercel.json` plant einen taeglichen CSV-Export ueber `/api/cron/daily-orga-export`.
 
+## Git Leitplanken (empfohlen)
+Einmalig lokal im Repo aktivieren:
+
+```bash
+./scripts/setup-git-guardrails.sh
+```
+
+Aktive Hooks:
+- `pre-push`: blockiert Pushes ohne gruene Build-Pipeline (`npm run build`)
+- `pre-rebase`: blockiert Rebase bei nicht-cleanem Working Tree (inkl. untracked Dateien)
+
+Bypass nur im absoluten Notfall:
+```bash
+git push --no-verify
+```
+
 ## Authentik Konfiguration
 - Provider: OAuth2/OpenID
 - Redirect URI: `https://portal.s5evo.de/api/auth/callback/authentik`

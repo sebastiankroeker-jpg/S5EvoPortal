@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Enforce a green production build before any push.
+echo "[pre-push] Running build check (npm run build)..."
+npm run build
