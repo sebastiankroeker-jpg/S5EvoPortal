@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
@@ -11,6 +11,7 @@ import {
   createDefaultTeamForm,
   DISCIPLINES,
   DISCIPLINE_PLACEHOLDER,
+  ParticipantSchema,
   extractBirthYearFromInput,
   formatBirthDateInput,
   TEAM_PUBLICATION_OPTIONS,
@@ -181,42 +182,79 @@ function handleBirthDateKeyDown(
   });
 }
 
+function collectValidationMessages(source: unknown, messages: Set<string>) {
+  if (!source || typeof source !== "object") return;
+
+  if ("message" in source && typeof source.message === "string" && source.message.trim()) {
+    messages.add(source.message);
+  }
+
+  for (const [key, entry] of Object.entries(source)) {
+    if (key === "ref") continue;
+    collectValidationMessages(entry, messages);
+  }
+}
+
 function getDisciplineLabel(participant: { discipline?: string } | undefined, index: number) {
   const discipline = DISCIPLINES.find((entry) => entry.id === participant?.discipline);
   return discipline ? `${discipline.icon} ${discipline.label}` : `Teilnehmer:in ${index + 1}`;
 }
 
-function collectStepTwoValidationMessages(values: TeamRegistrationFormInput) {
-  const result = TeamRegistrationSchema.safeParse(values);
-  const teamMessages = new Set<string>();
-  const participantMessages: string[] = [];
-
-  if (result.success) {
-    return { teamMessages: [], participantMessages: [] };
+function collectParticipantValidationMessages(
+  source: unknown,
+  participants: Array<{ discipline?: string }>,
+) {
+  if (!Array.isArray(source)) {
+    const fallback = new Set<string>();
+    collectValidationMessages(source, fallback);
+    return Array.from(fallback);
   }
 
-  for (const issue of result.error.issues) {
-    const [section, index] = issue.path;
+  const messages: string[] = [];
 
-    if (section === "teamName") {
-      teamMessages.add(issue.message);
-      continue;
+  source.forEach((entry, index) => {
+    if (!entry) return;
+
+    const fieldMessages = new Set<string>();
+    collectValidationMessages(entry, fieldMessages);
+
+    for (const message of fieldMessages) {
+      messages.push(`${getDisciplineLabel(participants[index], index)}: ${message}`);
+    }
+  });
+
+  return Array.from(new Set(messages));
+}
+
+function collectCurrentParticipantValidationMessages(participants: ParticipantInput[]) {
+  const messages: string[] = [];
+
+  participants.forEach((participant, index) => {
+    const result = ParticipantSchema.safeParse(participant);
+    if (result.success) return;
+
+    for (const issue of result.error.issues) {
+      messages.push(`${getDisciplineLabel(participant, index)}: ${issue.message}`);
+    }
+  });
+
+  return Array.from(new Set(messages));
+}
+
+function buildBirthDateWarnings(participants: Array<{ birthDate?: string; discipline?: string }>) {
+  return participants.flatMap((participant, index) => {
+    const value = participant.birthDate?.trim() ?? "";
+
+    if (!value) {
+      return [`${getDisciplineLabel(participant, index)}: Geburtsdatum fehlt`];
     }
 
-    if (section !== "participants") continue;
-
-    if (typeof index === "number") {
-      participantMessages.push(`${getDisciplineLabel(values.participants?.[index], index)}: ${issue.message}`);
-      continue;
+    if (extractBirthYearFromInput(value) === null) {
+      return [`${getDisciplineLabel(participant, index)}: Geburtsdatum unplausibel oder Jahrgang nicht erlaubt`];
     }
 
-    participantMessages.push(issue.message);
-  }
-
-  return {
-    teamMessages: Array.from(teamMessages),
-    participantMessages: Array.from(new Set(participantMessages)),
-  };
+    return [];
+  });
 }
 
 export default function TeamRegistration({ allowAnonymous = false }: TeamRegistrationProps) {
@@ -230,7 +268,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const [serverError, setServerError] = useState("");
   const [submissionWarning, setSubmissionWarning] = useState("");
   const [competitionInfo, setCompetitionInfo] = useState<PublicCompetitionInfo | null>(null);
-  const [stepTwoValidationAttempted, setStepTwoValidationAttempted] = useState(false);
 
 
 
@@ -278,26 +315,28 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     const discs = watchedParticipants.map((participant) => participant.discipline || "TBD");
     return validateDisciplineAssignment(discs);
   }, [watchedParticipants, watchedValues]);
-  const participants = watchedParticipants;
+  const participants = watch("participants") ?? [];
+  const participantFieldErrors = useMemo(() => {
+    if (!formState.errors.participants) return [];
+
+    if (Array.isArray(participants)) {
+      return collectCurrentParticipantValidationMessages(participants as ParticipantInput[]);
+    }
+
+    return collectParticipantValidationMessages(formState.errors.participants, participants || []);
+  }, [formState.errors.participants, participants]);
+  const hasBlockingValidationErrors = Boolean(formState.errors.teamName || participantFieldErrors.length > 0);
+  const birthDateWarnings = useMemo(() => buildBirthDateWarnings(participants || []), [participants]);
+  const stepTwoWarnings = useMemo(
+    () => Array.from(new Set([...liveClassification.warnings, ...birthDateWarnings, ...disciplineCheck.warnings])),
+    [birthDateWarnings, disciplineCheck.warnings, liveClassification.warnings],
+  );
+
   const teamName = watch("teamName");
   const contactFirstName = watch("contactFirstName");
   const contactLastName = watch("contactLastName");
   const contactName = watch("contactName");
   const contactEmail = watch("contactEmail");
-  const stepTwoValidationMessages = useMemo(
-    () =>
-      collectStepTwoValidationMessages({
-        ...getValues(),
-        teamName: teamName || "",
-        participants,
-      }),
-    [getValues, participants, teamName],
-  );
-  const stepTwoWarnings = useMemo(
-    () => Array.from(new Set([...liveClassification.warnings, ...disciplineCheck.warnings])),
-    [disciplineCheck.warnings, liveClassification.warnings],
-  );
-
   const effectiveContactName = userName || [contactFirstName, contactLastName].filter(Boolean).join(" ").trim() || contactName || "";
   const effectiveContactEmail = userEmail || contactEmail || "";
   const isAnonymousRegistration = allowAnonymous && !session?.user;
@@ -353,6 +392,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   }, [activeCompetition?.id]);
 
   const previousTeamLeadDiscipline = useRef<DisciplineId>(DISCIPLINES[0].id);
+  const teamLeadWasParticipating = useRef(false);
 
   const findParticipantIndexByDiscipline = (discipline: DisciplineId) => {
     const current = getValues("participants");
@@ -395,13 +435,16 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   useEffect(() => {
     if (teamLeadParticipates) {
-      if (previousTeamLeadDiscipline.current !== teamLeadDiscipline) {
+      if (teamLeadWasParticipating.current && previousTeamLeadDiscipline.current !== teamLeadDiscipline) {
         clearTeamLeadSlot(previousTeamLeadDiscipline.current);
       }
       fillTeamLeadSlot(teamLeadDiscipline);
       previousTeamLeadDiscipline.current = teamLeadDiscipline;
-    } else {
+      teamLeadWasParticipating.current = true;
+    } else if (teamLeadWasParticipating.current) {
       clearTeamLeadSlot(previousTeamLeadDiscipline.current);
+      previousTeamLeadDiscipline.current = teamLeadDiscipline;
+      teamLeadWasParticipating.current = false;
     }
   }, [teamLeadParticipates, teamLeadDiscipline, teamLeadFirstName, teamLeadLastName, effectiveContactEmail, effectiveContactName, teamLeadBirthDate, teamLeadGender]);
 
@@ -413,29 +456,15 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       : (["teamName"] as const);
     const ok = await trigger(fieldsToValidate);
     if (ok) {
-      setStepTwoValidationAttempted(false);
       setStep(2);
     }
   };
 
   const handleNextFromParticipants = async () => {
-    setStepTwoValidationAttempted(true);
-    const currentValues = getValues();
-    const currentValuesValid = TeamRegistrationSchema.safeParse(currentValues).success;
-    const resolverValid = await trigger(["teamName", "participants"]);
-
-    if (currentValuesValid || resolverValid) {
-      setStepTwoValidationAttempted(false);
+    const ok = await trigger(["teamName", "participants"]);
+    if (ok) {
       setStep(3);
     }
-  };
-
-  const handleParticipantBirthDateChange = (index: number, value: string) => {
-    setValue(`participants.${index}.birthDate` as const, formatBirthDateInput(value), {
-      shouldDirty: true,
-      shouldTouch: true,
-      shouldValidate: false,
-    });
   };
 
   const handleParticipantModerationNoteChange = (index: number, value: string) => {
@@ -506,8 +535,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       setTeamLeadDiscipline(DISCIPLINES[0].id);
       setLiabilityAccepted(false);
       setOpenModerationNotes({});
-      setStepTwoValidationAttempted(false);
       previousTeamLeadDiscipline.current = DISCIPLINES[0].id;
+      teamLeadWasParticipating.current = false;
       setStep(1);
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -521,7 +550,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
     setSubmittedRecipientEmail("");
     setLiabilityAccepted(false);
     setOpenModerationNotes({});
-    setStepTwoValidationAttempted(false);
     setStep(1);
   };
 
@@ -950,21 +978,29 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
                               {...register(`participants.${index}.lastName` as const)}
                             />
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="TT.MM.JJJJ"
-                              autoComplete="bday"
-                              className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
-                              value={participants[index]?.birthDate || ""}
-                              onChange={(e) => handleParticipantBirthDateChange(index, e.target.value)}
-                              onKeyDown={(event) =>
-                                handleBirthDateKeyDown(
-                                  event,
-                                  participants[index]?.birthDate || "",
-                                  (nextValue) => handleParticipantBirthDateChange(index, nextValue),
-                                )
-                              }
+                            <Controller
+                              control={control}
+                              name={`participants.${index}.birthDate` as const}
+                              render={({ field }) => (
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="TT.MM.JJJJ"
+                                  autoComplete="bday"
+                                  className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
+                                  value={field.value || ""}
+                                  onBlur={field.onBlur}
+                                  onChange={(e) => field.onChange(formatBirthDateInput(e.target.value))}
+                                  onKeyDown={(event) =>
+                                    handleBirthDateKeyDown(
+                                      event,
+                                      field.value || "",
+                                      field.onChange,
+                                    )
+                                  }
+                                  ref={field.ref}
+                                />
+                              )}
                             />
                             <select
                               className="px-2 py-1 bg-background border border-input/60 rounded text-sm"
@@ -1022,20 +1058,28 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                     <p className="text-xs text-muted-foreground">T-Shirt-Bestellfrist abgeschlossen, Größen sind nur noch für Admin editierbar.</p>
                   )}
 
-                  {stepTwoValidationAttempted && (
-                    stepTwoValidationMessages.teamMessages.length > 0 ||
-                    stepTwoValidationMessages.participantMessages.length > 0
-                  ) && (
-                    <div className="space-y-1">
-                      <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
-                      <div className="space-y-1 text-xs text-red-600">
-                        {stepTwoValidationMessages.teamMessages.map((message) => (
-                          <p key={message}>• {message}</p>
-                        ))}
-                        {stepTwoValidationMessages.participantMessages.map((message) => (
-                          <p key={message}>• {message}</p>
-                        ))}
-                      </div>
+                  {(hasBlockingValidationErrors || stepTwoWarnings.length > 0) && (
+                    <div className="space-y-2">
+                      {hasBlockingValidationErrors && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
+                          <div className="space-y-1 text-xs text-red-600">
+                            {formState.errors.teamName?.message && (
+                              <p>• {formState.errors.teamName.message}</p>
+                            )}
+                            {participantFieldErrors.map((message) => (
+                              <p key={message}>• {message}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {stepTwoWarnings.length > 0 && (
+                        <div className="space-y-1 text-xs text-amber-600">
+                          {stepTwoWarnings.map((warning) => (
+                            <p key={warning}>⚠️ {warning}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
