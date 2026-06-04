@@ -12,6 +12,7 @@ import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { openChangesDashboard, openTeamDashboard } from "@/lib/admin-routing";
 import ParticipantEditDialog from "./participant-edit-dialog";
+import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 
 interface ParticipantEntry {
   id: string;
@@ -20,6 +21,7 @@ interface ParticipantEntry {
   birthYear: number;
   gender: string;
   disciplineCode: string;
+  participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   shirtSize?: string | null;
   moderationNote?: string | null;
   email?: string | null;
@@ -303,6 +305,7 @@ export default function ParticipantList() {
                           <span className="min-w-0 truncate text-sm font-medium">
                             {p.lastName}, {p.firstName}
                           </span>
+                          <ParticipantPublicationPreferenceIcon preference={p.participantPublicationPreference} />
                           <span className="text-xs">{gender}</span>
                           {p.hasPendingChange && (
                             <Badge
@@ -401,7 +404,12 @@ export default function ParticipantList() {
               return (
                 <tr key={p.id}>
                   <td>{disc.label}</td>
-                  <td>{p.lastName}, {p.firstName}</td>
+                  <td>
+                    <span className="inline-flex items-center gap-1.5">
+                      {[p.lastName, p.firstName].filter(Boolean).join(", ")}
+                      <ParticipantPublicationPreferenceIcon preference={p.participantPublicationPreference} />
+                    </span>
+                  </td>
                   <td>{p.teamName}</td>
                   <td>{p.teamCategory}</td>
                   <td>{p.birthYear}</td>

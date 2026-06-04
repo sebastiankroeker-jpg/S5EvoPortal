@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DISCIPLINES } from "@/lib/domain/team";
 import ResultsView from "./results-view";
+import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 
 const SEGMENTS = ["teams", "start", "ergebnis"] as const;
 type Segment = typeof SEGMENTS[number];
@@ -19,6 +20,7 @@ type Segment = typeof SEGMENTS[number];
 interface Team {
   id: string;
   name: string;
+  teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH";
   category: string;
   contactName: string;
   contactEmail: string;
@@ -31,6 +33,7 @@ interface Participant {
   gender: string;
   birthDate: string;
   discipline?: string;
+  participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
 }
 
 const categoryEmojis: Record<string, string> = {
@@ -197,7 +200,13 @@ export default function LiveScreen() {
                                 const disc = getDisciplineDisplay(p.discipline);
                                 return (
                                   <div key={i} className="text-sm text-muted-foreground flex items-center justify-between">
-                                    <span>{p.firstName} {p.lastName}</span>
+                                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                                      <span className="truncate">{p.firstName} {p.lastName}</span>
+                                      <ParticipantPublicationPreferenceIcon
+                                        preference={p.participantPublicationPreference}
+                                        teamPublicationLevel={team.teamPublicationLevel}
+                                      />
+                                    </span>
                                     <span className="flex items-center gap-1">
                                       <span title={disc.label}>{disc.icon}</span>
                                       <span>{p.gender === "M" ? "♂" : "♀"}</span>
@@ -323,8 +332,12 @@ export default function LiveScreen() {
                                   <div className="px-3 pb-3 space-y-1 border-t border-border/40 pt-2">
                                     {participants.map(({ participant, teamName }, i) => (
                                       <div key={i} className="text-sm flex items-center justify-between py-1">
-                                        <span>
-                                          <span className="font-medium">{i + 1}.</span> {participant.firstName} {participant.lastName}
+                                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                                          <span className="font-medium">{i + 1}.</span>
+                                          <span className="truncate">{participant.firstName} {participant.lastName}</span>
+                                          <ParticipantPublicationPreferenceIcon
+                                            preference={participant.participantPublicationPreference}
+                                          />
                                         </span>
                                         <div className="flex items-center gap-2 text-muted-foreground">
                                           <span>—</span>

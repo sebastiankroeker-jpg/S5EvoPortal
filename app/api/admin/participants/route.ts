@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       birthYear: p.birthYear,
       gender: p.gender,
       disciplineCode: p.disciplineCode,
+      participantPublicationPreference: p.participantPublicationPreference,
       shirtSize: canSeeAdminOnlyFields ? p.shirtSize : null,
       moderationNote: p.moderationNote,
       email: canSeeAdminOnlyFields ? p.email : null,

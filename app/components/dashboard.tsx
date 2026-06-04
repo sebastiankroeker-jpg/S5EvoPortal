@@ -49,8 +49,6 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
-  Eye,
-  EyeOff,
   Info,
   Mail,
   RotateCcw,
@@ -61,6 +59,7 @@ import {
   X,
 } from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
+import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 
 interface Team {
   id: string;
@@ -506,38 +505,6 @@ function InfoHint({ text }: { text: string }) {
         <TooltipContent side="top">{text}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
-}
-
-function ParticipantPublicationPreferenceIcon({
-  participant,
-  team,
-}: {
-  participant?: Participant | null;
-  team: Team;
-}) {
-  if (!participant) return null;
-
-  const publishesName = participant.participantPublicationPreference === "NAME_VEROEFFENTLICHEN";
-  const Icon = publishesName ? Eye : EyeOff;
-  const teamLimitsPublication = publishesName && team.teamPublicationLevel !== "ALLES_OEFFENTLICH";
-  const tooltip = publishesName
-    ? teamLimitsPublication
-      ? "Datenschutzpräferenz: Name darf veröffentlicht werden, die Team-Sichtbarkeit begrenzt aber die öffentliche Anzeige."
-      : "Datenschutzpräferenz: Name darf öffentlich angezeigt werden."
-    : "Datenschutzpräferenz: Name nicht öffentlich anzeigen. Admins sehen den Namen intern.";
-
-  return (
-    <span
-      className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full ${
-        publishesName ? "text-green-700" : "text-amber-700"
-      }`}
-      title={tooltip}
-      aria-label={tooltip}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <Icon className="size-3" aria-hidden="true" />
-    </span>
   );
 }
 
@@ -1664,7 +1631,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   <span className="min-w-0 truncate text-[11px] font-medium text-foreground">
                                     {participantLabel}
                                   </span>
-                                  {isAdmin && <ParticipantPublicationPreferenceIcon participant={participant} team={team} />}
+                                  {participant && (
+                                    <ParticipantPublicationPreferenceIcon
+                                      preference={participant.participantPublicationPreference}
+                                      teamPublicationLevel={team.teamPublicationLevel}
+                                    />
+                                  )}
                                 </div>
                               );
                             })}
@@ -1845,7 +1817,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                             <p className="min-w-0 truncate text-sm font-medium" title={participantLabel}>
                                               {participantLabel}
                                             </p>
-                                            {isAdmin && <ParticipantPublicationPreferenceIcon participant={participant} team={team} />}
+                                            {participant && (
+                                              <ParticipantPublicationPreferenceIcon
+                                                preference={participant.participantPublicationPreference}
+                                                teamPublicationLevel={team.teamPublicationLevel}
+                                              />
+                                            )}
                                           </div>
                                         </div>
                                       </div>
