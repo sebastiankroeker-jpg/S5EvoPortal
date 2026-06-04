@@ -623,6 +623,9 @@ export default function AdminPage() {
               <Button variant="outline" size="sm" onClick={() => router.push("/admin/logs")}>
                 Zu Runtime-Logs
               </Button>
+              <Button variant="outline" size="sm" onClick={() => router.push("/admin/mail-log")}>
+                Zum Mail-Protokoll
+              </Button>
               <Button variant="outline" size="sm" onClick={() => router.push("/claim-links")}>
                 Zum Claim-Dashboard
               </Button>
