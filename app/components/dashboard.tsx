@@ -24,7 +24,6 @@ import {
   DISCIPLINES,
   PARTICIPANT_PUBLICATION_OPTIONS,
   TEAM_PUBLICATION_OPTIONS,
-  extractBirthYearFromInput,
   formatBirthDateInput,
   resolveBirthDateInputKey,
 } from "@/lib/domain/team";
@@ -46,7 +45,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   ArrowDownUp,
-  CalendarClock,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -56,11 +54,8 @@ import {
   RotateCcw,
   Search,
   Send,
-  ShieldCheck,
   SlidersHorizontal,
   Star,
-  UserRound,
-  UsersRound,
   X,
 } from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
@@ -312,18 +307,6 @@ function getTeamPendingChangeCount(team: Team) {
   );
 }
 
-function getTeamLinkedAccountCount(team: Team) {
-  return (team.participants ?? []).filter((participant) =>
-    participant.emailInvitation?.status === "linked" ||
-    participant.emailInvitation?.status === "claimed" ||
-    participant.canBeTeamManager,
-  ).length;
-}
-
-function getTeamPublicationLabel(team: Team) {
-  return TEAM_PUBLICATION_OPTIONS.find((option) => option.id === team.teamPublicationLevel)?.label || "Nicht festgelegt";
-}
-
 function getParticipantsSummary(team: Team) {
   return (team.participants ?? [])
     .map((participant, index) => getParticipantDisplayName(participant, index))
@@ -356,15 +339,62 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
 }
 
-function getGenderLabel(gender?: string | null) {
-  if (gender === "M" || gender === "MALE") return "Männlich";
-  if (gender === "W" || gender === "FEMALE") return "Weiblich";
-  return "Divers";
+function isFemaleParticipant(gender?: string | null) {
+  return gender === "W" || gender === "FEMALE";
 }
 
-function getShirtSizeLabel(shirtSize?: string | null) {
-  if (!shirtSize) return null;
-  return SHIRT_SIZES.find((size) => size.id === shirtSize)?.label || shirtSize;
+function isMaleParticipant(gender?: string | null) {
+  return gender === "M" || gender === "MALE";
+}
+
+function getGenderedDisciplineRole(disciplineCode?: string | null, gender?: string | null) {
+  const code = disciplineCode && disciplineCode !== "TBD" ? disciplineCode : "TBD";
+  const labels: Record<string, { female: string; male: string; neutral: string }> = {
+    RUN: { female: "Läuferin", male: "Läufer", neutral: "Laufen" },
+    BENCH: { female: "Bankdrückerin", male: "Bankdrücker", neutral: "Bankdrücken" },
+    STOCK: { female: "Stockschützin", male: "Stockschütze", neutral: "Stockschießen" },
+    ROAD: { female: "Rennradfahrerin", male: "Rennradfahrer", neutral: "Rennrad" },
+    MTB: { female: "Mountainbikerin", male: "Mountainbiker", neutral: "Mountainbike" },
+    TBD: { female: "Teilnehmerin", male: "Teilnehmer", neutral: "Teilnehmer:in" },
+  };
+  const label = labels[code] || labels.TBD;
+
+  if (isFemaleParticipant(gender)) return label.female;
+  if (isMaleParticipant(gender)) return label.male;
+  return label.neutral;
+}
+
+function canShowParticipantNameOnDashboard(team: Team, participant: Participant, index?: number) {
+  const name = getParticipantDisplayName(participant, index);
+  return (
+    team.teamPublicationLevel === "ALLES_OEFFENTLICH" &&
+    participant.participantPublicationPreference === "NAME_VEROEFFENTLICHEN" &&
+    name !== "Teilnehmer:in"
+  );
+}
+
+function getDashboardParticipantLabel(team: Team, participant: Participant, index?: number) {
+  if (canShowParticipantNameOnDashboard(team, participant, index)) {
+    return getParticipantDisplayName(participant, index);
+  }
+
+  return getGenderedDisciplineRole(participant.discipline || participant.disciplineCode, participant.gender);
+}
+
+function getTeamDisciplineSlots(team: Team) {
+  const remainingParticipants = [...(team.participants ?? [])];
+
+  return DISCIPLINES.map((discipline) => {
+    const participantIndex = remainingParticipants.findIndex(
+      (participant) => (participant.discipline || participant.disciplineCode) === discipline.id,
+    );
+    const participant = participantIndex >= 0 ? remainingParticipants.splice(participantIndex, 1)[0] : null;
+
+    return {
+      discipline,
+      participant,
+    };
+  });
 }
 
 function isValidEmail(value: string) {
@@ -550,7 +580,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [expandedTeamMeta, setExpandedTeamMeta] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
@@ -632,8 +661,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   };
 
   const handleEditTeam = async (teamData: TeamEditPayload) => {
+    const editedTeamId = editingTeam!.id;
+
     try {
-      const response = await fetch(`/api/teams/${editingTeam!.id}`, {
+      const response = await fetch(`/api/teams/${editedTeamId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(teamData),
@@ -642,6 +673,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       if (response.ok) {
         const data = await response.json();
         setEditingTeam(null);
+        setExpandedTeam((current) => (current === editedTeamId ? null : current));
         await fetchTeams(); // Refresh list
         const notices = [
           ...(data.message ? [data.message] : []),
@@ -685,7 +717,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   useEffect(() => {
     if (viewMode === "list") {
       setExpandedTeam(null);
-      setExpandedTeamMeta(null);
     }
   }, [viewMode]);
 
@@ -783,7 +814,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 
     window.sessionStorage.removeItem(TEAM_FOCUS_STORAGE_KEY);
     setExpandedTeam(focusTeamId);
-    setExpandedTeamMeta(null);
     setViewMode("cards");
   }, [teams]);
 
@@ -899,15 +929,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     "damen-b": "👩‍🦳"
   };
 
-  // Helper function to get discipline label and icon
-  const getDisciplineDisplay = (disciplineCode?: string) => {
-    if (!disciplineCode || disciplineCode === "TBD") {
-      return { label: "Noch offen", icon: "❓" };
-    }
-    const discipline = DISCIPLINES.find(d => d.id === disciplineCode);
-    return discipline ? { label: discipline.label, icon: discipline.icon } : { label: disciplineCode, icon: "🏃" };
-  };
-
   if (loading) {
     return (
       <Card>
@@ -919,7 +940,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     );
   }
 
-  const totalParticipants = filteredTeams.reduce((sum, team) => sum + (team.participants?.length || 0), 0);
   const incompleteTeams = teams.filter((team) => canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team)).length;
   const hasActiveFilters =
     searchQuery !== "" ||
@@ -939,44 +959,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
-  const ownTeamsCount = teams.filter((team) => team.isCurrentUserTeam === true).length;
-  const roleStats = (() => {
-    const common = [
-      { value: `${filteredTeams.length}/${teams.length}`, label: "Teams" },
-      { value: `${categories.length}`, label: "Klassen" },
-    ];
-
-    if (activeRole === "ADMIN" || activeRole === "MODERATOR") {
-      return [
-        common[0],
-        { value: `${totalParticipants}`, label: "Teilnehmer:innen" },
-        common[1],
-        { value: `${incompleteTeams}`, label: "unvollständig" },
-      ];
-    }
-
-    if (activeRole === "TEAMCHEF") {
-      return [
-        common[0],
-        { value: `${ownTeamsCount}`, label: "meine Teams" },
-        { value: `${totalParticipants}`, label: "Teilnehmer:innen" },
-      ];
-    }
-
-    if (activeRole === "TEILNEHMER") {
-      return [
-        common[0],
-        { value: `${ownTeamsCount}`, label: "mein Team" },
-        common[1],
-      ];
-    }
-
-    return [
-      common[0],
-      { value: `${totalParticipants}`, label: "Teilnehmer:innen" },
-      common[1],
-    ];
-  })();
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -1020,16 +1002,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          {roleStats.map((stat, index) => (
-            <span key={`${stat.label}-${index}`}>
-              {index > 0 && <span className="mr-2">·</span>}
-              <span className="font-semibold text-primary">{stat.value}</span> {stat.label}
-            </span>
-          ))}
-        </div>
-
-        <div className="mt-2 space-y-1.5">
+        <div className="space-y-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Button
               size="sm"
@@ -1491,11 +1464,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               const completionMeta = getTeamCompletionMeta(team);
               const disciplineMeta = getTeamDisciplineMeta(team);
               const pendingChangeCount = getTeamPendingChangeCount(team);
-              const linkedAccountCount = getTeamLinkedAccountCount(team);
               const CompletionIcon = completionMeta.icon;
               const DisciplineIcon = disciplineMeta.icon;
               const showActionStatus = canShowTeamActionStatus(team, showAdminDashboardInfo);
-              const isMetaOpen = expandedTeamMeta === team.id;
+              const disciplineSlots = getTeamDisciplineSlots(team);
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -1508,7 +1480,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                     className="cursor-pointer transition-colors hover:bg-muted/50"
                     onClick={() => {
                       setExpandedTeam(team.id);
-                      setExpandedTeamMeta(null);
                     }}
                   >
                     <CardContent className="p-2.5">
@@ -1527,10 +1498,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               </Badge>
                             )}
                           </div>
-                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                            <span>{getParticipantCount(team)} / 5 Teilnehmer:innen</span>
-                            <span>·</span>
-                            <span className="truncate">{team.contactName || getContactFallbackLabel(team)}</span>
+                          <div className="grid gap-1.5 pt-1 sm:grid-cols-5">
+                            {disciplineSlots.map(({ discipline, participant }) => (
+                              <div
+                                key={discipline.id}
+                                className="flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1"
+                                title={participant ? getDashboardParticipantLabel(team, participant) : `${discipline.label}: offen`}
+                              >
+                                <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
+                                <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+                                  {participant ? getDashboardParticipantLabel(team, participant) : "Offen"}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                           {showCompactStatusRow && (
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -1564,7 +1544,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             onClick={(event) => {
                               event.stopPropagation();
                               setExpandedTeam(team.id);
-                              setExpandedTeamMeta(null);
                             }}
                           >
                             Details
@@ -1595,25 +1574,24 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               </Badge>
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
-                              <Button
-                                type="button"
-                                size="xs"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedTeamMeta(isMetaOpen ? null : team.id);
-                                }}
-                              >
-                                {isMetaOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
-                                Infos
-                              </Button>
+                              {team.canCurrentUserEdit && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTeam(team);
+                                  }}
+                                >
+                                  Bearbeiten
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setExpandedTeam(null);
-                                  setExpandedTeamMeta(null);
                                 }}
                                 className="h-8 w-8 shrink-0 p-0"
                                 aria-label="Details schließen"
@@ -1623,272 +1601,174 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             </div>
                           </div>
 
-                          {isMetaOpen && (
-                            <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
-                              {((showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
-                                (showAdminDashboardInfo && pendingChangeCount > 0) ||
-                                team.isCurrentUserTeam) && (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {showActionStatus && completionMeta.isImportant && (
-                                    <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
-                                      <CompletionIcon className="size-3" />
-                                      {completionMeta.label}
-                                    </Badge>
-                                  )}
-                                  {showActionStatus && disciplineMeta.isImportant && (
-                                    <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
-                                      <DisciplineIcon className="size-3" />
-                                      {disciplineMeta.label}
-                                    </Badge>
-                                  )}
-                                  {showAdminDashboardInfo && pendingChangeCount > 0 && (
-                                    <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
-                                      <ClipboardList className="size-3" />
-                                      {pendingChangeCount} Änderung(en)
-                                    </Badge>
-                                  )}
-                                  {team.isCurrentUserTeam && (
-                                    <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px]">
-                                      <Star className="size-3" />
-                                      Eigenes Team
-                                    </Badge>
-                                  )}
-                                </div>
+                          {((showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
+                            (showAdminDashboardInfo && pendingChangeCount > 0) ||
+                            team.isCurrentUserTeam) && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {showActionStatus && completionMeta.isImportant && (
+                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                                  <CompletionIcon className="size-3" />
+                                  {completionMeta.label}
+                                </Badge>
                               )}
-
-                              <div className={`grid gap-2 sm:grid-cols-2 ${showAdminDashboardInfo ? "xl:grid-cols-4" : "xl:grid-cols-2"}`}>
-                                <div className="rounded-md border border-border/60 bg-background p-3">
-                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                    <UsersRound className="size-4" />
-                                    Mannschaft
-                                  </div>
-                                  <div className="mt-2 space-y-1 text-sm">
-                                    <div className="flex justify-between gap-3">
-                                      <span className="text-muted-foreground">Teilnehmer</span>
-                                      <span className="font-medium">{getParticipantCount(team)}/5</span>
-                                    </div>
-                                    {showAdminDashboardInfo && (
-                                      <div className="flex justify-between gap-3">
-                                        <span className="text-muted-foreground">Portal-Konten</span>
-                                        <span className="font-medium">{linkedAccountCount}</span>
-                                      </div>
-                                    )}
-                                    <div className="flex justify-between gap-3">
-                                      <span className="text-muted-foreground">Sichtbarkeit</span>
-                                      <span className="max-w-[9rem] truncate text-right font-medium" title={getTeamPublicationLabel(team)}>
-                                        {getTeamPublicationLabel(team)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="rounded-md border border-border/60 bg-background p-3">
-                                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                    <UserRound className="size-4" />
-                                    Team Manager:in
-                                  </div>
-                                  <div className="mt-2 space-y-1 text-sm">
-                                    <p className="truncate font-medium" title={team.contactName || getContactFallbackLabel(team)}>
-                                      {team.contactName || getContactFallbackLabel(team)}
-                                    </p>
-                                    <p className="truncate text-muted-foreground" title={team.contactEmail || getContactFallbackLabel(team)}>
-                                      {team.contactEmail || getContactFallbackLabel(team)}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {showAdminDashboardInfo && (
-                                  <div className="rounded-md border border-border/60 bg-background p-3">
-                                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                      <ShieldCheck className="size-4" />
-                                      Verwaltung
-                                    </div>
-                                    <div className="mt-2 space-y-1 text-sm">
-                                      <p className="truncate font-medium" title={team.ownerName || team.ownerEmail || "Nicht sichtbar"}>
-                                        {team.ownerName || team.ownerEmail || "Nicht sichtbar"}
-                                      </p>
-                                      <p className="truncate text-muted-foreground" title={team.ownerEmail || "Keine Owner-Mail sichtbar"}>
-                                        {team.ownerEmail || "Keine Owner-Mail sichtbar"}
-                                      </p>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {showAdminDashboardInfo && (
-                                  <div className="rounded-md border border-border/60 bg-background p-3">
-                                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                      <CalendarClock className="size-4" />
-                                      Zeitstempel
-                                    </div>
-                                    <div className="mt-2 space-y-1 text-sm">
-                                      <div className="flex justify-between gap-3">
-                                        <span className="text-muted-foreground">Angelegt</span>
-                                        <span className="font-medium">{formatDatePart(team.createdAt)}, {formatTimePart(team.createdAt)}</span>
-                                      </div>
-                                      <div className="flex justify-between gap-3">
-                                        <span className="text-muted-foreground">Geändert</span>
-                                        <span className="font-medium">{team.updatedAt ? new Date(team.updatedAt).toLocaleDateString("de-DE") : "Unbekannt"}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
+                              {showActionStatus && disciplineMeta.isImportant && (
+                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                                  <DisciplineIcon className="size-3" />
+                                  {disciplineMeta.label}
+                                </Badge>
+                              )}
+                              {showAdminDashboardInfo && pendingChangeCount > 0 && (
+                                <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                                  <ClipboardList className="size-3" />
+                                  {pendingChangeCount} Änderung(en)
+                                </Badge>
+                              )}
+                              {team.isCurrentUserTeam && (
+                                <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px]">
+                                  <Star className="size-3" />
+                                  Eigenes Team
+                                </Badge>
+                              )}
                             </div>
                           )}
 
                           {team.participants && team.participants.length > 0 && (
                             <div className="space-y-2">
-                              <div className="overflow-hidden rounded-md border border-border/60">
-                                {team.participants.map((p, i) => {
-                                  const disciplineDisplay = getDisciplineDisplay(p.discipline || p.disciplineCode);
-                                  const birthYear = p.birthDate ? extractBirthYearFromInput(p.birthDate) : null;
-                                  const canManageModerationNote = canEditAll || team.canCurrentUserEdit === true;
-                                  const emailInviteMeta = canEditAll
-                                    ? getEmailInvitationMeta(p.emailInvitation?.status || (p.email ? "none" : "missing_email"))
+                              <div className="grid gap-2 md:grid-cols-5">
+                                {disciplineSlots.map(({ discipline, participant }) => {
+                                  const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
+                                  const participantLabel = participant
+                                    ? getDashboardParticipantLabel(team, participant, participantIndex)
+                                    : "Noch offen";
+                                  const canManageModerationNote = Boolean(participant) && (canEditAll || team.canCurrentUserEdit === true);
+                                  const emailInviteMeta = participant && canEditAll
+                                    ? getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"))
                                     : null;
-                                  const latestChangeMeta = getLatestChangeMeta(p.latestChange?.status);
-                                  const shirtSizeLabel = canEditAll ? getShirtSizeLabel(p.shirtSize) : null;
-                                  const participantMeta = [
-                                    disciplineDisplay.label,
-                                    getGenderLabel(p.gender),
-                                    birthYear ? `Jg. ${birthYear}` : null,
-                                    shirtSizeLabel ? `Shirt ${shirtSizeLabel}` : null,
-                                  ].filter(Boolean).join(" · ");
-                                  const showRights = p.isTeamManager || p.canBeTeamManager || canEditAll;
+                                  const latestChangeMeta = participant ? getLatestChangeMeta(participant.latestChange?.status) : null;
+                                  const showRights = Boolean(participant && (participant.isTeamManager || participant.canBeTeamManager || canEditAll));
 
                                   return (
-                                    <div key={i} className="grid gap-3 border-b border-border/40 bg-background px-3 py-3 text-xs last:border-b-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(13rem,0.9fr)_auto] lg:items-start">
-                                      <div className="min-w-0">
-                                        <div className="flex min-w-0 items-start gap-3">
-                                          <span
-                                            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-sm"
-                                            title={disciplineDisplay.label}
-                                          >
-                                            {disciplineDisplay.icon}
-                                          </span>
-                                          <div className="min-w-0 flex-1 space-y-1">
-                                            <p className="truncate text-sm font-medium" title={getParticipantDisplayName(p, i)}>
-                                              {getParticipantDisplayName(p, i)}
-                                            </p>
-                                            <p className="truncate text-muted-foreground" title={participantMeta}>
-                                              {participantMeta}
-                                            </p>
-                                          </div>
+                                    <div key={discipline.id} className="flex min-w-0 flex-col gap-2 rounded-md border border-border/60 bg-background p-3 text-xs">
+                                      <div className="min-w-0 space-y-1">
+                                        <span
+                                          className="flex size-9 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-lg"
+                                          title={discipline.label}
+                                        >
+                                          {discipline.icon}
+                                        </span>
+                                        <div className="min-w-0">
+                                          <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground" title={discipline.label}>
+                                            {discipline.label}
+                                          </p>
+                                          <p className="truncate text-sm font-medium" title={participantLabel}>
+                                            {participantLabel}
+                                          </p>
                                         </div>
                                       </div>
 
-                                      <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                                        <div className="space-y-1">
-                                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status</p>
-                                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                            {latestChangeMeta && (
-                                              <Badge
-                                                variant="outline"
-                                                className={`h-6 px-1.5 text-[10px] ${latestChangeMeta.className} ${canUseAdminLinks ? "cursor-pointer" : ""}`}
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  if (canUseAdminLinks) {
-                                                    openChangesDashboard({
-                                                      participantId: p.id,
-                                                      teamId: team.id,
-                                                      status: p.latestChange?.status as "PENDING" | "APPROVED" | "REJECTED" | undefined,
-                                                    });
-                                                  }
-                                                }}
-                                                role={canUseAdminLinks ? "link" : undefined}
-                                                title={canUseAdminLinks ? "Zum Änderungsdashboard" : undefined}
-                                              >
-                                                {latestChangeMeta.label}
-                                              </Badge>
-                                            )}
-                                            {emailInviteMeta && (
-                                              <Badge
-                                                variant="outline"
-                                                className={`h-6 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${canUseAdminLinks && (p.linkedUserId || p.email) ? "cursor-pointer" : ""}`}
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  if (canUseAdminLinks && (p.linkedUserId || p.email)) {
-                                                    openUserDashboard({ userId: p.linkedUserId, email: p.email, teamId: team.id });
-                                                  }
-                                                }}
-                                                role={canUseAdminLinks && (p.linkedUserId || p.email) ? "link" : undefined}
-                                                title={canUseAdminLinks && (p.linkedUserId || p.email) ? "Benutzerverwaltung öffnen" : undefined}
-                                              >
-                                                <Mail className="size-3" />
-                                                {emailInviteMeta.label}
-                                              </Badge>
-                                            )}
-                                            {!latestChangeMeta && !emailInviteMeta && (
-                                              <span className="text-[11px] text-muted-foreground">Keine offenen Punkte</span>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        {showRights && (
-                                          <div className="space-y-1">
-                                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Rechte</p>
-                                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                              <Badge
-                                                variant="outline"
-                                                className={
-                                                  p.isTeamManager
-                                                    ? `h-6 border-green-300 px-1.5 text-[10px] text-green-700 ${canUseAdminLinks && p.linkedUserId ? "cursor-pointer" : ""}`
-                                                    : "h-6 border-muted px-1.5 text-[10px] text-muted-foreground"
+                                      {(latestChangeMeta || emailInviteMeta || showRights) && (
+                                        <div className="min-w-0 space-y-1">
+                                          {latestChangeMeta && (
+                                            <Badge
+                                              variant="outline"
+                                              className={`h-6 w-full justify-center px-1.5 text-[10px] ${latestChangeMeta.className} ${canUseAdminLinks ? "cursor-pointer" : ""}`}
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                if (canUseAdminLinks) {
+                                                  openChangesDashboard({
+                                                    participantId: participant?.id,
+                                                    teamId: team.id,
+                                                    status: participant?.latestChange?.status as "PENDING" | "APPROVED" | "REJECTED" | undefined,
+                                                  });
                                                 }
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  if (canUseAdminLinks && p.isTeamManager && p.linkedUserId) {
-                                                    openUserDashboard({ userId: p.linkedUserId, teamId: team.id });
-                                                  }
-                                                }}
-                                                role={canUseAdminLinks && p.isTeamManager && p.linkedUserId ? "link" : undefined}
-                                                title={canUseAdminLinks && p.isTeamManager && p.linkedUserId ? "Benutzerverwaltung öffnen" : undefined}
-                                              >
-                                                {p.isTeamManager ? "Team Manager:in" : p.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
-                                              </Badge>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
+                                              }}
+                                              role={canUseAdminLinks ? "link" : undefined}
+                                              title={canUseAdminLinks ? "Zum Änderungsdashboard" : undefined}
+                                            >
+                                              {latestChangeMeta.label}
+                                            </Badge>
+                                          )}
+                                          {emailInviteMeta && (
+                                            <Badge
+                                              variant="outline"
+                                              className={`h-6 w-full justify-center gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "cursor-pointer" : ""}`}
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                if (canUseAdminLinks && (participant?.linkedUserId || participant?.email)) {
+                                                  openUserDashboard({ userId: participant.linkedUserId, email: participant.email, teamId: team.id });
+                                                }
+                                              }}
+                                              role={canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "link" : undefined}
+                                              title={canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "Benutzerverwaltung öffnen" : undefined}
+                                            >
+                                              <Mail className="size-3" />
+                                              {emailInviteMeta.label}
+                                            </Badge>
+                                          )}
 
-                                      <div className="flex flex-wrap items-center gap-1 lg:justify-end">
-                                        {canManageModerationNote && (
+                                          {showRights && participant && (
+                                            <Badge
+                                              variant="outline"
+                                              className={
+                                                participant.isTeamManager
+                                                  ? `h-6 w-full justify-center border-green-300 px-1.5 text-[10px] text-green-700 ${canUseAdminLinks && participant.linkedUserId ? "cursor-pointer" : ""}`
+                                                  : "h-6 w-full justify-center border-muted px-1.5 text-[10px] text-muted-foreground"
+                                              }
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                if (canUseAdminLinks && participant.isTeamManager && participant.linkedUserId) {
+                                                  openUserDashboard({ userId: participant.linkedUserId, teamId: team.id });
+                                                }
+                                              }}
+                                              role={canUseAdminLinks && participant.isTeamManager && participant.linkedUserId ? "link" : undefined}
+                                              title={canUseAdminLinks && participant.isTeamManager && participant.linkedUserId ? "Benutzerverwaltung öffnen" : undefined}
+                                            >
+                                              {participant.isTeamManager ? "Team Manager:in" : participant.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {participant && (
+                                        <div className="mt-auto flex flex-wrap gap-1">
+                                          {canManageModerationNote && (
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              if (!p.id) return;
+                                              if (!participant.id) return;
                                               setEditingParticipant({
-                                                ...p,
-                                                id: p.id,
+                                                ...participant,
+                                                id: participant.id,
                                                 teamOwnerEmail: team.ownerEmail || team.contactEmail,
                                                 teamCanEdit: team.canCurrentUserEdit,
                                               });
                                             }}
-                                            className={`rounded border px-2 py-1 text-[10px] transition-colors ${p.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
+                                            className={`flex-1 rounded border px-2 py-1 text-[10px] transition-colors ${participant.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
                                             title="Moderationshinweis bearbeiten"
                                           >
-                                            {p.moderationNote?.trim() ? "Notiz" : "Notiz +"}
+                                            {participant.moderationNote?.trim() ? "Notiz" : "Notiz +"}
                                           </button>
-                                        )}
-                                        {(team.canCurrentUserEdit || (p.isCurrentUserParticipant && can("participant.edit.self"))) && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              if (!p.id) return;
-                                              setEditingParticipant({
-                                                ...p,
-                                                id: p.id,
-                                                teamOwnerEmail: team.ownerEmail || team.contactEmail,
-                                                teamCanEdit: team.canCurrentUserEdit,
-                                              });
-                                            }}
-                                            className="rounded border border-border/60 px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:text-primary"
-                                            title="Teilnehmer bearbeiten"
-                                          >
-                                            Bearbeiten
-                                          </button>
-                                        )}
-                                      </div>
+                                          )}
+                                          {(team.canCurrentUserEdit || (participant.isCurrentUserParticipant && can("participant.edit.self"))) && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!participant.id) return;
+                                                setEditingParticipant({
+                                                  ...participant,
+                                                  id: participant.id,
+                                                  teamOwnerEmail: team.ownerEmail || team.contactEmail,
+                                                  teamCanEdit: team.canCurrentUserEdit,
+                                                });
+                                              }}
+                                              className="flex-1 rounded border border-border/60 px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:text-primary"
+                                              title="Teilnehmer bearbeiten"
+                                            >
+                                              Bearbeiten
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
