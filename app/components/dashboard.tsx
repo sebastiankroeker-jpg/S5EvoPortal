@@ -1147,7 +1147,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                     : "xl:grid-cols-3"
               }`}
             >
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Klasse</label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger>
@@ -1165,7 +1165,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </div>
 
               {showOwnerFilter && (
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Anleger:in</label>
                   <Select value={ownerFilter} onValueChange={setOwnerFilter}>
                     <SelectTrigger>
@@ -1183,7 +1183,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 </div>
               )}
 
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Vollständigkeit</label>
                 <Button
                   variant={incompleteOnly ? "default" : "outline"}
@@ -1196,9 +1196,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </div>
 
               {isAdmin && (
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Angemeldet ab</label>
                   <Input
+                    className="max-w-full"
                     type="datetime-local"
                     value={createdFrom}
                     onChange={(e) => setCreatedFrom(e.target.value)}
@@ -1208,9 +1209,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               )}
 
               {isAdmin && (
-                <div className="space-y-1 md:col-span-2 xl:col-span-1">
+                <div className="min-w-0 space-y-1 md:col-span-2 xl:col-span-1">
                   <label className="text-xs font-medium text-muted-foreground">Angemeldet bis</label>
                   <Input
+                    className="max-w-full"
                     type="datetime-local"
                     value={createdTo}
                     onChange={(e) => setCreatedTo(e.target.value)}
