@@ -459,6 +459,34 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString("de-DE");
 }
 
+function formatDateTimeLocalInput(date: Date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function clampDateTimeLocalToNow(value: string) {
+  if (!value) return "";
+
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) {
+    return value;
+  }
+
+  const now = new Date();
+  if (timestamp > now.getTime()) {
+    return formatDateTimeLocalInput(now);
+  }
+
+  return value;
+}
+
+function getDateTimeFilterTimestamp(value: string) {
+  if (!value) return null;
+
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
 function InfoHint({ text }: { text: string }) {
   return (
     <TooltipProvider>
@@ -862,8 +890,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       const matchesCompleteness =
         !incompleteOnly || (canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team));
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
-      const createdFromMs = createdFrom ? new Date(createdFrom).getTime() : null;
-      const createdToMs = createdTo ? new Date(createdTo).getTime() : null;
+      const createdFromMs = getDateTimeFilterTimestamp(createdFrom);
+      const createdToMs = getDateTimeFilterTimestamp(createdTo);
       const matchesCreatedAt = !isAdmin || (Number.isNaN(createdAtMs)
         ? createdFrom === "" && createdTo === ""
         : (createdFromMs === null || createdAtMs >= createdFromMs) &&
@@ -977,6 +1005,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
+  const maxCreatedDateTime = formatDateTimeLocalInput(new Date());
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -1202,7 +1231,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                     className="max-w-full"
                     type="datetime-local"
                     value={createdFrom}
-                    onChange={(e) => setCreatedFrom(e.target.value)}
+                    max={maxCreatedDateTime}
+                    onChange={(e) => setCreatedFrom(clampDateTimeLocalToNow(e.target.value))}
                     aria-label="Angemeldet ab"
                   />
                 </div>
@@ -1215,7 +1245,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                     className="max-w-full"
                     type="datetime-local"
                     value={createdTo}
-                    onChange={(e) => setCreatedTo(e.target.value)}
+                    max={maxCreatedDateTime}
+                    onChange={(e) => setCreatedTo(clampDateTimeLocalToNow(e.target.value))}
                     aria-label="Angemeldet bis"
                   />
                 </div>
@@ -1228,16 +1259,23 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
+                  type="button"
                   variant="ghost"
                   onClick={resetFilters}
                   disabled={!hasActiveFilters}
                 >
                   Filter zurücksetzen
                 </Button>
-                <Button onClick={fetchTeams} variant="outline">
+                <Button type="button" onClick={fetchTeams} variant="outline">
                   <RotateCcw className="size-4" />
                   Aktualisieren
                 </Button>
+                {!(viewMode === "list" && listOptionsOpen) && (
+                  <Button type="button" onClick={() => setFiltersOpen(false)} variant="outline">
+                    <ChevronUp className="size-4" />
+                    Filter zuklappen
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -1317,6 +1355,24 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                     })}
                   </div>
                   <p className="text-xs text-muted-foreground">Die Teamspalte bleibt immer sichtbar.</p>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2 border-t border-border/60 pt-4">
+                  <Button type="button" onClick={() => setListOptionsOpen(false)} variant="outline">
+                    <ChevronUp className="size-4" />
+                    Listenmenü zuklappen
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setListOptionsOpen(false);
+                      setFiltersOpen(false);
+                    }}
+                    variant="outline"
+                  >
+                    <ChevronUp className="size-4" />
+                    Filter zuklappen
+                  </Button>
                 </div>
               </div>
             )}
