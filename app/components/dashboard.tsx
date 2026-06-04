@@ -364,6 +364,11 @@ function getGenderedDisciplineRole(disciplineCode?: string | null, gender?: stri
   return label.neutral;
 }
 
+function hasParticipantDisplayName(participant: Participant, index?: number) {
+  const name = getParticipantDisplayName(participant, index);
+  return Boolean(name) && name !== "Teilnehmer:in";
+}
+
 function canShowParticipantNameOnDashboard(team: Team, participant: Participant, index?: number) {
   const name = getParticipantDisplayName(participant, index);
   return (
@@ -373,7 +378,20 @@ function canShowParticipantNameOnDashboard(team: Team, participant: Participant,
   );
 }
 
-function getDashboardParticipantLabel(team: Team, participant: Participant, index?: number) {
+function shouldDimParticipantNameForPrivacy(team: Team, participant: Participant, index?: number) {
+  return hasParticipantDisplayName(participant, index) && !canShowParticipantNameOnDashboard(team, participant, index);
+}
+
+function getDashboardParticipantLabel(
+  team: Team,
+  participant: Participant,
+  index?: number,
+  options?: { revealPrivateName?: boolean },
+) {
+  if (options?.revealPrivateName && hasParticipantDisplayName(participant, index)) {
+    return getParticipantDisplayName(participant, index);
+  }
+
   if (canShowParticipantNameOnDashboard(team, participant, index)) {
     return getParticipantDisplayName(participant, index);
   }
@@ -1499,18 +1517,37 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             )}
                           </div>
                           <div className="grid gap-1.5 pt-1 sm:grid-cols-5">
-                            {disciplineSlots.map(({ discipline, participant }) => (
-                              <div
-                                key={discipline.id}
-                                className="flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1"
-                                title={participant ? getDashboardParticipantLabel(team, participant) : `${discipline.label}: offen`}
-                              >
-                                <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
-                                <span className="min-w-0 truncate text-[11px] text-muted-foreground">
-                                  {participant ? getDashboardParticipantLabel(team, participant) : "Offen"}
-                                </span>
-                              </div>
-                            ))}
+                            {disciplineSlots.map(({ discipline, participant }) => {
+                              const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
+                              const participantLabel = participant
+                                ? getDashboardParticipantLabel(team, participant, participantIndex, { revealPrivateName: isAdmin })
+                                : "Offen";
+                              const isPrivacyDimmed =
+                                isAdmin && participant
+                                  ? shouldDimParticipantNameForPrivacy(team, participant, participantIndex)
+                                  : false;
+
+                              return (
+                                <div
+                                  key={discipline.id}
+                                  className={`flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 ${
+                                    isPrivacyDimmed ? "opacity-75 saturate-50" : ""
+                                  }`}
+                                  title={
+                                    participant
+                                      ? isPrivacyDimmed
+                                        ? `${participantLabel} · Datenschutzpräferenz aktiv`
+                                        : participantLabel
+                                      : `${discipline.label}: offen`
+                                  }
+                                >
+                                  <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
+                                  <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+                                    {participantLabel}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                           {showCompactStatusRow && (
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -1638,8 +1675,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 {disciplineSlots.map(({ discipline, participant }) => {
                                   const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
                                   const participantLabel = participant
-                                    ? getDashboardParticipantLabel(team, participant, participantIndex)
+                                    ? getDashboardParticipantLabel(team, participant, participantIndex, { revealPrivateName: isAdmin })
                                     : "Noch offen";
+                                  const isPrivacyDimmed =
+                                    isAdmin && participant
+                                      ? shouldDimParticipantNameForPrivacy(team, participant, participantIndex)
+                                      : false;
                                   const canManageModerationNote = Boolean(participant) && (canEditAll || team.canCurrentUserEdit === true);
                                   const emailInviteMeta = participant && canEditAll
                                     ? getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"))
@@ -1648,7 +1689,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   const showRights = Boolean(participant && (participant.isTeamManager || participant.canBeTeamManager || canEditAll));
 
                                   return (
-                                    <div key={discipline.id} className="flex min-w-0 flex-col gap-2 rounded-md border border-border/60 bg-background p-3 text-xs">
+                                    <div
+                                      key={discipline.id}
+                                      className={`flex min-w-0 flex-col gap-2 rounded-md border border-border/60 bg-background p-3 text-xs ${
+                                        isPrivacyDimmed ? "opacity-75 saturate-50" : ""
+                                      }`}
+                                      title={isPrivacyDimmed ? "Datenschutzpräferenz aktiv" : undefined}
+                                    >
                                       <div className="min-w-0 space-y-1">
                                         <span
                                           className="flex size-9 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-lg"
@@ -1660,7 +1707,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                           <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground" title={discipline.label}>
                                             {discipline.label}
                                           </p>
-                                          <p className="truncate text-sm font-medium" title={participantLabel}>
+                                          <p
+                                            className="truncate text-sm font-medium"
+                                            title={
+                                              isPrivacyDimmed
+                                                ? `${participantLabel} · Datenschutzpräferenz aktiv`
+                                                : participantLabel
+                                            }
+                                          >
                                             {participantLabel}
                                           </p>
                                         </div>
@@ -1776,31 +1830,45 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             </div>
                           )}
 
-                          {team.canCurrentUserEdit && (
-                            <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-end">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingTeam(team);
-                                }}
-                                className="flex-1"
-                              >
-                                ✏️ Bearbeiten
-                              </Button>
-                              
-                              {team.canManageTeamManagers && (
-                                <TeamDeleteDialog
-                                  team={team}
-                                  deleting={deleting}
-                                  onDelete={handleDeleteTeam}
+                          <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-end">
+                            {team.canCurrentUserEdit && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTeam(team);
+                                  }}
                                   className="flex-1"
-                                  onTriggerClick={(event) => event.stopPropagation()}
-                                />
-                              )}
-                            </div>
-                          )}
+                                >
+                                  ✏️ Bearbeiten
+                                </Button>
+
+                                {team.canManageTeamManagers && (
+                                  <TeamDeleteDialog
+                                    team={team}
+                                    deleting={deleting}
+                                    onDelete={handleDeleteTeam}
+                                    className="flex-1"
+                                    onTriggerClick={(event) => event.stopPropagation()}
+                                  />
+                                )}
+                              </>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedTeam(null);
+                              }}
+                              className="flex-1"
+                            >
+                              <ChevronUp className="size-4" />
+                              Zuklappen
+                            </Button>
+                          </div>
                         </CardContent>
                       </Card>
                     </motion.div>
