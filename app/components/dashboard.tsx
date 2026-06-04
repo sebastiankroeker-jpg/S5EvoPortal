@@ -49,6 +49,8 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  Eye,
+  EyeOff,
   Info,
   Mail,
   RotateCcw,
@@ -378,10 +380,6 @@ function canShowParticipantNameOnDashboard(team: Team, participant: Participant,
   );
 }
 
-function shouldDimParticipantNameForPrivacy(team: Team, participant: Participant, index?: number) {
-  return hasParticipantDisplayName(participant, index) && !canShowParticipantNameOnDashboard(team, participant, index);
-}
-
 function canRevealPrivateDashboardName(team: Team, isAdmin: boolean) {
   return isAdmin || (!isAdmin && (team.isCurrentUserTeam === true || team.canCurrentUserEdit === true));
 }
@@ -506,6 +504,38 @@ function InfoHint({ text }: { text: string }) {
         <TooltipContent side="top">{text}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+function ParticipantPublicationPreferenceIcon({
+  participant,
+  team,
+}: {
+  participant?: Participant | null;
+  team: Team;
+}) {
+  if (!participant) return null;
+
+  const publishesName = participant.participantPublicationPreference === "NAME_VEROEFFENTLICHEN";
+  const Icon = publishesName ? Eye : EyeOff;
+  const teamLimitsPublication = publishesName && team.teamPublicationLevel !== "ALLES_OEFFENTLICH";
+  const tooltip = publishesName
+    ? teamLimitsPublication
+      ? "Datenschutzpräferenz: Name darf veröffentlicht werden, die Team-Sichtbarkeit begrenzt aber die öffentliche Anzeige."
+      : "Datenschutzpräferenz: Name darf öffentlich angezeigt werden."
+    : "Datenschutzpräferenz: Name nicht öffentlich anzeigen. Admins sehen den Namen intern.";
+
+  return (
+    <span
+      className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full ${
+        publishesName ? "text-green-700" : "text-amber-700"
+      }`}
+      title={tooltip}
+      aria-label={tooltip}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <Icon className="size-3" aria-hidden="true" />
+    </span>
   );
 }
 
@@ -1587,29 +1617,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     revealPrivateName: revealPrivateDashboardNames,
                                   })
                                 : "Offen";
-                              const isPrivacyDimmed =
-                                isAdmin && participant
-                                  ? shouldDimParticipantNameForPrivacy(team, participant, participantIndex)
-                                  : false;
 
                               return (
                                 <div
                                   key={discipline.id}
-                                  className={`flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 ${
-                                    isPrivacyDimmed ? "opacity-75 saturate-50" : ""
-                                  }`}
-                                  title={
-                                    participant
-                                      ? isPrivacyDimmed
-                                        ? `${participantLabel} · Datenschutzpräferenz aktiv`
-                                        : participantLabel
-                                      : `${discipline.label}: offen`
-                                  }
+                                  className="flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1"
+                                  title={participant ? participantLabel : `${discipline.label}: offen`}
                                 >
                                   <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
                                   <span className="min-w-0 truncate text-[11px] text-muted-foreground">
                                     {participantLabel}
                                   </span>
+                                  {isAdmin && <ParticipantPublicationPreferenceIcon participant={participant} team={team} />}
                                 </div>
                               );
                             })}
@@ -1744,10 +1763,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                         revealPrivateName: revealPrivateDashboardNames,
                                       })
                                     : "Noch offen";
-                                  const isPrivacyDimmed =
-                                    isAdmin && participant
-                                      ? shouldDimParticipantNameForPrivacy(team, participant, participantIndex)
-                                      : false;
                                   const canManageModerationNote = Boolean(participant) && (canEditAll || team.canCurrentUserEdit === true);
                                   const emailInviteMeta = participant && canEditAll
                                     ? getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"))
@@ -1758,10 +1773,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   return (
                                     <div
                                       key={discipline.id}
-                                      className={`flex min-w-0 flex-col gap-2 rounded-md border border-border/60 bg-background p-3 text-xs ${
-                                        isPrivacyDimmed ? "opacity-75 saturate-50" : ""
-                                      }`}
-                                      title={isPrivacyDimmed ? "Datenschutzpräferenz aktiv" : undefined}
+                                      className="flex min-w-0 flex-col gap-2 rounded-md border border-border/60 bg-background p-3 text-xs"
                                     >
                                       <div className="min-w-0 space-y-1">
                                         <span
@@ -1774,16 +1786,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                           <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground" title={discipline.label}>
                                             {discipline.label}
                                           </p>
-                                          <p
-                                            className="truncate text-sm font-medium"
-                                            title={
-                                              isPrivacyDimmed
-                                                ? `${participantLabel} · Datenschutzpräferenz aktiv`
-                                                : participantLabel
-                                            }
-                                          >
-                                            {participantLabel}
-                                          </p>
+                                          <div className="flex min-w-0 items-center gap-1.5">
+                                            <p className="min-w-0 truncate text-sm font-medium" title={participantLabel}>
+                                              {participantLabel}
+                                            </p>
+                                            {isAdmin && <ParticipantPublicationPreferenceIcon participant={participant} team={team} />}
+                                          </div>
                                         </div>
                                       </div>
 
