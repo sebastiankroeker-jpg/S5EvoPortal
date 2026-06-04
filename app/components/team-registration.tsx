@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
@@ -291,31 +291,25 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
 
   const { fields } = useFieldArray({ control, name: "participants" });
 
-  // Live-Klassifikation basierend auf aktuellen Teilnehmer-Daten
-  // watch() ohne useMemo — re-rendert bei jeder Feldänderung
-  const watchedParticipants = form.watch("participants") ?? [];
-  const watchedValues = JSON.stringify(
-    watchedParticipants.map((participant) => ({
-      bd: participant.birthDate,
-      g: participant.gender,
-      d: participant.discipline,
-    }))
-  );
+  const watchedParticipants = useWatch({ control, name: "participants" });
+  const participants = useMemo(() => watchedParticipants ?? [], [watchedParticipants]);
+
+  // Live-Klassifikation basierend auf aktuellen Teilnehmer-Daten.
+  // useWatch verhindert stale Warnlisten bei verschachtelten Formularfeldern.
   const liveClassification = useMemo(() => {
-    const inputs = watchedParticipants
+    const inputs = participants
       .map((participant) => ({
         birthYear: extractBirthYearFromInput(participant.birthDate),
         gender: participant.gender === "W" ? "W" : "M",
       }))
       .filter((participant): participant is { birthYear: number; gender: "M" | "W" } => participant.birthYear !== null);
     return classifyTeam(inputs);
-  }, [watchedParticipants, watchedValues]);
+  }, [participants]);
 
   const disciplineCheck = useMemo(() => {
-    const discs = watchedParticipants.map((participant) => participant.discipline || "TBD");
+    const discs = participants.map((participant) => participant.discipline || "TBD");
     return validateDisciplineAssignment(discs);
-  }, [watchedParticipants, watchedValues]);
-  const participants = watch("participants") ?? [];
+  }, [participants]);
   const participantFieldErrors = useMemo(() => {
     if (!formState.errors.participants) return [];
 
