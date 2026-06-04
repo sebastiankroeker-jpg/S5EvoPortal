@@ -57,6 +57,7 @@ import {
   SlidersHorizontal,
   Star,
   X,
+  XCircle,
 } from "lucide-react";
 import ParticipantEditDialog from "./participant-edit-dialog";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
@@ -1575,9 +1576,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       setExpandedTeam(team.id);
                     }}
                   >
-                    <CardContent className="p-2.5">
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                        <div className="min-w-0 space-y-1">
+                    <CardContent className="p-2">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1.5">
+                        <div className="min-w-0 space-y-1.5">
                           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                             <h3 className="min-w-0 truncate text-sm font-medium">{team.name}</h3>
                             <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
@@ -1591,7 +1592,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               </Badge>
                             )}
                           </div>
-                          <div className="grid gap-1 pt-0.5 sm:grid-cols-5">
+                          <div className="grid gap-1 sm:grid-cols-5">
                             {disciplineSlots.map(({ discipline, participant }) => {
                               const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
                               const participantLabel = participant
@@ -1609,7 +1610,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               return (
                                 <div
                                   key={discipline.id}
-                                  className={`flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-1.5 py-0.5 ${
+                                  className={`flex min-h-8 min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 ${
                                     canOpenParticipant ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
                                   }`}
                                   title={participant ? `${participantLabel} öffnen` : `${discipline.label}: offen`}
@@ -1627,8 +1628,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     openParticipantDetails(team, participant);
                                   }}
                                 >
-                                  <span className="shrink-0 text-xs" aria-hidden="true">{discipline.icon}</span>
-                                  <span className="min-w-0 truncate text-[11px] font-medium text-foreground">
+                                  <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
+                                  <span className="min-w-0 truncate text-xs font-medium leading-5 text-foreground">
                                     {participantLabel}
                                   </span>
                                   {participant && (
@@ -1664,7 +1665,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center justify-end">
+                        <div className="flex items-start justify-end">
                           <Button
                             type="button"
                             size="sm"
@@ -1693,11 +1694,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       transition={{ duration: 0.2 }}
                     >
                       <Card className="border-l-4 border-l-primary shadow-sm">
-                        <CardContent className="space-y-4 p-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
+                        <CardContent className="space-y-2 p-2">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                              <h3 className="min-w-0 truncate text-lg font-semibold">{team.name}</h3>
-                              <Badge variant="outline" className="shrink-0 gap-1">
+                              <h3 className="min-w-0 truncate text-base font-semibold">{team.name}</h3>
+                              <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
                                 <span>{categoryEmojis[team.category] || "🏆"}</span>
                                 {team.category}
                               </Badge>
@@ -1733,27 +1734,27 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                           {((showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                             (showAdminDashboardInfo && pendingChangeCount > 0) ||
                             team.isCurrentUserTeam) && (
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="flex flex-wrap gap-1">
                               {showActionStatus && completionMeta.isImportant && (
-                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                   <CompletionIcon className="size-3" />
                                   {completionMeta.label}
                                 </Badge>
                               )}
                               {showActionStatus && disciplineMeta.isImportant && (
-                                <Badge variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                   <DisciplineIcon className="size-3" />
                                   {disciplineMeta.label}
                                 </Badge>
                               )}
                               {showAdminDashboardInfo && pendingChangeCount > 0 && (
-                                <Badge variant="outline" className="h-6 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                                <Badge variant="outline" className="h-5 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
                                   <ClipboardList className="size-3" />
                                   {pendingChangeCount} Änderung(en)
                                 </Badge>
                               )}
                               {team.isCurrentUserTeam && (
-                                <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px]">
+                                <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[10px]">
                                   <Star className="size-3" />
                                   Eigenes Team
                                 </Badge>
@@ -1762,8 +1763,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                           )}
 
                           {team.participants && team.participants.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="grid gap-2 md:grid-cols-5">
+                            <div className="space-y-1">
+                              <div className="grid gap-1 md:grid-cols-5">
                                 {disciplineSlots.map(({ discipline, participant }) => {
                                   const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
                                   const participantLabel = participant
@@ -1787,7 +1788,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   return (
                                     <div
                                       key={discipline.id}
-                                      className={`flex min-w-0 flex-col gap-1.5 rounded-md border border-border/60 bg-background p-2 text-xs ${
+                                      className={`flex min-w-0 flex-col gap-1 rounded-md border border-border/60 bg-background p-1.5 text-xs ${
                                         canOpenParticipant ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
                                       }`}
                                       role={canOpenParticipant ? "button" : undefined}
@@ -1809,8 +1810,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                         >
                                           {discipline.icon}
                                         </span>
-                                        <div className="min-w-0">
-                                          <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground" title={discipline.label}>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate text-[10px] font-medium uppercase text-muted-foreground" title={discipline.label}>
                                             {discipline.label}
                                           </p>
                                           <div className="flex min-w-0 items-center gap-1.5">
@@ -1828,11 +1829,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                       </div>
 
                                       {(latestChangeMeta || emailInviteMeta || showRights) && (
-                                        <div className="min-w-0 space-y-1">
+                                        <div className="flex min-w-0 flex-wrap gap-1">
                                           {latestChangeMeta && (
                                             <Badge
                                               variant="outline"
-                                              className={`h-6 w-full justify-center px-1.5 text-[10px] ${latestChangeMeta.className} ${canUseAdminLinks ? "cursor-pointer" : ""}`}
+                                              className={`h-5 max-w-full justify-center px-1.5 text-[10px] ${latestChangeMeta.className} ${canUseAdminLinks ? "cursor-pointer" : ""}`}
                                               onClick={(event) => {
                                                 event.stopPropagation();
                                                 if (canUseAdminLinks) {
@@ -1852,7 +1853,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                           {emailInviteMeta && (
                                             <Badge
                                               variant="outline"
-                                              className={`h-6 w-full justify-center gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "cursor-pointer" : ""}`}
+                                              className={`h-5 max-w-full justify-center gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "cursor-pointer" : ""}`}
                                               onClick={(event) => {
                                                 event.stopPropagation();
                                                 if (canUseAdminLinks && (participant?.linkedUserId || participant?.email)) {
@@ -1872,8 +1873,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                               variant="outline"
                                               className={
                                                 participant.isTeamManager
-                                                  ? `h-6 w-full justify-center border-green-300 px-1.5 text-[10px] text-green-700 ${canUseAdminLinks && participant.linkedUserId ? "cursor-pointer" : ""}`
-                                                  : "h-6 w-full justify-center border-muted px-1.5 text-[10px] text-muted-foreground"
+                                                  ? `h-5 max-w-full justify-center border-green-300 px-1.5 text-[10px] text-green-700 ${canUseAdminLinks && participant.linkedUserId ? "cursor-pointer" : ""}`
+                                                  : "h-5 max-w-full justify-center border-muted px-1.5 text-[10px] text-muted-foreground"
                                               }
                                               onClick={(event) => {
                                                 event.stopPropagation();
@@ -1898,7 +1899,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                               e.stopPropagation();
                                               openParticipantDetails(team, participant);
                                             }}
-                                            className={`flex-1 rounded border px-2 py-1 text-[10px] transition-colors ${participant.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
+                                            className={`min-h-7 flex-1 rounded border px-2 py-0.5 text-[10px] transition-colors ${participant.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
                                             title="Moderationshinweis bearbeiten"
                                           >
                                             {participant.moderationNote?.trim() ? "Notiz" : "Notiz +"}
@@ -1910,7 +1911,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                                 e.stopPropagation();
                                                 openParticipantDetails(team, participant);
                                               }}
-                                              className="flex-1 rounded border border-border/60 px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:text-primary"
+                                              className="min-h-7 flex-1 rounded border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-primary"
                                               title="Teilnehmer bearbeiten"
                                             >
                                               Bearbeiten
@@ -1925,7 +1926,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             </div>
                           )}
 
-                          <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-end">
+                          <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2 sm:flex-row sm:items-center sm:justify-end">
                             {team.canCurrentUserEdit && (
                               <>
                                 <Button
@@ -2016,6 +2017,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
   const [updatingManagerIndex, setUpdatingManagerIndex] = useState<number | null>(null);
   const [inviteMessages, setInviteMessages] = useState<Record<number, { type: "success" | "error"; text: string }>>({});
   const [managerMessages, setManagerMessages] = useState<Record<number, { type: "success" | "error"; text: string }>>({});
+  const [footerIssuesExpanded, setFooterIssuesExpanded] = useState(true);
   const [savedInvitationEmails, setSavedInvitationEmails] = useState<Record<number, string>>(() =>
     Object.fromEntries((team.participants || []).map((participant, index) => [index, participant.email || ""])),
   );
@@ -2047,6 +2049,13 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
   );
   const blockingValidationErrors = teamDraftEvaluation.blockingErrors;
   const validationWarnings = teamDraftEvaluation.warnings;
+  const footerIssueCount = blockingValidationErrors.length + validationWarnings.length;
+  const footerIssueTone = blockingValidationErrors.length > 0 ? "error" : "warning";
+  const footerIssueLabel = blockingValidationErrors.length > 0 && validationWarnings.length > 0
+    ? `${footerIssueCount} Hinweise`
+    : footerIssueTone === "error"
+      ? footerIssueCount === 1 ? "1 Fehler" : `${footerIssueCount} Fehler`
+      : footerIssueCount === 1 ? "1 Warnung" : `${footerIssueCount} Warnungen`;
   const pendingInvitationCount = useMemo(
     () =>
       formData.participants.filter((participant, index) => {
@@ -2102,6 +2111,10 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
     hasDirectChanges: directChanges,
     pendingInvitationCount,
   });
+
+  useEffect(() => {
+    setFooterIssuesExpanded(true);
+  }, [team.id]);
 
   const handleParticipantChange = (index: number, field: string, value: string) => {
     const newParticipants = [...formData.participants];
@@ -2247,40 +2260,27 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <Card className="flex w-full max-w-2xl max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
-        <CardHeader>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-3">
+      <Card size="sm" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden">
+        <CardHeader className="px-4">
           <div className="flex items-center justify-between gap-3">
-            <CardTitle>Team bearbeiten: {team.name}</CardTitle>
+            <CardTitle className="truncate text-base">Team bearbeiten: {team.name}</CardTitle>
             {showAdminInfo && (
-              <Button variant="ghost" size="sm" onClick={() => setShowInfo((value) => !value)}>
-                ℹ️ Info
+              <Button variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-xs" onClick={() => setShowInfo((value) => !value)}>
+                <Info className="size-4" />
+                Info
               </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent className="flex-1 space-y-4 overflow-y-auto pb-6">
+        <CardContent className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
           {!showAdminInfo && (
-            <StatusMessage tone="info" role="note">
-              Mit Prüfung markierte Teilnehmerdaten werden zur Genehmigung eingereicht. Direkt markierte Felder wie E-Mail, T-Shirt, Moderationshinweis und Veröffentlichung werden direkt gespeichert.
-            </StatusMessage>
-          )}
-          {blockingValidationErrors.length > 0 && (
-            <StatusMessage tone="error">
-              {blockingValidationErrors.map((error, index) => (
-                <div key={index}>{error}</div>
-              ))}
-            </StatusMessage>
-          )}
-          {validationWarnings.length > 0 && (
-            <StatusMessage tone="warning">
-              {validationWarnings.map((warning, index) => (
-                <div key={index}>{warning}</div>
-              ))}
+            <StatusMessage tone="info" role="note" className="px-2.5 py-2 text-xs">
+              Geprüfte Teilnehmerdaten gehen zur Genehmigung. E-Mail, T-Shirt, Notiz und Veröffentlichung speichern direkt.
             </StatusMessage>
           )}
           {showAdminInfo && showInfo && (
-            <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm space-y-1">
+            <div className="space-y-1 rounded-md border border-border/60 bg-muted/30 p-2.5 text-xs">
               {team.createdAt && (
                 <>
                   <div><strong>Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>
@@ -2304,7 +2304,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
             <Input
               value={formData.teamName}
               onChange={(e) => setFormData({ ...formData, teamName: e.target.value })}
-              className="mt-1"
+              className="mt-1 h-9"
               disabled={!showAdminInfo}
             />
           </div>
@@ -2323,7 +2323,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
                 })
               }
             >
-              <SelectTrigger className="mt-1">
+              <SelectTrigger className="mt-1 h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -2334,14 +2334,14 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
                 ))}
               </SelectContent>
             </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
               Steuert, wie das Team später für andere Rollen oder öffentlich erscheinen darf.
             </p>
           </div>
 
           <div>
             <label className="text-sm font-medium">Teilnehmer</label>
-            <div className="space-y-3 mt-2">
+            <div className="mt-2 space-y-2">
               {formData.participants.map((participant, index) => {
                 const savedParticipantEmail = savedInvitationEmails[index] || "";
                 const emailDiffersFromSaved = normalizeEmail(participant.email) !== normalizeEmail(savedParticipantEmail);
@@ -2359,7 +2359,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
                 const managerMessage = managerMessages[index];
 
                 return (
-                <div key={index} className="border border-border/50 shadow-sm rounded-md p-3 space-y-2">
+                <div key={index} className="space-y-2 rounded-md border border-border/50 p-2 shadow-sm">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <div className="flex items-center gap-2">
@@ -2605,26 +2605,62 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
           </div>
 
         </CardContent>
-        <div className="space-y-3 border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
-          {validationWarnings.length > 0 && (
-            <StatusMessage tone="warning" role="alert" className="text-xs">
-              {validationWarnings.map((warning, index) => (
-                <div key={index}>{warning}</div>
-              ))}
-            </StatusMessage>
-          )}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={onCancel} className="sm:w-auto">
-              Abbrechen
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={saving || !teamDraftEvaluation.canSubmit}
-              aria-busy={saving}
-              className="min-h-10 whitespace-normal text-center leading-tight sm:w-auto"
-            >
-              {saving ? "Speichert..." : saveButtonLabel}
-            </Button>
+        <div className="border-t bg-background/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          <div className="flex flex-col gap-2">
+            {footerIssueCount > 0 ? (
+              <div
+                className={
+                  footerIssueTone === "error"
+                    ? "rounded-md border border-destructive/40 bg-card text-xs shadow-sm"
+                    : "rounded-md border border-amber-500/40 bg-card text-xs shadow-sm"
+                }
+                role="alert"
+              >
+                <button
+                  type="button"
+                  className="flex min-h-9 w-full items-center justify-between gap-2 px-2.5 py-2 text-left"
+                  onClick={() => setFooterIssuesExpanded((value) => !value)}
+                  aria-expanded={footerIssuesExpanded}
+                >
+                  <span className="flex min-w-0 items-center gap-2 font-medium">
+                    {footerIssueTone === "error" ? (
+                      <XCircle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+                    ) : (
+                      <AlertTriangle className="size-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+                    )}
+                    <span className="truncate">{footerIssueLabel}</span>
+                  </span>
+                  {footerIssuesExpanded ? (
+                    <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  )}
+                </button>
+                {footerIssuesExpanded ? (
+                  <div className="space-y-1 border-t px-2.5 py-2 leading-5">
+                    {blockingValidationErrors.map((error, index) => (
+                      <div key={`error-${index}`}>{error}</div>
+                    ))}
+                    {validationWarnings.map((warning, index) => (
+                      <div key={`warning-${index}`}>{warning}</div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={onCancel} className="min-h-9 sm:w-auto">
+                Abbrechen
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={saving || !teamDraftEvaluation.canSubmit}
+                aria-busy={saving}
+                className="min-h-9 whitespace-normal text-center leading-tight sm:w-auto"
+              >
+                {saving ? "Speichert..." : saveButtonLabel}
+              </Button>
+            </div>
           </div>
         </div>
       </Card>

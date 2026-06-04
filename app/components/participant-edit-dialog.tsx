@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusMessage } from "@/components/ui/status-message";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info, Send } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Info, Send, XCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -247,13 +247,12 @@ export default function ParticipantEditDialog({
   const [result, setResult] = useState<{ applied: boolean; message?: string; classificationWarnings?: string[] } | null>(null);
   const [error, setError] = useState("");
   const [latestChange, setLatestChange] = useState<ParticipantChangeStatus | null>(null);
+  const [footerIssuesExpanded, setFooterIssuesExpanded] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 
   const hasPendingChange = latestChange?.status === "PENDING" || participant?.pendingChanges?.some(c => c.status === "PENDING");
   const statusMeta = getStatusMeta(latestChange?.status);
-  const saveFeedback = error
-    ? { type: "error" as const, text: error }
-    : result?.applied
+  const saveFeedback = result?.applied
       ? { type: "success" as const, text: "Gespeichert!" }
       : result
         ? { type: "success" as const, text: result.message || "Änderungsantrag eingereicht!" }
@@ -290,6 +289,13 @@ export default function ParticipantEditDialog({
     result?.classificationWarnings && result.classificationWarnings.length > 0
       ? result.classificationWarnings
       : projectedClassificationWarnings;
+  const footerIssueCount = visibleClassificationWarnings.length + (error ? 1 : 0);
+  const footerIssueTone = error ? "error" : "warning";
+  const footerIssueLabel = error && visibleClassificationWarnings.length > 0
+    ? `${footerIssueCount} Hinweise`
+    : footerIssueTone === "error"
+      ? footerIssueCount === 1 ? "1 Fehler" : `${footerIssueCount} Fehler`
+      : footerIssueCount === 1 ? "1 Warnung" : `${footerIssueCount} Warnungen`;
 
   const revealSaveFeedback = () => {
     requestAnimationFrame(() => {
@@ -332,6 +338,7 @@ export default function ParticipantEditDialog({
       setLatestChange(participant.pendingChanges?.[0] || null);
       setResult(null);
       setError("");
+      setFooterIssuesExpanded(true);
     }
   }, [participant]);
 
@@ -576,7 +583,7 @@ export default function ParticipantEditDialog({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
-      revealSaveFeedback();
+      setFooterIssuesExpanded(true);
     } finally {
       setSaving(false);
     }
@@ -606,9 +613,9 @@ export default function ParticipantEditDialog({
         <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-6 pb-6">
           {saveFeedback && (
             <StatusMessage
-              tone={saveFeedback.type === "error" ? "error" : "success"}
+              tone="success"
               className="mb-3"
-              role={saveFeedback.type === "error" ? "alert" : "status"}
+              role="status"
             >
               {saveFeedback.text}
             </StatusMessage>
@@ -626,14 +633,6 @@ export default function ParticipantEditDialog({
               ) : null}
             </StatusMessage>
           )}
-
-          {visibleClassificationWarnings.length > 0 ? (
-            <StatusMessage tone="warning" className="mb-3">
-              {visibleClassificationWarnings.map((warning) => (
-                <div key={warning}>{warning}</div>
-              ))}
-            </StatusMessage>
-          ) : null}
 
           <div className="space-y-3">
             {moderatorNoteOnly && participant ? (
@@ -851,12 +850,44 @@ export default function ParticipantEditDialog({
 
         <DialogFooter className="border-t bg-background/95 px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
           <div className="flex w-full flex-col gap-2">
-            {visibleClassificationWarnings.length > 0 ? (
-              <StatusMessage tone="warning" role="alert" className="text-xs">
-                {visibleClassificationWarnings.map((warning) => (
-                  <div key={warning}>{warning}</div>
-                ))}
-              </StatusMessage>
+            {footerIssueCount > 0 ? (
+              <div
+                className={
+                  footerIssueTone === "error"
+                    ? "rounded-md border border-destructive/40 bg-card text-xs shadow-sm"
+                    : "rounded-md border border-amber-500/40 bg-card text-xs shadow-sm"
+                }
+                role="alert"
+              >
+                <button
+                  type="button"
+                  className="flex min-h-9 w-full items-center justify-between gap-2 px-2.5 py-2 text-left"
+                  onClick={() => setFooterIssuesExpanded((value) => !value)}
+                  aria-expanded={footerIssuesExpanded}
+                >
+                  <span className="flex min-w-0 items-center gap-2 font-medium">
+                    {footerIssueTone === "error" ? (
+                      <XCircle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+                    ) : (
+                      <AlertTriangle className="size-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+                    )}
+                    <span className="truncate">{footerIssueLabel}</span>
+                  </span>
+                  {footerIssuesExpanded ? (
+                    <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  )}
+                </button>
+                {footerIssuesExpanded ? (
+                  <div className="space-y-1 border-t px-2.5 py-2 leading-5">
+                    {error ? <div>{error}</div> : null}
+                    {visibleClassificationWarnings.map((warning) => (
+                      <div key={warning}>{warning}</div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
