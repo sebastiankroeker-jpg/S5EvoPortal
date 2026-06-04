@@ -55,9 +55,9 @@ function buildNotificationId() {
 }
 
 const variantStyles: Record<NotificationVariant, string> = {
-  success: "border-emerald-500/25 bg-emerald-500/10 text-emerald-950 dark:text-emerald-50",
-  error: "border-destructive/30 bg-destructive/10 text-foreground",
-  info: "border-primary/20 bg-primary/10 text-foreground",
+  success: "border-emerald-500/45 border-l-emerald-500 bg-card text-card-foreground",
+  error: "border-destructive/45 border-l-destructive bg-card text-card-foreground",
+  info: "border-primary/35 border-l-primary bg-card text-card-foreground",
 };
 
 const iconStyles: Record<NotificationVariant, string> = {
@@ -93,7 +93,7 @@ function NotificationViewport({
                 exit={{ opacity: 0, y: 16, scale: 0.98 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
                 className={cn(
-                  "pointer-events-auto rounded-xl border shadow-lg backdrop-blur-sm",
+                  "pointer-events-auto rounded-xl border border-l-4 shadow-lg backdrop-blur-sm",
                   variantStyles[notification.variant],
                 )}
               >

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { StatusMessage } from "@/components/ui/status-message";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info, Send } from "lucide-react";
@@ -95,7 +96,7 @@ function getStatusMeta(status?: string | null) {
     return {
       title: "Änderung in Prüfung",
       text: "Dein letzter Änderungsantrag ist aktuell bei der Orga in Prüfung.",
-      className: "bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200",
+      tone: "warning" as const,
     };
   }
 
@@ -103,7 +104,7 @@ function getStatusMeta(status?: string | null) {
     return {
       title: "Letzte Änderung genehmigt",
       text: "Deine letzte Änderungsanfrage wurde genehmigt.",
-      className: "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200",
+      tone: "success" as const,
     };
   }
 
@@ -111,7 +112,7 @@ function getStatusMeta(status?: string | null) {
     return {
       title: "Letzte Änderung abgelehnt",
       text: "Deine letzte Änderungsanfrage wurde abgelehnt.",
-      className: "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200",
+      tone: "error" as const,
     };
   }
 
@@ -561,21 +562,17 @@ export default function ParticipantEditDialog({
 
         <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-6 pb-6">
           {saveFeedback && (
-            <div
-              className={
-                saveFeedback.type === "error"
-                  ? "mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200"
-                  : "mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-200"
-              }
+            <StatusMessage
+              tone={saveFeedback.type === "error" ? "error" : "success"}
+              className="mb-3"
               role={saveFeedback.type === "error" ? "alert" : "status"}
             >
-              {saveFeedback.type === "success" ? "✅ " : ""}
               {saveFeedback.text}
-            </div>
+            </StatusMessage>
           )}
 
           {!directEdit && statusMeta && (
-            <div className={"text-sm p-3 rounded-md " + statusMeta.className}>
+            <StatusMessage tone={statusMeta.tone} className="mb-3">
               <div className="font-medium">{statusMeta.title}</div>
               <div>{statusMeta.text}</div>
               {latestChange?.reviewComment ? (
@@ -584,15 +581,15 @@ export default function ParticipantEditDialog({
               {hasPendingChange ? (
                 <div className="mt-1 text-xs opacity-90">Wenn du erneut speicherst, wird der offene Antrag mit deinem neuesten Stand aktualisiert.</div>
               ) : null}
-            </div>
+            </StatusMessage>
           )}
 
           {result?.classificationWarnings && result.classificationWarnings.length > 0 ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <StatusMessage tone="warning" className="mb-3">
               {result.classificationWarnings.map((warning) => (
-                <div key={warning}>⚠️ {warning}</div>
+                <div key={warning}>{warning}</div>
               ))}
-            </div>
+            </StatusMessage>
           ) : null}
 
           <div className="space-y-3">
@@ -768,11 +765,19 @@ export default function ParticipantEditDialog({
                     variant="secondary"
                     onClick={handleResetLinkedAccount}
                     disabled={resettingLinkedAccount}
+                    aria-busy={resettingLinkedAccount}
                   >
                     {resettingLinkedAccount ? "Ersetzt..." : replaceActionLabel}
                   </Button>
                 ) : canSendInvitation ? (
-                  <Button type="button" size="sm" variant="outline" onClick={handleSendInvitation} disabled={sendingInvitation}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSendInvitation}
+                    disabled={sendingInvitation}
+                    aria-busy={sendingInvitation}
+                  >
                     <Send className="size-4" />
                     {sendingInvitation ? "Sendet..." : "Einladung senden"}
                   </Button>
@@ -803,19 +808,6 @@ export default function ParticipantEditDialog({
 
         <DialogFooter className="border-t bg-background/95 px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
           <div className="flex w-full flex-col gap-2">
-            {saveFeedback && (
-              <div
-                className={
-                  saveFeedback.type === "error"
-                    ? "rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-200"
-                    : "rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-200"
-                }
-                role={saveFeedback.type === "error" ? "alert" : "status"}
-              >
-                {saveFeedback.type === "success" ? "✅ " : ""}
-                {saveFeedback.text}
-              </div>
-            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Abbrechen
@@ -823,6 +815,7 @@ export default function ParticipantEditDialog({
               <Button
                 onClick={handleSave}
                 disabled={saving || !!result}
+                aria-busy={saving}
               >
                 {participantSaveLabel}
               </Button>

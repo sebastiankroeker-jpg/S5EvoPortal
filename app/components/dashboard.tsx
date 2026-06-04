@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatusMessage } from "@/components/ui/status-message";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -1960,12 +1961,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
 // Edit Team Modal Component
 function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManageTeamManagers = false }: {
   team: Team;
-  onSave: (data: TeamEditPayload) => void;
+  onSave: (data: TeamEditPayload) => void | Promise<void>;
   onCancel: () => void;
   showAdminInfo?: boolean;
   canManageTeamManagers?: boolean;
 }) {
   const [showInfo, setShowInfo] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [openModerationNotes, setOpenModerationNotes] = useState<Record<number, boolean>>({});
   const [sendingInvitationIndex, setSendingInvitationIndex] = useState<number | null>(null);
   const [updatingManagerIndex, setUpdatingManagerIndex] = useState<number | null>(null);
@@ -2071,8 +2073,15 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
     }
   };
 
-  const handleSubmit = () => {
-    onSave(formData);
+  const handleSubmit = async () => {
+    if (!teamDraftEvaluation.canSubmit || saving) return;
+
+    setSaving(true);
+    try {
+      await onSave(formData);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleModerationNote = (index: number) => {
@@ -2209,23 +2218,23 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
         </CardHeader>
         <CardContent className="flex-1 space-y-4 overflow-y-auto pb-6">
           {!showAdminInfo && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <StatusMessage tone="info" role="note">
               Mit Prüfung markierte Teilnehmerdaten werden zur Genehmigung eingereicht. Direkt markierte Felder wie E-Mail, T-Shirt, Moderationshinweis und Veröffentlichung werden direkt gespeichert.
-            </div>
+            </StatusMessage>
           )}
           {blockingValidationErrors.length > 0 && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+            <StatusMessage tone="error">
               {blockingValidationErrors.map((error, index) => (
-                <div key={index}>✕ {error}</div>
+                <div key={index}>{error}</div>
               ))}
-            </div>
+            </StatusMessage>
           )}
           {validationWarnings.length > 0 && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <StatusMessage tone="warning">
               {validationWarnings.map((warning, index) => (
-                <div key={index}>⚠️ {warning}</div>
+                <div key={index}>{warning}</div>
               ))}
-            </div>
+            </StatusMessage>
           )}
           {showAdminInfo && showInfo && (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm space-y-1">
@@ -2454,6 +2463,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
                         variant={participant.isTeamManager ? "outline" : "secondary"}
                         onClick={() => handleToggleTeamManager(index)}
                         disabled={!participant.canBeTeamManager || updatingManagerIndex === index}
+                        aria-busy={updatingManagerIndex === index}
                         className="h-8 w-full sm:w-auto"
                       >
                         {updatingManagerIndex === index
@@ -2500,6 +2510,7 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
                           variant="outline"
                           onClick={() => handleSendInvitation(index)}
                           disabled={sendingInvitationIndex === index}
+                          aria-busy={sendingInvitationIndex === index}
                           className="h-8"
                         >
                           <Send className="size-4" />
@@ -2557,10 +2568,11 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!teamDraftEvaluation.canSubmit}
+            disabled={saving || !teamDraftEvaluation.canSubmit}
+            aria-busy={saving}
             className="min-h-10 whitespace-normal text-center leading-tight sm:w-auto"
           >
-            {saveButtonLabel}
+            {saving ? "Speichert..." : saveButtonLabel}
           </Button>
         </div>
       </Card>
