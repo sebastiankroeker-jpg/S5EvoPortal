@@ -382,6 +382,10 @@ function shouldDimParticipantNameForPrivacy(team: Team, participant: Participant
   return hasParticipantDisplayName(participant, index) && !canShowParticipantNameOnDashboard(team, participant, index);
 }
 
+function canRevealPrivateDashboardName(team: Team, isAdmin: boolean) {
+  return isAdmin || (!isAdmin && (team.isCurrentUserTeam === true || team.canCurrentUserEdit === true));
+}
+
 function getDashboardParticipantLabel(
   team: Team,
   participant: Participant,
@@ -1544,6 +1548,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               const DisciplineIcon = disciplineMeta.icon;
               const showActionStatus = canShowTeamActionStatus(team, showAdminDashboardInfo);
               const disciplineSlots = getTeamDisciplineSlots(team);
+              const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -1578,7 +1583,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                             {disciplineSlots.map(({ discipline, participant }) => {
                               const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
                               const participantLabel = participant
-                                ? getDashboardParticipantLabel(team, participant, participantIndex, { revealPrivateName: isAdmin })
+                                ? getDashboardParticipantLabel(team, participant, participantIndex, {
+                                    revealPrivateName: revealPrivateDashboardNames,
+                                  })
                                 : "Offen";
                               const isPrivacyDimmed =
                                 isAdmin && participant
@@ -1733,7 +1740,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 {disciplineSlots.map(({ discipline, participant }) => {
                                   const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
                                   const participantLabel = participant
-                                    ? getDashboardParticipantLabel(team, participant, participantIndex, { revealPrivateName: isAdmin })
+                                    ? getDashboardParticipantLabel(team, participant, participantIndex, {
+                                        revealPrivateName: revealPrivateDashboardNames,
+                                      })
                                     : "Noch offen";
                                   const isPrivacyDimmed =
                                     isAdmin && participant
