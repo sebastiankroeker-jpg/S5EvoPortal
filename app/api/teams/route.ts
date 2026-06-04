@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
-import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
+import { TeamRegistrationSchema, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
+import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { resolveRegistrationNotificationEmail, sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { sendParticipantClaimEmail } from '@/lib/mail/participant-claim';
@@ -36,21 +36,6 @@ function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | 
 function isRegistrationDeadlineReached(deadline?: Date | null): boolean {
   if (!deadline) return false;
   return new Date(deadline) < new Date();
-}
-
-// 2026 Classification Logic
-function classifyTeam(participants: TeamRegistrationInput['participants']): string {
-  const inputs = participants
-    .map((participant) => ({
-      participant,
-      birthYear: extractBirthYearFromInput(participant.birthDate),
-    }))
-    .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null)
-    .map(({ participant, birthYear }) => ({
-      birthYear: birthYear as number,
-      gender: participant.gender as "M" | "W" | "D",
-    }));
-  return classifyTeamShared(inputs).code;
 }
 
 type SerializedPendingChange = {
@@ -514,18 +499,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
     }
 
-    const teamEvaluation = evaluateTeamState(
-      teamData.participants.map((participant) => ({
-        birthYear: extractBirthYearFromInput(participant.birthDate),
-        gender: participant.gender,
-        disciplineCode: participant.discipline,
-      })),
-    );
+    const teamEvaluation = evaluateTeamDraft({
+      mode: sessionUserEmail ? "authenticated-create" : "anonymous-create",
+      teamName: teamData.teamName,
+      contactFirstName: teamData.contactFirstName,
+      contactLastName: teamData.contactLastName,
+      contactName: userName,
+      contactEmail: userEmail,
+      participants: teamData.participants,
+    });
     const autoCategory = teamEvaluation.classification.code;
     const finalTeamName = teamData.teamName?.trim();
 
     if (!finalTeamName || finalTeamName.length < 3) {
       return NextResponse.json({ error: 'Mannschaftsname ist erforderlich.' }, { status: 400 });
+    }
+
+    if (teamEvaluation.blockingErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: teamEvaluation.blockingErrors.join(' · '),
+          blockingErrors: teamEvaluation.blockingErrors,
+        },
+        { status: 400 }
+      );
     }
 
     if (!teamEvaluation.discipline.valid) {

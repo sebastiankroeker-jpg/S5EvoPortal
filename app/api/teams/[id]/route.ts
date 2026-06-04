@@ -4,7 +4,7 @@ import type { Prisma, ShirtSize } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { recordAppliedChangeRequest, upsertLegacyParticipantChangeRequest } from '@/lib/change-request';
 import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
-import { classifyTeam as classifyTeamShared, evaluateTeamState } from '@/lib/domain/classification';
+import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
 import { sendTeamLifecycleOrgEmail } from '@/lib/mail/team-lifecycle';
 import {
@@ -142,21 +142,6 @@ function resolveSubmittedParticipants(
   }
 
   return { error: null, matches };
-}
-
-function classifyTeam(participants: TeamRegistrationInput['participants']): string {
-  const inputs = participants
-    .map((participant) => ({
-      participant,
-      birthYear: extractBirthYearFromInput(participant.birthDate),
-    }))
-    .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null)
-    .map(({ participant, birthYear }) => ({
-      birthYear: birthYear as number,
-      gender: participant.gender as "M" | "W" | "D",
-    }));
-
-  return classifyTeamShared(inputs).code;
 }
 
 type SerializedPendingChange = {
@@ -519,14 +504,24 @@ export async function PUT(
       }
 
       const canDirectEdit = access.canEditAllTeams;
-      const requestedTeamState = evaluateTeamState(
-        teamData.participants.map((participant) => ({
-          birthYear: extractBirthYearFromInput(participant.birthDate),
-          gender: participant.gender,
-          disciplineCode: participant.discipline,
-        })),
-        existingTeam.classificationCode,
-      );
+      const requestedTeamState = evaluateTeamDraft({
+        mode: canDirectEdit ? "admin-edit" : "team-edit",
+        teamName: teamData.teamName,
+        contactName: existingTeam.contactName,
+        contactEmail: existingTeam.contactEmail,
+        participants: teamData.participants,
+        oldClassificationCode: existingTeam.classificationCode,
+      });
+
+      if (requestedTeamState.blockingErrors.length > 0) {
+        return NextResponse.json(
+          {
+            error: requestedTeamState.blockingErrors.join(' · '),
+            blockingErrors: requestedTeamState.blockingErrors,
+          },
+          { status: 400 }
+        );
+      }
 
       if (!requestedTeamState.discipline.valid) {
         return NextResponse.json(

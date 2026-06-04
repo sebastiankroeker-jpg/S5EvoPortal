@@ -3,6 +3,13 @@
  * Shared zwischen Frontend (Live-Preview) und Backend (Validierung)
  */
 
+import {
+  DISCIPLINE_PLACEHOLDER,
+  DISCIPLINES,
+  extractBirthYearFromInput,
+  type DisciplineSelection,
+} from "@/lib/domain/team";
+
 const COMPETITION_YEAR = 2026;
 
 export interface ClassificationInput {
@@ -35,6 +42,40 @@ export interface TeamStateEvaluation {
     warnings: string[];
   };
 }
+
+export type TeamDraftValidationMode =
+  | "anonymous-create"
+  | "authenticated-create"
+  | "team-edit"
+  | "admin-edit";
+
+export type TeamDraftParticipantInput = {
+  firstName?: string | null;
+  lastName?: string | null;
+  birthDate?: string | null;
+  gender?: "M" | "W" | "D" | "MALE" | "FEMALE" | "DIVERSE" | null;
+  discipline?: DisciplineSelection | string | null;
+  disciplineCode?: DisciplineSelection | string | null;
+};
+
+export type TeamDraftEvaluationInput = {
+  mode: TeamDraftValidationMode;
+  teamName?: string | null;
+  contactFirstName?: string | null;
+  contactLastName?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  participants?: TeamDraftParticipantInput[] | null;
+  oldClassificationCode?: string | null;
+};
+
+export type TeamDraftEvaluation = TeamStateEvaluation & {
+  mode: TeamDraftValidationMode;
+  blockingErrors: string[];
+  warnings: string[];
+  info: string[];
+  canSubmit: boolean;
+};
 
 export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; desc: string }> = {
   "schueler-a": { label: "Schüler A", emoji: "🧒", desc: "Jg. 2016–2018" },
@@ -237,4 +278,106 @@ export function validateDisciplineAssignment(
   }
 
   return { valid: missing.length === 0 && duplicates.length === 0, warnings };
+}
+
+function compactUnique(messages: string[]) {
+  return Array.from(new Set(messages.map((message) => message.trim()).filter(Boolean)));
+}
+
+function isPresent(value: string | null | undefined) {
+  return Boolean(value?.trim());
+}
+
+function isValidEmail(value: string | null | undefined) {
+  if (!value?.trim()) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function getDraftDisciplineLabel(participant: TeamDraftParticipantInput | undefined, index: number) {
+  const code = participant?.discipline ?? participant?.disciplineCode;
+  const discipline = DISCIPLINES.find((entry) => entry.id === code);
+  return discipline ? `${discipline.icon} ${discipline.label}` : `Teilnehmer:in ${index + 1}`;
+}
+
+function normalizeDraftGender(gender: TeamDraftParticipantInput["gender"]): TeamStateParticipantInput["gender"] {
+  if (gender === "W" || gender === "FEMALE") return "W";
+  if (gender === "D" || gender === "DIVERSE") return "D";
+  return "M";
+}
+
+function normalizeDraftDiscipline(participant: TeamDraftParticipantInput) {
+  return participant.discipline ?? participant.disciplineCode ?? DISCIPLINE_PLACEHOLDER;
+}
+
+function collectDraftParticipantBlockingErrors(participants: TeamDraftParticipantInput[]) {
+  const messages: string[] = [];
+
+  participants.forEach((participant, index) => {
+    const label = getDraftDisciplineLabel(participant, index);
+    const firstName = participant.firstName?.trim() ?? "";
+    const lastName = participant.lastName?.trim() ?? "";
+    const birthDate = participant.birthDate?.trim() ?? "";
+
+    if (firstName.length < 2) {
+      messages.push(`${label}: Vorname zu kurz`);
+    }
+
+    if (lastName.length < 2) {
+      messages.push(`${label}: Nachname zu kurz`);
+    }
+
+    if (!birthDate) {
+      messages.push(`${label}: Geburtsdatum fehlt`);
+    } else if (extractBirthYearFromInput(birthDate) === null) {
+      messages.push(`${label}: Geburtsdatum unplausibel`);
+    }
+  });
+
+  return messages;
+}
+
+export function evaluateTeamDraft(input: TeamDraftEvaluationInput): TeamDraftEvaluation {
+  const participants = input.participants ?? [];
+  const blockingErrors: string[] = [];
+
+  if ((input.teamName?.trim() ?? "").length < 3) {
+    blockingErrors.push("Mannschaftsname zu kurz");
+  }
+
+  if (input.mode === "anonymous-create") {
+    const hasContactName =
+      isPresent(input.contactName) || (isPresent(input.contactFirstName) && isPresent(input.contactLastName));
+
+    if (!hasContactName) {
+      blockingErrors.push("Kontaktname zu kurz");
+    }
+
+    if (!isValidEmail(input.contactEmail)) {
+      blockingErrors.push("Ungültige Kontakt-E-Mail");
+    }
+  }
+
+  if (participants.length !== 5) {
+    blockingErrors.push("Es müssen genau 5 Teilnehmer erfasst werden");
+  }
+
+  blockingErrors.push(...collectDraftParticipantBlockingErrors(participants));
+
+  const teamStateParticipants = participants.map((participant) => ({
+    birthYear: extractBirthYearFromInput(participant.birthDate ?? ""),
+    gender: normalizeDraftGender(participant.gender),
+    disciplineCode: normalizeDraftDiscipline(participant),
+  }));
+  const state = evaluateTeamState(teamStateParticipants, input.oldClassificationCode);
+  const warnings = compactUnique([...state.classificationWarnings, ...state.discipline.warnings]);
+  const compactedBlockingErrors = compactUnique(blockingErrors);
+
+  return {
+    ...state,
+    mode: input.mode,
+    blockingErrors: compactedBlockingErrors,
+    warnings,
+    info: [...state.classification.info],
+    canSubmit: compactedBlockingErrors.length === 0 && state.discipline.valid,
+  };
 }

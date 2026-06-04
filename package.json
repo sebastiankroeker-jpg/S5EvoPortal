@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "smoke:core": "node scripts/smoke-core-flows.mjs",
+    "verify:team-draft": "tsx scripts/verify-team-draft-evaluation.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
@@ -45,6 +46,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

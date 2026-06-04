@@ -11,8 +11,6 @@ import {
   createDefaultTeamForm,
   DISCIPLINES,
   DISCIPLINE_PLACEHOLDER,
-  ParticipantSchema,
-  extractBirthYearFromInput,
   formatBirthDateInput,
   TEAM_PUBLICATION_OPTIONS,
   resolveBirthDateInputKey,
@@ -25,9 +23,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { classifyTeam, validateDisciplineAssignment } from "@/lib/domain/classification";
 import { useCompetition } from "@/lib/competition-context";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
+import { evaluateTeamDraft } from "@/lib/domain/classification";
 
 type TeamClassId =
   | "schueler-a"
@@ -182,81 +180,6 @@ function handleBirthDateKeyDown(
   });
 }
 
-function collectValidationMessages(source: unknown, messages: Set<string>) {
-  if (!source || typeof source !== "object") return;
-
-  if ("message" in source && typeof source.message === "string" && source.message.trim()) {
-    messages.add(source.message);
-  }
-
-  for (const [key, entry] of Object.entries(source)) {
-    if (key === "ref") continue;
-    collectValidationMessages(entry, messages);
-  }
-}
-
-function getDisciplineLabel(participant: { discipline?: string } | undefined, index: number) {
-  const discipline = DISCIPLINES.find((entry) => entry.id === participant?.discipline);
-  return discipline ? `${discipline.icon} ${discipline.label}` : `Teilnehmer:in ${index + 1}`;
-}
-
-function collectParticipantValidationMessages(
-  source: unknown,
-  participants: Array<{ discipline?: string }>,
-) {
-  if (!Array.isArray(source)) {
-    const fallback = new Set<string>();
-    collectValidationMessages(source, fallback);
-    return Array.from(fallback);
-  }
-
-  const messages: string[] = [];
-
-  source.forEach((entry, index) => {
-    if (!entry) return;
-
-    const fieldMessages = new Set<string>();
-    collectValidationMessages(entry, fieldMessages);
-
-    for (const message of fieldMessages) {
-      messages.push(`${getDisciplineLabel(participants[index], index)}: ${message}`);
-    }
-  });
-
-  return Array.from(new Set(messages));
-}
-
-function collectCurrentParticipantValidationMessages(participants: ParticipantInput[]) {
-  const messages: string[] = [];
-
-  participants.forEach((participant, index) => {
-    const result = ParticipantSchema.safeParse(participant);
-    if (result.success) return;
-
-    for (const issue of result.error.issues) {
-      messages.push(`${getDisciplineLabel(participant, index)}: ${issue.message}`);
-    }
-  });
-
-  return Array.from(new Set(messages));
-}
-
-function buildBirthDateWarnings(participants: Array<{ birthDate?: string; discipline?: string }>) {
-  return participants.flatMap((participant, index) => {
-    const value = participant.birthDate?.trim() ?? "";
-
-    if (!value) {
-      return [`${getDisciplineLabel(participant, index)}: Geburtsdatum fehlt`];
-    }
-
-    if (extractBirthYearFromInput(value) === null) {
-      return [`${getDisciplineLabel(participant, index)}: Geburtsdatum unplausibel oder Jahrgang nicht erlaubt`];
-    }
-
-    return [];
-  });
-}
-
 export default function TeamRegistration({ allowAnonymous = false }: TeamRegistrationProps) {
   const { data: session } = useSession();
   const { active: activeCompetition } = useCompetition();
@@ -294,38 +217,6 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const watchedParticipants = useWatch({ control, name: "participants" });
   const participants = useMemo(() => watchedParticipants ?? [], [watchedParticipants]);
 
-  // Live-Klassifikation basierend auf aktuellen Teilnehmer-Daten.
-  // useWatch verhindert stale Warnlisten bei verschachtelten Formularfeldern.
-  const liveClassification = useMemo(() => {
-    const inputs = participants
-      .map((participant) => ({
-        birthYear: extractBirthYearFromInput(participant.birthDate),
-        gender: participant.gender === "W" ? "W" : "M",
-      }))
-      .filter((participant): participant is { birthYear: number; gender: "M" | "W" } => participant.birthYear !== null);
-    return classifyTeam(inputs);
-  }, [participants]);
-
-  const disciplineCheck = useMemo(() => {
-    const discs = participants.map((participant) => participant.discipline || "TBD");
-    return validateDisciplineAssignment(discs);
-  }, [participants]);
-  const participantFieldErrors = useMemo(() => {
-    if (!formState.errors.participants) return [];
-
-    if (Array.isArray(participants)) {
-      return collectCurrentParticipantValidationMessages(participants as ParticipantInput[]);
-    }
-
-    return collectParticipantValidationMessages(formState.errors.participants, participants || []);
-  }, [formState.errors.participants, participants]);
-  const hasBlockingValidationErrors = Boolean(formState.errors.teamName || participantFieldErrors.length > 0);
-  const birthDateWarnings = useMemo(() => buildBirthDateWarnings(participants || []), [participants]);
-  const stepTwoWarnings = useMemo(
-    () => Array.from(new Set([...liveClassification.warnings, ...birthDateWarnings, ...disciplineCheck.warnings])),
-    [birthDateWarnings, disciplineCheck.warnings, liveClassification.warnings],
-  );
-
   const teamName = watch("teamName");
   const contactFirstName = watch("contactFirstName");
   const contactLastName = watch("contactLastName");
@@ -334,6 +225,24 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const effectiveContactName = userName || [contactFirstName, contactLastName].filter(Boolean).join(" ").trim() || contactName || "";
   const effectiveContactEmail = userEmail || contactEmail || "";
   const isAnonymousRegistration = allowAnonymous && !session?.user;
+  const teamDraftEvaluation = useMemo(
+    () =>
+      evaluateTeamDraft({
+        mode: isAnonymousRegistration ? "anonymous-create" : "authenticated-create",
+        teamName,
+        contactFirstName,
+        contactLastName,
+        contactName,
+        contactEmail,
+        participants,
+      }),
+    [contactEmail, contactFirstName, contactLastName, contactName, isAnonymousRegistration, participants, teamName],
+  );
+  const liveClassification = teamDraftEvaluation.classification;
+  const disciplineCheck = teamDraftEvaluation.discipline;
+  const stepTwoBlockingErrors = teamDraftEvaluation.blockingErrors;
+  const stepTwoWarnings = teamDraftEvaluation.warnings;
+  const hasBlockingValidationErrors = stepTwoBlockingErrors.length > 0;
 
   const [teamLeadParticipates, setTeamLeadParticipates] = useState(false);
   const [teamLeadDiscipline, setTeamLeadDiscipline] = useState<DisciplineId>(DISCIPLINES[0].id);
@@ -1058,10 +967,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                         <div className="space-y-1">
                           <p className="text-xs text-red-500">Bitte fehlende Angaben ergänzen.</p>
                           <div className="space-y-1 text-xs text-red-600">
-                            {formState.errors.teamName?.message && (
-                              <p>• {formState.errors.teamName.message}</p>
-                            )}
-                            {participantFieldErrors.map((message) => (
+                            {stepTwoBlockingErrors.map((message) => (
                               <p key={message}>• {message}</p>
                             ))}
                           </div>
