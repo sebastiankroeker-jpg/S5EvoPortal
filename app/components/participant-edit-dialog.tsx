@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,7 +25,17 @@ import {
   formatBirthDateInput,
   resolveBirthDateInputKey,
 } from "@/lib/domain/team";
+import { evaluateTeamState } from "@/lib/domain/classification";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
+
+type TeamParticipantSnapshot = {
+  id?: string;
+  birthYear?: number;
+  birthDate?: string;
+  gender?: string;
+  disciplineCode?: string;
+  discipline?: string;
+};
 
 interface Participant {
   id: string;
@@ -46,6 +56,7 @@ interface Participant {
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   isTeamManager?: boolean;
   canBeTeamManager?: boolean;
+  teamParticipants?: TeamParticipantSnapshot[];
   pendingChanges?: { id: string; status: string; updatedAt?: string | null; reviewedAt?: string | null; reviewComment?: string | null }[];
 }
 
@@ -247,6 +258,38 @@ export default function ParticipantEditDialog({
       : result
         ? { type: "success" as const, text: result.message || "Änderungsantrag eingereicht!" }
         : null;
+  const projectedClassificationWarnings = useMemo(() => {
+    if (moderatorNoteOnly || !participant?.id || !participant.teamParticipants?.length) {
+      return [];
+    }
+
+    const warnings = evaluateTeamState(
+      participant.teamParticipants.map((teamParticipant) => {
+        if (teamParticipant.id === participant.id) {
+          return {
+            birthYear: extractBirthYearFromInput(birthDate),
+            gender: normalizeGenderValue(gender),
+            disciplineCode: normalizeDisciplineValue(disciplineCode),
+          };
+        }
+
+        return {
+          birthYear: extractBirthYearFromInput(
+            teamParticipant.birthDate || birthYearToBirthDateInput(teamParticipant.birthYear),
+          ),
+          gender: normalizeGenderValue(teamParticipant.gender),
+          disciplineCode: normalizeDisciplineValue(teamParticipant.disciplineCode || teamParticipant.discipline),
+        };
+      }),
+      participant.teamCategory,
+    ).classificationWarnings;
+
+    return Array.from(new Set(warnings));
+  }, [birthDate, disciplineCode, gender, moderatorNoteOnly, participant]);
+  const visibleClassificationWarnings =
+    result?.classificationWarnings && result.classificationWarnings.length > 0
+      ? result.classificationWarnings
+      : projectedClassificationWarnings;
 
   const revealSaveFeedback = () => {
     requestAnimationFrame(() => {
@@ -584,9 +627,9 @@ export default function ParticipantEditDialog({
             </StatusMessage>
           )}
 
-          {result?.classificationWarnings && result.classificationWarnings.length > 0 ? (
+          {visibleClassificationWarnings.length > 0 ? (
             <StatusMessage tone="warning" className="mb-3">
-              {result.classificationWarnings.map((warning) => (
+              {visibleClassificationWarnings.map((warning) => (
                 <div key={warning}>{warning}</div>
               ))}
             </StatusMessage>
@@ -808,6 +851,13 @@ export default function ParticipantEditDialog({
 
         <DialogFooter className="border-t bg-background/95 px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
           <div className="flex w-full flex-col gap-2">
+            {visibleClassificationWarnings.length > 0 ? (
+              <StatusMessage tone="warning" role="alert" className="text-xs">
+                {visibleClassificationWarnings.map((warning) => (
+                  <div key={warning}>{warning}</div>
+                ))}
+              </StatusMessage>
+            ) : null}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Abbrechen

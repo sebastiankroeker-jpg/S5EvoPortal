@@ -107,6 +107,8 @@ interface Participant {
   } | null;
   teamOwnerEmail?: string;
   teamCanEdit?: boolean;
+  teamCategory?: string;
+  teamParticipants?: Participant[];
 }
 
 type EmailInvitationStatus = {
@@ -774,6 +776,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         error instanceof Error ? error.message : "Bitte versuche es erneut.",
       );
     }
+  };
+
+  const openParticipantDetails = (team: Team, participant?: Participant | null) => {
+    if (!participant?.id) return;
+
+    setEditingParticipant({
+      ...participant,
+      id: participant.id,
+      teamOwnerEmail: team.ownerEmail || team.contactEmail,
+      teamCanEdit: team.canCurrentUserEdit,
+      teamCategory: team.category,
+      teamParticipants: team.participants ?? [],
+    });
   };
 
   // Pending owner filter (set before teams are loaded)
@@ -1609,7 +1624,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               </Badge>
                             )}
                           </div>
-                          <div className="grid gap-1.5 pt-1 sm:grid-cols-5">
+                          <div className="grid gap-1 pt-0.5 sm:grid-cols-5">
                             {disciplineSlots.map(({ discipline, participant }) => {
                               const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
                               const participantLabel = participant
@@ -1617,15 +1632,36 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     revealPrivateName: revealPrivateDashboardNames,
                                   })
                                 : "Offen";
+                              const canOpenParticipant = Boolean(
+                                participant?.id &&
+                                  (canEditAll ||
+                                    team.canCurrentUserEdit ||
+                                    (participant.isCurrentUserParticipant && can("participant.edit.self"))),
+                              );
 
                               return (
                                 <div
                                   key={discipline.id}
-                                  className="flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1"
-                                  title={participant ? participantLabel : `${discipline.label}: offen`}
+                                  className={`flex min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-1.5 py-0.5 ${
+                                    canOpenParticipant ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
+                                  }`}
+                                  title={participant ? `${participantLabel} öffnen` : `${discipline.label}: offen`}
+                                  role={canOpenParticipant ? "button" : undefined}
+                                  tabIndex={canOpenParticipant ? 0 : undefined}
+                                  onClick={(event) => {
+                                    if (!canOpenParticipant) return;
+                                    event.stopPropagation();
+                                    openParticipantDetails(team, participant);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (!canOpenParticipant || (event.key !== "Enter" && event.key !== " ")) return;
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    openParticipantDetails(team, participant);
+                                  }}
                                 >
-                                  <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
-                                  <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+                                  <span className="shrink-0 text-xs" aria-hidden="true">{discipline.icon}</span>
+                                  <span className="min-w-0 truncate text-[11px] font-medium text-foreground">
                                     {participantLabel}
                                   </span>
                                   {isAdmin && <ParticipantPublicationPreferenceIcon participant={participant} team={team} />}
@@ -1769,15 +1805,34 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                     : null;
                                   const latestChangeMeta = participant ? getLatestChangeMeta(participant.latestChange?.status) : null;
                                   const showRights = Boolean(participant && (participant.isTeamManager || participant.canBeTeamManager || canEditAll));
+                                  const canOpenParticipant = Boolean(
+                                    participant?.id &&
+                                      (canEditAll ||
+                                        team.canCurrentUserEdit ||
+                                        (participant.isCurrentUserParticipant && can("participant.edit.self"))),
+                                  );
 
                                   return (
                                     <div
                                       key={discipline.id}
-                                      className="flex min-w-0 flex-col gap-2 rounded-md border border-border/60 bg-background p-3 text-xs"
+                                      className={`flex min-w-0 flex-col gap-1.5 rounded-md border border-border/60 bg-background p-2 text-xs ${
+                                        canOpenParticipant ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
+                                      }`}
+                                      role={canOpenParticipant ? "button" : undefined}
+                                      tabIndex={canOpenParticipant ? 0 : undefined}
+                                      onClick={() => {
+                                        if (!canOpenParticipant) return;
+                                        openParticipantDetails(team, participant);
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (!canOpenParticipant || (event.key !== "Enter" && event.key !== " ")) return;
+                                        event.preventDefault();
+                                        openParticipantDetails(team, participant);
+                                      }}
                                     >
-                                      <div className="min-w-0 space-y-1">
+                                      <div className="flex min-w-0 items-center gap-2">
                                         <span
-                                          className="flex size-9 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-lg"
+                                          className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-base"
                                           title={discipline.label}
                                         >
                                           {discipline.icon}
@@ -1864,13 +1919,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              if (!participant.id) return;
-                                              setEditingParticipant({
-                                                ...participant,
-                                                id: participant.id,
-                                                teamOwnerEmail: team.ownerEmail || team.contactEmail,
-                                                teamCanEdit: team.canCurrentUserEdit,
-                                              });
+                                              openParticipantDetails(team, participant);
                                             }}
                                             className={`flex-1 rounded border px-2 py-1 text-[10px] transition-colors ${participant.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
                                             title="Moderationshinweis bearbeiten"
@@ -1882,13 +1931,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (!participant.id) return;
-                                                setEditingParticipant({
-                                                  ...participant,
-                                                  id: participant.id,
-                                                  teamOwnerEmail: team.ownerEmail || team.contactEmail,
-                                                  teamCanEdit: team.canCurrentUserEdit,
-                                                });
+                                                openParticipantDetails(team, participant);
                                               }}
                                               className="flex-1 rounded border border-border/60 px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:text-primary"
                                               title="Teilnehmer bearbeiten"
@@ -2585,18 +2628,27 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
           </div>
 
         </CardContent>
-        <div className="flex flex-col-reverse gap-3 border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={onCancel} className="sm:w-auto">
-            Abbrechen
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={saving || !teamDraftEvaluation.canSubmit}
-            aria-busy={saving}
-            className="min-h-10 whitespace-normal text-center leading-tight sm:w-auto"
-          >
-            {saving ? "Speichert..." : saveButtonLabel}
-          </Button>
+        <div className="space-y-3 border-t bg-background/95 px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          {validationWarnings.length > 0 && (
+            <StatusMessage tone="warning" role="alert" className="text-xs">
+              {validationWarnings.map((warning, index) => (
+                <div key={index}>{warning}</div>
+              ))}
+            </StatusMessage>
+          )}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={onCancel} className="sm:w-auto">
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={saving || !teamDraftEvaluation.canSubmit}
+              aria-busy={saving}
+              className="min-h-10 whitespace-normal text-center leading-tight sm:w-auto"
+            >
+              {saving ? "Speichert..." : saveButtonLabel}
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
