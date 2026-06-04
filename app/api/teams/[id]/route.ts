@@ -3,7 +3,13 @@ import { getServerSession } from 'next-auth';
 import type { Prisma, ShirtSize } from '@prisma/client';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { recordAppliedChangeRequest, upsertLegacyParticipantChangeRequest } from '@/lib/change-request';
-import { TeamRegistrationSchema, type TeamRegistrationInput, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
+import {
+  TeamRegistrationSchema,
+  type TeamRegistrationInput,
+  birthYearToBirthDateInput,
+  extractBirthYearFromInput,
+  formatTeamRegistrationValidationIssues,
+} from '@/lib/domain/team';
 import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
 import { sendTeamLifecycleOrgEmail } from '@/lib/mail/team-lifecycle';
@@ -432,7 +438,7 @@ export async function PUT(
     const validation = TeamRegistrationSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.issues },
+        { error: formatTeamRegistrationValidationIssues(validation.error.issues), details: validation.error.issues },
         { status: 400 }
       );
     }

@@ -27,7 +27,7 @@ import {
   formatBirthDateInput,
   resolveBirthDateInputKey,
 } from "@/lib/domain/team";
-import { classifyTeam, validateDisciplineAssignment } from "@/lib/domain/classification";
+import { evaluateTeamDraft, validateDisciplineAssignment } from "@/lib/domain/classification";
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -1979,19 +1979,29 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
     teamPublicationLevel: team.teamPublicationLevel || "TEAM_ANONYM",
     participants: team.participants || []
   });
-  const liveClassification = useMemo(() => {
-    const inputs = formData.participants
-      .map((participant) => ({
-        birthYear: extractBirthYearFromInput(participant.birthDate),
-        gender: participant.gender as "M" | "W",
-      }))
-      .filter((participant) => participant.birthYear !== null) as Array<{ birthYear: number; gender: "M" | "W" }>;
-    return classifyTeam(inputs);
-  }, [formData.participants]);
-  const disciplineCheck = useMemo(
-    () => validateDisciplineAssignment(formData.participants.map((participant) => participant.discipline || participant.disciplineCode || "TBD")),
-    [formData.participants],
+  const teamDraftEvaluation = useMemo(
+    () =>
+      evaluateTeamDraft({
+        mode: showAdminInfo ? "admin-edit" : "team-edit",
+        teamName: formData.teamName,
+        participants: formData.participants.map((participant) => ({
+          firstName: participant.firstName,
+          lastName: participant.lastName,
+          birthDate: participant.birthDate,
+          gender:
+            participant.gender === "W" || participant.gender === "FEMALE"
+              ? "W"
+              : participant.gender === "D" || participant.gender === "DIVERSE"
+                ? "D"
+                : "M",
+          discipline: participant.discipline || participant.disciplineCode || "TBD",
+        })),
+        oldClassificationCode: team.category,
+      }),
+    [formData.participants, formData.teamName, showAdminInfo, team.category],
   );
+  const blockingValidationErrors = teamDraftEvaluation.blockingErrors;
+  const validationWarnings = teamDraftEvaluation.warnings;
   const pendingInvitationCount = useMemo(
     () =>
       formData.participants.filter((participant, index) => {
@@ -2203,9 +2213,16 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
               Mit Prüfung markierte Teilnehmerdaten werden zur Genehmigung eingereicht. Direkt markierte Felder wie E-Mail, T-Shirt, Moderationshinweis und Veröffentlichung werden direkt gespeichert.
             </div>
           )}
-          {(liveClassification.warnings.length > 0 || disciplineCheck.warnings.length > 0) && (
+          {blockingValidationErrors.length > 0 && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              {blockingValidationErrors.map((error, index) => (
+                <div key={index}>✕ {error}</div>
+              ))}
+            </div>
+          )}
+          {validationWarnings.length > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              {[...liveClassification.warnings, ...disciplineCheck.warnings].map((warning, index) => (
+              {validationWarnings.map((warning, index) => (
                 <div key={index}>⚠️ {warning}</div>
               ))}
             </div>
@@ -2538,7 +2555,11 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
           <Button variant="outline" onClick={onCancel} className="sm:w-auto">
             Abbrechen
           </Button>
-          <Button onClick={handleSubmit} className="min-h-10 whitespace-normal text-center leading-tight sm:w-auto">
+          <Button
+            onClick={handleSubmit}
+            disabled={!teamDraftEvaluation.canSubmit}
+            className="min-h-10 whitespace-normal text-center leading-tight sm:w-auto"
+          >
             {saveButtonLabel}
           </Button>
         </div>

@@ -214,6 +214,41 @@ export type ParticipantInput = z.output<typeof ParticipantSchema>;
 export type TeamRegistrationInput = z.output<typeof TeamRegistrationSchema>;
 export type TeamRegistrationFormInput = z.input<typeof TeamRegistrationSchema>;
 
+export function formatTeamRegistrationValidationIssues(issues: z.ZodIssue[]) {
+  const fieldLabels: Record<string, string> = {
+    teamName: "Mannschaftsname",
+    contactFirstName: "Kontakt-Vorname",
+    contactLastName: "Kontakt-Nachname",
+    contactName: "Kontaktname",
+    contactEmail: "Kontakt-E-Mail",
+    participants: "Teilnehmer",
+    firstName: "Vorname",
+    lastName: "Nachname",
+    birthDate: "Geburtsdatum",
+    gender: "Geschlecht",
+    discipline: "Disziplin",
+    shirtSize: "T-Shirt",
+    email: "E-Mail",
+    moderationNote: "Moderationshinweis",
+    participantPublicationPreference: "Namensveröffentlichung",
+  };
+
+  const messages = issues.map((issue) => {
+    const participantPathIndex = issue.path.findIndex((segment) => segment === "participants");
+    const participantIndex = issue.path[participantPathIndex + 1];
+    const field = issue.path[issue.path.length - 1];
+    const fieldLabel = typeof field === "string" ? fieldLabels[field] : null;
+
+    if (participantPathIndex >= 0 && typeof participantIndex === "number") {
+      return `Teilnehmer:in ${participantIndex + 1}${fieldLabel ? ` ${fieldLabel}` : ""}: ${issue.message}`;
+    }
+
+    return fieldLabel ? `${fieldLabel}: ${issue.message}` : issue.message;
+  });
+
+  return Array.from(new Set(messages)).join(" · ") || "Validierung fehlgeschlagen";
+}
+
 export function createEmptyParticipant(): ParticipantInput {
   return {
     firstName: "",

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { TeamRegistrationSchema, birthYearToBirthDateInput, extractBirthYearFromInput } from '@/lib/domain/team';
+import {
+  TeamRegistrationSchema,
+  birthYearToBirthDateInput,
+  extractBirthYearFromInput,
+  formatTeamRegistrationValidationIssues,
+} from '@/lib/domain/team';
 import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
 import { resolveRegistrationNotificationEmail, sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
@@ -485,7 +490,7 @@ export async function POST(request: NextRequest) {
     const validation = TeamRegistrationSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.issues },
+        { error: formatTeamRegistrationValidationIssues(validation.error.issues), details: validation.error.issues },
         { status: 400 }
       );
     }
@@ -858,7 +863,7 @@ export async function PUT(request: NextRequest) {
     const validation = TeamRegistrationSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.issues },
+        { error: formatTeamRegistrationValidationIssues(validation.error.issues), details: validation.error.issues },
         { status: 400 }
       );
     }
