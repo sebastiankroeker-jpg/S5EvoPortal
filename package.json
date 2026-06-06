@@ -9,6 +9,7 @@
     "lint": "eslint",
     "smoke:core": "node scripts/smoke-core-flows.mjs",
     "verify:team-draft": "tsx scripts/verify-team-draft-evaluation.ts",
+    "verify:participant-edit-flow": "tsx scripts/verify-participant-edit-flow.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

@@ -388,6 +388,10 @@ export default function TeamRegistration({
         setServerError("Bitte gib ein plausibles Geburtsdatum für die Sportlerbörse an.");
         return;
       }
+      if (marketplaceDiscipline === DISCIPLINE_PLACEHOLDER) {
+        setServerError("Bitte wähle eine Disziplin für die Sportlerbörse aus.");
+        return;
+      }
       setServerError("");
       setStep(3);
       return;
@@ -1043,6 +1047,7 @@ export default function TeamRegistration({
                       !publicRegistrationStatus.canRegister ||
                       (isMarketplaceRegistration
                         ? !marketplaceBirthDate ||
+                          marketplaceDiscipline === DISCIPLINE_PLACEHOLDER ||
                           (isAnonymousRegistration ? !contactFirstName || !contactLastName || !contactEmail : !effectiveContactName || !effectiveContactEmail)
                         : (isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName))
                     }

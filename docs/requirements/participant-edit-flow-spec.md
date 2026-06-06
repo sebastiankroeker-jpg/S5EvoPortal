@@ -11,6 +11,8 @@ Ein Sportlerboerse-Eintrag ist fachlich ein normaler `Participant`. Der Untersch
 
 Es wird kein zweites Modell wie `SportlerboerseParticipant` eingefuehrt. Suche, Bearbeitung, Claim, Datenschutz, Audit, Export und Benachrichtigung laufen ueber dieselbe Teilnehmer-Entitaet.
 
+Bei einer Sportlerboerse-Meldung ist die Disziplin fachlich Pflicht. `TBD` bleibt fuer Team-Bearbeitungen moeglich, ist aber fuer neue Boersenmeldungen nicht zulaessig.
+
 ## Zielbild
 
 Alle Teilnehmer-Bearbeitungen liefern dieselbe strukturierte Ergebnisform:
@@ -140,4 +142,14 @@ Bei Review-Entscheidung:
 5. UI auf `editResult.fieldResults` und `editResult.notifications` umstellen. Status: umgesetzt fuer Participant-Edit-Dialog.
 6. Globalen Sportlerboerse-Sichtbarkeitsschalter in Wettkampf-Admin und Team-API ergaenzen. Status: umgesetzt.
 7. Admin-Entscheidungen und Bundle-Entscheidungen auf dieselbe Ergebnisform erweitern. Status: umgesetzt fuer API und Approval-Queue-Ergebnisblock.
-8. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: offen.
+8. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: umgesetzt mit `npm run verify:participant-edit-flow`.
+
+## Verifikation
+
+`npm run verify:participant-edit-flow` prueft:
+
+- Sportlerboerse-Meldung akzeptiert eine konkrete Disziplin und lehnt `TBD` ab.
+- Teilnehmer-Bearbeitung unterscheidet die Kontexte `TEAM` und `MARKETPLACE`.
+- Review-Entscheidungen liefern Feldentscheidungen und strukturierte Mailstatus.
+- Claim-Einladungsmails werden als Benachrichtigung normalisiert.
+- Globaler Sportlerboerse-Offline-Modus sperrt Nicht-Orga, laesst Admin/Orga aber weiter sehen.

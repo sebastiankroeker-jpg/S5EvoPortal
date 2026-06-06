@@ -242,7 +242,10 @@ export const MarketplaceRegistrationSchema = z.object({
     .min(1, "Geburtsdatum fehlt")
     .refine((value) => extractBirthYearFromInput(value) !== null, "Geburtsdatum unplausibel"),
   gender: z.enum(["M", "W"]),
-  discipline: disciplineEnum.default(DISCIPLINE_PLACEHOLDER),
+  discipline: disciplineEnum.default(DISCIPLINE_PLACEHOLDER).refine(
+    (value) => value !== DISCIPLINE_PLACEHOLDER,
+    "Disziplin fehlt",
+  ),
   clubName: z.string().max(120, "Verein zu lang").optional().or(z.literal("")),
   marketplaceVisibility: marketplaceVisibilityEnum.default("ADMIN_MANAGEMENT_ONLY"),
   participantPublicationPreference: participantPublicationPreferenceEnum.default("NAME_VERBERGEN"),
