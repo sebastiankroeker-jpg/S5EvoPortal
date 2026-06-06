@@ -9,6 +9,7 @@ import {
   shouldInviteParticipantClaim,
 } from "@/lib/participant-claim-invitation";
 import {
+  diffParticipantSnapshots,
   parseSnapshot,
   recalculateTeamClassification,
   serializeSnapshot,
@@ -17,6 +18,11 @@ import {
   summarizeParticipantRequestConflicts,
   toParticipantSnapshot,
 } from "@/lib/participant-change";
+import {
+  buildParticipantClaimNotificationResult,
+  buildParticipantReviewDecisionResult,
+  resolveParticipantEditContext,
+} from "@/lib/participant-edit-result";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
@@ -88,6 +94,7 @@ export async function PUT(
               id: true,
               name: true,
               contactEmail: true,
+              registrationMode: true,
               competition: {
                 select: {
                   name: true,
@@ -140,7 +147,9 @@ export async function PUT(
   const beforeSnapshot = pendingChange.beforeData ? parseSnapshot(pendingChange.beforeData) : liveSnapshot;
   const requestedSnapshot = parseSnapshot(pendingChange.changeData);
   const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
+  const changeDiff = diffParticipantSnapshots(beforeSnapshot, requestedSnapshot);
   const liveDriftSummary = summarizeParticipantRequestConflicts(beforeSnapshot, requestedSnapshot, liveSnapshot);
+  const context = resolveParticipantEditContext(pendingChange.participant.team.registrationMode);
 
   if (action === "approve") {
     if (liveDriftSummary.length > 0) {
@@ -240,7 +249,7 @@ export async function PUT(
       }
     }
 
-    await sendParticipantChangeDecisionEmail({
+    const notifications = await sendParticipantChangeDecisionEmail({
       competition: pendingChange.participant.team.competition,
       participant: {
         name: pendingChange.participant.firstName + " " + pendingChange.participant.lastName,
@@ -256,11 +265,27 @@ export async function PUT(
       reviewComment: comment || null,
       changeSummary,
     });
+    const claimNotification = buildParticipantClaimNotificationResult(participantClaimMail);
+    if (claimNotification) {
+      notifications.push(claimNotification);
+    }
 
     return NextResponse.json({
       status: "approved",
       message: "Änderung genehmigt und angewendet",
       participantClaimMail,
+      decisionResult: buildParticipantReviewDecisionResult({
+        status: "approved",
+        scope: "single",
+        message: "Änderung genehmigt und angewendet",
+        participantId: pendingChange.participantId,
+        teamId: pendingChange.participant.team.id,
+        context,
+        reviewComment: comment || null,
+        diff: changeDiff,
+        fieldDecision: "saved",
+        notifications,
+      }),
     });
   }
 
@@ -298,7 +323,7 @@ export async function PUT(
     });
   });
 
-  await sendParticipantChangeDecisionEmail({
+  const notifications = await sendParticipantChangeDecisionEmail({
     competition: pendingChange.participant.team.competition,
     participant: {
       name: pendingChange.participant.firstName + " " + pendingChange.participant.lastName,
@@ -315,7 +340,22 @@ export async function PUT(
     changeSummary,
   });
 
-  return NextResponse.json({ status: "rejected", message: "Änderung abgelehnt" });
+  return NextResponse.json({
+    status: "rejected",
+    message: "Änderung abgelehnt",
+    decisionResult: buildParticipantReviewDecisionResult({
+      status: "rejected",
+      scope: "single",
+      message: "Änderung abgelehnt",
+      participantId: pendingChange.participantId,
+      teamId: pendingChange.participant.team.id,
+      context,
+      reviewComment: comment || null,
+      diff: changeDiff,
+      fieldDecision: "denied",
+      notifications,
+    }),
+  });
 }
 
 function getLegacyPendingChangeId(metadata: unknown): string | null {

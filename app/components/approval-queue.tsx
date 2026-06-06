@@ -96,6 +96,35 @@ type DecoratedChange = PendingChange & {
   bundleHasLiveDrift?: boolean;
 };
 
+type DecisionResult = {
+  status: "approved" | "rejected" | "conflict" | "idempotent";
+  scope: "single" | "bundle";
+  message: string;
+  count: number;
+  context: "TEAM" | "MARKETPLACE";
+  reviewComment?: string | null;
+  fieldResults: Array<{
+    field: string;
+    label: string;
+    decision: "saved" | "review" | "denied";
+    beforeLabel: string;
+    afterLabel: string;
+    message: string;
+  }>;
+  validation: {
+    blockingErrors: string[];
+    warnings: string[];
+    info: string[];
+  };
+  notifications: Array<{
+    channel: "email";
+    recipient: string;
+    template: string;
+    status: "sent" | "skipped" | "failed";
+    reason?: string;
+  }>;
+};
+
 const fieldLabels: Record<string, string> = {
   firstName: "Vorname",
   lastName: "Nachname",
@@ -212,6 +241,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastDecisionResult, setLastDecisionResult] = useState<DecisionResult | null>(null);
 
   const dashboardMode = variant === "page";
   const canUseAdminLinks = activeRole === "ADMIN";
@@ -425,6 +455,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     const commentKey = change.bundleId ? `bundle:${change.bundleId}` : change.id;
     setProcessing(processingKey);
     setError(null);
+    setLastDecisionResult(null);
 
     try {
       const reviewId = change.changeRequestId || change.id;
@@ -440,6 +471,11 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Aktion fehlgeschlagen");
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (data.decisionResult) {
+        setLastDecisionResult(data.decisionResult);
       }
 
       await fetchChanges("refresh");
@@ -582,6 +618,8 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
           </Card>
         )}
 
+        {lastDecisionResult && <DecisionResultCard result={lastDecisionResult} />}
+
         {filteredChanges.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
@@ -629,6 +667,8 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         </Card>
       )}
 
+      {lastDecisionResult && <DecisionResultCard result={lastDecisionResult} />}
+
       {decoratedChanges.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center">
@@ -663,6 +703,76 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         </>
       )}
     </div>
+  );
+}
+
+function DecisionResultCard({ result }: { result: DecisionResult }) {
+  const isApproved = result.status === "approved";
+  const isRejected = result.status === "rejected";
+  const tone = isApproved
+    ? "border-green-200 bg-green-50/70 text-green-900 dark:border-green-900/70 dark:bg-green-950/25 dark:text-green-100"
+    : isRejected
+      ? "border-red-200 bg-red-50/70 text-red-900 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-100"
+      : "border-amber-200 bg-amber-50/70 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/25 dark:text-amber-100";
+  const visibleFields = result.fieldResults.slice(0, 4);
+  const remainingFields = Math.max(0, result.fieldResults.length - visibleFields.length);
+
+  return (
+    <Card className={tone}>
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-sm font-semibold">{result.message}</div>
+            <div className="mt-1 text-xs opacity-80">
+              {result.scope === "bundle" ? `${result.count} Teilanträge` : "Einzelantrag"} ·{" "}
+              {result.context === "MARKETPLACE" ? "Sportler-Börse" : "Mannschaft"}
+              {result.reviewComment ? ` · Kommentar: ${result.reviewComment}` : ""}
+            </div>
+          </div>
+          <Badge variant="outline" className="w-fit bg-background/60">
+            {isApproved ? "Genehmigt" : isRejected ? "Abgelehnt" : "Verarbeitet"}
+          </Badge>
+        </div>
+
+        {visibleFields.length > 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {visibleFields.map((field, index) => (
+              <div key={`${field.field}-${index}`} className="rounded-md border border-current/15 bg-background/50 px-3 py-2 text-xs">
+                <div className="font-medium">{field.label}</div>
+                <div className="mt-1 opacity-80">
+                  {field.beforeLabel} {"->"} {field.afterLabel}
+                </div>
+                <div className="mt-1 text-[11px] opacity-75">{field.message}</div>
+              </div>
+            ))}
+            {remainingFields > 0 ? (
+              <div className="rounded-md border border-current/15 bg-background/50 px-3 py-2 text-xs">
+                +{remainingFields} weitere Feldentscheidungen
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {result.notifications.length > 0 ? (
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium uppercase tracking-[0.14em] opacity-75">Benachrichtigungen</div>
+            <div className="flex flex-wrap gap-1.5">
+              {result.notifications.map((notification, index) => (
+                <Badge key={`${notification.template}-${index}`} variant="outline" className="bg-background/60">
+                  {notification.status === "sent"
+                    ? "Mail gesendet"
+                    : notification.status === "skipped"
+                      ? "Mail übersprungen"
+                      : "Mail fehlgeschlagen"}
+                  {notification.recipient ? ` · ${notification.recipient}` : ""}
+                  {notification.reason ? ` · ${notification.reason}` : ""}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

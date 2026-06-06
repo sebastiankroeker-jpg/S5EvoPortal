@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { sendParticipantChangeDecisionEmail } from "@/lib/mail/participant-change";
 import {
+  diffParticipantSnapshots,
   parseSnapshot,
   recalculateTeamClassification,
   serializeSnapshot,
@@ -12,6 +13,14 @@ import {
   toParticipantSnapshot,
 } from "@/lib/participant-change";
 import { validatePendingChangeBundle } from "@/lib/participant-change-bundle";
+import {
+  buildParticipantFieldResults,
+  buildParticipantReviewDecisionResult,
+  resolveParticipantEditContext,
+  type EditParticipantFieldDecision,
+  type EditParticipantFieldResult,
+  type EditParticipantNotificationResult,
+} from "@/lib/participant-edit-result";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
@@ -71,6 +80,7 @@ export async function PUT(
               name: true,
               contactEmail: true,
               classificationCode: true,
+              registrationMode: true,
               participants: {
                 where: { deletedAt: null },
                 select: {
@@ -120,12 +130,29 @@ export async function PUT(
   const distinctBundleStatuses = [...new Set(pendingChanges.map((change) => change.bundleStatus).filter(Boolean))];
   const currentBundleStatus = distinctBundleStatuses.length === 1 ? distinctBundleStatuses[0] : null;
   if (currentBundleStatus && currentBundleStatus !== "PENDING") {
+    const firstChange = pendingChanges[0];
+    const idempotentResult = buildParticipantReviewDecisionResult({
+      status: "idempotent",
+      scope: "bundle",
+      message:
+        currentBundleStatus === "APPROVED"
+          ? "Bundle war bereits genehmigt (idempotent)."
+          : "Bundle war bereits abgelehnt (idempotent).",
+      count: pendingChanges.length,
+      participantId: firstChange.participantId,
+      teamId: firstChange.participant.team.id,
+      context: resolveParticipantEditContext(firstChange.participant.team.registrationMode),
+      reviewComment: comment || null,
+      info: ["Dieser Bundle-Entscheid wurde bereits abschliessend verarbeitet."],
+    });
+
     if (action === "approve" && currentBundleStatus === "APPROVED") {
       return NextResponse.json({
         status: "approved",
         message: "Bundle war bereits genehmigt (idempotent).",
         idempotent: true,
         count: pendingChanges.length,
+        decisionResult: idempotentResult,
       });
     }
 
@@ -135,6 +162,7 @@ export async function PUT(
         message: "Bundle war bereits abgelehnt (idempotent).",
         idempotent: true,
         count: pendingChanges.length,
+        decisionResult: idempotentResult,
       });
     }
 
@@ -269,12 +297,15 @@ export async function PUT(
       await recalculateTeamClassification(pendingChanges[0].participant.team.id);
     }
 
+    const notifications: EditParticipantNotificationResult[] = [];
+    const fieldResults = buildBundleFieldResults(pendingChanges, "saved");
+
     for (const change of pendingChanges) {
       const beforeSnapshot = change.beforeData ? parseSnapshot(change.beforeData) : toParticipantSnapshot(change.participant);
       const requestedSnapshot = parseSnapshot(change.changeData);
       const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
 
-      await sendParticipantChangeDecisionEmail({
+      notifications.push(...await sendParticipantChangeDecisionEmail({
         competition: change.participant.team.competition,
         participant: {
           name: change.participant.firstName + " " + change.participant.lastName,
@@ -289,13 +320,25 @@ export async function PUT(
         approved: true,
         reviewComment: comment || null,
         changeSummary,
-      });
+      }));
     }
 
     return NextResponse.json({
       status: "approved",
       message: "Bundle wurde atomar genehmigt und angewendet.",
       count: pendingChanges.length,
+      decisionResult: buildParticipantReviewDecisionResult({
+        status: "approved",
+        scope: "bundle",
+        message: "Bundle wurde atomar genehmigt und angewendet.",
+        count: pendingChanges.length,
+        participantId: pendingChanges[0].participantId,
+        teamId: pendingChanges[0].participant.team.id,
+        context: resolveParticipantEditContext(pendingChanges[0].participant.team.registrationMode),
+        reviewComment: comment || null,
+        fieldResults,
+        notifications,
+      }),
     });
   }
 
@@ -348,12 +391,15 @@ export async function PUT(
     throw error;
   }
 
+  const notifications: EditParticipantNotificationResult[] = [];
+  const fieldResults = buildBundleFieldResults(pendingChanges, "denied");
+
   for (const change of pendingChanges) {
     const beforeSnapshot = change.beforeData ? parseSnapshot(change.beforeData) : toParticipantSnapshot(change.participant);
     const requestedSnapshot = parseSnapshot(change.changeData);
     const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
 
-    await sendParticipantChangeDecisionEmail({
+    notifications.push(...await sendParticipantChangeDecisionEmail({
       competition: change.participant.team.competition,
       participant: {
         name: change.participant.firstName + " " + change.participant.lastName,
@@ -368,12 +414,51 @@ export async function PUT(
       approved: false,
       reviewComment: comment || null,
       changeSummary,
-    });
+    }));
   }
 
   return NextResponse.json({
     status: "rejected",
     message: "Bundle wurde abgelehnt.",
     count: pendingChanges.length,
+    decisionResult: buildParticipantReviewDecisionResult({
+      status: "rejected",
+      scope: "bundle",
+      message: "Bundle wurde abgelehnt.",
+      count: pendingChanges.length,
+      participantId: pendingChanges[0].participantId,
+      teamId: pendingChanges[0].participant.team.id,
+      context: resolveParticipantEditContext(pendingChanges[0].participant.team.registrationMode),
+      reviewComment: comment || null,
+      fieldResults,
+      notifications,
+    }),
+  });
+}
+
+function buildBundleFieldResults(
+  changes: Array<{
+    beforeData: string | null;
+    changeData: string;
+    participant: Record<string, unknown> & {
+      firstName: string;
+      lastName: string;
+    };
+  }>,
+  decision: EditParticipantFieldDecision,
+): EditParticipantFieldResult[] {
+  return changes.flatMap((change) => {
+    const beforeSnapshot = change.beforeData ? parseSnapshot(change.beforeData) : toParticipantSnapshot(change.participant);
+    const requestedSnapshot = parseSnapshot(change.changeData);
+    const diff = diffParticipantSnapshots(beforeSnapshot, requestedSnapshot);
+    const decisions = Object.fromEntries(
+      Object.keys(diff).map((field) => [field, decision]),
+    ) as Parameters<typeof buildParticipantFieldResults>[1];
+    const participantName = `${change.participant.firstName} ${change.participant.lastName}`.trim();
+
+    return buildParticipantFieldResults(diff, decisions).map((fieldResult) => ({
+      ...fieldResult,
+      message: `${participantName}: ${fieldResult.message}`,
+    }));
   });
 }

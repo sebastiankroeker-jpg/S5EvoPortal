@@ -129,6 +129,7 @@ Bei Review-Entscheidung:
 
 - Genehmigt/abgelehnt wird an Teilnehmer oder Teamkontakt gemeldet.
 - Kommentar der Orga wird mitgegeben.
+- Einzel- und Bundle-Entscheidungen liefern ein strukturiertes `decisionResult` mit Feldentscheidungen, Kontext und Mailstatus zurueck.
 
 ## Umsetzungspakete
 
@@ -138,5 +139,5 @@ Bei Review-Entscheidung:
 4. Sportlerboerse-Containerdaten bei Teilnehmer-Aenderungen synchronisieren. Status: umgesetzt fuer Teilnehmer-Edit.
 5. UI auf `editResult.fieldResults` und `editResult.notifications` umstellen. Status: umgesetzt fuer Participant-Edit-Dialog.
 6. Globalen Sportlerboerse-Sichtbarkeitsschalter in Wettkampf-Admin und Team-API ergaenzen. Status: umgesetzt.
-7. Admin-Entscheidungen und Bundle-Entscheidungen auf dieselbe Ergebnisform erweitern. Status: offen.
+7. Admin-Entscheidungen und Bundle-Entscheidungen auf dieselbe Ergebnisform erweitern. Status: umgesetzt fuer API und Approval-Queue-Ergebnisblock.
 8. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: offen.
