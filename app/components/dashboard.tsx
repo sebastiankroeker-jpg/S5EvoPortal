@@ -1604,6 +1604,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               <tbody>
                 {sortedTeams.map((team) => {
                   const isEditable = team.canCurrentUserEdit === true && team.registrationMode !== "MARKETPLACE";
+                  const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
+                  const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
 
                   return (
                     <tr key={team.id} className="border-b border-border/50 align-top transition-colors hover:bg-muted/20">
@@ -1678,7 +1680,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
                       {(canEditAll || canEditOwn) && (
                         <td className="px-4 py-3">
-                          {isEditable ? (
+                          {canEditMarketplaceParticipant ? (
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openParticipantDetails(team, marketplaceParticipant)}
+                              >
+                                Teilnehmer bearbeiten
+                              </Button>
+                            </div>
+                          ) : isEditable ? (
                             <div className="flex justify-end gap-2">
                               <Button
                                 size="sm"
@@ -1717,6 +1729,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const disciplineSlots = getTeamDisciplineSlots(team);
               const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
               const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
+              const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
+              const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -1838,18 +1852,34 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           )}
                         </div>
                         <div className="flex items-start justify-end">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 shrink-0 px-2 text-[11px]"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setExpandedTeam(team.id);
-                            }}
-                          >
-                            Details
-                          </Button>
+                          <div className="flex flex-col gap-1">
+                            {canEditMarketplaceParticipant && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 shrink-0 px-2 text-[11px]"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openParticipantDetails(team, marketplaceParticipant);
+                                }}
+                              >
+                                Bearbeiten
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 shrink-0 px-2 text-[11px]"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setExpandedTeam(team.id);
+                              }}
+                            >
+                              Details
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -1886,6 +1916,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               )}
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
+                              {canEditMarketplaceParticipant && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openParticipantDetails(team, marketplaceParticipant);
+                                  }}
+                                >
+                                  Teilnehmer bearbeiten
+                                </Button>
+                              )}
                               {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
                                 <Button
                                   size="xs"
@@ -2175,6 +2217,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           )}
 
                           <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2 sm:flex-row sm:items-center sm:justify-end">
+                            {canEditMarketplaceParticipant && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openParticipantDetails(team, marketplaceParticipant);
+                                }}
+                                className="flex-1"
+                              >
+                                Teilnehmer bearbeiten
+                              </Button>
+                            )}
                             {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
                               <>
                                 <Button
