@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { useNotifications } from "@/lib/notification-context";
@@ -241,15 +241,14 @@ export default function AdminPage() {
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab && ADMIN_TABS.has(tab)) {
-      setActiveAdminTab(tab === "tenant" ? "competition" : tab);
+      setActiveAdminTab(tab);
     }
   }, []);
 
   const handleAdminTabChange = (tab: string) => {
     if (!ADMIN_TABS.has(tab)) return;
-    const nextTab = tab === "tenant" ? "competition" : tab;
-    setActiveAdminTab(nextTab);
-    router.replace(`/admin?tab=${nextTab}`, { scroll: false });
+    setActiveAdminTab(tab);
+    router.replace(`/admin?tab=${tab}`, { scroll: false });
   };
 
   const navigateFromBottomTab = (tabId: string) => {
@@ -604,7 +603,9 @@ export default function AdminPage() {
                 ? "Betriebsprüfung, Mail-Protokoll und Claim-Auffälligkeiten prüfen."
                 : activeAdminTab === "restore"
                   ? "Archivierte Mannschaften und Wiederherstellung prüfen."
-                  : "Tenant, aktiven Wettkampf, Anmeldung und Regeln konfigurieren."}
+                  : activeAdminTab === "tenant"
+                    ? "Mandant, Branding, Kontakt und Datenschutz konfigurieren."
+                    : "Aktiven Wettkampf, Anmeldung, Sportler-Börse und Regeln konfigurieren."}
           </p>
         </motion.div>
 
@@ -650,46 +651,20 @@ export default function AdminPage() {
         )}
 
         <Tabs value={activeAdminTab} onValueChange={handleAdminTabChange} className="space-y-6">
+          {(activeAdminTab === "tenant" || activeAdminTab === "competition") && (
+            <TabsList className="w-full justify-start overflow-x-auto">
+              <TabsTrigger value="tenant" className="px-3">
+                Tenant
+              </TabsTrigger>
+              <TabsTrigger value="competition" className="px-3">
+                Wettkampf
+              </TabsTrigger>
+            </TabsList>
+          )}
+
           {/* ==================== TENANT TAB ==================== */}
-          <TabsContent value="competition">
+          <TabsContent value="tenant">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              {/* Competition Switcher */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Wettkampf-Mandant</CardTitle>
-                  <CardDescription>Wähle den aktiven Wettkampf — wirkt auf alle Ansichten</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-2">
-                    {competitions.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => switchTo(c.id)}
-                        className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
-                          activeCompetition?.id === c.id
-                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                            : "border-border hover:bg-accent"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xl ${
-                            activeCompetition?.id === c.id ? "" : "opacity-40"
-                          }`}>
-                            {activeCompetition?.id === c.id ? "✅" : "⚪"}
-                          </span>
-                          <div>
-                            <p className="font-medium text-sm">{c.name}</p>
-                            <p className="text-xs text-muted-foreground">{c.year} • {c.teamCount} Teams</p>
-                          </div>
-                        </div>
-                        <Badge variant={c.status === "OPEN" ? "default" : c.status === "CLOSED" ? "secondary" : "outline"} className="text-xs">
-                          {c.status}
-                        </Badge>
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
               {/* Branding */}
               <Card>
                 <CardHeader>
@@ -810,6 +785,44 @@ export default function AdminPage() {
           {/* ==================== COMPETITION TAB ==================== */}
           <TabsContent value="competition">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {/* Competition Switcher */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Aktiver Wettkampf</CardTitle>
+                  <CardDescription>Wähle den Wettkampf, dessen Parameter du bearbeitest</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-2">
+                    {competitions.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => switchTo(c.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
+                          activeCompetition?.id === c.id
+                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
+                            : "border-border hover:bg-accent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xl ${
+                            activeCompetition?.id === c.id ? "" : "opacity-40"
+                          }`}>
+                            {activeCompetition?.id === c.id ? "✅" : "⚪"}
+                          </span>
+                          <div>
+                            <p className="font-medium text-sm">{c.name}</p>
+                            <p className="text-xs text-muted-foreground">{c.year} • {c.teamCount} Teams</p>
+                          </div>
+                        </div>
+                        <Badge variant={c.status === "OPEN" ? "default" : c.status === "CLOSED" ? "secondary" : "outline"} className="text-xs">
+                          {c.status}
+                        </Badge>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Grunddaten */}
               <Card>
                 <CardHeader>
@@ -872,6 +885,39 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
 
+              <Card id="sportlerboerse-sichtbarkeit" className="scroll-mt-24">
+                <CardHeader>
+                  <CardTitle className="text-lg">Sportler-Börse</CardTitle>
+                  <CardDescription>
+                    Globale Veröffentlichung der Börsenmeldungen für diesen Wettkampf.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FormField
+                    label="Sportler-Börse Sichtbarkeit"
+                    hint="Offline blendet Börsen-Einträge außerhalb der Orga serverseitig aus."
+                  >
+                    <select
+                      value={competition.marketplaceGlobalVisibility}
+                      onChange={(e) =>
+                        setCompetition({
+                          ...competition,
+                          marketplaceGlobalVisibility: e.target.value === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
+                        })
+                      }
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="SELECTIVE">
+                        Selektiv veröffentlichen - individuelle Sichtbarkeit der Börsenmeldung gilt
+                      </option>
+                      <option value="OFFLINE">
+                        Offline - Sportler-Börse nur für Orga/Admin sichtbar
+                      </option>
+                    </select>
+                  </FormField>
+                </CardContent>
+              </Card>
+
               {/* Anmeldung */}
               <Card>
                 <CardHeader>
@@ -925,30 +971,6 @@ export default function AdminPage() {
                         disabled={competition.claimTokenExpiryMode !== "FIXED_DAYS"}
                         onChange={(e) => setCompetition({ ...competition, claimTokenTtlDays: parseInt(e.target.value) || 7 })}
                       />
-                    </FormField>
-                  </div>
-                  <div id="sportlerboerse-sichtbarkeit" className="grid scroll-mt-24 grid-cols-1 gap-4">
-                    <FormField
-                      label="Sportler-Börse Sichtbarkeit"
-                      hint="Steuert global, ob Börsen-Einträge außerhalb der Orga sichtbar werden."
-                    >
-                      <select
-                        value={competition.marketplaceGlobalVisibility}
-                        onChange={(e) =>
-                          setCompetition({
-                            ...competition,
-                            marketplaceGlobalVisibility: e.target.value === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
-                          })
-                        }
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="SELECTIVE">
-                          Selektiv veröffentlichen - individuelle Sichtbarkeit der Börsenmeldung gilt
-                        </option>
-                        <option value="OFFLINE">
-                          Offline - Sportler-Börse nur für Orga/Admin sichtbar
-                        </option>
-                      </select>
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
