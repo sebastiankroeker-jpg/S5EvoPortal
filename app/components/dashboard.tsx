@@ -141,6 +141,7 @@ interface DashboardProps {
 type DashboardViewMode = "cards" | "list";
 type TeamSortField = "name" | "category" | "contactName" | "contactEmail" | "ownerEmail" | "participantCount" | "createdAt" | "updatedAt";
 type SortDirection = "asc" | "desc";
+type MarketplaceStatusFilter = "all" | NonNullable<Team["marketplaceStatus"]>;
 type TeamOptionalColumnKey =
   | "category"
   | "contactName"
@@ -216,6 +217,27 @@ function normalizeEmail(value?: string | null) {
 
 function normalizeComparableText(value?: string | null) {
   return value?.normalize("NFC").trim() ?? "";
+}
+
+function getMarketplaceStatusOption(status?: Team["marketplaceStatus"] | null) {
+  return MARKETPLACE_STATUS_OPTIONS.find((option) => option.id === (status || "NEW")) ?? MARKETPLACE_STATUS_OPTIONS[0];
+}
+
+function getMarketplaceStatusClass(status?: Team["marketplaceStatus"] | null) {
+  switch (status || "NEW") {
+    case "NEW":
+      return "border-blue-300 bg-blue-50 text-blue-800";
+    case "REVIEWED":
+      return "border-slate-300 bg-slate-50 text-slate-800";
+    case "MATCHING":
+      return "border-amber-300 bg-amber-50 text-amber-800";
+    case "MATCHED":
+      return "border-green-300 bg-green-50 text-green-800";
+    case "WITHDRAWN":
+      return "border-zinc-300 bg-zinc-100 text-zinc-700";
+    default:
+      return "";
+  }
 }
 
 function getParticipantCount(team: Team) {
@@ -633,6 +655,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [createdTo, setCreatedTo] = useState("");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [marketplaceOnly, setMarketplaceOnly] = useState(marketplaceFocus);
+  const [marketplaceStatusFilter, setMarketplaceStatusFilter] = useState<MarketplaceStatusFilter>("all");
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
@@ -943,6 +966,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       const matchesCompleteness =
         !incompleteOnly || (canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team));
       const matchesMarketplace = !marketplaceOnly || team.registrationMode === "MARKETPLACE";
+      const matchesMarketplaceStatus =
+        !marketplaceFocus ||
+        marketplaceStatusFilter === "all" ||
+        (team.marketplaceStatus || "NEW") === marketplaceStatusFilter;
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = getDateTimeFilterTimestamp(createdFrom);
       const createdToMs = getDateTimeFilterTimestamp(createdTo);
@@ -959,9 +986,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
-      return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesMarketplace && matchesCreatedAt && matchesSearch;
+      return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesMarketplace && matchesMarketplaceStatus && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceOnly, marketplaceFocus, marketplaceStatusFilter, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -1041,6 +1068,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   }
 
   const incompleteTeams = teams.filter((team) => canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team)).length;
+  const marketplaceTeams = teams.filter((team) => team.registrationMode === "MARKETPLACE");
+  const marketplaceStatusCounts = MARKETPLACE_STATUS_OPTIONS.map((option) => ({
+    ...option,
+    count: marketplaceTeams.filter((team) => (team.marketplaceStatus || "NEW") === option.id).length,
+  }));
   const hasActiveFilters =
     searchQuery !== "" ||
     categoryFilter !== "all" ||
@@ -1048,6 +1080,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     ownTeamsOnly ||
     incompleteOnly ||
     (!marketplaceFocus && marketplaceOnly) ||
+    (marketplaceFocus && marketplaceStatusFilter !== "all") ||
     (isAdmin && createdFrom !== "") ||
     (isAdmin && createdTo !== "");
   const activeFilterCount = [
@@ -1057,6 +1090,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     ownTeamsOnly,
     incompleteOnly,
     !marketplaceFocus && marketplaceOnly,
+    marketplaceFocus && marketplaceStatusFilter !== "all",
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
@@ -1070,6 +1104,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     setOwnTeamsOnly(false);
     setIncompleteOnly(false);
     setMarketplaceOnly(marketplaceFocus);
+    setMarketplaceStatusFilter("all");
     setCreatedFrom("");
     setCreatedTo("");
   };
@@ -1105,6 +1140,44 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   return (
     <div className="space-y-4">
+      {marketplaceFocus && (
+        <Card>
+          <CardContent className="space-y-3 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">Statusüberblick</p>
+                <p className="text-xs text-muted-foreground">
+                  {marketplaceTeams.length} Börsen-Meldung(en), {marketplaceStatusCounts.find((entry) => entry.id === "NEW")?.count ?? 0} neu
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant={marketplaceStatusFilter === "all" ? "default" : "outline"}
+                onClick={() => setMarketplaceStatusFilter("all")}
+              >
+                Alle anzeigen
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+              {marketplaceStatusCounts.map((status) => (
+                <button
+                  key={status.id}
+                  type="button"
+                  onClick={() => setMarketplaceStatusFilter(status.id)}
+                  className={`rounded-md border p-3 text-left transition-colors hover:bg-accent ${
+                    marketplaceStatusFilter === status.id ? "border-primary bg-primary/5" : "border-border/60 bg-background"
+                  }`}
+                >
+                  <div className="text-2xl font-semibold">{status.count}</div>
+                  <div className="text-xs text-muted-foreground">{status.label}</div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
         <div className="space-y-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1543,6 +1616,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 Sportlerbörse
                               </Badge>
                             )}
+                            {team.registrationMode === "MARKETPLACE" && (
+                              <Badge variant="outline" className={getMarketplaceStatusClass(team.marketplaceStatus)}>
+                                {getMarketplaceStatusOption(team.marketplaceStatus).label}
+                              </Badge>
+                            )}
                             <Badge variant="outline" className="gap-1">
                               <span>{categoryEmojis[team.category] || "🏆"}</span>
                               {team.category}
@@ -1638,6 +1716,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const showActionStatus = canShowTeamActionStatus(team, showAdminDashboardInfo);
               const disciplineSlots = getTeamDisciplineSlots(team);
               const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
+              const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -1664,6 +1743,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             {team.registrationMode === "MARKETPLACE" && (
                               <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-[10px]">
                                 Sportlerbörse
+                              </Badge>
+                            )}
+                            {team.registrationMode === "MARKETPLACE" && (
+                              <Badge variant="outline" className={`h-6 shrink-0 px-1.5 text-[10px] ${getMarketplaceStatusClass(team.marketplaceStatus)}`}>
+                                {marketplaceStatus.label}
                               </Badge>
                             )}
                             {team.isCurrentUserTeam && (
@@ -1723,6 +1807,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               );
                             })}
                           </div>
+                          {marketplaceFocus && team.registrationMode === "MARKETPLACE" && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              {team.contactName && <span>{team.contactName}</span>}
+                              {team.contactEmail && <span>{team.contactEmail}</span>}
+                              {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
+                            </div>
+                          )}
                           {showCompactStatusRow && (
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
                               {showActionStatus && completionMeta.isImportant && (
@@ -1788,6 +1879,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Sportlerbörse
                                 </Badge>
                               )}
+                              {team.registrationMode === "MARKETPLACE" && (
+                                <Badge variant="outline" className={`h-6 shrink-0 px-1.5 text-[10px] ${getMarketplaceStatusClass(team.marketplaceStatus)}`}>
+                                  {marketplaceStatus.label}
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
                               {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
@@ -1849,15 +1945,31 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           )}
 
                           {showAdminDashboardInfo && team.registrationMode === "MARKETPLACE" && (
-                            <div className="rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
-                              <div className="flex flex-wrap items-center gap-2">
+                            <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
+                              <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className={getMarketplaceStatusClass(team.marketplaceStatus)}>
+                                      {marketplaceStatus.label}
+                                    </Badge>
+                                    <Badge variant="outline">
+                                      {MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === team.marketplaceVisibility)?.label || "Nur für Admins/MGMT sichtbar"}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+                                    {team.contactName && <span>{team.contactName}</span>}
+                                    {team.contactEmail && <span>{team.contactEmail}</span>}
+                                    {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
+                                  </div>
+                                </div>
+
                                 <Select
                                   value={team.marketplaceStatus || "NEW"}
                                   onValueChange={(value) =>
                                     handleMarketplaceStatusChange(team.id, value as NonNullable<Team["marketplaceStatus"]>)
                                   }
                                 >
-                                  <SelectTrigger className="h-8 w-[150px] bg-background text-xs">
+                                  <SelectTrigger className="h-8 w-full bg-background text-xs sm:w-[170px]">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1868,13 +1980,32 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                <Badge variant="outline">
-                                  {MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === team.marketplaceVisibility)?.label || "Nur für Admins/MGMT sichtbar"}
-                                </Badge>
-                                {team.contactEmail && <span className="text-muted-foreground">{team.contactEmail}</span>}
                               </div>
+
+                              <div className="flex flex-wrap gap-1">
+                                {MARKETPLACE_STATUS_OPTIONS.map((option) => (
+                                  <Button
+                                    key={option.id}
+                                    type="button"
+                                    size="xs"
+                                    variant={(team.marketplaceStatus || "NEW") === option.id ? "default" : "outline"}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      if ((team.marketplaceStatus || "NEW") !== option.id) {
+                                        void handleMarketplaceStatusChange(team.id, option.id);
+                                      }
+                                    }}
+                                  >
+                                    {option.label}
+                                  </Button>
+                                ))}
+                              </div>
+
                               {team.marketplaceMessage?.trim() && (
-                                <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{team.marketplaceMessage}</p>
+                                <div className="rounded-md border border-border/50 bg-background/70 p-2">
+                                  <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Nachricht</p>
+                                  <p className="whitespace-pre-wrap text-muted-foreground">{team.marketplaceMessage}</p>
+                                </div>
                               )}
                             </div>
                           )}
