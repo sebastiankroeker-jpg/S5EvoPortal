@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
       teamOwnerFilterVisibleForTeamchef: true,
       participantsCanViewAllTeams: true,
       spectatorsCanViewAllTeams: true,
+      marketplaceGlobalVisibility: true,
       shirtOrderDeadline: true,
       maxTeams: true,
       teamSize: true,

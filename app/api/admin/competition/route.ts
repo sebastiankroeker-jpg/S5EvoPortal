@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
 import { requireTenantRoles } from '@/lib/server-permissions';
 import { normalizeCompetitionTeamAccessConfig } from '@/lib/team-access-config';
+import { normalizeMarketplaceGlobalVisibility } from '@/lib/marketplace-visibility';
 
 function normalizeNotificationEmails(value: unknown) {
   if (typeof value !== 'string') {
@@ -106,6 +107,7 @@ export async function PUT(request: NextRequest) {
 
     const claimTokenExpiryMode = normalizeClaimTokenExpiryMode(body.claimTokenExpiryMode);
     const claimTokenTtlDays = normalizeClaimTokenTtlDays(body.claimTokenTtlDays);
+    const marketplaceGlobalVisibility = normalizeMarketplaceGlobalVisibility(body.marketplaceGlobalVisibility);
 
     try {
       // Load specific competition by id, or fall back to latest
@@ -127,6 +129,7 @@ export async function PUT(request: NextRequest) {
             teamOwnerFilterVisibleForTeamchef: Boolean(body.teamOwnerFilterVisibleForTeamchef),
             participantsCanViewAllTeams: Boolean(body.participantsCanViewAllTeams),
             spectatorsCanViewAllTeams: Boolean(body.spectatorsCanViewAllTeams),
+            marketplaceGlobalVisibility,
             registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
             status: body.status || "DRAFT",
@@ -163,6 +166,9 @@ export async function PUT(request: NextRequest) {
             spectatorsCanViewAllTeams: body.spectatorsCanViewAllTeams !== undefined
               ? Boolean(body.spectatorsCanViewAllTeams)
               : competition.spectatorsCanViewAllTeams,
+            marketplaceGlobalVisibility: body.marketplaceGlobalVisibility !== undefined
+              ? marketplaceGlobalVisibility
+              : competition.marketplaceGlobalVisibility,
             registrationNotificationEmail: body.registrationNotificationEmail !== undefined
               ? normalizeNotificationEmails(body.registrationNotificationEmail)
               : competition.registrationNotificationEmail,

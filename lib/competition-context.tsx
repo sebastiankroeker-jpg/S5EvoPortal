@@ -11,6 +11,7 @@ type CompetitionInfo = {
   teamOwnerFilterVisibleForTeamchef: boolean;
   participantsCanViewAllTeams: boolean;
   spectatorsCanViewAllTeams: boolean;
+  marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
 };
 
 type CompetitionContextType = {
@@ -33,6 +34,7 @@ type AdminCompetitionResponseItem = {
   teamOwnerFilterVisibleForTeamchef?: boolean;
   participantsCanViewAllTeams?: boolean;
   spectatorsCanViewAllTeams?: boolean;
+  marketplaceGlobalVisibility?: "SELECTIVE" | "OFFLINE";
 };
 
 const CompetitionContext = createContext<CompetitionContextType>({
@@ -77,6 +79,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
                 teamOwnerFilterVisibleForTeamchef: competition.teamOwnerFilterVisibleForTeamchef ?? false,
                 participantsCanViewAllTeams: competition.participantsCanViewAllTeams ?? false,
                 spectatorsCanViewAllTeams: competition.spectatorsCanViewAllTeams ?? false,
+                marketplaceGlobalVisibility: competition.marketplaceGlobalVisibility ?? "SELECTIVE",
               }]
             : [];
 
@@ -95,6 +98,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
           teamOwnerFilterVisibleForTeamchef: c.teamOwnerFilterVisibleForTeamchef ?? false,
           participantsCanViewAllTeams: c.participantsCanViewAllTeams ?? false,
           spectatorsCanViewAllTeams: c.spectatorsCanViewAllTeams ?? false,
+          marketplaceGlobalVisibility: c.marketplaceGlobalVisibility ?? "SELECTIVE",
         }));
         setAll(comps);
 

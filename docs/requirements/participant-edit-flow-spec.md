@@ -95,6 +95,15 @@ Wenn `Team.registrationMode = MARKETPLACE` gilt, bleibt `Participant` die Wahrhe
 
 Marketplace-Status bleibt am Team, weil er den Vermittlungsprozess beschreibt.
 
+## Sportlerboerse-Sichtbarkeit
+
+Die globale Veroeffentlichung der Sportlerboerse wird am aktiven Wettkampf gesteuert:
+
+- `SELECTIVE`: einzelne Boersenmeldungen folgen ihrer eigenen Sichtbarkeit (`PUBLIC`, `MARKETPLACE_USERS`, `PORTAL_USERS`, `ADMIN_MANAGEMENT_ONLY`) plus den Teilnehmer-/Team-Veroeffentlichungseinstellungen.
+- `OFFLINE`: Boersenmeldungen werden im normalen Mannschafts-Dashboard und in oeffentlichen/teilnehmernahen Sichten nicht ausgeliefert. Orga/Admin sieht sie weiterhin im Sportlerboerse-Dashboard.
+
+Der Schalter gehoert bewusst nicht zum Teilnehmer. Teilnehmer bleiben fachliche Personen; die Frage, ob die Boerse als Ganzes sichtbar ist, ist ein Wettkampf-/Orga-Parameter.
+
 ## Benachrichtigungsregeln
 
 Bei Review-Antrag:
@@ -121,5 +130,6 @@ Bei Review-Entscheidung:
 3. Direkte Admin-Aenderungen mit Aenderungsinfo-Mail ausstatten. Status: umgesetzt fuer direkte Teilnehmer-Aenderungen.
 4. Sportlerboerse-Containerdaten bei Teilnehmer-Aenderungen synchronisieren. Status: umgesetzt fuer Teilnehmer-Edit.
 5. UI auf `editResult.fieldResults` und `editResult.notifications` umstellen. Status: umgesetzt fuer Participant-Edit-Dialog.
-6. Admin-Entscheidungen und Bundle-Entscheidungen auf dieselbe Ergebnisform erweitern. Status: offen.
-7. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: offen.
+6. Globalen Sportlerboerse-Sichtbarkeitsschalter in Wettkampf-Admin und Team-API ergaenzen. Status: umgesetzt.
+7. Admin-Entscheidungen und Bundle-Entscheidungen auf dieselbe Ergebnisform erweitern. Status: offen.
+8. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: offen.

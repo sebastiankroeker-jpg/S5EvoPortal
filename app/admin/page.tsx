@@ -44,6 +44,7 @@ type CompetitionConfig = {
   teamOwnerFilterVisibleForTeamchef: boolean;
   participantsCanViewAllTeams: boolean;
   spectatorsCanViewAllTeams: boolean;
+  marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
   registrationNotificationEmail: string;
   shirtOrderDeadline: string;
   status: string;
@@ -206,6 +207,7 @@ export default function AdminPage() {
     teamOwnerFilterVisibleForTeamchef: false,
     participantsCanViewAllTeams: false,
     spectatorsCanViewAllTeams: false,
+    marketplaceGlobalVisibility: "SELECTIVE",
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
     status: "DRAFT",
@@ -270,6 +272,7 @@ export default function AdminPage() {
           teamOwnerFilterVisibleForTeamchef: comp.teamOwnerFilterVisibleForTeamchef === true,
           participantsCanViewAllTeams: comp.participantsCanViewAllTeams === true,
           spectatorsCanViewAllTeams: comp.spectatorsCanViewAllTeams === true,
+          marketplaceGlobalVisibility: comp.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
           registrationNotificationEmail: comp.registrationNotificationEmail || "",
           shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
           status: comp.status || "DRAFT",
@@ -922,6 +925,30 @@ export default function AdminPage() {
                         disabled={competition.claimTokenExpiryMode !== "FIXED_DAYS"}
                         onChange={(e) => setCompetition({ ...competition, claimTokenTtlDays: parseInt(e.target.value) || 7 })}
                       />
+                    </FormField>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <FormField
+                      label="Sportler-Börse Sichtbarkeit"
+                      hint="Steuert global, ob Börsen-Einträge außerhalb der Orga sichtbar werden."
+                    >
+                      <select
+                        value={competition.marketplaceGlobalVisibility}
+                        onChange={(e) =>
+                          setCompetition({
+                            ...competition,
+                            marketplaceGlobalVisibility: e.target.value === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
+                          })
+                        }
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="SELECTIVE">
+                          Selektiv veröffentlichen - individuelle Sichtbarkeit der Börsenmeldung gilt
+                        </option>
+                        <option value="OFFLINE">
+                          Offline - Sportler-Börse nur für Orga/Admin sichtbar
+                        </option>
+                      </select>
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

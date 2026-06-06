@@ -200,6 +200,11 @@ enum MarketplaceVisibility {
   ADMIN_MANAGEMENT_ONLY
 }
 
+enum MarketplaceGlobalVisibility {
+  SELECTIVE
+  OFFLINE
+}
+
 enum MarketplaceStatus {
   NEW
   REVIEWED
@@ -304,6 +309,7 @@ model Competition {
   teamOwnerFilterVisibleForTeamchef Boolean              @default(false)
   participantsCanViewAllTeams       Boolean              @default(false)
   spectatorsCanViewAllTeams         Boolean              @default(false)
+  marketplaceGlobalVisibility       MarketplaceGlobalVisibility @default(SELECTIVE)
   registrationNotificationEmail     String?
   shirtOrderDeadline                DateTime?
   status                            CompetitionStatus    @default(DRAFT)

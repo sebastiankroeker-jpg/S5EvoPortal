@@ -29,6 +29,7 @@ import {
   resolveVisibleTeamName,
   splitDisplayName,
 } from '@/lib/publication-visibility';
+import { canViewerSeeMarketplaceTeam } from '@/lib/marketplace-visibility';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { prisma } from '@/lib/prisma';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
@@ -193,6 +194,9 @@ type SerializableTeam = {
   createdAt?: Date | null;
   updatedAt?: Date | null;
   participants?: SerializableParticipant[];
+  competition?: {
+    marketplaceGlobalVisibility?: "SELECTIVE" | "OFFLINE" | null;
+  } | null;
 };
 
 function serializeParticipant(
@@ -376,6 +380,7 @@ export async function GET(
               teamOwnerFilterVisibleForTeamchef: true,
               participantsCanViewAllTeams: true,
               spectatorsCanViewAllTeams: true,
+              marketplaceGlobalVisibility: true,
             },
           },
         }
@@ -403,8 +408,55 @@ export async function GET(
         isPrivilegedViewer: effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR",
         ownsTeam: teamAccess.canEditTeam,
       });
+      const isPrivilegedMarketplaceViewer =
+        effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR" || access.canEditAllTeams;
+      const viewerHasMarketplaceRegistration =
+        isPrivilegedMarketplaceViewer
+          ? true
+          : await prisma.team.count({
+              where: {
+                competitionId: team.competitionId,
+                deletedAt: null,
+                registrationMode: "MARKETPLACE",
+                OR: [
+                  ...(user ? [{ teamChiefId: user.id }] : []),
+                  ...(user ? [{ ownerId: user.id }] : []),
+                  ...(user
+                    ? [{
+                        participants: {
+                          some: {
+                            userId: user.id,
+                            deletedAt: null,
+                          },
+                        },
+                      }]
+                    : []),
+                  ...(normalizedUserEmail
+                    ? [{
+                        contactEmail: {
+                          equals: normalizedUserEmail,
+                          mode: 'insensitive' as const,
+                        },
+                      }]
+                    : []),
+                ],
+              },
+            }) > 0;
 
       if (!canViewRequestedScope && !teamAccess.canEditTeam) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (
+        team.registrationMode === "MARKETPLACE" &&
+        !canViewerSeeMarketplaceTeam({
+          globalVisibility: team.competition.marketplaceGlobalVisibility,
+          teamVisibility: team.marketplaceVisibility,
+          isPrivilegedViewer: isPrivilegedMarketplaceViewer,
+          ownsMarketplaceTeam: teamAccess.canEditTeam,
+          hasMarketplaceRegistration: viewerHasMarketplaceRegistration,
+          isAuthenticated: Boolean(userEmail),
+        })
+      ) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 

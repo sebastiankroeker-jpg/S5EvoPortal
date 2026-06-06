@@ -23,6 +23,7 @@ import {
   resolveVisibleTeamName,
   splitDisplayName,
 } from '@/lib/publication-visibility';
+import { canViewerSeeMarketplaceTeam } from '@/lib/marketplace-visibility';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
 import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
 import { resolveTeamAccess } from '@/lib/team-manager-access';
@@ -94,6 +95,9 @@ type SerializableTeam = {
   createdAt?: Date | null;
   updatedAt?: Date | null;
   participants?: SerializableParticipant[];
+  competition?: {
+    marketplaceGlobalVisibility?: "SELECTIVE" | "OFFLINE" | null;
+  } | null;
 };
 
 function serializeParticipant(
@@ -317,6 +321,7 @@ export async function GET(request: NextRequest) {
               teamOwnerFilterVisibleForTeamchef: true,
               participantsCanViewAllTeams: true,
               spectatorsCanViewAllTeams: true,
+              marketplaceGlobalVisibility: true,
             },
           })
         : null;
@@ -332,6 +337,40 @@ export async function GET(request: NextRequest) {
       if (wantsAllTeams && !canViewRequestedScope) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
+      const isPrivilegedMarketplaceViewer =
+        effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR" || access.canEditAllTeams;
+      const viewerHasMarketplaceRegistration =
+        isPrivilegedMarketplaceViewer
+          ? true
+          : await prisma.team.count({
+              where: {
+                ...(competitionId ? { competitionId } : {}),
+                deletedAt: null,
+                registrationMode: "MARKETPLACE",
+                OR: [
+                  ...(user ? [{ teamChiefId: user.id }] : []),
+                  ...(user ? [{ ownerId: user.id }] : []),
+                  ...(user
+                    ? [{
+                        participants: {
+                          some: {
+                            userId: user.id,
+                            deletedAt: null,
+                          },
+                        },
+                      }]
+                    : []),
+                  ...(normalizedUserEmail
+                    ? [{
+                        contactEmail: {
+                          equals: normalizedUserEmail,
+                          mode: 'insensitive' as const,
+                        },
+                      }]
+                    : []),
+                ],
+              },
+            }) > 0;
 
       const accessFilter = wantsAllTeams
         ? {}
@@ -446,17 +485,33 @@ export async function GET(request: NextRequest) {
             where: { role: "TEAM_MANAGER", revokedAt: null },
             select: { userId: true, revokedAt: true },
           },
+          competition: {
+            select: { marketplaceGlobalVisibility: true },
+          },
         }
       });
 
       return NextResponse.json({
-        teams: teams.map((team) => {
+        teams: teams.flatMap((team) => {
           const teamAccess = resolveTeamAccess({
             team,
             user,
             userEmail,
             canEditAllTeams: access.canEditAllTeams,
           });
+          if (
+            team.registrationMode === "MARKETPLACE" &&
+            !canViewerSeeMarketplaceTeam({
+              globalVisibility: team.competition?.marketplaceGlobalVisibility ?? competition?.marketplaceGlobalVisibility,
+              teamVisibility: team.marketplaceVisibility,
+              isPrivilegedViewer: isPrivilegedMarketplaceViewer,
+              ownsMarketplaceTeam: teamAccess.canEditTeam,
+              hasMarketplaceRegistration: viewerHasMarketplaceRegistration,
+              isAuthenticated: Boolean(userEmail),
+            })
+          ) {
+            return [];
+          }
           const canSeeFullPublication =
             !wantsAllTeams ||
             canViewerSeeFullPublication({
@@ -464,13 +519,13 @@ export async function GET(request: NextRequest) {
               ownsTeam: teamAccess.canEditTeam,
             });
 
-          return serializeTeam(team, {
+          return [serializeTeam(team, {
             currentUserId: user?.id ?? null,
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,
             canEditAllTeams: access.canEditAllTeams,
             canSeeSensitiveParticipantFields: access.canEditAllTeams,
-          });
+          })];
         }),
       });
     } catch (dbError) {
