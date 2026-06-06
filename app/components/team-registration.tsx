@@ -295,6 +295,7 @@ export default function TeamRegistration({
   const showTestDataTools = !isAnonymousRegistration && competitionInfo?.status === "DRAFT";
   const completedParticipantCount = participants.filter((participant) => participant.firstName && participant.lastName).length;
   const publicationLabel = TEAM_PUBLICATION_OPTIONS.find((option) => option.id === watch("teamPublicationLevel"))?.label || "-";
+  const contactTitle = isMarketplaceRegistration ? "Kontakt für Rückfragen" : "Kontakt Team Manager:in";
 
   useEffect(() => {
     if (!userName) {
@@ -744,16 +745,26 @@ export default function TeamRegistration({
                   {isAnonymousRegistration ? (
                     <>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 text-sm text-muted-foreground space-y-2">
-                        <p>Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Uebernahmelink/Claim-Token, mit dem du die Mannschaft spaeter deinem Portal-Konto zuordnen kannst.</p>
-                        <p>Falls es noch zu Veraenderungen innerhalb der Mannschaft kommen sollte kannst Du diese dort nach Anmeldung selbst pflegen.</p>
-                        <p>Alle T-Shirt Groessen waeren am besten mit der Mannschafts-Anmeldung hilfreich.</p>
+                        <p>
+                          {isMarketplaceRegistration
+                            ? "Du kannst dich jetzt ohne Login an der Sportlerbörse melden. Danach bekommst du per Mail einen Uebernahmelink/Claim-Token, mit dem du die Meldung spaeter deinem Portal-Konto zuordnen kannst."
+                            : "Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Uebernahmelink/Claim-Token, mit dem du die Mannschaft spaeter deinem Portal-Konto zuordnen kannst."}
+                        </p>
+                        <p>
+                          {isMarketplaceRegistration
+                            ? "Falls sich Angaben aendern, kannst du sie nach der Anmeldung im Portal selbst pflegen."
+                            : "Falls es noch zu Veraenderungen innerhalb der Mannschaft kommen sollte kannst Du diese dort nach Anmeldung selbst pflegen."}
+                        </p>
+                        {!isMarketplaceRegistration && (
+                          <p>Alle T-Shirt Groessen waeren am besten mit der Mannschafts-Anmeldung hilfreich.</p>
+                        )}
                         <p>Ansonsten bauen wir an weiteren Faehigkeiten um das digitale Benutzererlebnis zu verbessern.</p>
                         <p>Der Token ist nur in Verbindung mit der hier angegebenen E-Mail Adresse gueltig.</p>
                         <p>Habt Ihr Fragen, Anpassungswuensche oder braucht Support gerne bei esv(at)s5evo.de melden.</p>
                       </div>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-4 space-y-4">
                         <div>
-                          <p className="text-sm font-medium text-foreground">Kontakt Team Manager:in</p>
+                          <p className="text-sm font-medium text-foreground">{contactTitle}</p>
                           <p className="text-xs text-muted-foreground">An diese E-Mail senden wir spaeter den Uebernahmelink fuer die weitere Bearbeitung im Portal.</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -799,6 +810,13 @@ export default function TeamRegistration({
                         </div>
                       </div>
                     </>
+                  ) : isMarketplaceRegistration ? (
+                    <div className="rounded-md border border-border/50 bg-muted/20 p-3 text-sm text-muted-foreground">
+                      <p>
+                        Die Meldung wird mit deinem Portal-Konto verknuepft. Rueckfragen und der Uebernahmelink gehen an{" "}
+                        <span className="font-medium text-foreground">{effectiveContactEmail || "deine Konto-E-Mail"}</span>.
+                      </p>
+                    </div>
                   ) : (
                     <>
                       <div className="grid grid-cols-2 gap-3">
@@ -1350,10 +1368,12 @@ export default function TeamRegistration({
                   )}
 
                   <details className="rounded-md border border-border/60 bg-muted/10 p-3 text-sm">
-                    <summary className="cursor-pointer font-medium">Metadaten & Kontakt Team Manager:in</summary>
+                    <summary className="cursor-pointer font-medium">
+                      {isMarketplaceRegistration ? "Metadaten & Kontakt" : "Metadaten & Kontakt Team Manager:in"}
+                    </summary>
                     <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                       <div className="flex justify-between gap-3">
-                        <span>Team Manager:in</span>
+                        <span>{isMarketplaceRegistration ? "Kontakt" : "Team Manager:in"}</span>
                         <span className="text-right font-medium text-foreground">{effectiveContactName || "-"}</span>
                       </div>
                       <div className="flex justify-between gap-3">

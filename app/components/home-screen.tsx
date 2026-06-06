@@ -129,7 +129,6 @@ function FlyerInfoCard({
               <Button
                 type="button"
                 onClick={onMarketplaceClick}
-                variant="outline"
                 className="h-12 w-full"
               >
                 🧩 Zur Sportlerbörse
@@ -308,16 +307,14 @@ export default function HomeScreen() {
             </div>
             <div className="space-y-2">
               <Button
-                variant="outline"
                 onClick={() => window.location.href = '/anmeldung'}
-                className="h-10 w-full bg-background/80"
+                className="h-10 w-full"
               >
                 📋 Mannschaft anmelden
               </Button>
               <Button
-                variant="outline"
                 onClick={() => window.location.href = '/sportlerboerse'}
-                className="h-10 w-full bg-background/80"
+                className="h-10 w-full"
               >
                 🧩 Zur Sportlerbörse
               </Button>
