@@ -149,6 +149,8 @@ type DashboardViewMode = "cards" | "list";
 type TeamSortField = "name" | "category" | "contactName" | "contactEmail" | "ownerEmail" | "participantCount" | "createdAt" | "updatedAt";
 type SortDirection = "asc" | "desc";
 type MarketplaceStatusFilter = "all" | NonNullable<Team["marketplaceStatus"]>;
+type MarketplaceVisibilityFilter = "all" | NonNullable<Team["marketplaceVisibility"]>;
+type MarketplacePublicationFilter = "all" | NonNullable<Team["teamPublicationLevel"]>;
 type TeamOptionalColumnKey =
   | "category"
   | "contactName"
@@ -663,6 +665,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [marketplaceOnly, setMarketplaceOnly] = useState(marketplaceFocus);
   const [marketplaceStatusFilter, setMarketplaceStatusFilter] = useState<MarketplaceStatusFilter>("all");
+  const [marketplaceVisibilityFilter, setMarketplaceVisibilityFilter] = useState<MarketplaceVisibilityFilter>("all");
+  const [marketplacePublicationFilter, setMarketplacePublicationFilter] = useState<MarketplacePublicationFilter>("all");
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingMarketplaceTeam, setEditingMarketplaceTeam] = useState<Team | null>(null);
@@ -688,6 +692,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const shouldAutoShowMembersColumn = activeRole !== "TEILNEHMER";
   const userEmail = session?.user?.email;
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
+  const marketplaceGlobalVisibility = activeCompetition?.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE";
   const notifications = useNotifications();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
   const canBrowseAllTeams = canViewAll || canRoleViewAllTeams(activeRole, activeCompetition);
@@ -1002,6 +1007,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         !marketplaceFocus ||
         marketplaceStatusFilter === "all" ||
         (team.marketplaceStatus || "NEW") === marketplaceStatusFilter;
+      const matchesMarketplaceVisibility =
+        !marketplaceFocus ||
+        marketplaceVisibilityFilter === "all" ||
+        (team.marketplaceVisibility || "ADMIN_MANAGEMENT_ONLY") === marketplaceVisibilityFilter;
+      const matchesMarketplacePublication =
+        !marketplaceFocus ||
+        marketplacePublicationFilter === "all" ||
+        (team.teamPublicationLevel || "TEAM_ANONYM") === marketplacePublicationFilter;
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = getDateTimeFilterTimestamp(createdFrom);
       const createdToMs = getDateTimeFilterTimestamp(createdTo);
@@ -1018,9 +1031,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
-      return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesMarketplace && matchesMarketplaceStatus && matchesCreatedAt && matchesSearch;
+      return matchesCategory &&
+        matchesOwner &&
+        matchesOwnTeam &&
+        matchesCompleteness &&
+        matchesMarketplace &&
+        matchesMarketplaceStatus &&
+        matchesMarketplaceVisibility &&
+        matchesMarketplacePublication &&
+        matchesCreatedAt &&
+        matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceOnly, marketplaceFocus, marketplaceStatusFilter, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceOnly, marketplaceFocus, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -1105,6 +1127,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     ...option,
     count: marketplaceTeams.filter((team) => (team.marketplaceStatus || "NEW") === option.id).length,
   }));
+  const marketplaceVisibilityCounts = MARKETPLACE_VISIBILITY_OPTIONS.map((option) => ({
+    ...option,
+    count: marketplaceTeams.filter((team) => (team.marketplaceVisibility || "ADMIN_MANAGEMENT_ONLY") === option.id).length,
+  }));
+  const marketplacePublicationCounts = TEAM_PUBLICATION_OPTIONS.map((option) => ({
+    ...option,
+    count: marketplaceTeams.filter((team) => (team.teamPublicationLevel || "TEAM_ANONYM") === option.id).length,
+  }));
+  const marketplacePotentiallyVisibleCount = marketplaceGlobalVisibility === "OFFLINE"
+    ? 0
+    : marketplaceTeams.filter((team) => (team.marketplaceVisibility || "ADMIN_MANAGEMENT_ONLY") !== "ADMIN_MANAGEMENT_ONLY").length;
   const hasActiveFilters =
     searchQuery !== "" ||
     categoryFilter !== "all" ||
@@ -1113,6 +1146,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     incompleteOnly ||
     (!marketplaceFocus && marketplaceOnly) ||
     (marketplaceFocus && marketplaceStatusFilter !== "all") ||
+    (marketplaceFocus && marketplaceVisibilityFilter !== "all") ||
+    (marketplaceFocus && marketplacePublicationFilter !== "all") ||
     (isAdmin && createdFrom !== "") ||
     (isAdmin && createdTo !== "");
   const activeFilterCount = [
@@ -1123,6 +1158,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     incompleteOnly,
     !marketplaceFocus && marketplaceOnly,
     marketplaceFocus && marketplaceStatusFilter !== "all",
+    marketplaceFocus && marketplaceVisibilityFilter !== "all",
+    marketplaceFocus && marketplacePublicationFilter !== "all",
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
@@ -1137,6 +1174,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     setIncompleteOnly(false);
     setMarketplaceOnly(marketplaceFocus);
     setMarketplaceStatusFilter("all");
+    setMarketplaceVisibilityFilter("all");
+    setMarketplacePublicationFilter("all");
     setCreatedFrom("");
     setCreatedTo("");
   };
@@ -1179,17 +1218,39 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               <div>
                 <p className="text-sm font-medium">Statusüberblick</p>
                 <p className="text-xs text-muted-foreground">
-                  {marketplaceTeams.length} Börsen-Meldung(en), {marketplaceStatusCounts.find((entry) => entry.id === "NEW")?.count ?? 0} neu
+                  {marketplaceTeams.length} Börsen-Meldung(en), {marketplaceStatusCounts.find((entry) => entry.id === "NEW")?.count ?? 0} neu, {marketplacePotentiallyVisibleCount} potenziell sichtbar
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant={marketplaceStatusFilter === "all" ? "default" : "outline"}
-                onClick={() => setMarketplaceStatusFilter("all")}
-              >
-                Alle anzeigen
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    marketplaceGlobalVisibility === "OFFLINE"
+                      ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-200"
+                      : "border-green-300 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/25 dark:text-green-200"
+                  }
+                >
+                  {marketplaceGlobalVisibility === "OFFLINE" ? "Global offline" : "Selektiv sichtbar"}
+                </Badge>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={
+                    marketplaceStatusFilter === "all" &&
+                    marketplaceVisibilityFilter === "all" &&
+                    marketplacePublicationFilter === "all"
+                      ? "default"
+                      : "outline"
+                  }
+                  onClick={() => {
+                    setMarketplaceStatusFilter("all");
+                    setMarketplaceVisibilityFilter("all");
+                    setMarketplacePublicationFilter("all");
+                  }}
+                >
+                  Alle anzeigen
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
               {marketplaceStatusCounts.map((status) => (
@@ -1205,6 +1266,52 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <div className="text-xs text-muted-foreground">{status.label}</div>
                 </button>
               ))}
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="space-y-2">
+                <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Börsen-Sichtbarkeit
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {marketplaceVisibilityCounts.map((visibility) => (
+                    <button
+                      key={visibility.id}
+                      type="button"
+                      onClick={() => setMarketplaceVisibilityFilter(visibility.id)}
+                      className={`rounded-md border px-3 py-2 text-left text-xs transition-colors hover:bg-accent ${
+                        marketplaceVisibilityFilter === visibility.id ? "border-primary bg-primary/5" : "border-border/60 bg-background"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{visibility.label}</span>
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">{visibility.count}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Veröffentlichung
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1">
+                  {marketplacePublicationCounts.map((publication) => (
+                    <button
+                      key={publication.id}
+                      type="button"
+                      onClick={() => setMarketplacePublicationFilter(publication.id)}
+                      className={`rounded-md border px-3 py-2 text-left text-xs transition-colors hover:bg-accent ${
+                        marketplacePublicationFilter === publication.id ? "border-primary bg-primary/5" : "border-border/60 bg-background"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{publication.label}</span>
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">{publication.count}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1413,6 +1520,44 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                     </Badge>
                   </div>
                 </div>
+              )}
+
+              {marketplaceFocus && (
+                <>
+                  <div className="min-w-0 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Börsen-Sichtbarkeit</label>
+                    <Select value={marketplaceVisibilityFilter} onValueChange={(value) => setMarketplaceVisibilityFilter(value as MarketplaceVisibilityFilter)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Alle Sichtbarkeiten" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alle Sichtbarkeiten</SelectItem>
+                        {MARKETPLACE_VISIBILITY_OPTIONS.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="min-w-0 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Veröffentlichung</label>
+                    <Select value={marketplacePublicationFilter} onValueChange={(value) => setMarketplacePublicationFilter(value as MarketplacePublicationFilter)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Alle Veröffentlichungen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alle Veröffentlichungen</SelectItem>
+                        {TEAM_PUBLICATION_OPTIONS.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
 
               {isAdmin && (
