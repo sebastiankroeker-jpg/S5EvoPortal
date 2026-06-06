@@ -27,6 +27,7 @@ import {
 } from "@/lib/domain/team";
 import { evaluateTeamState } from "@/lib/domain/classification";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
+import type { EditParticipantResult } from "@/lib/participant-edit-result";
 
 type TeamParticipantSnapshot = {
   id?: string;
@@ -75,6 +76,13 @@ type ParticipantChangeStatus = {
   updatedAt?: string | null;
   reviewedAt?: string | null;
   reviewComment?: string | null;
+};
+
+type SaveResult = {
+  applied: boolean;
+  message?: string;
+  classificationWarnings?: string[];
+  editResult?: EditParticipantResult | null;
 };
 
 interface ParticipantEditDialogProps {
@@ -217,6 +225,91 @@ function DirectFieldBadge() {
   );
 }
 
+function getEditResultTitle(status?: EditParticipantResult["status"]) {
+  if (status === "saved") return "Änderungen gespeichert";
+  if (status === "pending_review") return "Änderung zur Prüfung eingereicht";
+  if (status === "partial") return "Teilweise gespeichert";
+  if (status === "rejected") return "Änderung blockiert";
+  if (status === "unchanged") return "Keine Änderung erkannt";
+  return "Ergebnis";
+}
+
+function getFieldDecisionTone(decision: EditParticipantResult["fieldResults"][number]["decision"]) {
+  if (decision === "saved") return "border-green-300 bg-green-50 text-green-800";
+  if (decision === "review") return "border-amber-300 bg-amber-50 text-amber-800";
+  return "border-red-300 bg-red-50 text-red-800";
+}
+
+function getFieldDecisionLabel(decision: EditParticipantResult["fieldResults"][number]["decision"]) {
+  if (decision === "saved") return "Gespeichert";
+  if (decision === "review") return "Prüfung";
+  return "Blockiert";
+}
+
+function getNotificationTone(status: EditParticipantResult["notifications"][number]["status"]) {
+  if (status === "sent") return "border-green-300 text-green-700";
+  if (status === "skipped") return "border-muted text-muted-foreground";
+  return "border-red-300 text-red-700";
+}
+
+function getNotificationLabel(status: EditParticipantResult["notifications"][number]["status"]) {
+  if (status === "sent") return "Mail gesendet";
+  if (status === "skipped") return "Mail übersprungen";
+  return "Mail fehlgeschlagen";
+}
+
+function EditResultDetails({ editResult }: { editResult: EditParticipantResult }) {
+  const visibleNotifications = editResult.notifications.filter((notification) => notification.recipient || notification.reason);
+
+  return (
+    <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium">{getEditResultTitle(editResult.status)}</p>
+          <p className="text-xs text-muted-foreground">
+            Kontext: {editResult.context === "MARKETPLACE" ? "Sportler-Börse" : "Mannschaft"}
+          </p>
+        </div>
+        <Badge variant="outline">{editResult.status}</Badge>
+      </div>
+
+      {editResult.fieldResults.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          {editResult.fieldResults.map((fieldResult) => (
+            <div key={fieldResult.field} className="rounded-md border border-border/50 bg-background/70 p-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">{fieldResult.label}</span>
+                <Badge variant="outline" className={getFieldDecisionTone(fieldResult.decision)}>
+                  {getFieldDecisionLabel(fieldResult.decision)}
+                </Badge>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {fieldResult.beforeLabel} → {fieldResult.afterLabel}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {visibleNotifications.length > 0 && (
+        <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3">
+          <p className="text-xs font-medium text-muted-foreground">Benachrichtigungen</p>
+          {visibleNotifications.map((notification, index) => (
+            <div key={`${notification.template}-${notification.recipient}-${index}`} className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant="outline" className={getNotificationTone(notification.status)}>
+                {getNotificationLabel(notification.status)}
+              </Badge>
+              <span className="min-w-0 truncate text-muted-foreground">
+                {notification.recipient || notification.reason || notification.template}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ParticipantEditDialog({
   participant,
   open,
@@ -244,7 +337,7 @@ export default function ParticipantEditDialog({
   const [participantPublicationPreference, setParticipantPublicationPreference] = useState<"NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN">("NAME_VERBERGEN");
   const [shirtOrderDeadline, setShirtOrderDeadline] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<{ applied: boolean; message?: string; classificationWarnings?: string[] } | null>(null);
+  const [result, setResult] = useState<SaveResult | null>(null);
   const [error, setError] = useState("");
   const [latestChange, setLatestChange] = useState<ParticipantChangeStatus | null>(null);
   const [footerIssuesExpanded, setFooterIssuesExpanded] = useState(true);
@@ -254,7 +347,7 @@ export default function ParticipantEditDialog({
   const statusMeta = getStatusMeta(latestChange?.status);
   const saveFeedback = result?.applied
       ? { type: "success" as const, text: "Gespeichert!" }
-      : result
+      : result && result.editResult?.status !== "rejected"
         ? { type: "success" as const, text: result.message || "Änderungsantrag eingereicht!" }
         : null;
   const projectedClassificationWarnings = useMemo(() => {
@@ -539,12 +632,21 @@ export default function ParticipantEditDialog({
         ),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
+        if (data.editResult) {
+          setResult({
+            applied: false,
+            message: data.error || "Speichern fehlgeschlagen",
+            classificationWarnings: Array.isArray(data.editResult.validation?.warnings)
+              ? data.editResult.validation.warnings
+              : [],
+            editResult: data.editResult,
+          });
+        }
         throw new Error(data.error || "Speichern fehlgeschlagen");
       }
 
-        const data = await res.json();
         if (data.participantClaimMail?.status === "sent" || data.participantClaimMail?.status === "queued") {
           setEmailInvitation((current) => ({
             status: "active",
@@ -562,6 +664,7 @@ export default function ParticipantEditDialog({
           applied: data.applied,
           message: data.message,
           classificationWarnings: Array.isArray(data.classificationWarnings) ? data.classificationWarnings : [],
+          editResult: data.editResult || null,
         });
         revealSaveFeedback();
         if (!data.applied) {
@@ -619,6 +722,10 @@ export default function ParticipantEditDialog({
             >
               {saveFeedback.text}
             </StatusMessage>
+          )}
+
+          {result?.editResult && (
+            <EditResultDetails editResult={result.editResult} />
           )}
 
           {!directEdit && statusMeta && (
@@ -895,7 +1002,7 @@ export default function ParticipantEditDialog({
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={saving || !!result}
+                disabled={saving || (!!result && result.editResult?.status !== "rejected")}
                 aria-busy={saving}
               >
                 {participantSaveLabel}

@@ -120,6 +120,6 @@ Bei Review-Entscheidung:
 2. Bestehende Benachrichtigungen als strukturierte `notifications` zurueckgeben. Status: umgesetzt fuer Teilnehmer-Edit und Mail-Helper.
 3. Direkte Admin-Aenderungen mit Aenderungsinfo-Mail ausstatten. Status: umgesetzt fuer direkte Teilnehmer-Aenderungen.
 4. Sportlerboerse-Containerdaten bei Teilnehmer-Aenderungen synchronisieren. Status: umgesetzt fuer Teilnehmer-Edit.
-5. UI auf `editResult.fieldResults` und `editResult.notifications` umstellen. Status: offen.
+5. UI auf `editResult.fieldResults` und `editResult.notifications` umstellen. Status: umgesetzt fuer Participant-Edit-Dialog.
 6. Admin-Entscheidungen und Bundle-Entscheidungen auf dieselbe Ergebnisform erweitern. Status: offen.
 7. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: offen.
