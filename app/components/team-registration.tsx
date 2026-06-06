@@ -274,6 +274,7 @@ export default function TeamRegistration({
   const [liabilityAccepted, setLiabilityAccepted] = useState(false);
   const [testDataClass, setTestDataClass] = useState<TeamClassId>("schueler-a");
   const [openModerationNotes, setOpenModerationNotes] = useState<Record<number, boolean>>({});
+  const [marketplaceValidationOpen, setMarketplaceValidationOpen] = useState(false);
 
   const [teamLeadFirstName, teamLeadLastName] = useMemo(() => {
     if (!userName) {
@@ -283,6 +284,47 @@ export default function TeamRegistration({
     if (parts.length === 1) return [parts[0], ""];
     return [parts[0], parts.slice(1).join(" ")];
   }, [userName, contactFirstName, contactLastName]);
+  const marketplaceValidation = useMemo(() => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const birthDateLooksPlausible = !!marketplaceBirthDate && /\d{1,2}\.\d{1,2}\.\d{4}/.test(marketplaceBirthDate);
+
+    if (isAnonymousRegistration) {
+      if (!contactFirstName) errors.push("Vorname fehlt");
+      if (!contactLastName) errors.push("Nachname fehlt");
+      if (!contactEmail) errors.push("E-Mail fehlt");
+    } else {
+      if (!effectiveContactName) errors.push("Kontaktname fehlt");
+      if (!effectiveContactEmail) errors.push("E-Mail fehlt");
+    }
+
+    if (!marketplaceBirthDate) {
+      errors.push("Geburtsdatum fehlt");
+    } else if (!birthDateLooksPlausible) {
+      errors.push("Geburtsdatum unplausibel");
+    }
+
+    if (marketplaceDiscipline === DISCIPLINE_PLACEHOLDER) {
+      errors.push("Disziplin fehlt");
+    }
+
+    if (marketplaceVisibility === "ADMIN_MANAGEMENT_ONLY") {
+      warnings.push("Die Meldung ist nach dem Absenden nur fuer Admins/MGMT sichtbar.");
+    }
+
+    return { errors, warnings };
+  }, [
+    contactEmail,
+    contactFirstName,
+    contactLastName,
+    effectiveContactEmail,
+    effectiveContactName,
+    isAnonymousRegistration,
+    marketplaceBirthDate,
+    marketplaceDiscipline,
+    marketplaceVisibility,
+  ]);
+  const hasMarketplaceValidationHints = marketplaceValidation.errors.length > 0 || marketplaceValidation.warnings.length > 0;
 
   const disciplineMap = useMemo(
     () => Object.fromEntries(DISCIPLINES.map((discipline) => [discipline.id, discipline])),
@@ -1042,6 +1084,42 @@ export default function TeamRegistration({
                     )}
                   </div>
                     </>
+                  )}
+                  {isMarketplaceRegistration && hasMarketplaceValidationHints && (
+                    <div
+                      className={
+                        "rounded-md border px-3 py-2 text-xs " +
+                        (marketplaceValidation.errors.length > 0
+                          ? "border-red-200 bg-red-50/70 text-red-800 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-200"
+                          : "border-amber-200 bg-amber-50/70 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-200")
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-2 text-left"
+                        onClick={() => setMarketplaceValidationOpen((current) => !current)}
+                        aria-expanded={marketplaceValidationOpen}
+                      >
+                        <span className="font-medium">
+                          {marketplaceValidation.errors.length > 0
+                            ? `${marketplaceValidation.errors.length} Pflichtangabe${marketplaceValidation.errors.length === 1 ? "" : "n"} offen`
+                            : `${marketplaceValidation.warnings.length} Hinweis${marketplaceValidation.warnings.length === 1 ? "" : "e"}`}
+                        </span>
+                        <span className="shrink-0 text-[11px] opacity-75">
+                          {marketplaceValidationOpen ? "Ausblenden" : "Details"}
+                        </span>
+                      </button>
+                      {marketplaceValidationOpen && (
+                        <div className="mt-2 space-y-1">
+                          {marketplaceValidation.errors.map((message) => (
+                            <p key={message}>• {message}</p>
+                          ))}
+                          {marketplaceValidation.warnings.map((message) => (
+                            <p key={message}>⚠️ {message}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                   <Button
                     onClick={handleNextFromTeam}
