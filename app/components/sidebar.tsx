@@ -225,6 +225,9 @@ export default function Sidebar() {
               <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard", { dashboardScope: "all" })} isActive={pathname === "/" && activeTab === "dashboard"} isCollapsed={isCollapsed} />
             )}
             {can("team.view.all") && (
+              <SidebarItem icon="🧩" label="Sportler-Börse" onClick={() => router.push("/sportlerboerse-dashboard")} isActive={pathname === "/sportlerboerse-dashboard"} isCollapsed={isCollapsed} />
+            )}
+            {can("team.view.all") && (
               <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} isCollapsed={isCollapsed} />
             )}
             {can("results.edit") && (

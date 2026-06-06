@@ -25,6 +25,7 @@ type SwitchTabDetail = {
 type OrgaSummary = {
   teamsTotal: number;
   participantsTotal: number;
+  marketplaceRegistrations: number;
   pendingChanges: number;
   openClaimLinks: number;
 };
@@ -219,6 +220,18 @@ export default function Home() {
                     <p className="font-medium text-sm">Teilnehmerübersicht</p>
                     <p className="text-xs text-muted-foreground">Eigenes Dashboard für Suche, Hinweise und Druckliste</p>
                   </button>
+                  {canViewAllTeams && (
+                    <button onClick={() => router.push('/sportlerboerse-dashboard')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-lg">🧩</span>
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
+                          {formatOrgaCount(orgaSummary?.marketplaceRegistrations)}
+                        </span>
+                      </div>
+                      <p className="font-medium text-sm">Sportler-Börse</p>
+                      <p className="text-xs text-muted-foreground">Einzelmeldungen prüfen, vermitteln und Status pflegen</p>
+                    </button>
+                  )}
                   {canViewAllTeams && (
                     <button onClick={() => router.push('/aenderungen')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                       <div className="flex items-center justify-between gap-3">

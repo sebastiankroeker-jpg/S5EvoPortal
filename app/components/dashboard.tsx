@@ -135,6 +135,7 @@ type EditableParticipant = Omit<Participant, "id"> & { id: string };
 
 interface DashboardProps {
   ownerFilter?: string;
+  marketplaceFocus?: boolean;
 }
 
 type DashboardViewMode = "cards" | "list";
@@ -616,7 +617,7 @@ function getStoredVisibleColumns() {
   }
 }
 
-export default function Dashboard({ ownerFilter: initialOwnerFilter }: DashboardProps = {}) {
+export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplaceFocus = false }: DashboardProps = {}) {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
   const [teams, setTeams] = useState<Team[]>([]);
@@ -631,7 +632,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
-  const [marketplaceOnly, setMarketplaceOnly] = useState(false);
+  const [marketplaceOnly, setMarketplaceOnly] = useState(marketplaceFocus);
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
@@ -922,6 +923,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     setSearchQuery(storedSearch);
   }, []);
 
+  useEffect(() => {
+    if (marketplaceFocus) {
+      setMarketplaceOnly(true);
+      setOwnTeamsOnly(false);
+    }
+  }, [marketplaceFocus]);
+
   // Filter and search logic
   const filteredTeams = useMemo(() => {
     return teams.filter(team => {
@@ -1039,7 +1047,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     (showOwnerFilter && ownerFilter !== "all") ||
     ownTeamsOnly ||
     incompleteOnly ||
-    marketplaceOnly ||
+    (!marketplaceFocus && marketplaceOnly) ||
     (isAdmin && createdFrom !== "") ||
     (isAdmin && createdTo !== "");
   const activeFilterCount = [
@@ -1048,7 +1056,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     showOwnerFilter && ownerFilter !== "all",
     ownTeamsOnly,
     incompleteOnly,
-    marketplaceOnly,
+    !marketplaceFocus && marketplaceOnly,
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
@@ -1061,7 +1069,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
     setOwnTeamsOnly(false);
     setIncompleteOnly(false);
-    setMarketplaceOnly(false);
+    setMarketplaceOnly(marketplaceFocus);
     setCreatedFrom("");
     setCreatedTo("");
   };
@@ -1120,6 +1128,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               variant={ownTeamsOnly ? "default" : "outline"}
               onClick={() => setOwnTeamsOnly((current) => !current)}
               title="Eigene Mannschaften anzeigen"
+              disabled={marketplaceFocus}
             >
               <Star className="size-3" />
               Meine
@@ -1130,7 +1139,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
-              placeholder="Teamname, Team Manager:in oder Teilnehmer:in"
+              placeholder={marketplaceFocus ? "Sportlerbörse, Kontakt oder Teilnehmer:in" : "Teamname, Team Manager:in oder Teilnehmer:in"}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -1273,7 +1282,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                 </Button>
               </div>
 
-              {isAdmin && (
+              {isAdmin && !marketplaceFocus && (
                 <div className="min-w-0 space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Sportlerbörse</label>
                   <Button
@@ -1286,6 +1295,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                       {teams.filter((team) => team.registrationMode === "MARKETPLACE").length}
                     </Badge>
                   </Button>
+                </div>
+              )}
+
+              {marketplaceFocus && (
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Sportlerbörse</label>
+                  <div className="flex h-10 items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 text-sm">
+                    <span>Nur Börse</span>
+                    <Badge variant="secondary">
+                      {teams.filter((team) => team.registrationMode === "MARKETPLACE").length}
+                    </Badge>
+                  </div>
                 </div>
               )}
 
@@ -1450,8 +1471,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-muted-foreground">
-              {teams.length === 0 
-                ? "Noch keine Teams angemeldet."
+              {teams.length === 0
+                ? marketplaceFocus
+                  ? "Noch keine Sportlerbörse-Meldungen vorhanden."
+                  : "Noch keine Teams angemeldet."
                 : "Keine Teams gefunden. Versuche eine andere Suche."}
             </p>
           </CardContent>

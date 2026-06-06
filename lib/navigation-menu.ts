@@ -9,6 +9,7 @@ export interface NavigationMenuItem {
     | "live"
     | "profile"
     | "all-teams"
+    | "sportlerboerse-dashboard"
     | "participants"
     | "changes"
     | "claim-links"
@@ -74,6 +75,14 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Alle Mannschaften",
     keywords: ["alle teams", "alle mannschaften", "admin teams", "admin mannschaften"],
     icon: "👥",
+    permission: "team.view.all",
+    requiresAuth: true,
+  },
+  {
+    id: "sportlerboerse-dashboard",
+    label: "Sportler-Börse Dashboard",
+    keywords: ["sportlerbörse", "sportlerboerse", "börse", "boerse", "einzelmeldung", "vermittlung", "marketplace"],
+    icon: "🧩",
     permission: "team.view.all",
     requiresAuth: true,
   },

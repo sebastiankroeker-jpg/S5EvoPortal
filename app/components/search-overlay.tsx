@@ -86,6 +86,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "all-teams":
         switchToTab("dashboard", { dashboardScope: "all" });
         break;
+      case "sportlerboerse-dashboard":
+        router.push("/sportlerboerse-dashboard");
+        break;
       case "orga":
         switchToTab("orga");
         break;

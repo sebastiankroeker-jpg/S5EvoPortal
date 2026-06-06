@@ -38,18 +38,26 @@ export async function GET(request: NextRequest) {
       summary: {
         teamsTotal: 0,
         participantsTotal: 0,
+        marketplaceRegistrations: 0,
         pendingChanges: 0,
         openClaimLinks: 0,
       },
     });
   }
 
-  const [teamsTotal, participantsTotal, pendingChanges, teamClaimLinks, participantClaimLinks] =
+  const [teamsTotal, marketplaceRegistrations, participantsTotal, pendingChanges, teamClaimLinks, participantClaimLinks] =
     await prisma.$transaction([
       prisma.team.count({
         where: {
           competitionId: competition.id,
           deletedAt: null,
+        },
+      }),
+      prisma.team.count({
+        where: {
+          competitionId: competition.id,
+          deletedAt: null,
+          registrationMode: "MARKETPLACE",
         },
       }),
       prisma.participant.count({
@@ -103,6 +111,7 @@ export async function GET(request: NextRequest) {
     summary: {
       teamsTotal,
       participantsTotal,
+      marketplaceRegistrations,
       pendingChanges,
       openClaimLinks: teamClaimLinks + participantClaimLinks,
     },
