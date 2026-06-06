@@ -927,7 +927,7 @@ export default function AdminPage() {
                       />
                     </FormField>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div id="sportlerboerse-sichtbarkeit" className="grid scroll-mt-24 grid-cols-1 gap-4">
                     <FormField
                       label="Sportler-Börse Sichtbarkeit"
                       hint="Steuert global, ob Börsen-Einträge außerhalb der Orga sichtbar werden."
