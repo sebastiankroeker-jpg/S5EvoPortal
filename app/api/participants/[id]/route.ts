@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { upsertLegacyParticipantChangeRequest } from "@/lib/change-request";
 import { birthYearToBirthDateInput } from "@/lib/domain/team";
-import { sendParticipantChangeSubmittedEmails } from "@/lib/mail/participant-change";
+import { sendParticipantChangeSubmittedEmails, sendParticipantDirectChangeEmail } from "@/lib/mail/participant-change";
 import {
   createParticipantClaimInvitation,
   getParticipantClaimTokenStatus,
@@ -23,13 +23,50 @@ import {
   summarizeDirectParticipantChangeFields,
   summarizeParticipantChanges,
   toParticipantSnapshot,
+  type ParticipantChangeField,
+  type ParticipantSnapshot,
 } from "@/lib/participant-change";
+import {
+  buildParticipantEditResult,
+  buildParticipantFieldResults,
+  resolveParticipantEditContext,
+  type EditParticipantFieldDecision,
+  type EditParticipantNotificationResult,
+} from "@/lib/participant-edit-result";
 import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
 import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { resolveTeamAccess } from "@/lib/team-manager-access";
+
+function buildFieldDecisionMap(
+  fields: readonly ParticipantChangeField[],
+  decision: EditParticipantFieldDecision,
+) {
+  return fields.reduce((decisions, field) => {
+    decisions[field] = decision;
+    return decisions;
+  }, {} as Partial<Record<ParticipantChangeField, EditParticipantFieldDecision>>);
+}
+
+function mergeFieldDecisionMaps(
+  ...maps: Array<Partial<Record<ParticipantChangeField, EditParticipantFieldDecision>>>
+) {
+  return Object.assign({}, ...maps);
+}
+
+function buildMarketplaceTeamSyncData(snapshot: ParticipantSnapshot) {
+  const firstName = typeof snapshot.firstName === "string" ? snapshot.firstName.trim() : "";
+  const lastName = typeof snapshot.lastName === "string" ? snapshot.lastName.trim() : "";
+  const participantName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const email = typeof snapshot.email === "string" && snapshot.email.trim() ? snapshot.email.trim() : null;
+
+  return {
+    ...(participantName ? { name: `Sportlerbörse: ${participantName}`, contactName: participantName } : {}),
+    contactEmail: email,
+  };
+}
 
 // GET /api/participants/[id] — Teilnehmerdaten laden
 export async function GET(
@@ -50,6 +87,7 @@ export async function GET(
           id: true,
           name: true,
           contactEmail: true,
+          registrationMode: true,
           ownerId: true,
           teamChiefId: true,
           owner: { select: { email: true } },
@@ -166,7 +204,9 @@ export async function PUT(
         select: {
           id: true,
           name: true,
+          contactName: true,
           contactEmail: true,
+          registrationMode: true,
           ownerId: true,
           teamChiefId: true,
           owner: { select: { email: true } },
@@ -256,12 +296,25 @@ export async function PUT(
   const currentSnapshot = toParticipantSnapshot(participant);
   const requestedSnapshot = mergeParticipantSnapshot(currentSnapshot, changeData);
   const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
+  const changedFieldKeys = Object.keys(changedFields) as ParticipantChangeField[];
+  const editContext = resolveParticipantEditContext(participant.team.registrationMode);
 
   if (!isAdmin && changedFields.disciplineCode) {
+    const editResult = buildParticipantEditResult({
+      status: "rejected",
+      participantId: id,
+      teamId: participant.team.id,
+      context: editContext,
+      fieldResults: buildParticipantFieldResults(changedFields, buildFieldDecisionMap(["disciplineCode"], "denied")),
+      blockingErrors: [
+        "Disziplinen koennen nur im Mannschaftskontext geaendert werden, weil jede Disziplin genau einmal vergeben sein muss.",
+      ],
+    });
     return NextResponse.json(
       {
         error:
           "Disziplinen koennen nur im Mannschaftskontext geaendert werden, weil jede Disziplin genau einmal vergeben sein muss. Bitte die Mannschaft bearbeiten.",
+        editResult,
       },
       { status: 409 },
     );
@@ -293,17 +346,33 @@ export async function PUT(
   );
 
   if (Object.keys(changedFields).length === 0) {
+    const editResult = buildParticipantEditResult({
+      status: "unchanged",
+      participantId: id,
+      teamId: participant.team.id,
+      context: editContext,
+    });
     return NextResponse.json({
       applied: false,
       message: "Keine Änderungen erkannt",
+      editResult,
     });
   }
 
   if (isModeratorGlobalEdit) {
     const disallowedFields = Object.keys(changedFields).filter((field) => field !== "moderationNote");
     if (disallowedFields.length > 0) {
+      const deniedFields = disallowedFields as ParticipantChangeField[];
+      const editResult = buildParticipantEditResult({
+        status: "rejected",
+        participantId: id,
+        teamId: participant.team.id,
+        context: editContext,
+        fieldResults: buildParticipantFieldResults(changedFields, buildFieldDecisionMap(deniedFields, "denied")),
+        blockingErrors: ["Moderator:innen dürfen hier nur den Moderationshinweis bearbeiten."],
+      });
       return NextResponse.json(
-        { error: "Moderator:innen dürfen hier nur den Moderationshinweis bearbeiten." },
+        { error: "Moderator:innen dürfen hier nur den Moderationshinweis bearbeiten.", editResult },
         { status: 403 },
       );
     }
@@ -339,14 +408,30 @@ export async function PUT(
       applied: true,
       message: "Moderationshinweis gespeichert",
       classificationWarnings: [],
+      editResult: buildParticipantEditResult({
+        status: "saved",
+        participantId: id,
+        teamId: participant.team.id,
+        context: editContext,
+        fieldResults: buildParticipantFieldResults(changedFields, buildFieldDecisionMap(changedFieldKeys, "saved")),
+      }),
     });
   }
 
   if (!projectedTeamState.discipline.valid) {
+    const editResult = buildParticipantEditResult({
+      status: "rejected",
+      participantId: id,
+      teamId: participant.team.id,
+      context: editContext,
+      fieldResults: buildParticipantFieldResults(changedFields, buildFieldDecisionMap(changedFieldKeys, "denied")),
+      blockingErrors: projectedTeamState.discipline.warnings,
+    });
     return NextResponse.json(
       {
         error: projectedTeamState.discipline.warnings.join(" · "),
         disciplineWarnings: projectedTeamState.discipline.warnings,
+        editResult,
       },
       { status: 409 },
     );
@@ -364,6 +449,13 @@ export async function PUT(
         where: { id },
         data: changeData as Prisma.ParticipantUpdateInput,
       });
+
+      if (participant.team.registrationMode === "MARKETPLACE") {
+        await tx.team.update({
+          where: { id: participant.team.id },
+          data: buildMarketplaceTeamSyncData(requestedSnapshot),
+        });
+      }
 
       await tx.pendingChange.updateMany({
         where: {
@@ -436,6 +528,7 @@ export async function PUT(
     }
 
     let participantClaimMail: unknown = null;
+    let notifications: EditParticipantNotificationResult[] = [];
     if (shouldSendParticipantClaim) {
       try {
         participantClaimMail = await createParticipantClaimInvitation({
@@ -465,6 +558,27 @@ export async function PUT(
       }
     }
 
+    const directChangeSummary = summarizeParticipantChanges(currentSnapshot, requestedSnapshot)
+      .filter((change) => change.field !== "moderationNote");
+    if (directChangeSummary.length > 0) {
+      notifications = await sendParticipantDirectChangeEmail({
+        competition: participant.team.competition,
+        participant: {
+          name: `${updated.firstName} ${updated.lastName}`.trim(),
+          email: updated.email,
+          teamName: participant.team.registrationMode === "MARKETPLACE"
+            ? `Sportlerbörse: ${updated.firstName} ${updated.lastName}`.trim()
+            : participant.team.name,
+          teamContactEmail: participant.team.registrationMode === "MARKETPLACE" ? updated.email : participant.team.contactEmail,
+        },
+        actor: {
+          name: user.name || session.user.email || "Orga",
+          email: session.user.email,
+        },
+        changeSummary: directChangeSummary,
+      });
+    }
+
     return NextResponse.json({
       participant: updated,
       applied: true,
@@ -473,6 +587,18 @@ export async function PUT(
         projectedTeamState.classificationWarnings.length > 0
           ? projectedTeamState.classificationWarnings
           : classificationWarnings,
+      editResult: buildParticipantEditResult({
+        status: "saved",
+        participantId: id,
+        teamId: participant.team.id,
+        context: editContext,
+        fieldResults: buildParticipantFieldResults(changedFields, buildFieldDecisionMap(changedFieldKeys, "saved")),
+        warnings:
+          projectedTeamState.classificationWarnings.length > 0
+            ? projectedTeamState.classificationWarnings
+            : classificationWarnings,
+        notifications,
+      }),
     });
   }
 
@@ -501,6 +627,13 @@ export async function PUT(
         where: { id },
         data: directlyAppliedChangeData as Prisma.ParticipantUpdateInput,
       });
+
+      if (participant.team.registrationMode === "MARKETPLACE") {
+        await tx.team.update({
+          where: { id: participant.team.id },
+          data: buildMarketplaceTeamSyncData(directAppliedSnapshot),
+        });
+      }
 
       await tx.participantAuditLog.create({
         data: {
@@ -559,6 +692,16 @@ export async function PUT(
         message: directFieldLabels.join(" und ") + " direkt gespeichert",
         participantClaimMail: directParticipantClaimMail,
         classificationWarnings: [],
+        editResult: buildParticipantEditResult({
+          status: "saved",
+          participantId: id,
+          teamId: participant.team.id,
+          context: editContext,
+          fieldResults: buildParticipantFieldResults(
+            changedFields,
+            buildFieldDecisionMap(changedFieldKeys, "saved"),
+          ),
+        }),
       });
     }
   }
@@ -647,8 +790,9 @@ export async function PUT(
         return createdPendingChange;
       });
 
+  let notifications: EditParticipantNotificationResult[] = [];
   if (!existingPendingChange) {
-    await sendParticipantChangeSubmittedEmails({
+    notifications = await sendParticipantChangeSubmittedEmails({
       competition: participant.team.competition,
       participant: {
         name: participant.firstName + " " + participant.lastName,
@@ -664,6 +808,14 @@ export async function PUT(
     });
   }
 
+  const reviewFields = approvalChangeSummary.map((change) => change.field);
+  const savedFields = Object.keys(directlyAppliedChangeData) as ParticipantChangeField[];
+  const fieldDecisions = mergeFieldDecisionMaps(
+    buildFieldDecisionMap(savedFields, "saved"),
+    buildFieldDecisionMap(reviewFields, "review"),
+  );
+  const resultStatus = savedFields.length > 0 ? "partial" : "pending_review";
+
   return NextResponse.json({
     pendingChange: savedPendingChange,
     applied: false,
@@ -676,5 +828,14 @@ export async function PUT(
       : "Änderung zur Genehmigung eingereicht",
     participantClaimMail: directParticipantClaimMail,
     classificationWarnings: projectedTeamState.classificationWarnings,
+    editResult: buildParticipantEditResult({
+      status: resultStatus,
+      participantId: id,
+      teamId: participant.team.id,
+      context: editContext,
+      fieldResults: buildParticipantFieldResults(changedFields, fieldDecisions),
+      warnings: projectedTeamState.classificationWarnings,
+      notifications,
+    }),
   });
 }

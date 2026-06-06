@@ -1,11 +1,13 @@
 import { sendResendMail } from "@/lib/mail/resend";
 import {
   buildParticipantChangeDecisionMail,
+  buildParticipantDirectChangeMail,
   buildParticipantChangeSubmittedOrgBatchMail,
   buildParticipantChangeSubmittedOrgMail,
   buildParticipantChangeSubmittedTeamBatchMail,
   buildParticipantChangeSubmittedTeamMail,
 } from "@/lib/mail/templates/participant-change";
+import type { EditParticipantNotificationResult } from "@/lib/participant-edit-result";
 import { resolveRegistrationNotificationEmail } from "@/lib/mail/team-registration";
 
 type CompetitionMailConfig = {
@@ -36,6 +38,40 @@ type ChangeSummaryConfig = Array<{
   after: string;
 }>;
 
+function normalizeMailSettledResult(
+  result: PromiseSettledResult<unknown>,
+  recipient: string,
+  template: string,
+): EditParticipantNotificationResult {
+  if (result.status === "rejected") {
+    return {
+      channel: "email",
+      recipient,
+      template,
+      status: "failed",
+      reason: result.reason instanceof Error ? result.reason.message : String(result.reason),
+    };
+  }
+
+  const value = result.value as { status?: string; reason?: string; missing?: string[] } | null;
+  if (value?.status === "skipped") {
+    return {
+      channel: "email",
+      recipient,
+      template,
+      status: "skipped",
+      reason: value.missing?.length ? `missing_env:${value.missing.join(",")}` : value.reason,
+    };
+  }
+
+  return {
+    channel: "email",
+    recipient,
+    template,
+    status: "sent",
+  };
+}
+
 export async function sendParticipantChangeSubmittedEmails({
   competition,
   participant,
@@ -59,31 +95,32 @@ export async function sendParticipantChangeSubmittedEmails({
     changeSummary,
   };
 
-  const tasks: Promise<unknown>[] = [];
+  const tasks: Array<{ recipient: string; template: string; promise: Promise<unknown> }> = [];
 
   if (teamRecipient) {
     const mail = buildParticipantChangeSubmittedTeamMail(input);
-    tasks.push(sendResendMail({
+    tasks.push({ recipient: teamRecipient, template: "participant-change-submitted-team", promise: sendResendMail({
       to: teamRecipient,
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
       replyTo: process.env.MAIL_REPLY_TO || orgRecipients[0] || undefined,
-    }));
+    }) });
   }
 
   if (orgRecipients.length > 0) {
     const mail = buildParticipantChangeSubmittedOrgMail(input);
-    tasks.push(sendResendMail({
+    tasks.push({ recipient: orgRecipients.join(","), template: "participant-change-submitted-org", promise: sendResendMail({
       to: orgRecipients,
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
       replyTo: requester.email,
-    }));
+    }) });
   }
 
-  await Promise.allSettled(tasks);
+  const results = await Promise.allSettled(tasks.map((task) => task.promise));
+  return results.map((result, index) => normalizeMailSettledResult(result, tasks[index].recipient, tasks[index].template));
 }
 
 export async function sendParticipantChangeSubmittedBatchEmails({
@@ -116,31 +153,32 @@ export async function sendParticipantChangeSubmittedBatchEmails({
     participants,
   };
 
-  const tasks: Promise<unknown>[] = [];
+  const tasks: Array<{ recipient: string; template: string; promise: Promise<unknown> }> = [];
 
   if (teamContactEmail) {
     const mail = buildParticipantChangeSubmittedTeamBatchMail(input);
-    tasks.push(sendResendMail({
+    tasks.push({ recipient: teamContactEmail, template: "participant-change-submitted-team-batch", promise: sendResendMail({
       to: teamContactEmail,
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
       replyTo: process.env.MAIL_REPLY_TO || orgRecipients[0] || undefined,
-    }));
+    }) });
   }
 
   if (orgRecipients.length > 0) {
     const mail = buildParticipantChangeSubmittedOrgBatchMail(input);
-    tasks.push(sendResendMail({
+    tasks.push({ recipient: orgRecipients.join(","), template: "participant-change-submitted-org-batch", promise: sendResendMail({
       to: orgRecipients,
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
       replyTo: requester.email,
-    }));
+    }) });
   }
 
-  await Promise.allSettled(tasks);
+  const results = await Promise.allSettled(tasks.map((task) => task.promise));
+  return results.map((result, index) => normalizeMailSettledResult(result, tasks[index].recipient, tasks[index].template));
 }
 
 export async function sendParticipantChangeDecisionEmail({
@@ -160,7 +198,13 @@ export async function sendParticipantChangeDecisionEmail({
 }) {
   const decisionRecipient = participant.email || participant.teamContactEmail;
   if (!decisionRecipient) {
-    return;
+    return [{
+      channel: "email" as const,
+      recipient: "",
+      template: "participant-change-decision",
+      status: "skipped" as const,
+      reason: "missing_recipient",
+    }];
   }
 
   const input = {
@@ -175,11 +219,59 @@ export async function sendParticipantChangeDecisionEmail({
     changeSummary,
   };
   const mail = buildParticipantChangeDecisionMail(input);
-  await sendResendMail({
-    to: decisionRecipient,
-    subject: mail.subject,
-    html: mail.html,
-    text: mail.text,
-    replyTo: process.env.MAIL_REPLY_TO || competition.registrationNotificationEmail || undefined,
+  const result = await Promise.allSettled([
+    sendResendMail({
+      to: decisionRecipient,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      replyTo: process.env.MAIL_REPLY_TO || competition.registrationNotificationEmail || undefined,
+    }),
+  ]);
+
+  return [normalizeMailSettledResult(result[0], decisionRecipient, "participant-change-decision")];
+}
+
+export async function sendParticipantDirectChangeEmail({
+  competition,
+  participant,
+  actor,
+  changeSummary,
+}: {
+  competition: CompetitionMailConfig;
+  participant: ParticipantMailConfig;
+  actor: RequesterConfig;
+  changeSummary?: ChangeSummaryConfig;
+}) {
+  const recipient = participant.email || participant.teamContactEmail;
+  if (!recipient) {
+    return [{
+      channel: "email" as const,
+      recipient: "",
+      template: "participant-direct-change",
+      status: "skipped" as const,
+      reason: "missing_recipient",
+    }];
+  }
+
+  const mail = buildParticipantDirectChangeMail({
+    competitionName: competition.name,
+    competitionYear: competition.year,
+    teamName: participant.teamName,
+    participantName: participant.name,
+    requestedByName: actor.name,
+    requestedByEmail: actor.email,
+    changeSummary,
   });
+  const result = await Promise.allSettled([
+    sendResendMail({
+      to: recipient,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      replyTo: process.env.MAIL_REPLY_TO || competition.registrationNotificationEmail || undefined,
+    }),
+  ]);
+
+  return [normalizeMailSettledResult(result[0], recipient, "participant-direct-change")];
 }

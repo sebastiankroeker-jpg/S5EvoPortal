@@ -270,3 +270,34 @@ export function buildParticipantChangeDecisionMail(
     ].join("\\n"),
   };
 }
+
+export function buildParticipantDirectChangeMail(input: ParticipantChangeMailInput) {
+  const subject = "Teilnehmerdaten aktualisiert: " + input.participantName;
+  const changeSummaryHtml = buildChangeSummaryHtml(input.changeSummary);
+  const changeSummaryText = buildChangeSummaryText(input.changeSummary);
+
+  return {
+    subject,
+    html:
+      '<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">' +
+      "<h2>Teilnehmerdaten aktualisiert</h2>" +
+      "<p>Hallo,</p>" +
+      "<p>die Orga hat Teilnehmerdaten direkt aktualisiert.</p>" +
+      "<p>Teilnehmer: <strong>" + escapeHtml(input.participantName) + "</strong></p>" +
+      "<p>Mannschaft: <strong>" + escapeHtml(input.teamName) + "</strong></p>" +
+      "<p>Wettkampf: <strong>" + escapeHtml(input.competitionName) + " " + input.competitionYear + "</strong></p>" +
+      "<p>Geaendert von: <strong>" + escapeHtml(input.requestedByName) + "</strong> (" + escapeHtml(input.requestedByEmail) + ")</p>" +
+      changeSummaryHtml +
+      "</div>",
+    text: [
+      "Teilnehmerdaten aktualisiert",
+      "",
+      "die Orga hat Teilnehmerdaten direkt aktualisiert.",
+      "Teilnehmer: " + input.participantName,
+      "Mannschaft: " + input.teamName,
+      "Wettkampf: " + input.competitionName + " " + input.competitionYear,
+      "Geaendert von: " + input.requestedByName + " (" + input.requestedByEmail + ")",
+      ...changeSummaryText,
+    ].join("\\n"),
+  };
+}
