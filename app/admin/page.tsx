@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { useNotifications } from "@/lib/notification-context";
@@ -221,7 +221,7 @@ export default function AdminPage() {
   });
 
   const [loading, setLoading] = useState(true);
-  const [activeAdminTab, setActiveAdminTab] = useState("tenant");
+  const [activeAdminTab, setActiveAdminTab] = useState("competition");
   const [saving, setSaving] = useState<string | null>(null);
   const [resetReason, setResetReason] = useState("");
   const [resetConfirmationText, setResetConfirmationText] = useState("");
@@ -239,14 +239,15 @@ export default function AdminPage() {
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab && ADMIN_TABS.has(tab)) {
-      setActiveAdminTab(tab);
+      setActiveAdminTab(tab === "tenant" ? "competition" : tab);
     }
   }, []);
 
   const handleAdminTabChange = (tab: string) => {
     if (!ADMIN_TABS.has(tab)) return;
-    setActiveAdminTab(tab);
-    router.replace(`/admin?tab=${tab}`, { scroll: false });
+    const nextTab = tab === "tenant" ? "competition" : tab;
+    setActiveAdminTab(nextTab);
+    router.replace(`/admin?tab=${nextTab}`, { scroll: false });
   };
 
   const navigateFromBottomTab = (tabId: string) => {
@@ -594,10 +595,17 @@ export default function AdminPage() {
         >
           <h1 className="text-3xl font-bold tracking-tight">⚙️ Administration</h1>
           <p className="text-muted-foreground">
-            Tenant, Wettkampf, Benutzer und Audits getrennt organisiert.
+            {activeAdminTab === "users"
+              ? "Benutzer, Rollen und Team-Manager-Rechte verwalten."
+              : activeAdminTab === "audits"
+                ? "Betriebsprüfung, Mail-Protokoll und Claim-Auffälligkeiten prüfen."
+                : activeAdminTab === "restore"
+                  ? "Archivierte Mannschaften und Wiederherstellung prüfen."
+                  : "Tenant, aktiven Wettkampf, Anmeldung und Regeln konfigurieren."}
           </p>
         </motion.div>
 
+        {activeAdminTab === "audits" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Ops-Quickcheck</CardTitle>
@@ -624,12 +632,6 @@ export default function AdminPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleAdminTabChange("audits")}>
-                Zum Audit-Tab
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleAdminTabChange("restore")}>
-                Zum Archiv-Tab
-              </Button>
               <Button variant="outline" size="sm" onClick={() => router.push("/admin/logs")}>
                 Zu Runtime-Logs
               </Button>
@@ -642,18 +644,11 @@ export default function AdminPage() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         <Tabs value={activeAdminTab} onValueChange={handleAdminTabChange} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
-            <TabsTrigger value="competition">🏆 Wettkampf</TabsTrigger>
-            <TabsTrigger value="users">👥 Benutzer</TabsTrigger>
-            <TabsTrigger value="audits">🧾 Audits</TabsTrigger>
-            <TabsTrigger value="restore">♻️ Archiv</TabsTrigger>
-          </TabsList>
-
           {/* ==================== TENANT TAB ==================== */}
-          <TabsContent value="tenant">
+          <TabsContent value="competition">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               {/* Competition Switcher */}
               <Card>
