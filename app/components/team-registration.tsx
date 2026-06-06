@@ -12,9 +12,12 @@ import {
   DISCIPLINES,
   DISCIPLINE_PLACEHOLDER,
   formatBirthDateInput,
+  MARKETPLACE_VISIBILITY_OPTIONS,
+  PARTICIPANT_PUBLICATION_OPTIONS,
   TEAM_PUBLICATION_OPTIONS,
   resolveBirthDateInputKey,
   summarizeDisciplines,
+  type MarketplaceVisibilityId,
   TeamRegistrationFormInput,
   TeamRegistrationSchema,
   type DisciplineId,
@@ -47,6 +50,8 @@ const TEAM_CLASSES: { id: TeamClassId; label: string }[] = [
   { id: "damen-a", label: "Damen A" },
   { id: "damen-b", label: "Damen B" },
 ];
+
+type RegistrationMode = "TEAM" | "MARKETPLACE";
 
 const CLASS_CONFIG: Record<TeamClassId, { minYear: number; maxYear: number; gender: "M" | "W" | "mixed" }> = {
   "schueler-a": { minYear: 2016, maxYear: 2018, gender: "mixed" },
@@ -90,6 +95,9 @@ const LAST_NAMES = [
 
 interface TeamRegistrationProps {
   allowAnonymous?: boolean;
+  initialMode?: RegistrationMode;
+  lockRegistrationMode?: boolean;
+  presentation?: "default" | "marketplace";
 }
 
 type PublicCompetitionInfo = {
@@ -180,7 +188,12 @@ function handleBirthDateKeyDown(
   });
 }
 
-export default function TeamRegistration({ allowAnonymous = false }: TeamRegistrationProps) {
+export default function TeamRegistration({
+  allowAnonymous = false,
+  initialMode = "TEAM",
+  lockRegistrationMode = false,
+  presentation = "default",
+}: TeamRegistrationProps) {
   const { data: session } = useSession();
   const { active: activeCompetition } = useCompetition();
   const userName = session?.user?.name ?? "";
@@ -191,6 +204,14 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const [serverError, setServerError] = useState("");
   const [submissionWarning, setSubmissionWarning] = useState("");
   const [competitionInfo, setCompetitionInfo] = useState<PublicCompetitionInfo | null>(null);
+  const [registrationMode, setRegistrationMode] = useState<RegistrationMode>(initialMode);
+  const [marketplaceBirthDate, setMarketplaceBirthDate] = useState("");
+  const [marketplaceGender, setMarketplaceGender] = useState<"M" | "W">("M");
+  const [marketplaceDiscipline, setMarketplaceDiscipline] = useState<DisciplineId | typeof DISCIPLINE_PLACEHOLDER>(DISCIPLINE_PLACEHOLDER);
+  const [marketplaceClubName, setMarketplaceClubName] = useState("");
+  const [marketplaceVisibility, setMarketplaceVisibility] = useState<MarketplaceVisibilityId>("ADMIN_MANAGEMENT_ONLY");
+  const [marketplaceParticipantPublication, setMarketplaceParticipantPublication] = useState<"NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN">("NAME_VERBERGEN");
+  const [marketplaceMessage, setMarketplaceMessage] = useState("");
 
 
 
@@ -225,6 +246,8 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   const effectiveContactName = userName || [contactFirstName, contactLastName].filter(Boolean).join(" ").trim() || contactName || "";
   const effectiveContactEmail = userEmail || contactEmail || "";
   const isAnonymousRegistration = allowAnonymous && !session?.user;
+  const isMarketplaceRegistration = registrationMode === "MARKETPLACE";
+  const isMarketplacePresentation = presentation === "marketplace";
   const teamDraftEvaluation = useMemo(
     () =>
       evaluateTeamDraft({
@@ -354,6 +377,21 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
   if (!session?.user && !allowAnonymous) return null;
 
   const handleNextFromTeam = async () => {
+    if (isMarketplaceRegistration) {
+      const fieldsToValidate = isAnonymousRegistration
+        ? (["contactFirstName", "contactLastName", "contactEmail"] as const)
+        : ([] as const);
+      const ok = fieldsToValidate.length === 0 ? true : await trigger(fieldsToValidate);
+      if (!ok) return;
+      if (!marketplaceBirthDate || !marketplaceBirthDate.match(/\d{1,2}\.\d{1,2}\.\d{4}/)) {
+        setServerError("Bitte gib ein plausibles Geburtsdatum für die Sportlerbörse an.");
+        return;
+      }
+      setServerError("");
+      setStep(3);
+      return;
+    }
+
     const fieldsToValidate = isAnonymousRegistration
       ? (["teamName", "contactFirstName", "contactLastName", "contactEmail"] as const)
       : (["teamName"] as const);
@@ -383,6 +421,76 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       ...current,
       [index]: !current[index],
     }));
+  };
+
+  const submitMarketplaceRegistration = async () => {
+    setServerError("");
+    setSubmissionWarning("");
+
+    if (!publicRegistrationStatus.canRegister) {
+      setServerError(publicRegistrationStatus.detail);
+      return;
+    }
+
+    if (!liabilityAccepted) {
+      setServerError("Bitte bestätige zuerst den Haftungsausschluss und die Veranstaltungsinformationen.");
+      return;
+    }
+
+    const values = getValues();
+    const response = await trigger(
+      isAnonymousRegistration ? ["contactFirstName", "contactLastName", "contactEmail"] : [],
+    );
+    if (!response) return;
+
+    try {
+      const submitResponse = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          registrationMode: "MARKETPLACE",
+          contactFirstName: userName ? teamLeadFirstName : values.contactFirstName,
+          contactLastName: userName ? teamLeadLastName : values.contactLastName,
+          contactName: effectiveContactName,
+          contactEmail: effectiveContactEmail,
+          birthDate: marketplaceBirthDate,
+          gender: marketplaceGender,
+          discipline: marketplaceDiscipline,
+          clubName: marketplaceClubName,
+          marketplaceVisibility,
+          participantPublicationPreference: marketplaceParticipantPublication,
+          marketplaceMessage,
+        }),
+      });
+
+      const payload = await submitResponse.json();
+      if (!submitResponse.ok) {
+        throw new Error(payload.error || "Sportlerbörse-Anmeldung fehlgeschlagen");
+      }
+
+      const mailAttempts = Array.isArray(payload.mail?.attempts) ? payload.mail.attempts : [];
+      const hasMailIssues = mailAttempts.some((attempt: { status?: string }) => attempt.status && attempt.status !== "sent");
+      if (hasMailIssues) {
+        setSubmissionWarning(
+          "Die Sportlerbörse-Meldung ist angelegt, aber der Mailversand konnte nicht vollständig bestätigt werden."
+        );
+      }
+
+      setSubmitted(true);
+      setSubmittedRecipientEmail(effectiveContactEmail);
+      reset(createDefaultTeamForm());
+      setMarketplaceBirthDate("");
+      setMarketplaceGender("M");
+      setMarketplaceDiscipline(DISCIPLINE_PLACEHOLDER);
+      setMarketplaceClubName("");
+      setMarketplaceVisibility("ADMIN_MANAGEMENT_ONLY");
+      setMarketplaceParticipantPublication("NAME_VERBERGEN");
+      setMarketplaceMessage("");
+      setLiabilityAccepted(false);
+      setStep(1);
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    }
   };
 
   const onSubmit = handleSubmit(async (values) => {
@@ -527,7 +635,9 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Mannschaftsanmeldung</CardTitle>
+            <CardTitle className={isMarketplacePresentation ? "text-xl" : "text-lg"}>
+              {isMarketplaceRegistration ? "Sportlerbörse" : "Mannschaftsanmeldung"}
+            </CardTitle>
             <Badge variant="outline" className="text-sm px-3 py-1">Schritt {step}/3</Badge>
           </div>
         </CardHeader>
@@ -558,7 +668,11 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center p-8 space-y-4">
               <div className="text-6xl">🏅</div>
               <h3 className="text-xl font-semibold text-green-600">Anmeldung erfolgreich uebermittelt</h3>
-              <p className="text-muted-foreground">Die Mannschaft ist im Portal erfasst. Alles Weitere haengt jetzt davon ab, ob du mit oder ohne Login angemeldet hast.</p>
+              <p className="text-muted-foreground">
+                {isMarketplaceRegistration
+                  ? "Die Sportlerbörse-Meldung ist im Portal erfasst und kann durch die Orga bearbeitet werden."
+                  : "Die Mannschaft ist im Portal erfasst. Alles Weitere haengt jetzt davon ab, ob du mit oder ohne Login angemeldet hast."}
+              </p>
               {submissionWarning && (
                 <div className="max-w-xl mx-auto rounded-lg border border-amber-300 bg-amber-50 p-4 text-left text-sm text-amber-900">
                   {submissionWarning}
@@ -570,7 +684,7 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
                     <li>Wir schicken den Uebernahmelink an <strong>{submittedRecipientEmail || effectiveContactEmail || "die angegebene Kontakt-E-Mail"}</strong>.</li>
                     <li>Oeffne den Link aus der Mail und melde dich dort mit derselben E-Mail im Portal an oder lege damit ein neues Konto an.</li>
-                    <li>Danach ist die Mannschaft deinem Account zugeordnet und du kannst Aenderungen direkt im Portal pflegen.</li>
+                    <li>Danach ist {isMarketplaceRegistration ? "die Meldung" : "die Mannschaft"} deinem Account zugeordnet und du kannst Aenderungen direkt im Portal pflegen.</li>
                   </ol>
                   <p className="text-xs text-muted-foreground">Wenn nichts ankommt, pruefe bitte auch Spam und Werbung. Wenn nach ein paar Minuten immer noch keine Mail da ist, melde dich direkt bei der Orga.</p>
                 </div>
@@ -578,13 +692,55 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                 <p className="text-sm text-muted-foreground">Du kannst jetzt direkt im Portal ins Mannschafts-Dashboard wechseln und dort weiterarbeiten.</p>
               )}
               <div className="flex justify-center pt-2">
-                <Button onClick={startAnotherRegistration}>Weitere Mannschaft anmelden</Button>
+                <Button onClick={startAnotherRegistration}>
+                  {isMarketplaceRegistration ? "Weitere Meldung erfassen" : "Weitere Mannschaft anmelden"}
+                </Button>
               </div>
             </motion.div>
           ) : (
             <>
               {step === 1 && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
+                  {lockRegistrationMode ? (
+                    isMarketplaceRegistration && (
+                      <div className="rounded-md border border-primary/20 bg-primary/5 p-4 text-sm">
+                        <p className="font-medium">Einzelteilnehmer für die Sportlerbörse melden</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Deine Meldung geht direkt an die Orga. Du erhältst per E-Mail einen Übernahmelink, damit du den Eintrag später mit einem Portal-Konto verbinden kannst.
+                        </p>
+                      </div>
+                    )
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegistrationMode("TEAM");
+                          setServerError("");
+                        }}
+                        className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                          !isMarketplaceRegistration ? "border-primary bg-primary/10" : "border-border/60 bg-background hover:bg-muted/30"
+                        }`}
+                      >
+                        <span className="block font-medium">Mannschaft anmelden</span>
+                        <span className="text-xs text-muted-foreground">Vollständiges Team mit 5 Disziplinen</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegistrationMode("MARKETPLACE");
+                          setServerError("");
+                        }}
+                        className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                          isMarketplaceRegistration ? "border-primary bg-primary/10" : "border-border/60 bg-background hover:bg-muted/30"
+                        }`}
+                      >
+                        <span className="block font-medium">Einzelteilnehmer / Sportlerbörse</span>
+                        <span className="text-xs text-muted-foreground">Meldung an Admins mit Claim-Link</span>
+                      </button>
+                    </div>
+                  )}
+
                   {isAnonymousRegistration ? (
                     <>
                       <div className="rounded-md border border-border/50 shadow-sm bg-muted/20 p-3 text-sm text-muted-foreground space-y-2">
@@ -661,6 +817,113 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       </div>
                     </>
                   )}
+                  {isMarketplaceRegistration ? (
+                    <>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <label className="text-sm font-medium">Geburtsdatum</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="TT.MM.JJJJ"
+                            autoComplete="bday"
+                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                            value={marketplaceBirthDate}
+                            onChange={(e) => setMarketplaceBirthDate(formatBirthDateInput(e.target.value))}
+                            onKeyDown={(event) =>
+                              handleBirthDateKeyDown(event, marketplaceBirthDate, setMarketplaceBirthDate)
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Geschlecht</label>
+                          <select
+                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                            value={marketplaceGender}
+                            onChange={(event) => setMarketplaceGender(event.target.value as "M" | "W")}
+                          >
+                            <option value="M">Männlich</option>
+                            <option value="W">Weiblich</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <label className="text-sm font-medium">Wunschdisziplin</label>
+                          <select
+                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                            value={marketplaceDiscipline}
+                            onChange={(event) =>
+                              setMarketplaceDiscipline(event.target.value as DisciplineId | typeof DISCIPLINE_PLACEHOLDER)
+                            }
+                          >
+                            <option value={DISCIPLINE_PLACEHOLDER}>Noch offen</option>
+                            {DISCIPLINES.map((discipline) => (
+                              <option key={discipline.id} value={discipline.id}>
+                                {discipline.icon} {discipline.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Verein / Region optional</label>
+                          <input
+                            type="text"
+                            value={marketplaceClubName}
+                            onChange={(event) => setMarketplaceClubName(event.target.value)}
+                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                            placeholder="z.B. ESV Bad Bayersoien"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium">Sichtbarkeit</label>
+                        <select
+                          className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                          value={marketplaceVisibility}
+                          onChange={(event) => setMarketplaceVisibility(event.target.value as MarketplaceVisibilityId)}
+                        >
+                          {MARKETPLACE_VISIBILITY_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium">Namensveröffentlichung</label>
+                        <select
+                          className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
+                          value={marketplaceParticipantPublication}
+                          onChange={(event) =>
+                            setMarketplaceParticipantPublication(event.target.value as "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN")
+                          }
+                        >
+                          {PARTICIPANT_PUBLICATION_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium">Nachricht an Admins/MGMT</label>
+                        <textarea
+                          value={marketplaceMessage}
+                          onChange={(event) => setMarketplaceMessage(event.target.value)}
+                          maxLength={3000}
+                          className="mt-1 min-h-[150px] w-full rounded-md border border-input/60 bg-background px-3 py-2 text-sm"
+                          placeholder="Was soll die Orga wissen? Wunsch-Team, Einschränkungen, Verfügbarkeit, Kontaktwunsch ..."
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">{marketplaceMessage.length}/3000 Zeichen</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
                   <div>
                     <label htmlFor="teamName" className="text-sm font-medium">
                       Mannschaftsname
@@ -754,8 +1017,20 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                       </div>
                     )}
                   </div>
-                  <Button onClick={handleNextFromTeam} disabled={!publicRegistrationStatus.canRegister || (isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName)} className="w-full">
-                    Weiter zu Teilnehmern →
+                    </>
+                  )}
+                  <Button
+                    onClick={handleNextFromTeam}
+                    disabled={
+                      !publicRegistrationStatus.canRegister ||
+                      (isMarketplaceRegistration
+                        ? !marketplaceBirthDate ||
+                          (isAnonymousRegistration ? !contactFirstName || !contactLastName || !contactEmail : !effectiveContactName || !effectiveContactEmail)
+                        : (isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName))
+                    }
+                    className="w-full"
+                  >
+                    {isMarketplaceRegistration ? "Weiter zur Prüfung →" : "Weiter zu Teilnehmern →"}
                   </Button>
                 </motion.div>
               )}
@@ -999,23 +1274,54 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
                   <div className="space-y-1">
                     <h3 className="text-base font-medium">Angaben pruefen und absenden</h3>
-                    <p className="text-xs text-muted-foreground">Erst mit dem letzten Klick wird die Mannschaft angemeldet.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Erst mit dem letzten Klick wird {isMarketplaceRegistration ? "die Sportlerbörse-Meldung" : "die Mannschaft"} angemeldet.
+                    </p>
                   </div>
 
-                  <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-sm">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="min-w-0 max-w-full truncate font-semibold">{teamName || "Mannschaft ohne Namen"}</span>
-                      <span className="text-muted-foreground">{liveClassification.emoji} {liveClassification.label}</span>
-                      <span className="text-muted-foreground">{completedParticipantCount}/5 Teilnehmer</span>
+                  {isMarketplaceRegistration ? (
+                    <div className="space-y-2">
+                      <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="min-w-0 max-w-full truncate font-semibold">
+                            {[teamLeadFirstName || contactFirstName, teamLeadLastName || contactLastName].filter(Boolean).join(" ") || "Sportler:in"}
+                          </span>
+                          <span className="text-muted-foreground">{marketplaceGender} · {marketplaceBirthDate}</span>
+                          <span className="text-muted-foreground">
+                            {disciplineMap[marketplaceDiscipline as DisciplineId]?.label || "Disziplin offen"}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span>Empfänger: {effectiveContactEmail || "-"}</span>
+                          <span>
+                            Sichtbarkeit: {MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === marketplaceVisibility)?.label || "-"}
+                          </span>
+                          {marketplaceClubName && <span>Verein/Region: {marketplaceClubName}</span>}
+                        </div>
+                      </div>
+                      {marketplaceMessage.trim() && (
+                        <div className="rounded-md border border-border/60 bg-background p-3 text-sm">
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">Nachricht an Admins/MGMT</p>
+                          <p className="whitespace-pre-wrap">{marketplaceMessage}</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span>Gesamtalter: {liveClassification.totalAge}</span>
-                      <span>Empfaenger: {effectiveContactEmail || "-"}</span>
+                  ) : (
+                    <>
+                    <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="min-w-0 max-w-full truncate font-semibold">{teamName || "Mannschaft ohne Namen"}</span>
+                        <span className="text-muted-foreground">{liveClassification.emoji} {liveClassification.label}</span>
+                        <span className="text-muted-foreground">{completedParticipantCount}/5 Teilnehmer</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span>Gesamtalter: {liveClassification.totalAge}</span>
+                        <span>Empfaenger: {effectiveContactEmail || "-"}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-1.5 text-xs">
-                    {participants.map((participant, index) => {
+                    <div className="space-y-1.5 text-xs">
+                      {participants.map((participant, index) => {
                       const discipline = disciplineMap[participant.discipline as DisciplineId];
                       const name = [participant.firstName, participant.lastName].filter(Boolean).join(" ").trim() || "Name fehlt";
                       const shirtSize = SHIRT_SIZES.find((size) => size.id === participant.shirtSize)?.label;
@@ -1039,7 +1345,9 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                         </div>
                       );
                     })}
-                  </div>
+                    </div>
+                    </>
+                  )}
 
                   <details className="rounded-md border border-border/60 bg-muted/10 p-3 text-sm">
                     <summary className="cursor-pointer font-medium">Metadaten & Kontakt Team Manager:in</summary>
@@ -1093,11 +1401,19 @@ export default function TeamRegistration({ allowAnonymous = false }: TeamRegistr
                   </div>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setStep(2)} className="flex-1" disabled={formState.isSubmitting}>
+                    <Button variant="outline" onClick={() => setStep(isMarketplaceRegistration ? 1 : 2)} className="flex-1" disabled={formState.isSubmitting}>
                       ← Zurück
                     </Button>
-                    <Button onClick={onSubmit} className="flex-1" disabled={formState.isSubmitting || !publicRegistrationStatus.canRegister || !liabilityAccepted}>
-                      {formState.isSubmitting ? "Sende Anmeldung ab..." : "Mannschaft jetzt anmelden 🏅"}
+                    <Button
+                      onClick={isMarketplaceRegistration ? submitMarketplaceRegistration : onSubmit}
+                      className="flex-1"
+                      disabled={formState.isSubmitting || !publicRegistrationStatus.canRegister || !liabilityAccepted}
+                    >
+                      {formState.isSubmitting
+                        ? "Sende Anmeldung ab..."
+                        : isMarketplaceRegistration
+                          ? "Sportlerbörse melden 🏅"
+                          : "Mannschaft jetzt anmelden 🏅"}
                     </Button>
                   </div>
                 </motion.div>

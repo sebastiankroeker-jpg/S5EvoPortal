@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import {
+  MarketplaceRegistrationSchema,
   TeamRegistrationSchema,
   birthYearToBirthDateInput,
   extractBirthYearFromInput,
@@ -79,6 +80,10 @@ type SerializableTeam = {
   id: string;
   name: string;
   teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH" | null;
+  registrationMode?: "TEAM" | "MARKETPLACE" | null;
+  marketplaceVisibility?: "PUBLIC" | "MARKETPLACE_USERS" | "PORTAL_USERS" | "ADMIN_MANAGEMENT_ONLY" | null;
+  marketplaceStatus?: "NEW" | "REVIEWED" | "MATCHING" | "MATCHED" | "WITHDRAWN" | null;
+  marketplaceMessage?: string | null;
   classificationCode?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
@@ -212,6 +217,10 @@ function serializeTeam(
     id: team.id,
     name: visibleTeamName,
     teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
+    registrationMode: team.registrationMode ?? "TEAM",
+    marketplaceVisibility: team.marketplaceVisibility ?? "ADMIN_MANAGEMENT_ONLY",
+    marketplaceStatus: team.marketplaceStatus ?? "NEW",
+    marketplaceMessage: canSeeSensitiveParticipantFields ? team.marketplaceMessage ?? "" : "",
     category: team.classificationCode ?? "unclassified",
     contactName: canSeeFullTeamPublication ? team.contactName ?? team.owner?.name ?? "" : "",
     contactEmail: canSeeFullTeamPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
@@ -486,6 +495,215 @@ export async function POST(request: NextRequest) {
         : null;
 
     const body = await request.json();
+
+    if (body?.registrationMode === "MARKETPLACE") {
+      const validation = MarketplaceRegistrationSchema.safeParse(body);
+      if (!validation.success) {
+        return NextResponse.json(
+          { error: formatTeamRegistrationValidationIssues(validation.error.issues), details: validation.error.issues },
+          { status: 400 }
+        );
+      }
+
+      const marketplaceData = validation.data;
+      const userEmail = normalizeEmail(sessionUserEmail || marketplaceData.contactEmail.trim());
+      const userName =
+        sessionUserName ||
+        marketplaceData.contactName?.trim() ||
+        [marketplaceData.contactFirstName, marketplaceData.contactLastName].filter(Boolean).join(" ").trim();
+      const userImage = sessionUserImage;
+
+      if (!userEmail || !userName) {
+        return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
+      }
+
+      try {
+        const competitionId = await ensureDefaultCompetition();
+        const competition = await prisma.competition.findUnique({
+          where: { id: competitionId },
+          select: {
+            tenantId: true,
+            name: true,
+            year: true,
+            date: true,
+            dateEnd: true,
+            status: true,
+            registrationDeadline: true,
+            claimTokenExpiryMode: true,
+            claimTokenTtlDays: true,
+            registrationNotificationEmail: true,
+            tenant: {
+              select: {
+                name: true,
+                contactEmail: true,
+              },
+            },
+          },
+        });
+
+        if (!competition) {
+          return NextResponse.json({ error: 'Kein aktiver Wettkampf gefunden.' }, { status: 503 });
+        }
+
+        const registrationStatusAllowsSubmissions =
+          competition.status === "DRAFT" || competition.status === "OPEN";
+
+        if (!registrationStatusAllowsSubmissions) {
+          return NextResponse.json(
+            { error: 'Die Anmeldung ist für diesen Wettkampf aktuell geschlossen.' },
+            { status: 409 }
+          );
+        }
+
+        if (isRegistrationDeadlineReached(competition.registrationDeadline)) {
+          return NextResponse.json(
+            { error: 'Der Anmeldeschluss für diesen Wettkampf ist bereits erreicht.' },
+            { status: 409 }
+          );
+        }
+
+        const resolved = await resolveCurrentUser(session, { createIfMissing: !!sessionUserEmail });
+        let user = resolved.user;
+        if (!user) {
+          user = await prisma.user.findFirst({
+            where: {
+              deletedAt: null,
+              email: {
+                equals: userEmail,
+                mode: 'insensitive',
+              },
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+        }
+        if (!user) {
+          user = await prisma.user.create({
+            data: {
+              email: userEmail,
+              name: userName || null,
+              image: userImage || null,
+              authentikSub: sessionAuthentikSub,
+            }
+          });
+        }
+
+        const birthYear = extractBirthYearFromInput(marketplaceData.birthDate);
+        if (!birthYear) {
+          return NextResponse.json({ error: 'Geburtsdatum unplausibel.' }, { status: 400 });
+        }
+
+        const participantName = `${marketplaceData.contactFirstName} ${marketplaceData.contactLastName}`.trim();
+        const finalTeamName = `Sportlerbörse: ${participantName}`;
+        const team = await prisma.team.create({
+          data: {
+            name: finalTeamName,
+            contactName: userName || participantName,
+            contactEmail: userEmail,
+            clubName: marketplaceData.clubName?.trim() || null,
+            notes: marketplaceData.marketplaceMessage?.trim() || null,
+            teamPublicationLevel: "TEAM_ANONYM",
+            registrationMode: "MARKETPLACE",
+            marketplaceVisibility: marketplaceData.marketplaceVisibility,
+            marketplaceStatus: "NEW",
+            marketplaceMessage: marketplaceData.marketplaceMessage?.trim() || null,
+            classificationCode: "sportlerboerse",
+            totalAge: 2026 - birthYear,
+            competitionId,
+            ownerId: user.id,
+            teamChiefId: user.id,
+            participants: {
+              create: [{
+                firstName: marketplaceData.contactFirstName,
+                lastName: marketplaceData.contactLastName,
+                birthYear,
+                gender: mapGender(marketplaceData.gender),
+                disciplineCode: mapDiscipline(marketplaceData.discipline),
+                moderationNote: marketplaceData.marketplaceMessage?.trim() || null,
+                consentGiven: true,
+                email: userEmail,
+                participantPublicationPreference: marketplaceData.participantPublicationPreference,
+              }],
+            },
+          },
+          include: {
+            participants: true,
+            owner: { select: { email: true, name: true } }
+          },
+        });
+
+        const claimToken = createRegistrationClaimToken({
+          mode: competition.claimTokenExpiryMode || "COMPETITION_END",
+          ttlDays: competition.claimTokenTtlDays || null,
+          registrationDeadline: competition.registrationDeadline || null,
+          competitionEnd: competition.dateEnd || competition.date || null,
+          maxExpiresAt: null,
+        });
+        await prisma.registrationClaimToken.create({
+          data: {
+            teamId: team.id,
+            tokenHash: claimToken.tokenHash,
+            suggestedEmail: userEmail,
+            suggestedName: userName || null,
+            expiresAt: claimToken.expiresAt,
+            claimedAt: sessionUserEmail ? new Date() : null,
+            claimedByUserId: sessionUserEmail ? user.id : null,
+          },
+        });
+
+        await syncDerivedTeamchefRole(prisma, {
+          userId: user.id,
+          tenantId: competition.tenantId,
+        });
+
+        const claimUrl = buildRegistrationClaimUrl(claimToken.rawToken);
+        const portalUrl = buildPortalHomeUrl();
+        const mailSummary = await sendTeamRegistrationEmails({
+          competition,
+          team: {
+            name: finalTeamName,
+            registrationMode: "MARKETPLACE",
+            marketplaceVisibility: marketplaceData.marketplaceVisibility,
+            marketplaceStatus: "NEW",
+            marketplaceMessage: marketplaceData.marketplaceMessage?.trim() || null,
+            classificationCode: "sportlerboerse",
+            contactName: userName || participantName,
+            contactEmail: userEmail,
+            claimUrl,
+            portalUrl,
+            alreadyLinked: !!sessionUserEmail,
+            participants: team.participants.map((participant) => ({
+              firstName: participant.firstName,
+              lastName: participant.lastName,
+              birthYear: participant.birthYear,
+              gender: participant.gender,
+              disciplineCode: participant.disciplineCode,
+              shirtSize: participant.shirtSize,
+            })),
+          },
+        });
+
+        if (!mailSummary.ok) {
+          console.warn("Marketplace registration mail delivery incomplete", {
+            teamId: team.id,
+            competitionId,
+            attempts: mailSummary.attempts,
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Sportlerbörse-Meldung für "${participantName}" erfolgreich übermittelt.`,
+          mail: mailSummary,
+          team: serializeTeam(team),
+        });
+      } catch (dbError) {
+        console.error('Database error on marketplace POST:', dbError);
+        return NextResponse.json(
+          { error: 'Datenbankfehler bei der Sportlerbörse-Anmeldung. Bitte versuche es erneut.' },
+          { status: 500 }
+        );
+      }
+    }
     
     const validation = TeamRegistrationSchema.safeParse(body);
     if (!validation.success) {
@@ -593,6 +811,7 @@ export async function POST(request: NextRequest) {
           where: {
             competitionId,
             deletedAt: null,
+            registrationMode: "TEAM",
           },
         });
 

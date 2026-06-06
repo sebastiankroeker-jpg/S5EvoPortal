@@ -170,6 +170,12 @@ const participantPublicationPreferenceEnum = z.enum([
   "NAME_VERBERGEN",
   "NAME_VEROEFFENTLICHEN",
 ] as const);
+const marketplaceVisibilityEnum = z.enum([
+  "PUBLIC",
+  "MARKETPLACE_USERS",
+  "PORTAL_USERS",
+  "ADMIN_MANAGEMENT_ONLY",
+] as const);
 
 export const TEAM_PUBLICATION_OPTIONS = [
   { id: "TEAM_ANONYM", label: "Team anonym" },
@@ -180,6 +186,21 @@ export const TEAM_PUBLICATION_OPTIONS = [
 export const PARTICIPANT_PUBLICATION_OPTIONS = [
   { id: "NAME_VERBERGEN", label: "Namen nicht veröffentlichen" },
   { id: "NAME_VEROEFFENTLICHEN", label: "Namen veröffentlichen" },
+] as const;
+
+export const MARKETPLACE_VISIBILITY_OPTIONS = [
+  { id: "PUBLIC", label: "Öffentlich einsehbar" },
+  { id: "MARKETPLACE_USERS", label: "Nur für Sport-Börsianer einsehbar" },
+  { id: "PORTAL_USERS", label: "Für Wettkampf-/Portal-User sichtbar" },
+  { id: "ADMIN_MANAGEMENT_ONLY", label: "Nur für Admins/MGMT sichtbar" },
+] as const;
+
+export const MARKETPLACE_STATUS_OPTIONS = [
+  { id: "NEW", label: "Neu" },
+  { id: "REVIEWED", label: "Geprüft" },
+  { id: "MATCHING", label: "In Vermittlung" },
+  { id: "MATCHED", label: "Vermittelt" },
+  { id: "WITHDRAWN", label: "Zurückgezogen" },
 ] as const;
 
 export const ParticipantSchema = z.object({
@@ -210,9 +231,30 @@ export const TeamRegistrationSchema = z.object({
     .length(5, "Es müssen genau 5 Teilnehmer erfasst werden"),
 });
 
+export const MarketplaceRegistrationSchema = z.object({
+  registrationMode: z.literal("MARKETPLACE"),
+  contactFirstName: z.string().min(2, "Vorname zu kurz"),
+  contactLastName: z.string().min(2, "Nachname zu kurz"),
+  contactName: z.string().min(2, "Kontaktname zu kurz").optional().or(z.literal("")),
+  contactEmail: z.string().email("Ungültige Kontakt-E-Mail"),
+  birthDate: z
+    .string()
+    .min(1, "Geburtsdatum fehlt")
+    .refine((value) => extractBirthYearFromInput(value) !== null, "Geburtsdatum unplausibel"),
+  gender: z.enum(["M", "W"]),
+  discipline: disciplineEnum.default(DISCIPLINE_PLACEHOLDER),
+  clubName: z.string().max(120, "Verein zu lang").optional().or(z.literal("")),
+  marketplaceVisibility: marketplaceVisibilityEnum.default("ADMIN_MANAGEMENT_ONLY"),
+  participantPublicationPreference: participantPublicationPreferenceEnum.default("NAME_VERBERGEN"),
+  marketplaceMessage: z.string().max(3000, "Nachricht zu lang").optional().or(z.literal("")),
+});
+
 export type ParticipantInput = z.output<typeof ParticipantSchema>;
 export type TeamRegistrationInput = z.output<typeof TeamRegistrationSchema>;
 export type TeamRegistrationFormInput = z.input<typeof TeamRegistrationSchema>;
+export type MarketplaceRegistrationInput = z.output<typeof MarketplaceRegistrationSchema>;
+export type MarketplaceVisibilityId = z.output<typeof marketplaceVisibilityEnum>;
+export type MarketplaceStatusId = (typeof MARKETPLACE_STATUS_OPTIONS)[number]["id"];
 
 export function formatTeamRegistrationValidationIssues(issues: z.ZodIssue[]) {
   const fieldLabels: Record<string, string> = {
@@ -231,6 +273,8 @@ export function formatTeamRegistrationValidationIssues(issues: z.ZodIssue[]) {
     email: "E-Mail",
     moderationNote: "Moderationshinweis",
     participantPublicationPreference: "Namensveröffentlichung",
+    marketplaceVisibility: "Sichtbarkeit",
+    marketplaceMessage: "Nachricht an Admins",
   };
 
   const messages = issues.map((issue) => {

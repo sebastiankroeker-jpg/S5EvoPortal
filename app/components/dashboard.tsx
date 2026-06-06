@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   DISCIPLINES,
+  MARKETPLACE_STATUS_OPTIONS,
+  MARKETPLACE_VISIBILITY_OPTIONS,
   PARTICIPANT_PUBLICATION_OPTIONS,
   TEAM_PUBLICATION_OPTIONS,
   formatBirthDateInput,
@@ -66,6 +68,10 @@ interface Team {
   id: string;
   name: string;
   teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH";
+  registrationMode?: "TEAM" | "MARKETPLACE";
+  marketplaceVisibility?: "PUBLIC" | "MARKETPLACE_USERS" | "PORTAL_USERS" | "ADMIN_MANAGEMENT_ONLY";
+  marketplaceStatus?: "NEW" | "REVIEWED" | "MATCHING" | "MATCHED" | "WITHDRAWN";
+  marketplaceMessage?: string;
   category: string;
   contactName: string;
   contactEmail: string;
@@ -625,6 +631,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
+  const [marketplaceOnly, setMarketplaceOnly] = useState(false);
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
@@ -741,6 +748,27 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       console.error('Failed to edit team:', error);
       notifications.error(
         "Fehler beim Speichern des Teams",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    }
+  };
+
+  const handleMarketplaceStatusChange = async (teamId: string, marketplaceStatus: NonNullable<Team["marketplaceStatus"]>) => {
+    try {
+      const response = await fetch(`/api/teams/${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marketplaceStatus }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Status konnte nicht gespeichert werden.");
+      }
+      await fetchTeams();
+      notifications.success("Sportlerbörse aktualisiert", "Der Status wurde gespeichert.");
+    } catch (error) {
+      notifications.error(
+        "Status konnte nicht gespeichert werden",
         error instanceof Error ? error.message : "Bitte versuche es erneut.",
       );
     }
@@ -906,6 +934,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
       const matchesOwnTeam = !ownTeamsOnly || team.isCurrentUserTeam === true;
       const matchesCompleteness =
         !incompleteOnly || (canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team));
+      const matchesMarketplace = !marketplaceOnly || team.registrationMode === "MARKETPLACE";
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = getDateTimeFilterTimestamp(createdFrom);
       const createdToMs = getDateTimeFilterTimestamp(createdTo);
@@ -922,9 +951,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
         ) ?? false);
       
-      return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesCreatedAt && matchesSearch;
+      return matchesCategory && matchesOwner && matchesOwnTeam && matchesCompleteness && matchesMarketplace && matchesCreatedAt && matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -1010,6 +1039,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     (showOwnerFilter && ownerFilter !== "all") ||
     ownTeamsOnly ||
     incompleteOnly ||
+    marketplaceOnly ||
     (isAdmin && createdFrom !== "") ||
     (isAdmin && createdTo !== "");
   const activeFilterCount = [
@@ -1018,6 +1048,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     showOwnerFilter && ownerFilter !== "all",
     ownTeamsOnly,
     incompleteOnly,
+    marketplaceOnly,
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
@@ -1030,6 +1061,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
     setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
     setOwnTeamsOnly(false);
     setIncompleteOnly(false);
+    setMarketplaceOnly(false);
     setCreatedFrom("");
     setCreatedTo("");
   };
@@ -1240,6 +1272,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                   <Badge variant={incompleteOnly ? "secondary" : "outline"}>{incompleteTeams}</Badge>
                 </Button>
               </div>
+
+              {isAdmin && (
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Sportlerbörse</label>
+                  <Button
+                    variant={marketplaceOnly ? "default" : "outline"}
+                    className="w-full justify-between"
+                    onClick={() => setMarketplaceOnly((current) => !current)}
+                  >
+                    {marketplaceOnly ? "Nur Börse" : "Alle Meldungen"}
+                    <Badge variant={marketplaceOnly ? "secondary" : "outline"}>
+                      {teams.filter((team) => team.registrationMode === "MARKETPLACE").length}
+                    </Badge>
+                  </Button>
+                </div>
+              )}
 
               {isAdmin && (
                 <div className="min-w-0 space-y-1">
@@ -1459,7 +1507,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
               </thead>
               <tbody>
                 {sortedTeams.map((team) => {
-                  const isEditable = team.canCurrentUserEdit === true;
+                  const isEditable = team.canCurrentUserEdit === true && team.registrationMode !== "MARKETPLACE";
 
                   return (
                     <tr key={team.id} className="border-b border-border/50 align-top transition-colors hover:bg-muted/20">
@@ -1467,6 +1515,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                         <div className="space-y-1">
                           <div className="font-medium">{team.name}</div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            {team.registrationMode === "MARKETPLACE" && (
+                              <Badge variant="secondary" className="gap-1">
+                                Sportlerbörse
+                              </Badge>
+                            )}
                             <Badge variant="outline" className="gap-1">
                               <span>{categoryEmojis[team.category] || "🏆"}</span>
                               {team.category}
@@ -1585,6 +1638,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                               <span>{categoryEmojis[team.category] || "🏆"}</span>
                               {team.category}
                             </Badge>
+                            {team.registrationMode === "MARKETPLACE" && (
+                              <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-[10px]">
+                                Sportlerbörse
+                              </Badge>
+                            )}
                             {team.isCurrentUserTeam && (
                               <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
                                 <Star className="size-3" />
@@ -1702,9 +1760,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                 <span>{categoryEmojis[team.category] || "🏆"}</span>
                                 {team.category}
                               </Badge>
+                              {team.registrationMode === "MARKETPLACE" && (
+                                <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-[10px]">
+                                  Sportlerbörse
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
-                              {team.canCurrentUserEdit && (
+                              {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
                                 <Button
                                   size="xs"
                                   variant="outline"
@@ -1758,6 +1821,37 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                                   <Star className="size-3" />
                                   Eigenes Team
                                 </Badge>
+                              )}
+                            </div>
+                          )}
+
+                          {showAdminDashboardInfo && team.registrationMode === "MARKETPLACE" && (
+                            <div className="rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Select
+                                  value={team.marketplaceStatus || "NEW"}
+                                  onValueChange={(value) =>
+                                    handleMarketplaceStatusChange(team.id, value as NonNullable<Team["marketplaceStatus"]>)
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-[150px] bg-background text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {MARKETPLACE_STATUS_OPTIONS.map((option) => (
+                                      <SelectItem key={option.id} value={option.id}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Badge variant="outline">
+                                  {MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === team.marketplaceVisibility)?.label || "Nur für Admins/MGMT sichtbar"}
+                                </Badge>
+                                {team.contactEmail && <span className="text-muted-foreground">{team.contactEmail}</span>}
+                              </div>
+                              {team.marketplaceMessage?.trim() && (
+                                <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{team.marketplaceMessage}</p>
                               )}
                             </div>
                           )}
@@ -1927,7 +2021,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter }: Dashboard
                           )}
 
                           <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2 sm:flex-row sm:items-center sm:justify-end">
-                            {team.canCurrentUserEdit && (
+                            {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
                               <>
                                 <Button
                                   size="sm"

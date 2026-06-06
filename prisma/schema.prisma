@@ -188,6 +188,26 @@ enum TeamMemberRoleType {
   TEAM_MANAGER
 }
 
+enum TeamRegistrationMode {
+  TEAM
+  MARKETPLACE
+}
+
+enum MarketplaceVisibility {
+  PUBLIC
+  MARKETPLACE_USERS
+  PORTAL_USERS
+  ADMIN_MANAGEMENT_ONLY
+}
+
+enum MarketplaceStatus {
+  NEW
+  REVIEWED
+  MATCHING
+  MATCHED
+  WITHDRAWN
+}
+
 // ==================== TENANT ====================
 
 model Tenant {
@@ -325,6 +345,10 @@ model Team {
   clubName             String?
   notes                String?
   teamPublicationLevel TeamPublicationLevel @default(TEAM_ANONYM)
+  registrationMode     TeamRegistrationMode @default(TEAM)
+  marketplaceVisibility MarketplaceVisibility @default(ADMIN_MANAGEMENT_ONLY)
+  marketplaceStatus    MarketplaceStatus    @default(NEW)
+  marketplaceMessage   String?
   approved             Boolean              @default(false)
   totalAge             Int?
   classificationCode   String?
@@ -347,6 +371,8 @@ model Team {
   @@index([competitionId, deletedAt])
   @@index([ownerId, deletedAt])
   @@index([teamChiefId, deletedAt])
+  @@index([registrationMode, marketplaceStatus])
+  @@index([marketplaceVisibility])
   @@index([contactEmail])
   @@index([updatedAt])
   @@map("teams")

@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
       where: {
         competitionId: competition.id,
         deletedAt: null,
+        registrationMode: "TEAM",
       },
     });
 

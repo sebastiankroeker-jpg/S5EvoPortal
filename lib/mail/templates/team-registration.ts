@@ -14,6 +14,10 @@ type TemplateInput = {
   competitionName: string;
   competitionYear: number;
   teamName: string;
+  registrationMode?: "TEAM" | "MARKETPLACE";
+  marketplaceVisibility?: string | null;
+  marketplaceStatus?: string | null;
+  marketplaceMessage?: string | null;
   classificationCode: string;
   contactName: string;
   contactEmail: string;
@@ -29,6 +33,12 @@ const disciplineLabels = Object.fromEntries(
 );
 
 const shirtLabels = Object.fromEntries(SHIRT_SIZES.map((size) => [size.id, size.label]));
+const visibilityLabels: Record<string, string> = {
+  PUBLIC: "Öffentlich einsehbar",
+  MARKETPLACE_USERS: "Nur für Sport-Börsianer einsehbar",
+  PORTAL_USERS: "Für Wettkampf-/Portal-User sichtbar",
+  ADMIN_MANAGEMENT_ONLY: "Nur für Admins/MGMT sichtbar",
+};
 const paymentDetailsLines = [
   "Bitte überweisen Sie die Startgebühr auf folgendes Konto:",
   "ESV Bad Bayersoien e. V.",
@@ -113,7 +123,10 @@ function paymentDetailsText() {
 }
 
 export function buildRegistrantConfirmationMail(input: TemplateInput) {
-  const subject = `Soier 5kampf Anmeldung erhalten: ${input.teamName}`;
+  const isMarketplace = input.registrationMode === "MARKETPLACE";
+  const subject = isMarketplace
+    ? `Soier 5kampf Sportlerbörse erhalten: ${input.teamName}`
+    : `Soier 5kampf Anmeldung erhalten: ${input.teamName}`;
   const portalBlockHtml =
     input.alreadyLinked && input.portalUrl
       ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Deine Mannschaft ist bereits verknüpft</strong></p><p style="margin:0 0 10px 0;">Die Anmeldung ist schon mit deinem Portal-Konto verbunden. Weitere Änderungen kannst du direkt im Portal vornehmen.</p><p style="margin:0 0 14px 0;"><a href="${input.portalUrl}" style="display:inline-block;padding:10px 16px;background:#dcfce7;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Portal öffnen</a></p><p style="margin:0;font-size:14px;color:#555;">Dort kannst du deine Mannschaft prüfen und Änderungen bis zum Anmeldeschluss direkt online einreichen.</p></div>`
@@ -127,15 +140,14 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
     subject,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">
-        <h2>Danke, deine Anmeldung ist eingegangen.</h2>
+        <h2>Danke, deine ${isMarketplace ? "Sportlerbörsen-Meldung" : "Anmeldung"} ist eingegangen.</h2>
         <p>Hallo ${input.contactName || "Team"},</p>
-        <p>wir haben die Anmeldung für <strong>${input.teamName}</strong> zum <strong>${registrantCompetitionLabel}</strong> erhalten.</p>
-        <p><strong>Klasse:</strong> ${input.classificationCode}</p>
+        <p>wir haben ${isMarketplace ? "deine Meldung für die Sportlerbörse" : `die Anmeldung für <strong>${input.teamName}</strong>`} zum <strong>${registrantCompetitionLabel}</strong> erhalten.</p>
+        ${isMarketplace ? `<p><strong>Sichtbarkeit:</strong> ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}</p>` : `<p><strong>Klasse:</strong> ${input.classificationCode}</p>`}
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
-        <h3>Teilnehmer</h3>
+        <h3>${isMarketplace ? "Sportler:in" : "Teilnehmer"}</h3>
         ${participantTableHtml(input.participants)}
-        <p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>
-        ${paymentDetailsHtml()}
+        ${isMarketplace ? `<p><strong>Status:</strong> Die Meldung ist eingegangen und wird durch die Orga geprüft.</p>` : `<p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>${paymentDetailsHtml()}`}
         ${portalBlockHtml}
         ${claimBlockHtml}
         <p>Viele Grüße<br />${input.tenantName}</p>
@@ -144,15 +156,16 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
     text: [
       `Hallo ${input.contactName || "Team"},`,
       "",
-      `wir haben die Anmeldung für ${input.teamName} zum ${registrantCompetitionLabel} erhalten.`,
-      `Klasse: ${input.classificationCode}`,
+      `wir haben ${isMarketplace ? "deine Meldung für die Sportlerbörse" : `die Anmeldung für ${input.teamName}`} zum ${registrantCompetitionLabel} erhalten.`,
+      isMarketplace ? `Sichtbarkeit: ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}` : `Klasse: ${input.classificationCode}`,
       `Kontakt: ${input.contactName} (${input.contactEmail})`,
       "",
-      "Teilnehmer:",
+      isMarketplace ? "Sportler:in:" : "Teilnehmer:",
       participantListText(input.participants),
       "",
-      "Wichtig: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.",
-      paymentDetailsText(),
+      ...(isMarketplace
+        ? ["Status: Die Meldung ist eingegangen und wird durch die Orga geprüft."]
+        : ["Wichtig: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.", paymentDetailsText()]),
       ...(input.alreadyLinked && input.portalUrl
         ? [
             "",
@@ -181,39 +194,40 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
 }
 
 export function buildOrgNotificationMail(input: TemplateInput) {
-  const subject = `Neue Anmeldung: ${input.teamName} (${input.competitionYear})`;
+  const isMarketplace = input.registrationMode === "MARKETPLACE";
+  const subject = isMarketplace
+    ? `Neue Sportlerbörse-Meldung: ${input.teamName} (${input.competitionYear})`
+    : `Neue Anmeldung: ${input.teamName} (${input.competitionYear})`;
 
   return {
     subject,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">
-        <h2>Neue Mannschaftsanmeldung</h2>
+        <h2>${isMarketplace ? "Neue Sportlerbörse-Meldung" : "Neue Mannschaftsanmeldung"}</h2>
         <p><strong>Wettkampf:</strong> ${input.competitionName}</p>
-        <p><strong>Team:</strong> ${input.teamName}</p>
-        <p><strong>Klasse:</strong> ${input.classificationCode}</p>
+        <p><strong>${isMarketplace ? "Eintrag" : "Team"}:</strong> ${input.teamName}</p>
+        ${isMarketplace ? `<p><strong>Sichtbarkeit:</strong> ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}</p>` : `<p><strong>Klasse:</strong> ${input.classificationCode}</p>`}
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
-        <h3>Teilnehmer</h3>
+        ${isMarketplace && input.marketplaceMessage ? `<h3>Nachricht an Admins</h3><p style="white-space:pre-wrap;">${input.marketplaceMessage}</p>` : ""}
+        <h3>${isMarketplace ? "Sportler:in" : "Teilnehmer"}</h3>
         ${participantTableHtml(input.participants)}
-        <h3>T-Shirt-Größen</h3>
-        <ul>${shirtSizeListHtml(input.participants)}</ul>
+        ${isMarketplace ? "" : `<h3>T-Shirt-Größen</h3><ul>${shirtSizeListHtml(input.participants)}</ul>`}
         ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Claim-Link für Supportfälle</strong></p><p style="margin:0 0 8px 0;">Der Link ordnet die bestehende Anmeldung dem Portal-Konto mit <strong>${input.contactEmail}</strong> zu.</p><p style="margin:0;word-break:break-all;"><a href="${input.claimUrl}" style="color:#dc2626;text-decoration:none;">${input.claimUrl}</a></p></div>` : ""}
-        <p><strong>Hinweis:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>
-        ${paymentDetailsHtml()}
+        ${isMarketplace ? "" : `<p><strong>Hinweis:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>${paymentDetailsHtml()}`}
       </div>
     `.trim(),
     text: [
-      "Neue Mannschaftsanmeldung",
+      isMarketplace ? "Neue Sportlerbörse-Meldung" : "Neue Mannschaftsanmeldung",
       "",
       `Wettkampf: ${input.competitionName}`,
-      `Team: ${input.teamName}`,
-      `Klasse: ${input.classificationCode}`,
+      `${isMarketplace ? "Eintrag" : "Team"}: ${input.teamName}`,
+      isMarketplace ? `Sichtbarkeit: ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}` : `Klasse: ${input.classificationCode}`,
       `Kontakt: ${input.contactName} (${input.contactEmail})`,
+      ...(isMarketplace && input.marketplaceMessage ? ["", "Nachricht an Admins:", input.marketplaceMessage] : []),
       "",
-      "Teilnehmer:",
+      isMarketplace ? "Sportler:in:" : "Teilnehmer:",
       participantListText(input.participants),
-      "",
-      "T-Shirt-Größen:",
-      shirtSizeListText(input.participants),
+      ...(isMarketplace ? [] : ["", "T-Shirt-Größen:", shirtSizeListText(input.participants)]),
       ...(input.claimUrl
         ? [
             "",
@@ -222,9 +236,7 @@ export function buildOrgNotificationMail(input: TemplateInput) {
             `- Link: ${input.claimUrl}`,
           ]
         : []),
-      "",
-      "Hinweis: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.",
-      paymentDetailsText(),
+      ...(isMarketplace ? [] : ["", "Hinweis: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.", paymentDetailsText()]),
     ].join("\n"),
   };
 }

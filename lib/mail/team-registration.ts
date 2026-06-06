@@ -13,6 +13,10 @@ type CompetitionMailConfig = {
 
 type TeamMailPayload = {
   name: string;
+  registrationMode?: "TEAM" | "MARKETPLACE";
+  marketplaceVisibility?: string | null;
+  marketplaceStatus?: string | null;
+  marketplaceMessage?: string | null;
   classificationCode?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
@@ -93,6 +97,10 @@ export async function sendTeamRegistrationEmails({
     competitionName: competition.name,
     competitionYear: competition.year,
     teamName: team.name,
+    registrationMode: team.registrationMode || "TEAM",
+    marketplaceVisibility: team.marketplaceVisibility,
+    marketplaceStatus: team.marketplaceStatus,
+    marketplaceMessage: team.marketplaceMessage,
     classificationCode: team.classificationCode || "unclassified",
     contactName: team.contactName || "Team",
     contactEmail: team.contactEmail,

@@ -179,6 +179,10 @@ type SerializableTeam = {
   id: string;
   name: string;
   teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH" | null;
+  registrationMode?: "TEAM" | "MARKETPLACE" | null;
+  marketplaceVisibility?: "PUBLIC" | "MARKETPLACE_USERS" | "PORTAL_USERS" | "ADMIN_MANAGEMENT_ONLY" | null;
+  marketplaceStatus?: "NEW" | "REVIEWED" | "MATCHING" | "MATCHED" | "WITHDRAWN" | null;
+  marketplaceMessage?: string | null;
   classificationCode?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
@@ -297,6 +301,10 @@ function serializeTeam(
     id: team.id,
     name: visibleTeamName,
     teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
+    registrationMode: team.registrationMode ?? "TEAM",
+    marketplaceVisibility: team.marketplaceVisibility ?? "ADMIN_MANAGEMENT_ONLY",
+    marketplaceStatus: team.marketplaceStatus ?? "NEW",
+    marketplaceMessage: canSeeSensitiveParticipantFields ? team.marketplaceMessage ?? "" : "",
     category: team.classificationCode ?? "unclassified",
     contactName: canSeeFullTeamPublication ? team.contactName ?? team.owner?.name ?? "" : "",
     contactEmail: canSeeFullTeamPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
@@ -416,6 +424,115 @@ export async function GET(
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'API temporarily unavailable' }, { status: 503 });
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email;
+
+    if (!userEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+
+    const existingTeam = await prisma.team.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        competition: { select: { tenantId: true } },
+        participants: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            pendingChanges: {
+              orderBy: { updatedAt: 'desc' },
+              take: 1,
+              select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
+            }
+          },
+        },
+        owner: { select: { email: true, name: true } },
+      },
+    });
+
+    if (!existingTeam) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+    }
+
+    const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId, session);
+    if (!access.canEditAllTeams) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const allowedStatuses = new Set(["NEW", "REVIEWED", "MATCHING", "MATCHED", "WITHDRAWN"]);
+    const allowedVisibilities = new Set(["PUBLIC", "MARKETPLACE_USERS", "PORTAL_USERS", "ADMIN_MANAGEMENT_ONLY"]);
+    const data: Prisma.TeamUpdateInput = {};
+
+    if (typeof body.marketplaceStatus === "string") {
+      if (!allowedStatuses.has(body.marketplaceStatus)) {
+        return NextResponse.json({ error: 'Ungültiger Sportlerbörse-Status.' }, { status: 400 });
+      }
+      data.marketplaceStatus = body.marketplaceStatus;
+    }
+
+    if (typeof body.marketplaceVisibility === "string") {
+      if (!allowedVisibilities.has(body.marketplaceVisibility)) {
+        return NextResponse.json({ error: 'Ungültige Sichtbarkeit.' }, { status: 400 });
+      }
+      data.marketplaceVisibility = body.marketplaceVisibility;
+    }
+
+    if (typeof body.marketplaceMessage === "string") {
+      data.marketplaceMessage = body.marketplaceMessage.trim() || null;
+      data.notes = body.marketplaceMessage.trim() || null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: 'Keine Änderungen übermittelt.' }, { status: 400 });
+    }
+
+    const updatedTeam = await prisma.team.update({
+      where: { id },
+      data,
+      include: {
+        participants: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            pendingChanges: {
+              orderBy: { updatedAt: 'desc' },
+              take: 1,
+              select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
+            }
+          },
+        },
+        owner: { select: { email: true, name: true } },
+        memberRoles: {
+          where: { role: "TEAM_MANAGER", revokedAt: null },
+          select: { userId: true, revokedAt: true },
+        },
+      },
+    });
+
+    const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+    return NextResponse.json({
+      team: serializeTeam(updatedTeam, {
+        currentUserId: user?.id ?? null,
+        currentUserEmail: normalizeEmail(userEmail),
+        canSeeFullPublication: true,
+        canEditAllTeams: true,
+        canSeeSensitiveParticipantFields: true,
+      }),
+    });
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ error: 'Failed to update marketplace metadata' }, { status: 500 });
   }
 }
 

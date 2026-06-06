@@ -79,7 +79,13 @@ const FLYER_INFO_2026 = {
   ],
 };
 
-function FlyerInfoCard({ onRegisterClick }: { onRegisterClick?: () => void }) {
+function FlyerInfoCard({
+  onRegisterClick,
+  onMarketplaceClick,
+}: {
+  onRegisterClick?: () => void;
+  onMarketplaceClick?: () => void;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -117,6 +123,16 @@ function FlyerInfoCard({ onRegisterClick }: { onRegisterClick?: () => void }) {
                 className="h-12 w-full"
               >
                 📋 Mannschaft anmelden
+              </Button>
+            )}
+            {onMarketplaceClick && (
+              <Button
+                type="button"
+                onClick={onMarketplaceClick}
+                variant="outline"
+                className="h-12 w-full"
+              >
+                🧩 Zur Sportlerbörse
               </Button>
             )}
           </div>
@@ -298,6 +314,13 @@ export default function HomeScreen() {
               >
                 📋 Mannschaft anmelden
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => window.location.href = '/sportlerboerse'}
+                className="h-10 w-full bg-background/80"
+              >
+                🧩 Zur Sportlerbörse
+              </Button>
               <div className="space-y-2">
                 <Button
                   variant="ghost"
@@ -335,7 +358,10 @@ export default function HomeScreen() {
         </Card>
 
         <div className="max-w-3xl mx-auto">
-          <FlyerInfoCard onRegisterClick={() => { window.location.href = "/anmeldung"; }} />
+          <FlyerInfoCard
+            onRegisterClick={() => { window.location.href = "/anmeldung"; }}
+            onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
+          />
         </div>
       </motion.div>
     );
@@ -387,7 +413,10 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      <FlyerInfoCard onRegisterClick={() => handleQuickAction("registration")} />
+      <FlyerInfoCard
+        onRegisterClick={() => handleQuickAction("registration")}
+        onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
+      />
 
       {/* Stats Overview */}
       {teamStats && (
