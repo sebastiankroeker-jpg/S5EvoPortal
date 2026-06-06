@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
 type MailEventStatus = "sent" | "skipped" | "failed" | "generated" | "unknown";
-type MailEventSource = "team_lifecycle" | "participant_claim";
+type MailEventSource = "team_lifecycle" | "participant_claim" | "participant_change";
 
 type MailEvent = {
   id: string;
@@ -90,8 +90,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ events: [], summary: { total: 0, sent: 0, generated: 0, issues: 0 } });
   }
 
-  const [lifecycleEvents, participantClaimEvents] = await Promise.all([
-    sourceFilter === "participant_claim"
+  const [lifecycleEvents, participantChangeEvents, participantClaimEvents] = await Promise.all([
+    sourceFilter !== "all" && sourceFilter !== "team_lifecycle"
       ? Promise.resolve([])
       : prisma.auditEvent.findMany({
           where: {
@@ -113,7 +113,29 @@ export async function GET(request: NextRequest) {
             actor: { select: { name: true, email: true } },
           },
         }),
-    sourceFilter === "team_lifecycle"
+    sourceFilter !== "all" && sourceFilter !== "participant_change"
+      ? Promise.resolve([])
+      : prisma.auditEvent.findMany({
+          where: {
+            tenantId: auth.tenantId,
+            ...(competitionId ? { competitionId } : {}),
+            action: "PARTICIPANT_CHANGE_MAIL",
+            scopeType: "TEAM",
+            scopeId: { in: teamIds },
+          },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          select: {
+            id: true,
+            createdAt: true,
+            scopeId: true,
+            reason: true,
+            afterData: true,
+            meta: true,
+            actor: { select: { name: true, email: true } },
+          },
+        }),
+    sourceFilter !== "all" && sourceFilter !== "participant_claim"
       ? Promise.resolve([])
       : prisma.participantClaimAuditEvent.findMany({
           where: {
@@ -165,6 +187,39 @@ export async function GET(request: NextRequest) {
         teamName: stringValue(meta, "teamName") || teamNameById.get(event.scopeId) || null,
         actor,
         detail: stringValue(afterData, "error") || stringValue(afterData, "reason") || event.reason,
+      };
+    }),
+    ...participantChangeEvents.map((event) => {
+      const afterData = asRecord(event.afterData);
+      const meta = asRecord(event.meta);
+      const status = normalizeStatus(stringValue(afterData, "mailStatus"));
+      const template = stringValue(afterData, "template");
+      const actor = event.actor?.name || event.actor?.email || null;
+      const context = stringValue(meta, "context");
+      const participantName = stringValue(meta, "participantName");
+      const titlePrefix =
+        template === "participant-direct-change"
+          ? "Teilnehmer-Direktänderung"
+          : template === "participant-change-decision"
+            ? "Review-Entscheidung"
+            : template === "participant-claim-invitation"
+              ? "Teilnehmer-Einladung"
+              : "Teilnehmer-Änderung";
+
+      return {
+        id: `participant-change:${event.id}`,
+        createdAt: event.createdAt.toISOString(),
+        source: "participant_change" as const,
+        title: context === "MARKETPLACE" ? `${titlePrefix} Sportler-Börse` : titlePrefix,
+        status,
+        recipients: stringArrayValue(afterData, "recipients"),
+        subject: null,
+        teamName: stringValue(meta, "teamName") || teamNameById.get(event.scopeId) || null,
+        actor,
+        detail: [
+          participantName ? `Teilnehmer: ${participantName}` : null,
+          stringValue(afterData, "reason") || event.reason,
+        ].filter(Boolean).join(" · ") || null,
       };
     }),
     ...participantClaimEvents.map((event) => {

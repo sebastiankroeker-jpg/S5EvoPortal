@@ -8,6 +8,7 @@ import {
   buildParticipantReviewDecisionResult,
   resolveParticipantEditContext,
 } from "@/lib/participant-edit-result";
+import { buildParticipantNotificationAuditEvents } from "@/lib/participant-notification-audit";
 
 const baseMarketplaceRegistration = {
   registrationMode: "MARKETPLACE",
@@ -81,6 +82,28 @@ const rejectedBundle = buildParticipantReviewDecisionResult({
 });
 assert.equal(rejectedBundle.count, 2);
 assert.equal(rejectedBundle.notifications[0].status, "skipped");
+
+const notificationAuditEvents = buildParticipantNotificationAuditEvents({
+  tenantId: "tenant-1",
+  competitionId: "competition-1",
+  teamId: "team-1",
+  teamName: "Sportlerboerse Mara",
+  participantId: "participant-marketplace",
+  participantName: "Mara Boerse",
+  context: "MARKETPLACE",
+  actorId: "admin-1",
+  reason: "participant_change_approved",
+  notifications: marketplaceDecision.notifications,
+});
+assert.equal(notificationAuditEvents.length, 1);
+assert.equal(notificationAuditEvents[0].action, "PARTICIPANT_CHANGE_MAIL");
+assert.equal(notificationAuditEvents[0].scopeType, "TEAM");
+assert.equal(notificationAuditEvents[0].entityType, "PARTICIPANT");
+assert.deepEqual(notificationAuditEvents[0].meta, {
+  teamName: "Sportlerboerse Mara",
+  participantName: "Mara Boerse",
+  context: "MARKETPLACE",
+});
 
 const claimNotification = buildParticipantClaimNotificationResult({
   status: "sent",

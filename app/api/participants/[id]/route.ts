@@ -33,6 +33,7 @@ import {
   type EditParticipantFieldDecision,
   type EditParticipantNotificationResult,
 } from "@/lib/participant-edit-result";
+import { recordParticipantNotificationAuditEvents } from "@/lib/participant-notification-audit";
 import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
@@ -298,6 +299,24 @@ export async function PUT(
   const changedFields = diffParticipantSnapshots(currentSnapshot, requestedSnapshot);
   const changedFieldKeys = Object.keys(changedFields) as ParticipantChangeField[];
   const editContext = resolveParticipantEditContext(participant.team.registrationMode);
+  const recordParticipantMailAudit = async (reason: string, notifications: EditParticipantNotificationResult[]) => {
+    try {
+      await recordParticipantNotificationAuditEvents(prisma, {
+        tenantId: participant.team.competition.tenantId,
+        competitionId: participant.team.competition.id,
+        teamId: participant.team.id,
+        teamName: participant.team.name,
+        participantId: participant.id,
+        participantName: `${participant.firstName} ${participant.lastName}`.trim(),
+        context: editContext,
+        actorId: user.id,
+        reason,
+        notifications,
+      });
+    } catch (auditError) {
+      console.error("Participant change mail audit failed", auditError);
+    }
+  };
 
   if (!isAdmin && changedFields.disciplineCode) {
     const editResult = buildParticipantEditResult({
@@ -577,6 +596,7 @@ export async function PUT(
         },
         changeSummary: directChangeSummary,
       });
+      await recordParticipantMailAudit("participant_direct_change", notifications);
     }
 
     return NextResponse.json({
@@ -806,6 +826,7 @@ export async function PUT(
       },
       changeSummary: approvalChangeSummary,
     });
+    await recordParticipantMailAudit("participant_change_submitted", notifications);
   }
 
   const reviewFields = approvalChangeSummary.map((change) => change.field);

@@ -22,7 +22,9 @@ import {
   buildParticipantClaimNotificationResult,
   buildParticipantReviewDecisionResult,
   resolveParticipantEditContext,
+  type EditParticipantNotificationResult,
 } from "@/lib/participant-edit-result";
+import { recordParticipantNotificationAuditEvents } from "@/lib/participant-notification-audit";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
@@ -97,6 +99,7 @@ export async function PUT(
               registrationMode: true,
               competition: {
                 select: {
+                  id: true,
                   name: true,
                   year: true,
                   date: true,
@@ -150,6 +153,24 @@ export async function PUT(
   const changeDiff = diffParticipantSnapshots(beforeSnapshot, requestedSnapshot);
   const liveDriftSummary = summarizeParticipantRequestConflicts(beforeSnapshot, requestedSnapshot, liveSnapshot);
   const context = resolveParticipantEditContext(pendingChange.participant.team.registrationMode);
+  const recordDecisionMailAudit = async (reason: string, notifications: EditParticipantNotificationResult[]) => {
+    try {
+      await recordParticipantNotificationAuditEvents(prisma, {
+        tenantId: pendingChange.participant.team.competition.tenant.id,
+        competitionId: pendingChange.participant.team.competition.id,
+        teamId: pendingChange.participant.team.id,
+        teamName: pendingChange.participant.team.name,
+        participantId: pendingChange.participantId,
+        participantName: `${pendingChange.participant.firstName} ${pendingChange.participant.lastName}`.trim(),
+        context,
+        actorId: auth.user.id,
+        reason,
+        notifications,
+      });
+    } catch (auditError) {
+      console.error("Participant decision mail audit failed", auditError);
+    }
+  };
 
   if (action === "approve") {
     if (liveDriftSummary.length > 0) {
@@ -269,6 +290,7 @@ export async function PUT(
     if (claimNotification) {
       notifications.push(claimNotification);
     }
+    await recordDecisionMailAudit("participant_change_approved", notifications);
 
     return NextResponse.json({
       status: "approved",
@@ -339,6 +361,7 @@ export async function PUT(
     reviewComment: comment || null,
     changeSummary,
   });
+  await recordDecisionMailAudit("participant_change_rejected", notifications);
 
   return NextResponse.json({
     status: "rejected",

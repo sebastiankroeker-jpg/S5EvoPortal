@@ -143,6 +143,7 @@ Bei Review-Entscheidung:
 6. Globalen Sportlerboerse-Sichtbarkeitsschalter in Wettkampf-Admin und Team-API ergaenzen. Status: umgesetzt.
 7. Admin-Entscheidungen und Bundle-Entscheidungen auf dieselbe Ergebnisform erweitern. Status: umgesetzt fuer API und Approval-Queue-Ergebnisblock.
 8. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: umgesetzt mit `npm run verify:participant-edit-flow`.
+9. Mail-/Audit-Nachvollziehbarkeit fuer Teilnehmer- und Sportlerboerse-Aenderungen ergaenzen. Status: umgesetzt fuer zentrale Mail-Events und Boersen-Container-Audit.
 
 ## Verifikation
 
@@ -151,5 +152,6 @@ Bei Review-Entscheidung:
 - Sportlerboerse-Meldung akzeptiert eine konkrete Disziplin und lehnt `TBD` ab.
 - Teilnehmer-Bearbeitung unterscheidet die Kontexte `TEAM` und `MARKETPLACE`.
 - Review-Entscheidungen liefern Feldentscheidungen und strukturierte Mailstatus.
+- Teilnehmer-Mailstatus wird als `PARTICIPANT_CHANGE_MAIL` fuer das zentrale Mail-Protokoll auditierbar.
 - Claim-Einladungsmails werden als Benachrichtigung normalisiert.
 - Globaler Sportlerboerse-Offline-Modus sperrt Nicht-Orga, laesst Admin/Orga aber weiter sehen.

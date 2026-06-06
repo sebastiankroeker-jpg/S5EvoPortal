@@ -21,6 +21,7 @@ import {
   type EditParticipantFieldResult,
   type EditParticipantNotificationResult,
 } from "@/lib/participant-edit-result";
+import { recordParticipantNotificationAuditEvents } from "@/lib/participant-notification-audit";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
@@ -92,6 +93,7 @@ export async function PUT(
               },
               competition: {
                 select: {
+                  id: true,
                   name: true,
                   year: true,
                   date: true,
@@ -305,7 +307,7 @@ export async function PUT(
       const requestedSnapshot = parseSnapshot(change.changeData);
       const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
 
-      notifications.push(...await sendParticipantChangeDecisionEmail({
+      const sentNotifications = await sendParticipantChangeDecisionEmail({
         competition: change.participant.team.competition,
         participant: {
           name: change.participant.firstName + " " + change.participant.lastName,
@@ -320,7 +322,20 @@ export async function PUT(
         approved: true,
         reviewComment: comment || null,
         changeSummary,
-      }));
+      });
+      notifications.push(...sentNotifications);
+      await recordParticipantNotificationAuditEvents(prisma, {
+        tenantId: change.participant.team.competition.tenant.id,
+        competitionId: change.participant.team.competition.id,
+        teamId: change.participant.team.id,
+        teamName: change.participant.team.name,
+        participantId: change.participantId,
+        participantName: `${change.participant.firstName} ${change.participant.lastName}`.trim(),
+        context: resolveParticipantEditContext(change.participant.team.registrationMode),
+        actorId: auth.user.id,
+        reason: "participant_change_bundle_approved",
+        notifications: sentNotifications,
+      }).catch((auditError) => console.error("Participant bundle decision mail audit failed", auditError));
     }
 
     return NextResponse.json({
@@ -399,7 +414,7 @@ export async function PUT(
     const requestedSnapshot = parseSnapshot(change.changeData);
     const changeSummary = summarizeParticipantChanges(beforeSnapshot, requestedSnapshot);
 
-    notifications.push(...await sendParticipantChangeDecisionEmail({
+    const sentNotifications = await sendParticipantChangeDecisionEmail({
       competition: change.participant.team.competition,
       participant: {
         name: change.participant.firstName + " " + change.participant.lastName,
@@ -414,7 +429,20 @@ export async function PUT(
       approved: false,
       reviewComment: comment || null,
       changeSummary,
-    }));
+    });
+    notifications.push(...sentNotifications);
+    await recordParticipantNotificationAuditEvents(prisma, {
+      tenantId: change.participant.team.competition.tenant.id,
+      competitionId: change.participant.team.competition.id,
+      teamId: change.participant.team.id,
+      teamName: change.participant.team.name,
+      participantId: change.participantId,
+      participantName: `${change.participant.firstName} ${change.participant.lastName}`.trim(),
+      context: resolveParticipantEditContext(change.participant.team.registrationMode),
+      actorId: auth.user.id,
+      reason: "participant_change_bundle_rejected",
+      notifications: sentNotifications,
+    }).catch((auditError) => console.error("Participant bundle decision mail audit failed", auditError));
   }
 
   return NextResponse.json({

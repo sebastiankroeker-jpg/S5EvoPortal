@@ -557,30 +557,68 @@ export async function PATCH(
       return NextResponse.json({ error: 'Keine Änderungen übermittelt.' }, { status: 400 });
     }
 
-    const updatedTeam = await prisma.team.update({
-      where: { id },
-      data,
-      include: {
-        participants: {
-          where: { deletedAt: null },
-          orderBy: { createdAt: 'asc' },
-          include: {
-            pendingChanges: {
-              orderBy: { updatedAt: 'desc' },
-              take: 1,
-              select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
-            }
+    const { user } = await resolveCurrentUser(session, { createIfMissing: true });
+    const beforeSnapshot = {
+      marketplaceStatus: existingTeam.marketplaceStatus ?? "NEW",
+      marketplaceVisibility: existingTeam.marketplaceVisibility ?? "ADMIN_MANAGEMENT_ONLY",
+      teamPublicationLevel: existingTeam.teamPublicationLevel ?? "TEAM_ANONYM",
+      marketplaceMessage: existingTeam.marketplaceMessage ?? null,
+    };
+    const afterSnapshot = {
+      marketplaceStatus: typeof body.marketplaceStatus === "string" ? body.marketplaceStatus : beforeSnapshot.marketplaceStatus,
+      marketplaceVisibility: typeof body.marketplaceVisibility === "string" ? body.marketplaceVisibility : beforeSnapshot.marketplaceVisibility,
+      teamPublicationLevel: typeof body.teamPublicationLevel === "string" ? body.teamPublicationLevel : beforeSnapshot.teamPublicationLevel,
+      marketplaceMessage: typeof body.marketplaceMessage === "string" ? body.marketplaceMessage.trim() || null : beforeSnapshot.marketplaceMessage,
+    };
+
+    const updatedTeam = await prisma.$transaction(async (tx) => {
+      const updated = await tx.team.update({
+        where: { id },
+        data,
+        include: {
+          participants: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
+            include: {
+              pendingChanges: {
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+                select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
+              }
+            },
+          },
+          owner: { select: { email: true, name: true } },
+          memberRoles: {
+            where: { role: "TEAM_MANAGER", revokedAt: null },
+            select: { userId: true, revokedAt: true },
           },
         },
-        owner: { select: { email: true, name: true } },
-        memberRoles: {
-          where: { role: "TEAM_MANAGER", revokedAt: null },
-          select: { userId: true, revokedAt: true },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          action: "MARKETPLACE_TEAM_UPDATED",
+          scopeType: "TEAM",
+          scopeId: existingTeam.id,
+          entityType: "TEAM",
+          entityId: existingTeam.id,
+          reason: "marketplace_admin_update",
+          beforeData: beforeSnapshot,
+          afterData: afterSnapshot,
+          meta: {
+            teamName: existingTeam.name,
+            registrationMode: existingTeam.registrationMode,
+            sessionEmail: normalizeEmail(userEmail),
+          },
+          tenantId: existingTeam.competition.tenantId,
+          competitionId: existingTeam.competitionId,
+          actorId: user?.id ?? null,
         },
-      },
+      });
+
+      return updated;
     });
 
-    const { user } = await resolveCurrentUser(session, { createIfMissing: true });
     return NextResponse.json({
       team: serializeTeam(updatedTeam, {
         currentUserId: user?.id ?? null,
