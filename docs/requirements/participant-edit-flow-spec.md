@@ -95,6 +95,13 @@ Wenn `Team.registrationMode = MARKETPLACE` gilt, bleibt `Participant` die Wahrhe
 
 Marketplace-Status bleibt am Team, weil er den Vermittlungsprozess beschreibt.
 
+Admin-Bearbeitung der Sportlerboerse trennt deshalb bewusst zwei Oberflaechen:
+
+- Teilnehmer bearbeiten: fachliche Personendaten wie Name, E-Mail, Geburtsjahr, Geschlecht, Disziplin, Shirt und Veroeffentlichungswunsch.
+- Boersen-Mannschaft bearbeiten: Container-/Vermittlungsdaten wie Boersen-Status, Boersen-Sichtbarkeit, Team-Veroeffentlichung und Admin-Nachricht.
+
+Teamname, Kontaktname und Kontakt-E-Mail bleiben aus dem Teilnehmer abgeleitet, damit der Container nicht fachlich von der Teilnehmer-Entitaet driftet.
+
 ## Sportlerboerse-Sichtbarkeit
 
 Die globale Veroeffentlichung der Sportlerboerse wird am aktiven Wettkampf gesteuert:

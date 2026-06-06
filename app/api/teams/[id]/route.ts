@@ -524,6 +524,7 @@ export async function PATCH(
 
     const allowedStatuses = new Set(["NEW", "REVIEWED", "MATCHING", "MATCHED", "WITHDRAWN"]);
     const allowedVisibilities = new Set(["PUBLIC", "MARKETPLACE_USERS", "PORTAL_USERS", "ADMIN_MANAGEMENT_ONLY"]);
+    const allowedPublicationLevels = new Set(["TEAM_ANONYM", "TEAMNAME_OEFFENTLICH", "ALLES_OEFFENTLICH"]);
     const data: Prisma.TeamUpdateInput = {};
 
     if (typeof body.marketplaceStatus === "string") {
@@ -538,6 +539,13 @@ export async function PATCH(
         return NextResponse.json({ error: 'Ungültige Sichtbarkeit.' }, { status: 400 });
       }
       data.marketplaceVisibility = body.marketplaceVisibility;
+    }
+
+    if (typeof body.teamPublicationLevel === "string") {
+      if (!allowedPublicationLevels.has(body.teamPublicationLevel)) {
+        return NextResponse.json({ error: 'Ungültige Team-Veröffentlichung.' }, { status: 400 });
+      }
+      data.teamPublicationLevel = body.teamPublicationLevel;
     }
 
     if (typeof body.marketplaceMessage === "string") {

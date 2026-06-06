@@ -131,6 +131,13 @@ type TeamEditPayload = {
   participants: Participant[];
 };
 
+type MarketplaceTeamEditPayload = {
+  teamPublicationLevel: NonNullable<Team["teamPublicationLevel"]>;
+  marketplaceVisibility: NonNullable<Team["marketplaceVisibility"]>;
+  marketplaceStatus: NonNullable<Team["marketplaceStatus"]>;
+  marketplaceMessage: string;
+};
+
 type EditableParticipant = Omit<Participant, "id"> & { id: string };
 
 interface DashboardProps {
@@ -658,6 +665,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [marketplaceStatusFilter, setMarketplaceStatusFilter] = useState<MarketplaceStatusFilter>("all");
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [editingMarketplaceTeam, setEditingMarketplaceTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
@@ -793,6 +801,30 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     } catch (error) {
       notifications.error(
         "Status konnte nicht gespeichert werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    }
+  };
+
+  const handleMarketplaceTeamEdit = async (teamData: MarketplaceTeamEditPayload) => {
+    const editedTeamId = editingMarketplaceTeam!.id;
+
+    try {
+      const response = await fetch(`/api/teams/${editedTeamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(teamData),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Börsen-Mannschaft konnte nicht gespeichert werden.");
+      }
+      setEditingMarketplaceTeam(null);
+      await fetchTeams();
+      notifications.success("Börsen-Mannschaft gespeichert", "Status und Sichtbarkeit wurden aktualisiert.");
+    } catch (error) {
+      notifications.error(
+        "Börsen-Mannschaft konnte nicht gespeichert werden",
         error instanceof Error ? error.message : "Bitte versuche es erneut.",
       );
     }
@@ -1606,6 +1638,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   const isEditable = team.canCurrentUserEdit === true && team.registrationMode !== "MARKETPLACE";
                   const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
                   const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
+                  const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
 
                   return (
                     <tr key={team.id} className="border-b border-border/50 align-top transition-colors hover:bg-muted/20">
@@ -1681,7 +1714,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                       {(canEditAll || canEditOwn) && (
                         <td className="px-4 py-3">
                           {canEditMarketplaceParticipant ? (
-                            <div className="flex justify-end">
+                            <div className="flex justify-end gap-2">
+                              {canEditMarketplaceTeam && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingMarketplaceTeam(team)}
+                                >
+                                  Börse bearbeiten
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1731,6 +1773,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
               const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
               const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
+              const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -1867,6 +1910,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 Bearbeiten
                               </Button>
                             )}
+                            {canEditMarketplaceTeam && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 shrink-0 px-2 text-[11px]"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setEditingMarketplaceTeam(team);
+                                }}
+                              >
+                                Börse
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               size="sm"
@@ -1926,6 +1983,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   }}
                                 >
                                   Teilnehmer bearbeiten
+                                </Button>
+                              )}
+                              {canEditMarketplaceTeam && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingMarketplaceTeam(team);
+                                  }}
+                                >
+                                  Börse bearbeiten
                                 </Button>
                               )}
                               {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
@@ -2230,6 +2299,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 Teilnehmer bearbeiten
                               </Button>
                             )}
+                            {canEditMarketplaceTeam && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingMarketplaceTeam(team);
+                                }}
+                                className="flex-1"
+                              >
+                                Börse bearbeiten
+                              </Button>
+                            )}
                             {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
                               <>
                                 <Button
@@ -2290,6 +2372,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           canManageTeamManagers={editingTeam.canManageTeamManagers === true}
         />
       )}
+      {editingMarketplaceTeam && (
+        <EditMarketplaceTeamModal
+          team={editingMarketplaceTeam}
+          onSave={handleMarketplaceTeamEdit}
+          onCancel={() => setEditingMarketplaceTeam(null)}
+        />
+      )}
 
       {/* Participant Edit Dialog */}
       <ParticipantEditDialog
@@ -2301,6 +2390,142 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         isAdminEdit={canEditAll}
         showModerationNote={canEditAll || editingParticipant?.teamCanEdit === true || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
       />
+    </div>
+  );
+}
+
+function EditMarketplaceTeamModal({ team, onSave, onCancel }: {
+  team: Team;
+  onSave: (data: MarketplaceTeamEditPayload) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState<MarketplaceTeamEditPayload>({
+    teamPublicationLevel: team.teamPublicationLevel || "TEAM_ANONYM",
+    marketplaceVisibility: team.marketplaceVisibility || "ADMIN_MANAGEMENT_ONLY",
+    marketplaceStatus: team.marketplaceStatus || "NEW",
+    marketplaceMessage: team.marketplaceMessage || "",
+  });
+
+  const handleSubmit = async () => {
+    if (saving) return;
+
+    setSaving(true);
+    try {
+      await onSave(formData);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-3">
+      <Card size="sm" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-lg flex-col overflow-hidden">
+        <CardHeader className="px-4">
+          <CardTitle className="truncate text-base">Börsen-Mannschaft bearbeiten</CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+          <StatusMessage tone="info" role="note" className="px-2.5 py-2 text-xs">
+            Teilnehmerdaten bleiben im Teilnehmerdialog. Hier steuerst du den Börsen-Container: Status, Sichtbarkeit und Veröffentlichung.
+          </StatusMessage>
+
+          <div className="space-y-1 rounded-md border border-border/60 bg-muted/30 p-2.5 text-xs">
+            <div><strong>Container:</strong> {team.name}</div>
+            {team.contactName && <div><strong>Kontakt:</strong> {team.contactName}</div>}
+            {team.contactEmail && <div><strong>E-Mail:</strong> {team.contactEmail}</div>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Börsen-Status</label>
+            <Select
+              value={formData.marketplaceStatus}
+              onValueChange={(value) =>
+                setFormData({
+                  ...formData,
+                  marketplaceStatus: value as MarketplaceTeamEditPayload["marketplaceStatus"],
+                })
+              }
+            >
+              <SelectTrigger className="mt-1 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MARKETPLACE_STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Börsen-Sichtbarkeit</label>
+            <Select
+              value={formData.marketplaceVisibility}
+              onValueChange={(value) =>
+                setFormData({
+                  ...formData,
+                  marketplaceVisibility: value as MarketplaceTeamEditPayload["marketplaceVisibility"],
+                })
+              }
+            >
+              <SelectTrigger className="mt-1 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MARKETPLACE_VISIBILITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Team veröffentlichen</label>
+            <Select
+              value={formData.teamPublicationLevel}
+              onValueChange={(value) =>
+                setFormData({
+                  ...formData,
+                  teamPublicationLevel: value as MarketplaceTeamEditPayload["teamPublicationLevel"],
+                })
+              }
+            >
+              <SelectTrigger className="mt-1 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEAM_PUBLICATION_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Nachricht / Admin-Notiz</label>
+            <Textarea
+              value={formData.marketplaceMessage}
+              onChange={(event) => setFormData({ ...formData, marketplaceMessage: event.target.value })}
+              className="mt-1 min-h-24"
+              placeholder="Interne Hinweise zur Vermittlung oder öffentliche Nachricht aus der Meldung"
+            />
+          </div>
+        </CardContent>
+        <div className="flex shrink-0 justify-end gap-2 border-t border-border bg-background px-4 py-3">
+          <Button variant="outline" onClick={onCancel} disabled={saving}>
+            Abbrechen
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving ? "Speichert..." : "Börse speichern"}
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
