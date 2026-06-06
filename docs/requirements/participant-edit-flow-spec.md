@@ -145,6 +145,49 @@ Bei Review-Entscheidung:
 8. Verifikationsfaelle fuer Team-Teilnehmer und Sportlerboerse-Teilnehmer ergaenzen. Status: umgesetzt mit `npm run verify:participant-edit-flow`.
 9. Mail-/Audit-Nachvollziehbarkeit fuer Teilnehmer- und Sportlerboerse-Aenderungen ergaenzen. Status: umgesetzt fuer zentrale Mail-Events und Boersen-Container-Audit.
 
+## Aktueller Fortschritt 2026-06-06
+
+Paket B ist admin-first weitgehend rund:
+
+- Sportlerboerse-Teilnehmer bleibt `Participant`; Boersen-Kontext kommt ueber `Team.registrationMode = MARKETPLACE`.
+- Teilnehmer-Bearbeitung liefert `editResult` mit Kontext, Feldentscheidungen, Validierung und Benachrichtigungsstatus.
+- Participant-Edit-Dialog zeigt gespeicherte, review-pflichtige und blockierte Felder inklusive Mailstatus.
+- Review-Queue und Bundle-Entscheidungen liefern `decisionResult` mit Feldentscheidungen und Benachrichtigungen.
+- Sportlerboerse-Anmeldung verlangt eine konkrete Disziplin; `TBD`/`Noch offen` ist fuer neue Boersenmeldungen nicht mehr zulaessig.
+- Sportlerboerse-Anmeldung zeigt am Schritt `Weiter zur Pruefung` eine standardmaessig zugeklappte Fehler-/Hinweisuebersicht.
+- Wettkampf-Admin hat einen globalen Boersen-Sichtbarkeitsschalter: `SELECTIVE` oder `OFFLINE`.
+- Sportlerboerse-Dashboard zeigt den globalen Sichtbarkeitsstatus als Pille und verlinkt ins Customizing.
+- Tenant- und Wettkampf-Parameter sind im Admin-Bereich wieder als eigene Reiter getrennt; Sportlerboerse sitzt sichtbar im Wettkampf-Reiter.
+- Admins koennen neben dem Teilnehmer auch die Boersen-Mannschaft bearbeiten: Status, Boersen-Sichtbarkeit, Team-Veroeffentlichung, Admin-Nachricht.
+- Boersen-Dashboard hat Admin-Filter und Kennzahlen fuer Status, Boersen-Sichtbarkeit, Veroeffentlichung und potenzielle Sichtbarkeit.
+- Teilnehmer-Mailstatus wird als `PARTICIPANT_CHANGE_MAIL` im zentralen Mail-Protokoll sichtbar.
+- Boersen-Mannschaftsaenderungen erzeugen `MARKETPLACE_TEAM_UPDATED` mit vorher/nachher.
+
+Zuletzt deployte Referenz-Commits:
+
+- `7f6cef7` - Admin-Boersenworkflow mit Sichtbarkeits-/Veroeffentlichungsfiltern.
+- `c683304` - Mail-/Audit-Nachvollziehbarkeit fuer Teilnehmer- und Boersen-Aenderungen.
+
+## Gemerkte Folgeaktivitaeten
+
+Spaeter fortsetzen mit:
+
+1. Sportlerboerse-Dashboard als Arbeitsliste abrunden.
+   - kompakte Box `Braucht Aktion`
+   - Zaehler fuer z.B. neu, nur intern sichtbar, ohne Nachricht, in Vermittlung, zurueckgezogen
+   - Klick setzt direkt den passenden Filterzustand
+2. Admin-Detailansicht schaerfen.
+   - `Person` und `Boersensteuerung` klar nebeneinanderstellen
+   - letzte Aenderung, letzter Audit-Hinweis und letzter Mailstatus direkt im Kontext anzeigen
+   - weniger Wechsel ins Mail-Protokoll noetig machen
+3. Review-Queue lesbarer machen.
+   - Boersen-Kontext staerker labeln
+   - normale Team-Aenderung und Sportlerboerse-Teilnehmer eindeutig unterscheiden
+4. Self-Service-Rechte erst danach definieren.
+   - welche Boersenfelder darf der Meldende selbst aendern?
+   - welche Felder laufen in Review?
+   - welche bleiben Admin-only?
+
 ## Verifikation
 
 `npm run verify:participant-edit-flow` prueft:
