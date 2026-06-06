@@ -123,6 +123,7 @@ type OpsClaimAuditEvent = {
   suspicious: boolean;
 };
 
+const ADMIN_TABS = new Set(["tenant", "competition", "users", "audits", "restore"]);
 const STATUS_OPTIONS = ["DRAFT", "OPEN", "RUNNING", "CLOSED"];
 const THEME_OPTIONS = ["LIGHT", "DARK", "ESV"];
 const BENCH_MODES = ["GROSS", "NETTO"];
@@ -237,10 +238,16 @@ export default function AdminPage() {
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "tenant" || tab === "competition" || tab === "users" || tab === "restore") {
+    if (tab && ADMIN_TABS.has(tab)) {
       setActiveAdminTab(tab);
     }
   }, []);
+
+  const handleAdminTabChange = (tab: string) => {
+    if (!ADMIN_TABS.has(tab)) return;
+    setActiveAdminTab(tab);
+    router.replace(`/admin?tab=${tab}`, { scroll: false });
+  };
 
   const navigateFromBottomTab = (tabId: string) => {
     navigateFromExternalBottomTab(router, tabId);
@@ -587,7 +594,7 @@ export default function AdminPage() {
         >
           <h1 className="text-3xl font-bold tracking-tight">⚙️ Administration</h1>
           <p className="text-muted-foreground">
-            Tenant-, Wettkampf- und Benutzerverwaltung
+            Tenant, Wettkampf, Benutzer und Audits getrennt organisiert.
           </p>
         </motion.div>
 
@@ -617,7 +624,10 @@ export default function AdminPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setActiveAdminTab("restore")}>
+              <Button variant="outline" size="sm" onClick={() => handleAdminTabChange("audits")}>
+                Zum Audit-Tab
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleAdminTabChange("restore")}>
                 Zum Archiv-Tab
               </Button>
               <Button variant="outline" size="sm" onClick={() => router.push("/admin/logs")}>
@@ -633,11 +643,12 @@ export default function AdminPage() {
           </CardContent>
         </Card>
 
-        <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs value={activeAdminTab} onValueChange={handleAdminTabChange} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="tenant">🏢 Tenant</TabsTrigger>
             <TabsTrigger value="competition">🏆 Wettkampf</TabsTrigger>
             <TabsTrigger value="users">👥 Benutzer</TabsTrigger>
+            <TabsTrigger value="audits">🧾 Audits</TabsTrigger>
             <TabsTrigger value="restore">♻️ Archiv</TabsTrigger>
           </TabsList>
 
@@ -1286,6 +1297,106 @@ export default function AdminPage() {
           <TabsContent value="users">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               <UserManagement />
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="audits">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Audit-Cockpit</CardTitle>
+                  <CardDescription>
+                    Schneller Einstieg in Betriebsprüfung, Mail-Protokoll, Claim-Auffälligkeiten und Änderungsnachweise.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Fehlgeschlagene Lifecycle-Mails</p>
+                      <p className="text-lg font-semibold">{opsLifecycleMailFailures}</p>
+                    </div>
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Auffällige Claim-Ereignisse</p>
+                      <p className="text-lg font-semibold">{opsSuspiciousClaimEvents.length}</p>
+                    </div>
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Letzter Reset-Audit</p>
+                      <p className="text-sm font-medium">
+                        {resetAuditEvents[0] ? formatDateTime(resetAuditEvents[0].createdAt) : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Button variant="outline" className="justify-start" onClick={() => router.push("/admin/logs")}>
+                      🧾 Runtime-Logs
+                    </Button>
+                    <Button variant="outline" className="justify-start" onClick={() => router.push("/admin/mail-log")}>
+                      ✉️ Mail-Protokoll
+                    </Button>
+                    <Button variant="outline" className="justify-start" onClick={() => router.push("/claim-links")}>
+                      🔐 Claim-Dashboard
+                    </Button>
+                    <Button variant="outline" className="justify-start" onClick={() => router.push("/aenderungen")}>
+                      📝 Änderungsanträge
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Claim-Auffälligkeiten</CardTitle>
+                  <CardDescription>Verdächtige Claim-Ereignisse des aktiven Wettkampfs.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {opsSuspiciousClaimEvents.length === 0 ? (
+                    <div className="rounded-md border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                      Keine auffälligen Claim-Ereignisse im aktuellen Quickcheck.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {opsSuspiciousClaimEvents.map((event) => (
+                        <div key={event.id} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">{event.scope}</Badge>
+                            <span className="font-medium">{event.eventType}</span>
+                            <span className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Reset-Audit</CardTitle>
+                  <CardDescription>Letzte Reset-bezogene Audit-Einträge des aktiven Wettkampfs.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {resetAuditEvents.length === 0 ? (
+                    <div className="rounded-md border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                      Keine Reset-Audits vorhanden.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {resetAuditEvents.map((entry) => (
+                        <div key={entry.id} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">{labelForResetAction(entry.action)}</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDateTime(entry.createdAt)} • {entry.actor?.name || entry.actor?.email || "Unbekannt"}
+                            </span>
+                          </div>
+                          {entry.reason && <p className="mt-1 text-muted-foreground">{entry.reason}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </motion.div>
           </TabsContent>
 

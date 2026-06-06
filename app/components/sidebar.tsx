@@ -79,6 +79,10 @@ export default function Sidebar() {
     return saved ? JSON.parse(saved) : false;
   });
   const [searchOpen, setSearchOpen] = useState(false);
+  const [adminTab, setAdminTab] = useState(() => {
+    if (typeof window === "undefined") return "tenant";
+    return new URLSearchParams(window.location.search).get("tab") || "tenant";
+  });
   const [activeTab, setActiveTab] = useState<MainTab>(() => {
     if (typeof window === "undefined") return "home";
 
@@ -146,6 +150,11 @@ export default function Sidebar() {
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent("switchTab", { detail: { tabId, ...detail } }));
     }, 50);
+  };
+
+  const openAdminTab = (tab: string) => {
+    setAdminTab(tab);
+    router.push(`/admin?tab=${tab}`);
   };
 
   if (!session?.user) return null;
@@ -222,7 +231,11 @@ export default function Sidebar() {
               <SidebarItem icon="✏️" label="Erfassung" onClick={() => {}} isCollapsed={isCollapsed} />
             )}
             {can("config.edit") && (
-              <SidebarItem icon="🏢" label="Administration" onClick={() => router.push("/admin")} isActive={pathname === "/admin"} isCollapsed={isCollapsed} />
+              <>
+                <SidebarItem icon="🏢" label="Tenant/Wettkampf" onClick={() => openAdminTab("competition")} isActive={pathname === "/admin" && (adminTab === "tenant" || adminTab === "competition")} isCollapsed={isCollapsed} />
+                <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} isCollapsed={isCollapsed} />
+                <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} isCollapsed={isCollapsed} />
+              </>
             )}
             <SidebarItem icon="🗂️" label="Orga-Links" onClick={() => router.push("/orga-links")} isActive={pathname === "/orga-links"} isCollapsed={isCollapsed} />
           </>

@@ -104,6 +104,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "admin-users":
         router.push("/admin?tab=users");
         break;
+      case "admin-audits":
+        router.push("/admin?tab=audits");
+        break;
       case "admin-archive":
         router.push("/admin?tab=restore");
         break;

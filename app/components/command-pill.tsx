@@ -196,6 +196,9 @@ export default function CommandPill() {
       case "admin-users":
         navigateAndClose("/admin?tab=users");
         break;
+      case "admin-audits":
+        navigateAndClose("/admin?tab=audits");
+        break;
       case "admin-archive":
         navigateAndClose("/admin?tab=restore");
         break;

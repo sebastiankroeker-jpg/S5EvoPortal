@@ -16,6 +16,7 @@ export interface NavigationMenuItem {
     | "administration"
     | "admin-competition"
     | "admin-users"
+    | "admin-audits"
     | "admin-archive"
     | "changelog"
     | "sign-out";
@@ -116,8 +117,8 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
   },
   {
     id: "admin-competition",
-    label: "Admin: Wettkampf",
-    keywords: ["wettkampf", "competition", "reset", "dry run", "orga mails", "konfiguration wettkampf"],
+    label: "Admin: Tenant & Wettkampf",
+    keywords: ["tenant", "mandant", "wettkampf", "competition", "reset", "dry run", "orga mails", "konfiguration wettkampf"],
     icon: "🏆",
     permission: "config.edit",
     requiresAuth: true,
@@ -127,6 +128,14 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Admin: Benutzer",
     keywords: ["user", "users", "benutzer", "rollen", "rechte", "rollenverwaltung", "nutzer"],
     icon: "👥",
+    permission: "config.edit",
+    requiresAuth: true,
+  },
+  {
+    id: "admin-audits",
+    label: "Admin: Audits",
+    keywords: ["audit", "audits", "logs", "mail log", "mail protokoll", "claim auffaelligkeiten", "betrieb"],
+    icon: "🧾",
     permission: "config.edit",
     requiresAuth: true,
   },

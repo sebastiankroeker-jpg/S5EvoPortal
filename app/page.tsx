@@ -251,16 +251,28 @@ export default function Home() {
                     </button>
                   )}
                   {can("config.edit") && (
-                    <button onClick={() => router.push("/admin")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-lg">🏢</span>
-                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
-                          {formatOrgaCount(orgaSummary?.teamsTotal)}
-                        </span>
-                      </div>
-                      <p className="font-medium text-sm">Administration</p>
-                      <p className="text-xs text-muted-foreground">Tenant & Wettkampf konfigurieren</p>
-                    </button>
+                    <>
+                      <button onClick={() => router.push("/admin?tab=competition")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-lg">🏢</span>
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
+                            {formatOrgaCount(orgaSummary?.teamsTotal)}
+                          </span>
+                        </div>
+                        <p className="font-medium text-sm">Tenant & Wettkampf</p>
+                        <p className="text-xs text-muted-foreground">Mandant, aktiver Wettkampf, Anmeldung und Regeln konfigurieren</p>
+                      </button>
+                      <button onClick={() => router.push("/admin?tab=users")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                        <span className="text-lg">👥</span>
+                        <p className="font-medium text-sm">Benutzer</p>
+                        <p className="text-xs text-muted-foreground">Konten, Rollen und Team-Manager-Rechte verwalten</p>
+                      </button>
+                      <button onClick={() => router.push("/admin?tab=audits")} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                        <span className="text-lg">🧾</span>
+                        <p className="font-medium text-sm">Audits</p>
+                        <p className="text-xs text-muted-foreground">Logs, Mail-Protokoll, Claim-Auffälligkeiten und Betriebsprüfung</p>
+                      </button>
+                    </>
                   )}
                   <button onClick={() => router.push('/orga-links')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
                     <span className="text-lg">🗂️</span>
