@@ -880,7 +880,9 @@ export default function TeamRegistration({
                               setMarketplaceDiscipline(event.target.value as DisciplineId | typeof DISCIPLINE_PLACEHOLDER)
                             }
                           >
-                            <option value={DISCIPLINE_PLACEHOLDER}>Noch offen</option>
+                            <option value={DISCIPLINE_PLACEHOLDER} disabled>
+                              Bitte Disziplin wählen
+                            </option>
                             {DISCIPLINES.map((discipline) => (
                               <option key={discipline.id} value={discipline.id}>
                                 {discipline.icon} {discipline.label}
@@ -1311,7 +1313,7 @@ export default function TeamRegistration({
                           </span>
                           <span className="text-muted-foreground">{marketplaceGender} · {marketplaceBirthDate}</span>
                           <span className="text-muted-foreground">
-                            {disciplineMap[marketplaceDiscipline as DisciplineId]?.label || "Disziplin offen"}
+                            {disciplineMap[marketplaceDiscipline as DisciplineId]?.label || "Bitte Disziplin wählen"}
                           </span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
