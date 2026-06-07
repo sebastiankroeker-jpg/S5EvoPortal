@@ -288,7 +288,8 @@ function serializeTeam(
   });
   const canCurrentUserEdit = teamAccess.canEditTeam;
   const isCurrentUserTeam =
-    canCurrentUserEdit ||
+    teamAccess.isLegacyOwner ||
+    teamAccess.isTeamManager ||
     ((team.participants ?? []).some((participant) => {
       const normalizedParticipantEmail = normalizeEmail(participant.email);
       return (
@@ -317,6 +318,7 @@ function serializeTeam(
     contactPhone: canSeeFullTeamPublication ? team.contactPhone ?? "" : "",
     ownerEmail: canSeeFullTeamPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
     ownerName: canSeeFullTeamPublication ? team.owner?.name ?? team.contactName ?? "" : "",
+    isCurrentUserTeam,
     canCurrentUserEdit,
     canManageTeamManagers: teamAccess.canManageTeamManagers,
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),

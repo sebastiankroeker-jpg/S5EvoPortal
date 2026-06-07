@@ -206,7 +206,8 @@ function serializeTeam(
   const canCurrentUserEdit = teamAccess.canEditTeam;
   const canSeeSensitiveParticipantFields = options?.canSeeSensitiveParticipantFields === true || canCurrentUserEdit;
   const isCurrentUserTeam =
-    canCurrentUserEdit ||
+    teamAccess.isLegacyOwner ||
+    teamAccess.isTeamManager ||
     ((team.participants ?? []).some((participant) => {
       const normalizedParticipantEmail = normalizeEmail(participant.email);
       return (

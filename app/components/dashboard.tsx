@@ -394,6 +394,24 @@ function getTeamDisciplineMeta(team: Team) {
   };
 }
 
+function getMtcCombinedActionMeta(
+  completionMeta: ReturnType<typeof getTeamCompletionMeta>,
+  disciplineMeta: ReturnType<typeof getTeamDisciplineMeta>,
+) {
+  const labels = [
+    completionMeta.isImportant ? completionMeta.label : null,
+    disciplineMeta.isImportant ? disciplineMeta.label : null,
+  ].filter(Boolean);
+
+  if (labels.length === 0) return null;
+
+  return {
+    label: labels.join(" · "),
+    toneClass: completionMeta.isImportant ? completionMeta.toneClass : disciplineMeta.toneClass,
+    icon: AlertTriangle,
+  };
+}
+
 function getTeamPendingChangeCount(team: Team) {
   return (team.participants ?? []).reduce(
     (count, participant) => count + (participant.latestChange?.status === "PENDING" ? 1 : 0),
@@ -709,12 +727,20 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
 
   return (
     <>
-      <Badge variant="secondary" className={compactClassName}>
-        {isMarketplaceMatching ? `MTC · ${getParticipantCount(team)}/5` : "Sportlerbörse"}
-      </Badge>
-      <Badge variant="outline" className={`${compactClassName} ${statusClassName}`}>
-        {isMarketplaceMatching ? marketplaceDraftStatus.label : marketplaceStatus.label}
-      </Badge>
+      {isMarketplaceMatching ? (
+        <Badge variant="outline" className={`${compactClassName} ${statusClassName}`}>
+          MTC · {getParticipantCount(team)}/5 · {marketplaceDraftStatus.label}
+        </Badge>
+      ) : (
+        <>
+          <Badge variant="secondary" className={compactClassName}>
+            Sportlerbörse
+          </Badge>
+          <Badge variant="outline" className={`${compactClassName} ${statusClassName}`}>
+            {marketplaceStatus.label}
+          </Badge>
+        </>
+      )}
       <Badge variant="outline" className={`${compactClassName} border-primary/30 text-primary`}>
         {getMarketplaceVisibilityLabel(team.marketplaceVisibility)}
       </Badge>
@@ -1967,7 +1993,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
         <div className="space-y-1.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <div className="relative flex min-w-0 flex-wrap items-center gap-1.5">
             <div className="relative flex min-w-0 items-center">
               <Button
                 type="button"
@@ -2019,7 +2045,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               )}
             </div>
 
-            <div className="relative flex min-w-0 items-center">
+            <div className="flex min-w-0 items-center">
               <Button
                 type="button"
                 size="sm"
@@ -2038,7 +2064,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               {quickFilterMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setQuickFilterMenuOpen(false)} />
-                  <div className="absolute left-0 top-full z-50 mt-1 w-[min(92vw,24rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
                     <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
                       Betrachtungen kombinieren
                     </div>
@@ -2704,8 +2730,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const canDeleteTeam = team.canManageTeamManagers === true;
               const isMarketplaceContainerOpen = expandedMarketplaceContainerTeam === team.id;
               const showCompactActionColumn = true;
+              const mtcCombinedActionMeta = isMarketplaceMatching
+                ? getMtcCombinedActionMeta(completionMeta, disciplineMeta)
+                : null;
+              const MtcCombinedActionIcon = mtcCombinedActionMeta?.icon;
               const showCompactStatusRow =
-                (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
+                (showActionStatus && (mtcCombinedActionMeta || completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
 
               return (
@@ -2723,17 +2753,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="min-w-0 space-y-1.5">
                             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                               <h3 className="min-w-0 truncate text-sm font-medium">{team.name}</h3>
-                              <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
-                                <span>{categoryEmojis[team.category] || "🏆"}</span>
-                                {team.category}
-                              </Badge>
-                              <MarketplaceTeamBadges team={team} compact />
                               {team.isCurrentUserTeam && (
                                 <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
                                   <Star className="size-3" />
                                   Mein Team
                                 </Badge>
                               )}
+                              <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
+                                <span>{categoryEmojis[team.category] || "🏆"}</span>
+                                {team.category}
+                              </Badge>
+                              <MarketplaceTeamBadges team={team} compact />
                             </div>
                             {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
                               <MarketplacePersonSummary
@@ -2809,13 +2839,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             )}
                             {showCompactStatusRow && (
                               <div className="flex flex-wrap gap-1.5 pt-0.5">
-                                {showActionStatus && completionMeta.isImportant && (
+                                {showActionStatus && mtcCombinedActionMeta && MtcCombinedActionIcon && (
+                                  <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${mtcCombinedActionMeta.toneClass}`}>
+                                    <MtcCombinedActionIcon className="size-3" />
+                                    {mtcCombinedActionMeta.label}
+                                  </Badge>
+                                )}
+                                {showActionStatus && !mtcCombinedActionMeta && completionMeta.isImportant && (
                                   <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                     <CompletionIcon className="size-3" />
                                     {completionMeta.label}
                                   </Badge>
                                 )}
-                                {showActionStatus && disciplineMeta.isImportant && (
+                                {showActionStatus && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
                                   <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                     <DisciplineIcon className="size-3" />
                                     {disciplineMeta.label}
@@ -2918,6 +2954,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                               <h3 className="min-w-0 truncate text-base font-semibold">{team.name}</h3>
+                              {team.isCurrentUserTeam && (
+                                <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
+                                  <Star className="size-3" />
+                                  Mein Team
+                                </Badge>
+                              )}
                               <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
                                 <span>{categoryEmojis[team.category] || "🏆"}</span>
                                 {team.category}
@@ -2998,17 +3040,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             </div>
                           </div>
 
-                          {((showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
-                            (showAdminDashboardInfo && pendingChangeCount > 0) ||
-                            team.isCurrentUserTeam) && (
+                          {((showActionStatus && (mtcCombinedActionMeta || completionMeta.isImportant || disciplineMeta.isImportant)) ||
+                            (showAdminDashboardInfo && pendingChangeCount > 0)) && (
                             <div className="flex flex-wrap gap-1">
-                              {showActionStatus && completionMeta.isImportant && (
+                              {showActionStatus && mtcCombinedActionMeta && MtcCombinedActionIcon && (
+                                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${mtcCombinedActionMeta.toneClass}`}>
+                                  <MtcCombinedActionIcon className="size-3" />
+                                  {mtcCombinedActionMeta.label}
+                                </Badge>
+                              )}
+                              {showActionStatus && !mtcCombinedActionMeta && completionMeta.isImportant && (
                                 <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                   <CompletionIcon className="size-3" />
                                   {completionMeta.label}
                                 </Badge>
                               )}
-                              {showActionStatus && disciplineMeta.isImportant && (
+                              {showActionStatus && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
                                 <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                   <DisciplineIcon className="size-3" />
                                   {disciplineMeta.label}
@@ -3018,12 +3065,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 <Badge variant="outline" className="h-5 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
                                   <ClipboardList className="size-3" />
                                   {pendingChangeCount} Änderung(en)
-                                </Badge>
-                              )}
-                              {team.isCurrentUserTeam && (
-                                <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[10px]">
-                                  <Star className="size-3" />
-                                  Eigenes Team
                                 </Badge>
                               )}
                             </div>
