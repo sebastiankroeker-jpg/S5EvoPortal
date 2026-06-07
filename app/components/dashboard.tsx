@@ -189,6 +189,7 @@ type SortDirection = "asc" | "desc";
 type MarketplaceStatusFilter = "all" | NonNullable<Team["marketplaceStatus"]>;
 type MarketplaceVisibilityFilter = "all" | NonNullable<Team["marketplaceVisibility"]>;
 type MarketplacePublicationFilter = "all" | NonNullable<Team["teamPublicationLevel"]>;
+type MarketplaceKindFilter = "all" | "marketplace" | "mtc" | "single";
 type TeamOptionalColumnKey =
   | "category"
   | "contactName"
@@ -315,13 +316,14 @@ function canShowTeamActionStatus(team: Team, showAdminDashboardInfo: boolean) {
 
 function getTeamCompletionMeta(team: Team) {
   const participantCount = getParticipantCount(team);
+  const isMtcDraft = isMarketplaceMatchingTeam(team);
   const missingNames = (team.participants ?? []).filter(
     (participant) => !participant.firstName?.trim() || !participant.lastName?.trim(),
   ).length;
 
   if (participantCount < 5) {
     return {
-      label: `${participantCount}/5 besetzt`,
+      label: isMtcDraft ? `MTC: ${participantCount}/5 Slots` : `${participantCount}/5 besetzt`,
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
       isImportant: true,
@@ -330,7 +332,7 @@ function getTeamCompletionMeta(team: Team) {
 
   if (missingNames > 0) {
     return {
-      label: `${missingNames} Name(n) offen`,
+      label: isMtcDraft ? `MTC: ${missingNames} Name(n) offen` : `${missingNames} Name(n) offen`,
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
       isImportant: true,
@@ -338,7 +340,7 @@ function getTeamCompletionMeta(team: Team) {
   }
 
   return {
-    label: "Vollständig",
+    label: isMtcDraft ? "MTC vollständig" : "Vollständig",
     toneClass: "border-green-300 bg-green-50 text-green-800",
     icon: CheckCircle2,
     isImportant: false,
@@ -347,6 +349,7 @@ function getTeamCompletionMeta(team: Team) {
 
 function getTeamDisciplineMeta(team: Team) {
   const participants = team.participants ?? [];
+  const isMtcDraft = isMarketplaceMatchingTeam(team);
   const missingDisciplines = participants.filter(
     (participant) => !(participant.discipline || participant.disciplineCode) || (participant.discipline || participant.disciplineCode) === "TBD",
   ).length;
@@ -356,7 +359,7 @@ function getTeamDisciplineMeta(team: Team) {
 
   if (missingDisciplines > 0) {
     return {
-      label: `${missingDisciplines} Disziplin(en) offen`,
+      label: isMtcDraft ? `${missingDisciplines} MTC-Slot(s) offen` : `${missingDisciplines} Disziplin(en) offen`,
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
       isImportant: true,
@@ -365,7 +368,7 @@ function getTeamDisciplineMeta(team: Team) {
 
   if (!disciplineCheck.valid || disciplineCheck.warnings.length > 0) {
     return {
-      label: "Disziplinen prüfen",
+      label: isMtcDraft ? "MTC-Slots prüfen" : "Disziplinen prüfen",
       toneClass: "border-amber-300 bg-amber-50 text-amber-800",
       icon: AlertTriangle,
       isImportant: true,
@@ -373,7 +376,7 @@ function getTeamDisciplineMeta(team: Team) {
   }
 
   return {
-    label: "Disziplinen ok",
+    label: isMtcDraft ? "MTC-Slots ok" : "Disziplinen ok",
     toneClass: "border-green-300 bg-green-50 text-green-800",
     icon: CheckCircle2,
     isImportant: false,
@@ -417,6 +420,27 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   if (status === "revoked") return { label: "Einladung gesperrt", className: "border-red-300 text-red-700" };
   if (status === "missing_email") return { label: "Keine E-Mail", className: "border-muted text-muted-foreground" };
   return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
+}
+
+function getParticipantAccessMeta(team: Team, participant: Participant) {
+  if (participant.isTeamManager) {
+    return {
+      label: isMarketplaceMatchingTeam(team) ? "MTC-Teamchef bewusst" : "Team Manager:in",
+      className: "border-green-300 text-green-700",
+    };
+  }
+
+  if (participant.canBeTeamManager) {
+    return {
+      label: isMarketplaceMatchingTeam(team) ? "Portal-Konto, keine Teamchef-Rolle" : "Teilnehmer:in",
+      className: "border-muted text-muted-foreground",
+    };
+  }
+
+  return {
+    label: "Kein Portal-Konto",
+    className: "border-muted text-muted-foreground",
+  };
 }
 
 function isFemaleParticipant(gender?: string | null) {
@@ -647,6 +671,77 @@ function getMarketplaceDraftTeamName(teamName: string) {
     .replace(/^Börsen-Mannschaft:?\s*/i, "")
     .replace(/^Sportlerbörse:?\s*/i, "")
     .trim();
+}
+
+function getMarketplaceVisibilityLabel(value?: Team["marketplaceVisibility"] | null) {
+  return MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === (value || "ADMIN_MANAGEMENT_ONLY"))?.label || "Nur für Admins/MGMT sichtbar";
+}
+
+function getTeamPublicationLabel(value?: Team["teamPublicationLevel"] | null) {
+  return TEAM_PUBLICATION_OPTIONS.find((option) => option.id === (value || "TEAM_ANONYM"))?.label || "Team anonym";
+}
+
+function getParticipantPublicationLabel(value?: Participant["participantPublicationPreference"] | null) {
+  return PARTICIPANT_PUBLICATION_OPTIONS.find((option) => option.id === (value || "NAME_VERBERGEN"))?.label || "Name verbergen";
+}
+
+function MarketplaceTeamBadges({ team, compact = false }: { team: Team; compact?: boolean }) {
+  if (team.registrationMode !== "MARKETPLACE") return null;
+
+  const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
+  const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
+  const marketplaceDraftStatus = getMarketplaceDraftStatusMeta(team);
+  const compactClassName = compact ? "h-6 shrink-0 px-1.5 text-[10px]" : "";
+
+  return (
+    <>
+      <Badge variant="secondary" className={compactClassName}>
+        {isMarketplaceMatching ? `MTC · ${getParticipantCount(team)}/5` : "Sportlerbörse"}
+      </Badge>
+      <Badge variant="outline" className={`${compactClassName} ${isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus)}`}>
+        {isMarketplaceMatching ? marketplaceDraftStatus.label : marketplaceStatus.label}
+      </Badge>
+      <Badge variant="outline" className={`${compactClassName} border-primary/30 text-primary`}>
+        {getMarketplaceVisibilityLabel(team.marketplaceVisibility)}
+      </Badge>
+      <Badge variant="outline" className={`${compactClassName} border-muted-foreground/30 text-muted-foreground`}>
+        {getTeamPublicationLabel(team.teamPublicationLevel)}
+      </Badge>
+    </>
+  );
+}
+
+function MarketplaceParticipantBadges({ team, participant, compact = false }: { team: Team; participant: Participant; compact?: boolean }) {
+  if (!isMarketplaceMatchingTeam(team)) return null;
+
+  return (
+    <>
+      <Badge variant="secondary" className={`${compact ? "h-4 px-1 text-[9px]" : "h-5 max-w-full px-1.5 text-[10px]"}`}>
+        {compact ? "MTC" : "MTC-Slot"}
+      </Badge>
+      {!compact && (
+        <Badge variant="outline" className="h-5 max-w-full justify-center border-muted-foreground/30 px-1.5 text-[10px] text-muted-foreground">
+          {getParticipantPublicationLabel(participant.participantPublicationPreference)}
+        </Badge>
+      )}
+    </>
+  );
+}
+
+function getTeamCapabilities(team: Team, access: { canEditAll: boolean; canEditOwnTeam?: boolean }) {
+  const isMarketplaceTeam = team.registrationMode === "MARKETPLACE";
+  const isMtcDraft = isMarketplaceMatchingTeam(team);
+  const canEditMarketplaceObject = access.canEditAll && isMarketplaceTeam;
+
+  return {
+    isMarketplaceTeam,
+    isMtcDraft,
+    hasOpenMtcSlots: isMtcDraft && getParticipantCount(team) < 5,
+    canEditMarketplaceVisibility: canEditMarketplaceObject,
+    canEditPublicationPreferences: canEditMarketplaceObject || access.canEditOwnTeam === true,
+    canManageSlots: access.canEditAll && isMtcDraft,
+    canSearchParticipants: access.canEditAll && isMtcDraft && getParticipantCount(team) < 5,
+  };
 }
 
 function TeamDeleteDialog({
@@ -1002,10 +1097,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
-  const [marketplaceOnly, setMarketplaceOnly] = useState(marketplaceFocus);
+  const [marketplaceKindFilter, setMarketplaceKindFilter] = useState<MarketplaceKindFilter>(marketplaceFocus ? "marketplace" : "all");
   const [marketplaceStatusFilter, setMarketplaceStatusFilter] = useState<MarketplaceStatusFilter>("all");
   const [marketplaceVisibilityFilter, setMarketplaceVisibilityFilter] = useState<MarketplaceVisibilityFilter>("all");
   const [marketplacePublicationFilter, setMarketplacePublicationFilter] = useState<MarketplacePublicationFilter>("all");
+  const [openMtcSlotsOnly, setOpenMtcSlotsOnly] = useState(false);
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingMarketplaceTeam, setEditingMarketplaceTeam] = useState<Team | null>(null);
@@ -1428,7 +1524,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   useEffect(() => {
     if (marketplaceFocus) {
-      setMarketplaceOnly(true);
+      setMarketplaceKindFilter("marketplace");
       setOwnTeamsOnly(false);
     }
   }, [marketplaceFocus]);
@@ -1436,6 +1532,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   // Filter and search logic
   const filteredTeams = useMemo(() => {
     return teams.filter(team => {
+      const capabilities = getTeamCapabilities(team, { canEditAll, canEditOwnTeam: team.canCurrentUserEdit });
       // Category filter
       const matchesCategory = categoryFilter === "all" || team.category === categoryFilter;
       const matchesOwner =
@@ -1445,19 +1542,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       const matchesOwnTeam = !ownTeamsOnly || team.isCurrentUserTeam === true;
       const matchesCompleteness =
         !incompleteOnly || (canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team));
-      const matchesMarketplace = !marketplaceOnly || team.registrationMode === "MARKETPLACE";
+      const matchesMarketplace =
+        marketplaceKindFilter === "all" ||
+        (marketplaceKindFilter === "marketplace" && capabilities.isMarketplaceTeam) ||
+        (marketplaceKindFilter === "mtc" && capabilities.isMtcDraft) ||
+        (marketplaceKindFilter === "single" && capabilities.isMarketplaceTeam && !capabilities.isMtcDraft);
       const matchesMarketplaceStatus =
-        !marketplaceFocus ||
         marketplaceStatusFilter === "all" ||
-        (team.marketplaceStatus || "NEW") === marketplaceStatusFilter;
+        (capabilities.isMarketplaceTeam && (team.marketplaceStatus || "NEW") === marketplaceStatusFilter);
       const matchesMarketplaceVisibility =
-        !marketplaceFocus ||
         marketplaceVisibilityFilter === "all" ||
-        (team.marketplaceVisibility || "ADMIN_MANAGEMENT_ONLY") === marketplaceVisibilityFilter;
+        (capabilities.isMarketplaceTeam && (team.marketplaceVisibility || "ADMIN_MANAGEMENT_ONLY") === marketplaceVisibilityFilter);
       const matchesMarketplacePublication =
-        !marketplaceFocus ||
         marketplacePublicationFilter === "all" ||
-        (team.teamPublicationLevel || "TEAM_ANONYM") === marketplacePublicationFilter;
+        (capabilities.isMarketplaceTeam && (team.teamPublicationLevel || "TEAM_ANONYM") === marketplacePublicationFilter);
+      const matchesOpenMtcSlots = !openMtcSlotsOnly || capabilities.hasOpenMtcSlots;
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = getDateTimeFilterTimestamp(createdFrom);
       const createdToMs = getDateTimeFilterTimestamp(createdTo);
@@ -1482,10 +1581,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         matchesMarketplaceStatus &&
         matchesMarketplaceVisibility &&
         matchesMarketplacePublication &&
+        matchesOpenMtcSlots &&
         matchesCreatedAt &&
         matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceOnly, marketplaceFocus, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceKindFilter, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, openMtcSlotsOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin, canEditAll]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -1566,6 +1666,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   const incompleteTeams = teams.filter((team) => canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team)).length;
   const marketplaceTeams = teams.filter((team) => team.registrationMode === "MARKETPLACE");
+  const mtcTeams = marketplaceTeams.filter((team) => isMarketplaceMatchingTeam(team));
+  const marketplaceSingleTeams = marketplaceTeams.filter((team) => !isMarketplaceMatchingTeam(team));
+  const openMtcSlotTeams = mtcTeams.filter((team) => getTeamCapabilities(team, { canEditAll }).hasOpenMtcSlots);
   const marketplaceStatusCounts = MARKETPLACE_STATUS_OPTIONS.map((option) => ({
     ...option,
     count: marketplaceTeams.filter((team) => (team.marketplaceStatus || "NEW") === option.id).length,
@@ -1587,10 +1690,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     (showOwnerFilter && ownerFilter !== "all") ||
     ownTeamsOnly ||
     incompleteOnly ||
-    (!marketplaceFocus && marketplaceOnly) ||
-    (marketplaceFocus && marketplaceStatusFilter !== "all") ||
-    (marketplaceFocus && marketplaceVisibilityFilter !== "all") ||
-    (marketplaceFocus && marketplacePublicationFilter !== "all") ||
+    marketplaceKindFilter !== (marketplaceFocus ? "marketplace" : "all") ||
+    marketplaceStatusFilter !== "all" ||
+    marketplaceVisibilityFilter !== "all" ||
+    marketplacePublicationFilter !== "all" ||
+    openMtcSlotsOnly ||
     (isAdmin && createdFrom !== "") ||
     (isAdmin && createdTo !== "");
   const activeFilterCount = [
@@ -1599,10 +1703,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     showOwnerFilter && ownerFilter !== "all",
     ownTeamsOnly,
     incompleteOnly,
-    !marketplaceFocus && marketplaceOnly,
-    marketplaceFocus && marketplaceStatusFilter !== "all",
-    marketplaceFocus && marketplaceVisibilityFilter !== "all",
-    marketplaceFocus && marketplacePublicationFilter !== "all",
+    marketplaceKindFilter !== (marketplaceFocus ? "marketplace" : "all"),
+    marketplaceStatusFilter !== "all",
+    marketplaceVisibilityFilter !== "all",
+    marketplacePublicationFilter !== "all",
+    openMtcSlotsOnly,
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
@@ -1615,10 +1720,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
     setOwnTeamsOnly(false);
     setIncompleteOnly(false);
-    setMarketplaceOnly(marketplaceFocus);
+    setMarketplaceKindFilter(marketplaceFocus ? "marketplace" : "all");
     setMarketplaceStatusFilter("all");
     setMarketplaceVisibilityFilter("all");
     setMarketplacePublicationFilter("all");
+    setOpenMtcSlotsOnly(false);
     setCreatedFrom("");
     setCreatedTo("");
   };
@@ -1689,9 +1795,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                       : "outline"
                   }
                   onClick={() => {
+                    setMarketplaceKindFilter("marketplace");
                     setMarketplaceStatusFilter("all");
                     setMarketplaceVisibilityFilter("all");
                     setMarketplacePublicationFilter("all");
+                    setOpenMtcSlotsOnly(false);
                   }}
                 >
                   Alle anzeigen
@@ -1952,36 +2060,51 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 </Button>
               </div>
 
-              {isAdmin && !marketplaceFocus && (
+              {isAdmin && (
                 <div className="min-w-0 space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Sportlerbörse</label>
-                  <Button
-                    variant={marketplaceOnly ? "default" : "outline"}
-                    className="w-full justify-between"
-                    onClick={() => setMarketplaceOnly((current) => !current)}
+                  <label className="text-xs font-medium text-muted-foreground">Meldungstyp</label>
+                  <Select
+                    value={marketplaceKindFilter}
+                    onValueChange={(value) => {
+                      const nextValue = value as MarketplaceKindFilter;
+                      setMarketplaceKindFilter(nextValue);
+                      if (nextValue !== "mtc") {
+                        setOpenMtcSlotsOnly(false);
+                      }
+                    }}
                   >
-                    {marketplaceOnly ? "Nur Börse" : "Alle Meldungen"}
-                    <Badge variant={marketplaceOnly ? "secondary" : "outline"}>
-                      {teams.filter((team) => team.registrationMode === "MARKETPLACE").length}
-                    </Badge>
-                  </Button>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Alle Meldungen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!marketplaceFocus && <SelectItem value="all">Alle Meldungen</SelectItem>}
+                      <SelectItem value="marketplace">Sportlerbörse ({marketplaceTeams.length})</SelectItem>
+                      <SelectItem value="mtc">MTC ({mtcTeams.length})</SelectItem>
+                      <SelectItem value="single">Einzelmeldungen ({marketplaceSingleTeams.length})</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
-              {marketplaceFocus && (
-                <div className="min-w-0 space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Sportlerbörse</label>
-                  <div className="flex h-10 items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 text-sm">
-                    <span>Nur Börse</span>
-                    <Badge variant="secondary">
-                      {teams.filter((team) => team.registrationMode === "MARKETPLACE").length}
-                    </Badge>
-                  </div>
-                </div>
-              )}
-
-              {marketplaceFocus && (
+              {isAdmin && (
                 <>
+                  <div className="min-w-0 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Börsen-Status</label>
+                    <Select value={marketplaceStatusFilter} onValueChange={(value) => setMarketplaceStatusFilter(value as MarketplaceStatusFilter)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Alle Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alle Status</SelectItem>
+                        {MARKETPLACE_STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="min-w-0 space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">Börsen-Sichtbarkeit</label>
                     <Select value={marketplaceVisibilityFilter} onValueChange={(value) => setMarketplaceVisibilityFilter(value as MarketplaceVisibilityFilter)}>
@@ -2014,6 +2137,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="min-w-0 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">MTC-Slots</label>
+                    <Button
+                      variant={openMtcSlotsOnly ? "default" : "outline"}
+                      className="w-full justify-between"
+                      onClick={() => {
+                        setOpenMtcSlotsOnly((current) => !current);
+                        setMarketplaceKindFilter("mtc");
+                      }}
+                    >
+                      {openMtcSlotsOnly ? "Nur offene MTCs" : "Alle MTCs"}
+                      <Badge variant={openMtcSlotsOnly ? "secondary" : "outline"}>{openMtcSlotTeams.length}</Badge>
+                    </Button>
                   </div>
                 </>
               )}
@@ -2238,16 +2376,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               </thead>
               <tbody>
                 {sortedTeams.map((team) => {
+                  const capabilities = getTeamCapabilities(team, { canEditAll, canEditOwnTeam: team.canCurrentUserEdit });
                   const isEditable = team.canCurrentUserEdit === true && team.registrationMode !== "MARKETPLACE";
-                  const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
-                  const marketplaceDraftStatus = getMarketplaceDraftStatusMeta(team);
+                  const isMarketplaceMatching = capabilities.isMtcDraft;
                   const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
                   const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
-                  const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
-                  const canEditMarketplaceMatching = Boolean(
-                    canEditAll &&
-                    isMarketplaceMatching,
-                  );
+                  const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
+                  const canEditMarketplaceMatching = capabilities.canManageSlots;
                   const canDeleteTeam = team.canManageTeamManagers === true;
 
                   return (
@@ -2256,21 +2391,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                         <div className="space-y-1">
                           <div className="font-medium">{team.name}</div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            {team.registrationMode === "MARKETPLACE" && (
-                              <Badge variant="secondary" className="gap-1">
-                                Sportlerbörse
-                              </Badge>
-                            )}
-                            {isMarketplaceMatching && (
-                              <Badge variant="outline" className="border-primary/40 text-primary">
-                                Mannschaftsentwurf
-                              </Badge>
-                            )}
-                            {team.registrationMode === "MARKETPLACE" && (
-                              <Badge variant="outline" className={isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus)}>
-                                {isMarketplaceMatching ? marketplaceDraftStatus.label : getMarketplaceStatusOption(team.marketplaceStatus).label}
-                              </Badge>
-                            )}
+                            <MarketplaceTeamBadges team={team} />
                             <Badge variant="outline" className="gap-1">
                               <span>{categoryEmojis[team.category] || "🏆"}</span>
                               {team.category}
@@ -2400,16 +2521,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const showActionStatus = canShowTeamActionStatus(team, showAdminDashboardInfo);
               const disciplineSlots = getTeamDisciplineSlots(team);
               const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
-              const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
-              const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
-              const marketplaceDraftStatus = getMarketplaceDraftStatusMeta(team);
+              const capabilities = getTeamCapabilities(team, { canEditAll, canEditOwnTeam: team.canCurrentUserEdit });
+              const isMarketplaceMatching = capabilities.isMtcDraft;
               const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
               const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
-              const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
-              const canEditMarketplaceMatching = Boolean(
-                canEditAll &&
-                isMarketplaceMatching,
-              );
+              const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
+              const canEditMarketplaceMatching = capabilities.canManageSlots;
               const canDeleteTeam = team.canManageTeamManagers === true;
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
@@ -2434,21 +2551,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               <span>{categoryEmojis[team.category] || "🏆"}</span>
                               {team.category}
                             </Badge>
-                            {team.registrationMode === "MARKETPLACE" && (
-                              <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-[10px]">
-                                Sportlerbörse
-                              </Badge>
-                            )}
-                            {isMarketplaceMatching && (
-                              <Badge variant="outline" className="h-6 shrink-0 border-primary/40 px-1.5 text-[10px] text-primary">
-                                Mannschaftsentwurf
-                              </Badge>
-                            )}
-                            {team.registrationMode === "MARKETPLACE" && (
-                              <Badge variant="outline" className={`h-6 shrink-0 px-1.5 text-[10px] ${isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus)}`}>
-                                {isMarketplaceMatching ? marketplaceDraftStatus.label : marketplaceStatus.label}
-                              </Badge>
-                            )}
+                            <MarketplaceTeamBadges team={team} compact />
                             {team.isCurrentUserTeam && (
                               <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
                                 <Star className="size-3" />
@@ -2477,7 +2580,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                       team.canCurrentUserEdit ||
                                       (participant.isCurrentUserParticipant && can("participant.edit.self"))),
                                 );
-                                const canFillMarketplaceSlot = Boolean(canEditMarketplaceMatching && !participant);
+                                const canFillMarketplaceSlot = Boolean(capabilities.canSearchParticipants && !participant);
                                 const canUseSlotAction = canOpenParticipant || canFillMarketplaceSlot;
 
                                 return (
@@ -2519,6 +2622,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         teamPublicationLevel={team.teamPublicationLevel}
                                       />
                                     )}
+                                    {participant && <MarketplaceParticipantBadges team={team} participant={participant} compact />}
                                   </div>
                                 );
                               })}
@@ -2640,21 +2744,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 <span>{categoryEmojis[team.category] || "🏆"}</span>
                                 {team.category}
                               </Badge>
-                              {team.registrationMode === "MARKETPLACE" && (
-                                <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-[10px]">
-                                  Sportlerbörse
-                                </Badge>
-                              )}
-                              {isMarketplaceMatching && (
-                                <Badge variant="outline" className="h-6 shrink-0 border-primary/40 px-1.5 text-[10px] text-primary">
-                                  Mannschaftsentwurf
-                                </Badge>
-                              )}
-                              {team.registrationMode === "MARKETPLACE" && (
-                                <Badge variant="outline" className={`h-6 shrink-0 px-1.5 text-[10px] ${isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus)}`}>
-                                  {isMarketplaceMatching ? marketplaceDraftStatus.label : marketplaceStatus.label}
-                                </Badge>
-                              )}
+                              <MarketplaceTeamBadges team={team} compact />
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
                               {canEditMarketplaceParticipant && (
@@ -2774,22 +2864,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    {isMarketplaceMatching && (
-                                      <Badge variant="outline" className="border-primary/40 text-primary">
-                                        Mannschaftsentwurf
-                                      </Badge>
-                                    )}
-                                    <Badge variant="outline" className={isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus)}>
-                                      {isMarketplaceMatching ? marketplaceDraftStatus.label : marketplaceStatus.label}
-                                    </Badge>
-                                    {isMarketplaceMatching && (
-                                      <Badge variant="outline">
-                                        {getParticipantCount(team)} / 5 Teilnehmer:innen
-                                      </Badge>
-                                    )}
-                                    <Badge variant="outline">
-                                      {MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === team.marketplaceVisibility)?.label || "Nur für Admins/MGMT sichtbar"}
-                                    </Badge>
+                                    <MarketplaceTeamBadges team={team} />
                                   </div>
                                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
                                     {team.contactName && <span>{team.contactName}</span>}
@@ -2865,6 +2940,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     ? getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"))
                                     : null;
                                   const latestChangeMeta = participant ? getLatestChangeMeta(participant.latestChange?.status) : null;
+                                  const participantAccessMeta = participant ? getParticipantAccessMeta(team, participant) : null;
                                   const showRights = Boolean(participant && (participant.isTeamManager || participant.canBeTeamManager || canEditAll));
                                   const canOpenParticipant = Boolean(
                                     participant?.id &&
@@ -2872,17 +2948,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         team.canCurrentUserEdit ||
                                         (participant.isCurrentUserParticipant && can("participant.edit.self"))),
                                   );
-                                  const canFillMarketplaceSlot = Boolean(canEditMarketplaceMatching && !participant);
+                                  const canFillMarketplaceSlot = Boolean(capabilities.canSearchParticipants && !participant);
                                   const canUseSlotAction = canOpenParticipant;
                                   const assignedDisciplineId = participant?.discipline || participant?.disciplineCode || "TBD";
                                   const desiredDisciplineId = participant?.marketplaceReturnDisciplineCode || assignedDisciplineId;
-                                  const assignedDisciplineIds = new Set(
+                                  const participantByDiscipline = new Map(
                                     (team.participants ?? [])
-                                      .map((entry) => entry.discipline || entry.disciplineCode)
-                                      .filter((value): value is string => Boolean(value) && value !== "TBD"),
-                                  );
-                                  const slotOptions = DISCIPLINES.filter(
-                                    (entry) => entry.id === assignedDisciplineId || !assignedDisciplineIds.has(entry.id),
+                                      .map((entry) => [entry.discipline || entry.disciplineCode, entry] as const)
+                                      .filter(([value]) => Boolean(value) && value !== "TBD"),
                                   );
 
                                   return (
@@ -2932,8 +3005,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         </div>
                                       </div>
 
-                                      {(latestChangeMeta || emailInviteMeta || showRights) && (
+                                      {((participant && isMarketplaceMatching) || latestChangeMeta || emailInviteMeta || showRights) && (
                                         <div className="flex min-w-0 flex-wrap gap-1">
+                                          {participant && <MarketplaceParticipantBadges team={team} participant={participant} />}
                                           {latestChangeMeta && (
                                             <Badge
                                               variant="outline"
@@ -2975,11 +3049,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                           {showRights && participant && (
                                             <Badge
                                               variant="outline"
-                                              className={
-                                                participant.isTeamManager
-                                                  ? `h-5 max-w-full justify-center border-green-300 px-1.5 text-[10px] text-green-700 ${canUseAdminLinks && participant.linkedUserId ? "cursor-pointer" : ""}`
-                                                  : "h-5 max-w-full justify-center border-muted px-1.5 text-[10px] text-muted-foreground"
-                                              }
+                                              className={`h-5 max-w-full justify-center px-1.5 text-[10px] ${participantAccessMeta?.className ?? "border-muted text-muted-foreground"} ${canUseAdminLinks && participant.isTeamManager && participant.linkedUserId ? "cursor-pointer" : ""}`}
                                               onClick={(event) => {
                                                 event.stopPropagation();
                                                 if (canUseAdminLinks && participant.isTeamManager && participant.linkedUserId) {
@@ -2989,7 +3059,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                               role={canUseAdminLinks && participant.isTeamManager && participant.linkedUserId ? "link" : undefined}
                                               title={canUseAdminLinks && participant.isTeamManager && participant.linkedUserId ? "Benutzerverwaltung öffnen" : undefined}
                                             >
-                                              {participant.isTeamManager ? "Team Manager:in" : participant.canBeTeamManager ? "Teilnehmer:in" : "Kein Portal-Konto"}
+                                              {participantAccessMeta?.label ?? "Kein Portal-Konto"}
                                             </Badge>
                                           )}
                                         </div>
@@ -3017,11 +3087,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                                   <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                  {slotOptions.map((slotOption) => (
-                                                    <SelectItem key={slotOption.id} value={slotOption.id}>
-                                                      {slotOption.icon} Slot: {slotOption.label}
-                                                    </SelectItem>
-                                                  ))}
+                                                  {DISCIPLINES.map((slotOption) => {
+                                                    const slotParticipant = participantByDiscipline.get(slotOption.id);
+                                                    const isSwapTarget = Boolean(slotParticipant && slotParticipant.id !== participant.id);
+
+                                                    return (
+                                                      <SelectItem key={slotOption.id} value={slotOption.id}>
+                                                        {slotOption.icon} Slot: {slotOption.label}
+                                                        {isSwapTarget && slotParticipant ? ` - tauschen mit ${getParticipantDisplayName(slotParticipant)}` : ""}
+                                                      </SelectItem>
+                                                    );
+                                                  })}
                                                 </SelectContent>
                                               </Select>
                                             </div>
@@ -3037,6 +3113,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                           >
                                             {participant.moderationNote?.trim() ? "Notiz" : "Notiz +"}
                                           </button>
+                                          )}
+                                          {isMarketplaceMatching && canEditAll && participant.id && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                openParticipantDetails(team, participant);
+                                              }}
+                                              className="min-h-7 flex-1 rounded border border-blue-300/70 bg-blue-50 px-2 py-0.5 text-[10px] text-blue-800 transition-colors hover:bg-blue-100 dark:bg-blue-950/20 dark:text-blue-200"
+                                              title="Teilnehmerdialog mit Einladung öffnen"
+                                            >
+                                              Einladung
+                                            </button>
                                           )}
                                           {(team.canCurrentUserEdit || (participant.isCurrentUserParticipant && can("participant.edit.self"))) && (
                                             <button
@@ -3547,13 +3635,10 @@ function MarketplaceMatchingModal({
                     const teamFull = assignedParticipants.length >= 5;
                     const assignedDisciplineId = participant?.discipline || participant?.disciplineCode || "TBD";
                     const desiredDisciplineId = participant?.marketplaceReturnDisciplineCode || assignedDisciplineId;
-                    const occupiedDisciplineIds = new Set(
+                    const participantByDiscipline = new Map(
                       assignedParticipants
-                        .map((entry) => entry.discipline || entry.disciplineCode)
-                        .filter((value): value is string => Boolean(value) && value !== "TBD"),
-                    );
-                    const availableSlotOptions = DISCIPLINES.filter(
-                      (entry) => entry.id === assignedDisciplineId || !occupiedDisciplineIds.has(entry.id),
+                        .map((entry) => [entry.discipline || entry.disciplineCode, entry] as const)
+                        .filter(([value]) => Boolean(value) && value !== "TBD"),
                     );
 
                     return (
@@ -3592,11 +3677,17 @@ function MarketplaceMatchingModal({
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {availableSlotOptions.map((slotOption) => (
-                                    <SelectItem key={slotOption.id} value={slotOption.id}>
-                                      {slotOption.icon} Slot: {slotOption.label}
-                                    </SelectItem>
-                                  ))}
+                                  {DISCIPLINES.map((slotOption) => {
+                                    const slotParticipant = participantByDiscipline.get(slotOption.id);
+                                    const isSwapTarget = Boolean(slotParticipant && slotParticipant.id !== participant.id);
+
+                                    return (
+                                      <SelectItem key={slotOption.id} value={slotOption.id}>
+                                        {slotOption.icon} Slot: {slotOption.label}
+                                        {isSwapTarget && slotParticipant ? ` - tauschen mit ${getParticipantDisplayName(slotParticipant)}` : ""}
+                                      </SelectItem>
+                                    );
+                                  })}
                                 </SelectContent>
                               </Select>
                               {canReleaseAssignedParticipants ? (

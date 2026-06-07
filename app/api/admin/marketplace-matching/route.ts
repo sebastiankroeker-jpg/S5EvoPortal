@@ -355,15 +355,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: `${participantName(participant)} ist bereits diesem Slot zugeordnet.` });
     }
 
-    const occupiedByOtherParticipant = targetTeam.participants.some(
+    const occupiedByOtherParticipant = targetTeam.participants.find(
       (entry) => entry.id !== participant.id && entry.disciplineCode === requestedDiscipline,
     );
 
-    if (occupiedByOtherParticipant) {
-      return NextResponse.json({ error: "Dieser Slot ist bereits belegt." }, { status: 409 });
-    }
-
     await prisma.$transaction(async (tx) => {
+      if (occupiedByOtherParticipant) {
+        await tx.participant.update({
+          where: { id: occupiedByOtherParticipant.id },
+          data: { disciplineCode: participant.disciplineCode },
+        });
+      }
+
       await tx.participant.update({
         where: { id: participant.id },
         data: { disciplineCode: requestedDiscipline },
@@ -396,6 +399,9 @@ export async function POST(request: NextRequest) {
             targetTeamName: targetTeam.name,
             assignedDiscipline: requestedDiscipline,
             desiredDiscipline: participant.marketplaceReturnDisciplineCode ?? participant.disciplineCode,
+            swappedParticipantId: occupiedByOtherParticipant?.id ?? null,
+            swappedParticipantName: occupiedByOtherParticipant ? participantName(occupiedByOtherParticipant) : null,
+            swappedParticipantAssignedDiscipline: occupiedByOtherParticipant ? participant.disciplineCode : null,
           },
           meta: {
             participantName: participantName(participant),
@@ -407,6 +413,13 @@ export async function POST(request: NextRequest) {
         },
       });
     });
+
+    if (occupiedByOtherParticipant) {
+      return NextResponse.json({
+        success: true,
+        message: `${participantName(participant)} und ${participantName(occupiedByOtherParticipant)} wurden getauscht.`,
+      });
+    }
 
     return NextResponse.json({ success: true, message: `${participantName(participant)} wurde ${requestedDiscipline} zugeordnet.` });
   }
