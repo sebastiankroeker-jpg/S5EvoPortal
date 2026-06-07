@@ -16,6 +16,7 @@ type MtcAccessFailureCode =
   | "not_found"
   | "revoked"
   | "expired"
+  | "deleted"
   | "wrong_mode"
   | "claim_links_disabled";
 
@@ -184,6 +185,7 @@ export async function loadMtcAnonymousToken(token: string) {
   if (!tokenRecord) return { token: null, failure: "not_found" as const };
   if (tokenRecord.revokedAt) return { token: tokenRecord, failure: "revoked" as const };
   if (isExpired(tokenRecord.expiresAt)) return { token: tokenRecord, failure: "expired" as const };
+  if (tokenRecord.team.deletedAt) return { token: tokenRecord, failure: "deleted" as const };
   if (tokenRecord.team.registrationMode !== "MARKETPLACE") return { token: tokenRecord, failure: "wrong_mode" as const };
   if (!tokenRecord.team.competition.tenant.claimLinksEnabled) {
     return { token: tokenRecord, failure: "claim_links_disabled" as const };
@@ -195,6 +197,7 @@ export async function loadMtcAnonymousToken(token: string) {
 export function getMtcAnonymousFailureMessage(failure: MtcAccessFailureCode) {
   if (failure === "expired") return "MTC-Link ist abgelaufen";
   if (failure === "revoked") return "MTC-Link wurde gesperrt";
+  if (failure === "deleted") return "Dieser MTC-Entwurf wurde geloescht";
   if (failure === "wrong_mode") return "Dieser Link ist nicht fuer einen MTC-Entwurf freigegeben";
   if (failure === "claim_links_disabled") return "Die Einloesung von Links ist aktuell deaktiviert";
   return "MTC-Link nicht gefunden";

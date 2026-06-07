@@ -1360,7 +1360,13 @@ export async function DELETE(
               id: true,
               firstName: true,
               lastName: true,
+              birthYear: true,
+              disciplineCode: true,
+              email: true,
+              moderationNote: true,
               userId: true,
+              marketplaceReturnTeamId: true,
+              marketplaceReturnDisciplineCode: true,
             },
           },
           memberRoles: {
@@ -1402,6 +1408,17 @@ export async function DELETE(
       }
 
       const now = new Date();
+      const isMtcMarketplaceDraft =
+        existingTeam.registrationMode === "MARKETPLACE" &&
+        existingTeam.marketplaceStatus === "MATCHING";
+      const returnableMarketplaceParticipants = isMtcMarketplaceDraft
+        ? existingTeam.participants.filter((participant) => participant.marketplaceReturnTeamId)
+        : [];
+      const nativeParticipantIds = isMtcMarketplaceDraft
+        ? existingTeam.participants
+            .filter((participant) => !participant.marketplaceReturnTeamId)
+            .map((participant) => participant.id)
+        : existingTeam.participants.map((participant) => participant.id);
       const linkedParticipantCount = existingTeam.participants.filter((participant) => participant.userId).length;
       const beforeSnapshot = {
         teamName: existingTeam.name,
@@ -1411,7 +1428,8 @@ export async function DELETE(
       };
       const requestedSnapshot = {
         deletedAt: now.toISOString(),
-        deletedParticipants: existingTeam.participants.length,
+        deletedParticipants: nativeParticipantIds.length,
+        returnedMarketplaceParticipants: returnableMarketplaceParticipants.length,
       };
       const affectedUserIds = Array.from(
         new Set(
@@ -1430,10 +1448,77 @@ export async function DELETE(
             deletedAt: now,
           },
         });
-        await tx.participant.updateMany({
-          where: { teamId: id, deletedAt: null },
-          data: { deletedAt: now },
-        });
+
+        if (isMtcMarketplaceDraft) {
+          for (const participant of returnableMarketplaceParticipants) {
+            const returnTeam = participant.marketplaceReturnTeamId
+              ? await tx.team.findFirst({
+                  where: {
+                    id: participant.marketplaceReturnTeamId,
+                    competitionId: existingTeam.competition.id,
+                    registrationMode: "MARKETPLACE",
+                  },
+                  select: { id: true },
+                })
+              : null;
+
+            const restoredTeam = returnTeam
+              ? await tx.team.update({
+                  where: { id: returnTeam.id },
+                  data: {
+                    deletedAt: null,
+                    contactName: `${participant.firstName} ${participant.lastName}`.trim(),
+                    contactEmail: participant.email ?? existingTeam.contactEmail,
+                    totalAge: participant.birthYear ? existingTeam.competition.year - participant.birthYear : null,
+                    teamChiefId: participant.userId ?? existingTeam.teamChiefId,
+                    marketplaceStatus: "REVIEWED",
+                    marketplaceMessage: participant.moderationNote ?? null,
+                  },
+                  select: { id: true },
+                })
+              : await tx.team.create({
+                  data: {
+                    name: `Sportlerbörse: ${participant.firstName} ${participant.lastName}`.trim(),
+                    contactName: `${participant.firstName} ${participant.lastName}`.trim(),
+                    contactEmail: participant.email ?? existingTeam.contactEmail,
+                    teamPublicationLevel: existingTeam.teamPublicationLevel,
+                    registrationMode: "MARKETPLACE",
+                    marketplaceVisibility: existingTeam.marketplaceVisibility,
+                    marketplaceStatus: "REVIEWED",
+                    marketplaceMessage: participant.moderationNote ?? null,
+                    classificationCode: "sportlerboerse",
+                    totalAge: participant.birthYear ? existingTeam.competition.year - participant.birthYear : null,
+                    competitionId: existingTeam.competition.id,
+                    ownerId: existingTeam.ownerId,
+                    teamChiefId: participant.userId ?? existingTeam.teamChiefId,
+                  },
+                  select: { id: true },
+                });
+
+            await tx.participant.update({
+              where: { id: participant.id },
+              data: {
+                teamId: restoredTeam.id,
+                disciplineCode: participant.marketplaceReturnDisciplineCode ?? participant.disciplineCode,
+                marketplaceReturnTeamId: null,
+                marketplaceReturnDisciplineCode: null,
+                deletedAt: null,
+              },
+            });
+          }
+
+          await tx.registrationClaimToken.updateMany({
+            where: { teamId: id, revokedAt: null },
+            data: { revokedAt: now },
+          });
+        }
+
+        if (nativeParticipantIds.length > 0) {
+          await tx.participant.updateMany({
+            where: { id: { in: nativeParticipantIds }, deletedAt: null },
+            data: { deletedAt: now },
+          });
+        }
         await Promise.all(
           affectedUserIds.map((affectedUserId) =>
             syncDerivedTeamchefRole(tx, {
@@ -1456,6 +1541,8 @@ export async function DELETE(
               ownerEmail: existingTeam.owner.email,
               sessionEmail: normalizeEmail(userEmail),
               linkedParticipants: linkedParticipantCount,
+              returnedMarketplaceParticipants: returnableMarketplaceParticipants.length,
+              nativeDeletedParticipants: nativeParticipantIds.length,
             },
             tenantId: existingTeam.competition.tenantId,
             competitionId: existingTeam.competition.id,
@@ -1477,6 +1564,8 @@ export async function DELETE(
             ownerEmail: existingTeam.owner.email,
             sessionEmail: normalizeEmail(userEmail),
             linkedParticipants: linkedParticipantCount,
+            returnedMarketplaceParticipants: returnableMarketplaceParticipants.length,
+            nativeDeletedParticipants: nativeParticipantIds.length,
           },
           actorId: user.id,
           message: "Mannschaft geloescht",
