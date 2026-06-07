@@ -11,14 +11,14 @@ export default function PublicMarketplaceRegistrationPage() {
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium text-primary">Sportlerbörse</p>
-            <h1 className="text-2xl font-bold">Einzelteilnehmer melden</h1>
+            <h1 className="text-2xl font-bold">Als Einzelsportler oder unvollständige Mannschaft melden</h1>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Noch keine vollständige Mannschaft? Melde dich einzeln bei der Orga. Deine Kontaktdaten bleiben geschützt und die Sichtbarkeit bestimmst du selbst.
+              Noch keine Mitstreiter oder es fehlt jemand zur Vollständigkeit der Mannschaft? Melde dich hier bei der Orga. Deine Kontaktdaten bleiben geschützt und die Sichtbarkeit deiner Anfrage bestimmst du selbst.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/sportlerboerse/mtc" className="inline-flex h-9 items-center justify-center rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary shadow-sm hover:bg-primary/15">
-              Unvollständige Mannschaft
+              Sportlerbörse
             </Link>
             <Link href="/anmeldung" className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
               Mannschaft anmelden
