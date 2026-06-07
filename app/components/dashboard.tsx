@@ -867,10 +867,17 @@ function MarketplaceSlotSearchPopover({
 
       {open && (
         <div
-          className="absolute inset-x-0 top-[calc(100%+0.25rem)] z-50 rounded-md border border-border bg-card p-2 text-xs shadow-xl md:left-auto md:right-0 md:w-[min(38rem,calc(100vw-2.5rem))]"
-          onClick={(event) => event.stopPropagation()}
+          className="fixed inset-0 z-[120] flex items-end bg-black/55 p-0 sm:items-center sm:justify-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${discipline.label}: Teilnehmer suchen`}
+          onClick={() => setOpen(false)}
         >
-          <div className="mb-2 flex items-center gap-2">
+          <div
+            className="flex max-h-[84dvh] w-full flex-col rounded-t-lg border border-border bg-card text-xs shadow-xl sm:max-h-[min(42rem,calc(100dvh-2rem))] sm:max-w-2xl sm:rounded-lg"
+            onClick={(event) => event.stopPropagation()}
+          >
+          <div className="flex shrink-0 items-center gap-2 border-b border-border p-3">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -882,7 +889,7 @@ function MarketplaceSlotSearchPopover({
               Schließen
             </Button>
           </div>
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+          <div className="flex-1 space-y-2 overflow-y-auto overscroll-contain p-3 pr-2 [-webkit-overflow-scrolling:touch]">
             {error ? (
               <div className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">{error}</div>
             ) : loading ? (
@@ -930,6 +937,7 @@ function MarketplaceSlotSearchPopover({
                 );
               })
             )}
+          </div>
           </div>
         </div>
       )}
@@ -3510,65 +3518,76 @@ function MarketplaceMatchingModal({
                         </div>
 
                         {slotSearchOpen && (
-                          <div className="absolute right-2 top-[calc(100%-0.25rem)] z-20 w-[min(38rem,calc(100vw-2.5rem))] rounded-md border border-border bg-card p-2 shadow-lg">
-                            <div className="mb-2 flex items-center gap-2">
-                              <Input
-                                value={query}
-                                onChange={(event) => setQuery(event.target.value)}
-                                placeholder={`${discipline.label}: Name, E-Mail oder Status`}
-                                className="h-9"
-                                autoFocus
-                              />
-                              <Button type="button" size="sm" variant="outline" onClick={() => setOpenSearchSlotId(null)}>
-                                Schließen
-                              </Button>
-                            </div>
-                            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                              {loadingAvailable ? (
-                                <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Lade freie Teilnehmer...</div>
-                              ) : slotSearchParticipants.length === 0 ? (
-                                <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Keine freien Börsen-Teilnehmer gefunden.</div>
-                              ) : (
-                                slotSearchParticipants.map((availableParticipant) => {
-                                  const availableDiscipline = DISCIPLINES.find((entry) => entry.id === availableParticipant.disciplineCode);
-                                  const alreadyAssigned = assignedParticipantIds.has(availableParticipant.id);
-                                  const matchesSlot = availableParticipant.disciplineCode === discipline.id;
+                          <div
+                            className="fixed inset-0 z-[120] flex items-end bg-black/55 p-0 sm:items-center sm:justify-center sm:p-4"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label={`${discipline.label}: Teilnehmer suchen`}
+                            onClick={() => setOpenSearchSlotId(null)}
+                          >
+                            <div
+                              className="flex max-h-[84dvh] w-full flex-col rounded-t-lg border border-border bg-card text-xs shadow-xl sm:max-h-[min(42rem,calc(100dvh-2rem))] sm:max-w-2xl sm:rounded-lg"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <div className="flex shrink-0 items-center gap-2 border-b border-border p-3">
+                                <Input
+                                  value={query}
+                                  onChange={(event) => setQuery(event.target.value)}
+                                  placeholder={`${discipline.label}: Name, E-Mail oder Status`}
+                                  className="h-9"
+                                  autoFocus
+                                />
+                                <Button type="button" size="sm" variant="outline" onClick={() => setOpenSearchSlotId(null)}>
+                                  Schließen
+                                </Button>
+                              </div>
+                              <div className="flex-1 space-y-2 overflow-y-auto overscroll-contain p-3 pr-2 [-webkit-overflow-scrolling:touch]">
+                                {loadingAvailable ? (
+                                  <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Lade freie Teilnehmer...</div>
+                                ) : slotSearchParticipants.length === 0 ? (
+                                  <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Keine freien Börsen-Teilnehmer gefunden.</div>
+                                ) : (
+                                  slotSearchParticipants.map((availableParticipant) => {
+                                    const availableDiscipline = DISCIPLINES.find((entry) => entry.id === availableParticipant.disciplineCode);
+                                    const alreadyAssigned = assignedParticipantIds.has(availableParticipant.id);
+                                    const matchesSlot = availableParticipant.disciplineCode === discipline.id;
 
-                                  return (
-                                    <div key={availableParticipant.id} className="rounded-md border border-border/60 bg-background p-2 text-xs">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                          <p className="truncate text-sm font-medium">{availableParticipant.name}</p>
-                                          <p className="truncate text-muted-foreground">
-                                            {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
-                                            {availableParticipant.birthDate ? ` · ${availableParticipant.birthDate}` : ""}
-                                            {availableParticipant.email ? ` · ${availableParticipant.email}` : ""}
-                                          </p>
-                                          <div className="mt-1 flex flex-wrap gap-1">
-                                            <Badge variant={matchesSlot ? "default" : "outline"}>
-                                              {matchesSlot ? "passend" : `als ${discipline.label} zuordnen`}
-                                            </Badge>
-                                            <Badge variant="outline" className={getMarketplaceStatusClass(availableParticipant.marketplaceStatus)}>
-                                              {getMarketplaceStatusOption(availableParticipant.marketplaceStatus).label}
-                                            </Badge>
-                                            <Badge variant="outline">{availableParticipant.teamName}</Badge>
+                                    return (
+                                      <div key={availableParticipant.id} className="rounded-md border border-border/60 bg-background p-2 text-xs">
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <p className="truncate text-sm font-medium">{availableParticipant.name}</p>
+                                            <p className="truncate text-muted-foreground">
+                                              {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
+                                              {availableParticipant.birthDate ? ` · ${availableParticipant.birthDate}` : ""}
+                                              {availableParticipant.email ? ` · ${availableParticipant.email}` : ""}
+                                            </p>
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                              <Badge variant={matchesSlot ? "default" : "outline"}>
+                                                {matchesSlot ? "passend" : `als ${discipline.label} zuordnen`}
+                                              </Badge>
+                                              <Badge variant="outline" className={getMarketplaceStatusClass(availableParticipant.marketplaceStatus)}>
+                                                {getMarketplaceStatusOption(availableParticipant.marketplaceStatus).label}
+                                              </Badge>
+                                              <Badge variant="outline">{availableParticipant.teamName}</Badge>
+                                            </div>
                                           </div>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleAdd(availableParticipant.id, discipline.id)}
+                                            disabled={alreadyAssigned || teamFull || busyParticipantId === availableParticipant.id}
+                                            aria-busy={busyParticipantId === availableParticipant.id}
+                                          >
+                                            Zuordnen
+                                          </Button>
                                         </div>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleAdd(availableParticipant.id, discipline.id)}
-                                          disabled={alreadyAssigned || teamFull || busyParticipantId === availableParticipant.id}
-                                          aria-busy={busyParticipantId === availableParticipant.id}
-                                        >
-                                          Zuordnen
-                                        </Button>
                                       </div>
-                                    </div>
-                                  );
-                                })
-                              )}
+                                    );
+                                  })
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}
