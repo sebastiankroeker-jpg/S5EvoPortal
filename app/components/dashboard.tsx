@@ -685,28 +685,33 @@ function getParticipantPublicationLabel(value?: Participant["participantPublicat
   return PARTICIPANT_PUBLICATION_OPTIONS.find((option) => option.id === (value || "NAME_VERBERGEN"))?.label || "Name verbergen";
 }
 
-function MarketplaceTeamBadges({ team, compact = false }: { team: Team; compact?: boolean }) {
+function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team: Team; compact?: boolean; subtle?: boolean }) {
   if (team.registrationMode !== "MARKETPLACE") return null;
 
   const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
   const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
   const marketplaceDraftStatus = getMarketplaceDraftStatusMeta(team);
   const compactClassName = compact ? "h-6 shrink-0 px-1.5 text-[10px]" : "";
+  const statusClassName = subtle
+    ? "border-muted-foreground/30 text-muted-foreground"
+    : isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus);
 
   return (
     <>
       <Badge variant="secondary" className={compactClassName}>
         {isMarketplaceMatching ? `MTC · ${getParticipantCount(team)}/5` : "Sportlerbörse"}
       </Badge>
-      <Badge variant="outline" className={`${compactClassName} ${isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus)}`}>
+      <Badge variant="outline" className={`${compactClassName} ${statusClassName}`}>
         {isMarketplaceMatching ? marketplaceDraftStatus.label : marketplaceStatus.label}
       </Badge>
       <Badge variant="outline" className={`${compactClassName} border-primary/30 text-primary`}>
         {getMarketplaceVisibilityLabel(team.marketplaceVisibility)}
       </Badge>
-      <Badge variant="outline" className={`${compactClassName} border-muted-foreground/30 text-muted-foreground`}>
-        {getTeamPublicationLabel(team.teamPublicationLevel)}
-      </Badge>
+      {!subtle && (
+        <Badge variant="outline" className={`${compactClassName} border-muted-foreground/30 text-muted-foreground`}>
+          {getTeamPublicationLabel(team.teamPublicationLevel)}
+        </Badge>
+      )}
     </>
   );
 }
@@ -720,7 +725,7 @@ function MarketplaceParticipantBadges({ team, participant, compact = false }: { 
         {compact ? "MTC" : "MTC-Slot"}
       </Badge>
       {!compact && (
-        <Badge variant="outline" className="h-5 max-w-full justify-center border-muted-foreground/30 px-1.5 text-[10px] text-muted-foreground">
+        <Badge variant="outline" className="h-5 max-w-full justify-center border-border/60 px-1.5 text-[10px] text-muted-foreground">
           {getParticipantPublicationLabel(participant.participantPublicationPreference)}
         </Badge>
       )}
@@ -1223,27 +1228,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       console.error('Failed to edit team:', error);
       notifications.error(
         "Fehler beim Speichern des Teams",
-        error instanceof Error ? error.message : "Bitte versuche es erneut.",
-      );
-    }
-  };
-
-  const handleMarketplaceStatusChange = async (teamId: string, marketplaceStatus: NonNullable<Team["marketplaceStatus"]>) => {
-    try {
-      const response = await fetch(`/api/teams/${teamId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ marketplaceStatus }),
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(data?.error || "Status konnte nicht gespeichert werden.");
-      }
-      await fetchTeams();
-      notifications.success("Sportlerbörse aktualisiert", "Der Status wurde gespeichert.");
-    } catch (error) {
-      notifications.error(
-        "Status konnte nicht gespeichert werden",
         error instanceof Error ? error.message : "Bitte versuche es erneut.",
       );
     }
@@ -2744,7 +2728,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 <span>{categoryEmojis[team.category] || "🏆"}</span>
                                 {team.category}
                               </Badge>
-                              <MarketplaceTeamBadges team={team} compact />
+                              <MarketplaceTeamBadges team={team} compact subtle={expandedTeam === team.id} />
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
                               {canEditMarketplaceParticipant && (
@@ -2852,7 +2836,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           )}
 
                           {team.registrationMode === "MARKETPLACE" && (
-                            <div className={isMarketplaceMatching ? "space-y-2" : "grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]"}>
+                            <div className={isMarketplaceMatching ? "space-y-1 text-xs text-muted-foreground" : "grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]"}>
                               {!isMarketplaceMatching && (
                                 <MarketplacePersonSummary
                                   team={team}
@@ -2860,67 +2844,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   revealPrivateName={revealPrivateDashboardNames}
                                 />
                               )}
-                              <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
-                              <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                                <div className="min-w-0 space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <MarketplaceTeamBadges team={team} />
-                                  </div>
-                                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
-                                    {team.contactName && <span>{team.contactName}</span>}
-                                    {team.contactEmail && <span>{team.contactEmail}</span>}
-                                    {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
-                                  </div>
-                                </div>
-
-                                {showAdminDashboardInfo && (
-                                  <Select
-                                    value={team.marketplaceStatus || "NEW"}
-                                    onValueChange={(value) =>
-                                      handleMarketplaceStatusChange(team.id, value as NonNullable<Team["marketplaceStatus"]>)
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 w-full bg-background text-xs sm:w-[170px]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {MARKETPLACE_STATUS_OPTIONS.map((option) => (
-                                        <SelectItem key={option.id} value={option.id}>
-                                          {option.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                              </div>
-
-                              {showAdminDashboardInfo && (
-                                <div className="flex flex-wrap gap-1">
-                                  {MARKETPLACE_STATUS_OPTIONS.map((option) => (
-                                    <Button
-                                      key={option.id}
-                                      type="button"
-                                      size="xs"
-                                      variant={(team.marketplaceStatus || "NEW") === option.id ? "default" : "outline"}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        if ((team.marketplaceStatus || "NEW") !== option.id) {
-                                          void handleMarketplaceStatusChange(team.id, option.id);
-                                        }
-                                      }}
-                                    >
-                                      {option.label}
-                                    </Button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {team.marketplaceMessage?.trim() && (
-                                <div className="rounded-md border border-border/50 bg-background/70 p-2">
-                                  <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Nachricht</p>
-                                  <p className="whitespace-pre-wrap text-muted-foreground">{team.marketplaceMessage}</p>
-                                </div>
-                              )}
+                              <div className={isMarketplaceMatching ? "flex flex-wrap gap-x-3 gap-y-1" : "space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs"}>
+                                {team.contactName && <span>{team.contactName}</span>}
+                                {team.contactEmail && <span>{team.contactEmail}</span>}
+                                {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
+                                {team.marketplaceMessage?.trim() && <span className="truncate">Notiz: {team.marketplaceMessage}</span>}
                               </div>
                             </div>
                           )}
@@ -3120,7 +3048,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                                 e.stopPropagation();
                                                 openParticipantDetails(team, participant);
                                               }}
-                                              className="min-h-7 flex-1 rounded border border-blue-300/70 bg-blue-50 px-2 py-0.5 text-[10px] text-blue-800 transition-colors hover:bg-blue-100 dark:bg-blue-950/20 dark:text-blue-200"
+                                              className="min-h-7 flex-1 rounded border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-primary"
                                               title="Teilnehmerdialog mit Einladung öffnen"
                                             >
                                               Einladung
