@@ -1649,6 +1649,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   }
 
   const incompleteTeams = teams.filter((team) => canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team)).length;
+  const ownTeamCount = teams.filter((team) => team.isCurrentUserTeam === true).length;
   const marketplaceTeams = teams.filter((team) => team.registrationMode === "MARKETPLACE");
   const mtcTeams = marketplaceTeams.filter((team) => isMarketplaceMatchingTeam(team));
   const marketplaceSingleTeams = marketplaceTeams.filter((team) => !isMarketplaceMatchingTeam(team));
@@ -1697,6 +1698,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
   const maxCreatedDateTime = formatDateTimeLocalInput(new Date());
+
+  const toggleMarketplaceKindQuickFilter = (kind: MarketplaceKindFilter) => {
+    setOpenMtcSlotsOnly(false);
+    setMarketplaceKindFilter((current) => {
+      if (current === kind) {
+        return marketplaceFocus ? "marketplace" : "all";
+      }
+      return kind;
+    });
+  };
+
+  const toggleOpenMtcSlotsQuickFilter = () => {
+    const nextActive = !(marketplaceKindFilter === "mtc" && openMtcSlotsOnly);
+    setMarketplaceKindFilter(nextActive ? "mtc" : marketplaceFocus ? "marketplace" : "all");
+    setOpenMtcSlotsOnly(nextActive);
+  };
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -1884,17 +1901,77 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             >
               Liste
             </Button>
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <span className="hidden text-[10px] font-medium uppercase text-muted-foreground sm:inline">
+              Schnellzugriff
+            </span>
+            {!marketplaceFocus && (
+              <Button
+                type="button"
+                size="xs"
+                variant={ownTeamsOnly ? "default" : "outline"}
+                onClick={() => setOwnTeamsOnly((current) => !current)}
+                title="Eigene Mannschaften anzeigen"
+              >
+                <Star className="size-3" />
+                Meine
+                <Badge variant={ownTeamsOnly ? "secondary" : "outline"}>{ownTeamCount}</Badge>
+              </Button>
+            )}
             <Button
               type="button"
               size="xs"
-              variant={ownTeamsOnly ? "default" : "outline"}
-              onClick={() => setOwnTeamsOnly((current) => !current)}
-              title="Eigene Mannschaften anzeigen"
-              disabled={marketplaceFocus}
+              variant={incompleteOnly ? "default" : "outline"}
+              onClick={() => setIncompleteOnly((current) => !current)}
+              title="Teams mit offenen Angaben oder Plausibilitätsbedarf"
             >
-              <Star className="size-3" />
-              Meine
+              <AlertTriangle className="size-3" />
+              Prüfen
+              <Badge variant={incompleteOnly ? "secondary" : "outline"}>{incompleteTeams}</Badge>
             </Button>
+            {isAdmin && !marketplaceFocus && (
+              <Button
+                type="button"
+                size="xs"
+                variant={marketplaceKindFilter === "marketplace" && !openMtcSlotsOnly ? "default" : "outline"}
+                onClick={() => toggleMarketplaceKindQuickFilter("marketplace")}
+                title="Sportlerbörse anzeigen"
+              >
+                <Search className="size-3" />
+                Börse
+                <Badge variant={marketplaceKindFilter === "marketplace" && !openMtcSlotsOnly ? "secondary" : "outline"}>
+                  {marketplaceTeams.length}
+                </Badge>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                type="button"
+                size="xs"
+                variant={marketplaceKindFilter === "mtc" && !openMtcSlotsOnly ? "default" : "outline"}
+                onClick={() => toggleMarketplaceKindQuickFilter("mtc")}
+                title="MTC-Mannschaften anzeigen"
+              >
+                <ClipboardList className="size-3" />
+                MTC
+                <Badge variant={marketplaceKindFilter === "mtc" && !openMtcSlotsOnly ? "secondary" : "outline"}>{mtcTeams.length}</Badge>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                type="button"
+                size="xs"
+                variant={openMtcSlotsOnly ? "default" : "outline"}
+                onClick={toggleOpenMtcSlotsQuickFilter}
+                title="MTCs mit offenen Slots anzeigen"
+              >
+                <AlertTriangle className="size-3" />
+                Slots offen
+                <Badge variant={openMtcSlotsOnly ? "secondary" : "outline"}>{openMtcSlotTeams.length}</Badge>
+              </Button>
+            )}
           </div>
 
           <div className="relative">
