@@ -1127,6 +1127,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [deleting, setDeleting] = useState<string | null>(null);
   const [creatingMatchingDraft, setCreatingMatchingDraft] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [expandedMarketplaceContainerTeam, setExpandedMarketplaceContainerTeam] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
   const [quickFilterExcludes, setQuickFilterExcludes] = useState<Record<QuickFilterKey, boolean>>(EMPTY_QUICK_EXCLUDES);
@@ -2661,6 +2662,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
               const canEditMarketplaceMatching = capabilities.canManageSlots;
               const canDeleteTeam = team.canManageTeamManagers === true;
+              const isMarketplaceContainerOpen = expandedMarketplaceContainerTeam === team.id;
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -2905,7 +2907,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Entwurf
                                 </Button>
                               )}
-                              {canEditMarketplaceTeam && (
+                              {canEditMarketplaceTeam && !isMarketplaceMatching && (
                                 <Button
                                   size="xs"
                                   variant="outline"
@@ -2985,21 +2987,75 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           )}
 
                           {team.registrationMode === "MARKETPLACE" && (
-                            <div className={isMarketplaceMatching ? "space-y-1 text-xs text-muted-foreground" : "grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]"}>
-                              {!isMarketplaceMatching && (
+                            isMarketplaceMatching ? (
+                              <div className="space-y-1 text-xs">
+                                <button
+                                  type="button"
+                                  className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                                  aria-expanded={isMarketplaceContainerOpen}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setExpandedMarketplaceContainerTeam(isMarketplaceContainerOpen ? null : team.id);
+                                  }}
+                                >
+                                  <Info className="size-3.5 shrink-0 text-muted-foreground" />
+                                  <span className="shrink-0 font-medium text-foreground">Container</span>
+                                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                                    {[team.contactName, team.contactEmail, team.createdAt ? `Gemeldet: ${formatDatePart(team.createdAt)}` : null]
+                                      .filter(Boolean)
+                                      .join(" · ") || "Infos anzeigen"}
+                                  </span>
+                                  {isMarketplaceContainerOpen ? (
+                                    <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                                  )}
+                                </button>
+
+                                {isMarketplaceContainerOpen && (
+                                  <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-muted-foreground">
+                                    <div className="grid gap-x-3 gap-y-1 sm:grid-cols-2">
+                                      {team.contactName && <div><span className="text-foreground">Kontakt:</span> {team.contactName}</div>}
+                                      {team.contactEmail && <div><span className="text-foreground">E-Mail:</span> {team.contactEmail}</div>}
+                                      {team.createdAt && <div><span className="text-foreground">Gemeldet:</span> {formatDatePart(team.createdAt)}</div>}
+                                      {team.marketplaceMessage?.trim() && (
+                                        <div className="sm:col-span-2">
+                                          <span className="text-foreground">Notiz:</span> {team.marketplaceMessage}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {canEditMarketplaceTeam && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 w-full"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setEditingMarketplaceTeam(team);
+                                        }}
+                                      >
+                                        <SlidersHorizontal className="size-4" />
+                                        Container bearbeiten
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]">
                                 <MarketplacePersonSummary
                                   team={team}
                                   participant={marketplaceParticipant}
                                   revealPrivateName={revealPrivateDashboardNames}
                                 />
-                              )}
-                              <div className={isMarketplaceMatching ? "flex flex-wrap gap-x-3 gap-y-1" : "space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs"}>
-                                {team.contactName && <span>{team.contactName}</span>}
-                                {team.contactEmail && <span>{team.contactEmail}</span>}
-                                {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
-                                {team.marketplaceMessage?.trim() && <span className="truncate">Notiz: {team.marketplaceMessage}</span>}
+                                <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
+                                  {team.contactName && <span>{team.contactName}</span>}
+                                  {team.contactEmail && <span>{team.contactEmail}</span>}
+                                  {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
+                                  {team.marketplaceMessage?.trim() && <span className="truncate">Notiz: {team.marketplaceMessage}</span>}
+                                </div>
                               </div>
-                            </div>
+                            )
                           )}
 
                           {(team.registrationMode !== "MARKETPLACE" || isMarketplaceMatching) && (
