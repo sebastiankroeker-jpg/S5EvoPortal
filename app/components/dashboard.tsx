@@ -481,6 +481,10 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
 }
 
 function getParticipantAccessMeta(team: Team, participant: Participant) {
+  const participantEmailMatchesContainer =
+    Boolean(team.ownerId && participant.email) &&
+    [team.ownerEmail, team.contactEmail].some((email) => normalizeEmail(email) === normalizeEmail(participant.email));
+
   if (participant.isTeamManager) {
     return {
       label: isMarketplaceMatchingTeam(team) ? "MTC-Teamchef bewusst" : "Team Manager:in",
@@ -495,10 +499,29 @@ function getParticipantAccessMeta(team: Team, participant: Participant) {
     };
   }
 
+  if (participantEmailMatchesContainer) {
+    return {
+      label: isMarketplaceMatchingTeam(team) ? "MTC-Kontakt" : "Börsen-Kontakt",
+      className: "border-green-300 text-green-700",
+    };
+  }
+
   return {
     label: "Kein Portal-Konto",
     className: "border-muted text-muted-foreground",
   };
+}
+
+function getParticipantEmailInvitationMeta(team: Team, participant: Participant) {
+  const participantEmailMatchesContainer =
+    Boolean(team.ownerId && participant.email) &&
+    [team.ownerEmail, team.contactEmail].some((email) => normalizeEmail(email) === normalizeEmail(participant.email));
+
+  if (participant.emailInvitation?.status === "linked" || participant.linkedUserId || participantEmailMatchesContainer) {
+    return getEmailInvitationMeta("linked");
+  }
+
+  return getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"));
 }
 
 function getMarketplaceContainerAccessMeta(team: Team) {
@@ -1097,7 +1120,7 @@ function MarketplacePersonSummary({
   const disciplineCode = participant?.discipline || participant?.disciplineCode || "TBD";
   const discipline = DISCIPLINES.find((entry) => entry.id === disciplineCode);
   const latestChangeMeta = participant ? getLatestChangeMeta(participant.latestChange?.status) : null;
-  const emailInviteMeta = participant ? getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email")) : null;
+  const emailInviteMeta = participant ? getParticipantEmailInvitationMeta(team, participant) : null;
 
   return (
     <div className="rounded-md border border-border/60 bg-background p-2.5 text-xs">
@@ -3561,9 +3584,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                       })
                                     : "Noch offen";
                                   const canManageModerationNote = Boolean(participant) && (canEditAll || team.canCurrentUserEdit === true);
-                                  const emailInviteMeta = participant && canEditAll
-                                    ? getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"))
-                                    : null;
+                                  const emailInviteMeta = participant && canEditAll ? getParticipantEmailInvitationMeta(team, participant) : null;
                                   const latestChangeMeta = participant ? getLatestChangeMeta(participant.latestChange?.status) : null;
                                   const participantAccessMeta = participant ? getParticipantAccessMeta(team, participant) : null;
                                   const showRights = Boolean(participant && (participant.isTeamManager || participant.canBeTeamManager || canEditAll));
