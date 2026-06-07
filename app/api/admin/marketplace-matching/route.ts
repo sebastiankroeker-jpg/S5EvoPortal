@@ -21,6 +21,10 @@ function participantName(participant: { firstName: string; lastName: string }) {
   return `${participant.firstName} ${participant.lastName}`.trim();
 }
 
+function marketplaceTeamNameForParticipant(participant: { firstName: string; lastName: string }) {
+  return `Sportlerbörse: ${participantName(participant)}`;
+}
+
 function toTeamDraftParticipant(participant: {
   firstName: string;
   lastName: string;
@@ -480,6 +484,39 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const restoredContactEmail = normalizeEmail(participant.email ?? targetTeam.contactEmail);
+    const restoreCollision = await prisma.team.findFirst({
+      where: {
+        id: { not: targetTeam.id },
+        competitionId: auth.competition.id,
+        deletedAt: null,
+        registrationMode: "MARKETPLACE",
+        name: {
+          equals: marketplaceTeamNameForParticipant(participant),
+          mode: "insensitive",
+        },
+        ...(restoredContactEmail
+          ? {
+              contactEmail: {
+                equals: restoredContactEmail,
+                mode: "insensitive",
+              },
+            }
+          : { contactEmail: null }),
+      },
+      select: { id: true, name: true },
+    });
+
+    if (restoreCollision) {
+      return NextResponse.json(
+        {
+          error: `Für ${participantName(participant)} existiert bereits eine freie Sportlerbörsen-Meldung. Bitte die vorhandene Meldung verwenden oder die Dublette bereinigen.`,
+          existingTeamId: restoreCollision.id,
+        },
+        { status: 409 }
+      );
+    }
+
     const restoredTeam = await prisma.$transaction(async (tx) => {
       const returnTeam = participant.marketplaceReturnTeamId
         ? await tx.team.findFirst({
@@ -508,7 +545,7 @@ export async function POST(request: NextRequest) {
           })
         : await tx.team.create({
             data: {
-              name: `Sportlerbörse: ${participantName(participant)}`,
+              name: marketplaceTeamNameForParticipant(participant),
               contactName: participantName(participant),
               contactEmail: participant.email ?? targetTeam.contactEmail,
               teamPublicationLevel: targetTeam.teamPublicationLevel,

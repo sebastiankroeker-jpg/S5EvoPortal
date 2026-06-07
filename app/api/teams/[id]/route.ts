@@ -52,6 +52,14 @@ function normalizeSubmittedText(value?: string | null) {
   return value?.normalize("NFC").trim() || "";
 }
 
+function participantDisplayName(participant: { firstName: string; lastName: string }) {
+  return `${participant.firstName} ${participant.lastName}`.trim();
+}
+
+function marketplaceTeamNameForParticipant(participant: { firstName: string; lastName: string }) {
+  return `Sportlerbörse: ${participantDisplayName(participant)}`;
+}
+
 function parseShirtSize(value: unknown): ShirtSize | null {
   if (typeof value !== "string") {
     return null;
@@ -1445,6 +1453,45 @@ export async function DELETE(
         ),
       );
 
+      if (isMtcMarketplaceDraft) {
+        for (const participant of returnableMarketplaceParticipants) {
+          const restoredContactEmail = normalizeEmail(participant.email ?? existingTeam.contactEmail);
+          const restoreCollision = await prisma.team.findFirst({
+            where: {
+              id: {
+                notIn: [id, participant.marketplaceReturnTeamId].filter((value): value is string => Boolean(value)),
+              },
+              competitionId: existingTeam.competition.id,
+              deletedAt: null,
+              registrationMode: "MARKETPLACE",
+              name: {
+                equals: marketplaceTeamNameForParticipant(participant),
+                mode: "insensitive",
+              },
+              ...(restoredContactEmail
+                ? {
+                    contactEmail: {
+                      equals: restoredContactEmail,
+                      mode: "insensitive",
+                    },
+                  }
+                : { contactEmail: null }),
+            },
+            select: { id: true },
+          });
+
+          if (restoreCollision) {
+            return NextResponse.json(
+              {
+                error: `Für ${participantDisplayName(participant)} existiert bereits eine freie Sportlerbörsen-Meldung. Bitte zuerst die Dublette bereinigen.`,
+                existingTeamId: restoreCollision.id,
+              },
+              { status: 409 }
+            );
+          }
+        }
+      }
+
       await prisma.$transaction(async (tx) => {
         await tx.team.update({
           where: { id: id },
@@ -1482,8 +1529,8 @@ export async function DELETE(
                 })
               : await tx.team.create({
                   data: {
-                    name: `Sportlerbörse: ${participant.firstName} ${participant.lastName}`.trim(),
-                    contactName: `${participant.firstName} ${participant.lastName}`.trim(),
+                    name: marketplaceTeamNameForParticipant(participant),
+                    contactName: participantDisplayName(participant),
                     contactEmail: participant.email ?? existingTeam.contactEmail,
                     teamPublicationLevel: existingTeam.teamPublicationLevel,
                     registrationMode: "MARKETPLACE",

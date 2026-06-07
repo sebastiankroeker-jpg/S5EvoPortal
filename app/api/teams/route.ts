@@ -46,6 +46,29 @@ function isRegistrationDeadlineReached(deadline?: Date | null): boolean {
   return new Date(deadline) < new Date();
 }
 
+async function findActiveMarketplaceDuplicateTeam(input: {
+  competitionId: string;
+  teamName: string;
+  contactEmail: string;
+}) {
+  return prisma.team.findFirst({
+    where: {
+      competitionId: input.competitionId,
+      deletedAt: null,
+      registrationMode: "MARKETPLACE",
+      name: {
+        equals: input.teamName.trim(),
+        mode: "insensitive",
+      },
+      contactEmail: {
+        equals: normalizeEmail(input.contactEmail),
+        mode: "insensitive",
+      },
+    },
+    select: { id: true, name: true },
+  });
+}
+
 type SerializedPendingChange = {
   id: string;
   status: string;
@@ -662,6 +685,21 @@ export async function POST(request: NextRequest) {
           "MTC-Entwurf aus unvollständiger Mannschaftsanmeldung",
           draftData.marketplaceMessage?.trim(),
         ].filter(Boolean).join("\n\n");
+        const duplicateTeam = await findActiveMarketplaceDuplicateTeam({
+          competitionId,
+          teamName: finalTeamName,
+          contactEmail: userEmail,
+        });
+
+        if (duplicateTeam) {
+          return NextResponse.json(
+            {
+              error: `Für "${finalTeamName}" existiert bereits eine Sportlerbörsen-Meldung mit diesem Kontakt.`,
+              existingTeamId: duplicateTeam.id,
+            },
+            { status: 409 }
+          );
+        }
 
         const team = await prisma.team.create({
           data: {
@@ -868,6 +906,22 @@ export async function POST(request: NextRequest) {
 
         const participantName = `${marketplaceData.contactFirstName} ${marketplaceData.contactLastName}`.trim();
         const finalTeamName = `Sportlerbörse: ${participantName}`;
+        const duplicateTeam = await findActiveMarketplaceDuplicateTeam({
+          competitionId,
+          teamName: finalTeamName,
+          contactEmail: userEmail,
+        });
+
+        if (duplicateTeam) {
+          return NextResponse.json(
+            {
+              error: `Für "${participantName}" existiert bereits eine Sportlerbörsen-Meldung mit diesem Kontakt.`,
+              existingTeamId: duplicateTeam.id,
+            },
+            { status: 409 }
+          );
+        }
+
         const team = await prisma.team.create({
           data: {
             name: finalTeamName,
