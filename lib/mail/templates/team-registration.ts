@@ -124,8 +124,11 @@ function paymentDetailsText() {
 
 export function buildRegistrantConfirmationMail(input: TemplateInput) {
   const isMarketplace = input.registrationMode === "MARKETPLACE";
+  const isMtcDraft = isMarketplace && input.marketplaceStatus === "MATCHING";
   const subject = isMarketplace
-    ? `Soier 5kampf Sportlerbörse erhalten: ${input.teamName}`
+    ? isMtcDraft
+      ? `Soier 5kampf MTC-Entwurf erhalten: ${input.teamName}`
+      : `Soier 5kampf Sportlerbörse erhalten: ${input.teamName}`
     : `Soier 5kampf Anmeldung erhalten: ${input.teamName}`;
   const portalBlockHtml =
     input.alreadyLinked && input.portalUrl
@@ -133,21 +136,23 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
       : "";
   const claimBlockHtml =
     !input.alreadyLinked && input.claimUrl
-      ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Bei Änderungen zur Mannschaft</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Link. Dieser ist vertraulich und kann nur mit der E-Mail-Adresse aus Punkt 2 verwendet werden.</li><li>Erstelle mit <strong>${input.contactEmail}</strong> ein Konto im Portal und melde dich dort mit dieser an.</li><li>Danach ist das Team deinem Konto zugeordnet.</li><li>Änderungen innerhalb der Mannschaft können dort bis zum Anmeldeschluss vorgenommen werden.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#bbf7d0;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Mannschaft im Portal bearbeiten</a></p><p style="margin:0 0 10px 0;font-size:14px;color:#555;">Wichtig: Alle Portal-Funktionen sind aktuell noch Beta. Einige Bereiche werden noch weiterentwickelt und sind noch nicht komplett abgeschlossen.</p><p style="margin:0;font-size:14px;color:#555;">Wenn etwas nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung. Falls du Unterstützung brauchst, melde dich einfach bei uns.</p></div>`
+      ? isMtcDraft
+        ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>MTC-Entwurf weiter bearbeiten</strong></p><p style="margin:0 0 10px 0;">Dieser Link führt direkt zu deinem MTC-Entwurf. Er ist vertraulich, benötigt keinen Login und zeigt nur diesen einen Entwurf.</p><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#bbf7d0;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">MTC-Entwurf bearbeiten</a></p><p style="margin:0;font-size:14px;color:#555;">Eine verbindliche Mannschaft entsteht erst, wenn der Entwurf vollständig und durch die Orga übernommen ist.</p></div>`
+        : `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Bei Änderungen zur Mannschaft</strong></p><ol style="margin:0 0 14px 18px;padding:0;"><li>Öffne den Link. Dieser ist vertraulich und kann nur mit der E-Mail-Adresse aus Punkt 2 verwendet werden.</li><li>Erstelle mit <strong>${input.contactEmail}</strong> ein Konto im Portal und melde dich dort mit dieser an.</li><li>Danach ist das Team deinem Konto zugeordnet.</li><li>Änderungen innerhalb der Mannschaft können dort bis zum Anmeldeschluss vorgenommen werden.</li></ol><p style="margin:0 0 14px 0;"><a href="${input.claimUrl}" style="display:inline-block;padding:10px 16px;background:#bbf7d0;color:#166534;text-decoration:none;border-radius:8px;font-weight:bold;border:1px solid #86efac;">Mannschaft im Portal bearbeiten</a></p><p style="margin:0 0 10px 0;font-size:14px;color:#555;">Wichtig: Alle Portal-Funktionen sind aktuell noch Beta. Einige Bereiche werden noch weiterentwickelt und sind noch nicht komplett abgeschlossen.</p><p style="margin:0;font-size:14px;color:#555;">Wenn etwas nicht sofort klappt, prüfe bitte auch Spam/Werbung und nutze dieselbe E-Mail-Adresse wie bei dieser Anmeldung. Falls du Unterstützung brauchst, melde dich einfach bei uns.</p></div>`
       : "";
 
   return {
     subject,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">
-        <h2>Danke, deine ${isMarketplace ? "Sportlerbörsen-Meldung" : "Anmeldung"} ist eingegangen.</h2>
+        <h2>Danke, deine ${isMtcDraft ? "MTC-Entwurf" : isMarketplace ? "Sportlerbörsen-Meldung" : "Anmeldung"} ist eingegangen.</h2>
         <p>Hallo ${input.contactName || "Team"},</p>
-        <p>wir haben ${isMarketplace ? "deine Meldung für die Sportlerbörse" : `die Anmeldung für <strong>${input.teamName}</strong>`} zum <strong>${registrantCompetitionLabel}</strong> erhalten.</p>
+        <p>wir haben ${isMtcDraft ? `den MTC-Entwurf <strong>${input.teamName}</strong>` : isMarketplace ? "deine Meldung für die Sportlerbörse" : `die Anmeldung für <strong>${input.teamName}</strong>`} zum <strong>${registrantCompetitionLabel}</strong> erhalten.</p>
         ${isMarketplace ? `<p><strong>Sichtbarkeit:</strong> ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}</p>` : `<p><strong>Klasse:</strong> ${input.classificationCode}</p>`}
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
         <h3>${isMarketplace ? "Sportler:in" : "Teilnehmer"}</h3>
         ${participantTableHtml(input.participants)}
-        ${isMarketplace ? `<p><strong>Status:</strong> Die Meldung ist eingegangen und wird durch die Orga geprüft.</p>` : `<p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>${paymentDetailsHtml()}`}
+        ${isMtcDraft ? `<p><strong>Status:</strong> Der Entwurf ist gespeichert. Offene Slots können über den Bearbeitungslink ergänzt werden.</p>` : isMarketplace ? `<p><strong>Status:</strong> Die Meldung ist eingegangen und wird durch die Orga geprüft.</p>` : `<p><strong>Wichtig:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>${paymentDetailsHtml()}`}
         ${portalBlockHtml}
         ${claimBlockHtml}
         <p>Viele Grüße<br />${input.tenantName}</p>
@@ -156,15 +161,15 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
     text: [
       `Hallo ${input.contactName || "Team"},`,
       "",
-      `wir haben ${isMarketplace ? "deine Meldung für die Sportlerbörse" : `die Anmeldung für ${input.teamName}`} zum ${registrantCompetitionLabel} erhalten.`,
+      `wir haben ${isMtcDraft ? `den MTC-Entwurf ${input.teamName}` : isMarketplace ? "deine Meldung für die Sportlerbörse" : `die Anmeldung für ${input.teamName}`} zum ${registrantCompetitionLabel} erhalten.`,
       isMarketplace ? `Sichtbarkeit: ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}` : `Klasse: ${input.classificationCode}`,
       `Kontakt: ${input.contactName} (${input.contactEmail})`,
       "",
-      isMarketplace ? "Sportler:in:" : "Teilnehmer:",
+      isMtcDraft ? "Gespeicherte Teilnehmer:" : isMarketplace ? "Sportler:in:" : "Teilnehmer:",
       participantListText(input.participants),
       "",
       ...(isMarketplace
-        ? ["Status: Die Meldung ist eingegangen und wird durch die Orga geprüft."]
+        ? [isMtcDraft ? "Status: Der Entwurf ist gespeichert. Offene Slots können über den Bearbeitungslink ergänzt werden." : "Status: Die Meldung ist eingegangen und wird durch die Orga geprüft."]
         : ["Wichtig: Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.", paymentDetailsText()]),
       ...(input.alreadyLinked && input.portalUrl
         ? [
@@ -176,7 +181,15 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
           ]
         : []),
       ...(!input.alreadyLinked && input.claimUrl
-        ? [
+        ? isMtcDraft
+          ? [
+            "",
+            "MTC-Entwurf weiter bearbeiten:",
+            `Link: ${input.claimUrl}`,
+            "Dieser Link ist vertraulich, benötigt keinen Login und zeigt nur diesen einen Entwurf.",
+            "Eine verbindliche Mannschaft entsteht erst, wenn der Entwurf vollständig und durch die Orga übernommen ist.",
+          ]
+          : [
             "",
             "Bei Änderungen zur Mannschaft:",
             `1. Öffne den Link. Dieser ist vertraulich und kann nur mit der E-Mail-Adresse aus Punkt 2 verwendet werden: ${input.claimUrl}`,
@@ -195,44 +208,47 @@ export function buildRegistrantConfirmationMail(input: TemplateInput) {
 
 export function buildOrgNotificationMail(input: TemplateInput) {
   const isMarketplace = input.registrationMode === "MARKETPLACE";
+  const isMtcDraft = isMarketplace && input.marketplaceStatus === "MATCHING";
   const subject = isMarketplace
-    ? `Neue Sportlerbörse-Meldung: ${input.teamName} (${input.competitionYear})`
+    ? isMtcDraft
+      ? `Neuer MTC-Entwurf: ${input.teamName} (${input.competitionYear})`
+      : `Neue Sportlerbörse-Meldung: ${input.teamName} (${input.competitionYear})`
     : `Neue Anmeldung: ${input.teamName} (${input.competitionYear})`;
 
   return {
     subject,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">
-        <h2>${isMarketplace ? "Neue Sportlerbörse-Meldung" : "Neue Mannschaftsanmeldung"}</h2>
+        <h2>${isMtcDraft ? "Neuer MTC-Entwurf" : isMarketplace ? "Neue Sportlerbörse-Meldung" : "Neue Mannschaftsanmeldung"}</h2>
         <p><strong>Wettkampf:</strong> ${input.competitionName}</p>
-        <p><strong>${isMarketplace ? "Eintrag" : "Team"}:</strong> ${input.teamName}</p>
+        <p><strong>${isMtcDraft ? "MTC" : isMarketplace ? "Eintrag" : "Team"}:</strong> ${input.teamName}</p>
         ${isMarketplace ? `<p><strong>Sichtbarkeit:</strong> ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}</p>` : `<p><strong>Klasse:</strong> ${input.classificationCode}</p>`}
         <p><strong>Kontakt:</strong> ${input.contactName} (${input.contactEmail})</p>
         ${isMarketplace && input.marketplaceMessage ? `<h3>Nachricht an Admins</h3><p style="white-space:pre-wrap;">${input.marketplaceMessage}</p>` : ""}
-        <h3>${isMarketplace ? "Sportler:in" : "Teilnehmer"}</h3>
+        <h3>${isMtcDraft ? "Gespeicherte Teilnehmer" : isMarketplace ? "Sportler:in" : "Teilnehmer"}</h3>
         ${participantTableHtml(input.participants)}
         ${isMarketplace ? "" : `<h3>T-Shirt-Größen</h3><ul>${shirtSizeListHtml(input.participants)}</ul>`}
-        ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>Claim-Link für Supportfälle</strong></p><p style="margin:0 0 8px 0;">Der Link ordnet die bestehende Anmeldung dem Portal-Konto mit <strong>${input.contactEmail}</strong> zu.</p><p style="margin:0;word-break:break-all;"><a href="${input.claimUrl}" style="color:#dc2626;text-decoration:none;">${input.claimUrl}</a></p></div>` : ""}
+        ${input.claimUrl ? `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;"><p style="margin:0 0 10px 0;"><strong>${isMtcDraft ? "MTC-Bearbeitungslink" : "Claim-Link für Supportfälle"}</strong></p><p style="margin:0 0 8px 0;">${isMtcDraft ? "Der Link bearbeitet genau diesen MTC-Entwurf ohne Login." : `Der Link ordnet die bestehende Anmeldung dem Portal-Konto mit <strong>${input.contactEmail}</strong> zu.`}</p><p style="margin:0;word-break:break-all;"><a href="${input.claimUrl}" style="color:#dc2626;text-decoration:none;">${input.claimUrl}</a></p></div>` : ""}
         ${isMarketplace ? "" : `<p><strong>Hinweis:</strong> Die Anmeldung ist erst mit Überweisung der Teilnahmegebühr gültig.</p>${paymentDetailsHtml()}`}
       </div>
     `.trim(),
     text: [
-      isMarketplace ? "Neue Sportlerbörse-Meldung" : "Neue Mannschaftsanmeldung",
+      isMtcDraft ? "Neuer MTC-Entwurf" : isMarketplace ? "Neue Sportlerbörse-Meldung" : "Neue Mannschaftsanmeldung",
       "",
       `Wettkampf: ${input.competitionName}`,
-      `${isMarketplace ? "Eintrag" : "Team"}: ${input.teamName}`,
+      `${isMtcDraft ? "MTC" : isMarketplace ? "Eintrag" : "Team"}: ${input.teamName}`,
       isMarketplace ? `Sichtbarkeit: ${visibilityLabels[input.marketplaceVisibility || ""] || "Nur für Admins/MGMT sichtbar"}` : `Klasse: ${input.classificationCode}`,
       `Kontakt: ${input.contactName} (${input.contactEmail})`,
       ...(isMarketplace && input.marketplaceMessage ? ["", "Nachricht an Admins:", input.marketplaceMessage] : []),
       "",
-      isMarketplace ? "Sportler:in:" : "Teilnehmer:",
+      isMtcDraft ? "Gespeicherte Teilnehmer:" : isMarketplace ? "Sportler:in:" : "Teilnehmer:",
       participantListText(input.participants),
       ...(isMarketplace ? [] : ["", "T-Shirt-Größen:", shirtSizeListText(input.participants)]),
       ...(input.claimUrl
         ? [
             "",
-            "Claim-Link für Supportfälle:",
-            `- Vorgesehene E-Mail: ${input.contactEmail}`,
+            isMtcDraft ? "MTC-Bearbeitungslink:" : "Claim-Link für Supportfälle:",
+            ...(isMtcDraft ? [] : [`- Vorgesehene E-Mail: ${input.contactEmail}`]),
             `- Link: ${input.claimUrl}`,
           ]
         : []),

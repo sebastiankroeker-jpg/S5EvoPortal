@@ -203,6 +203,8 @@ export default function TeamRegistration({
   const [submittedRecipientEmail, setSubmittedRecipientEmail] = useState("");
   const [serverError, setServerError] = useState("");
   const [submissionWarning, setSubmissionWarning] = useState("");
+  const [submittedMtcAnonymousUrl, setSubmittedMtcAnonymousUrl] = useState("");
+  const [savingMtcDraft, setSavingMtcDraft] = useState(false);
   const [competitionInfo, setCompetitionInfo] = useState<PublicCompetitionInfo | null>(null);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>(initialMode);
   const [marketplaceBirthDate, setMarketplaceBirthDate] = useState("");
@@ -266,6 +268,7 @@ export default function TeamRegistration({
   const stepTwoBlockingErrors = teamDraftEvaluation.blockingErrors;
   const stepTwoWarnings = teamDraftEvaluation.warnings;
   const hasBlockingValidationErrors = stepTwoBlockingErrors.length > 0;
+  const hasMtcDraftAlternative = !isMarketplaceRegistration && (hasBlockingValidationErrors || !disciplineCheck.valid);
 
   const [teamLeadParticipates, setTeamLeadParticipates] = useState(false);
   const [teamLeadDiscipline, setTeamLeadDiscipline] = useState<DisciplineId>(DISCIPLINES[0].id);
@@ -540,6 +543,77 @@ export default function TeamRegistration({
     }
   };
 
+  const submitMtcDraftRegistration = async () => {
+    setServerError("");
+    setSubmissionWarning("");
+    setSubmittedMtcAnonymousUrl("");
+
+    if (!publicRegistrationStatus.canRegister) {
+      setServerError(publicRegistrationStatus.detail);
+      return;
+    }
+
+    const fieldsToValidate = isAnonymousRegistration
+      ? (["teamName", "contactFirstName", "contactLastName", "contactEmail"] as const)
+      : (["teamName"] as const);
+    const ok = await trigger(fieldsToValidate);
+    if (!ok) return;
+
+    const values = getValues();
+    const userContactName = effectiveContactName || values.contactName || [values.contactFirstName, values.contactLastName].filter(Boolean).join(" ").trim();
+    const userContactEmail = effectiveContactEmail || values.contactEmail;
+
+    if (!userContactName || !userContactEmail) {
+      setServerError("Kontaktname und Kontakt-E-Mail sind für den MTC-Entwurf erforderlich.");
+      return;
+    }
+
+    setSavingMtcDraft(true);
+    try {
+      const submitResponse = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          registrationMode: "MARKETPLACE",
+          marketplaceDraftType: "MTC",
+          teamName: values.teamName,
+          contactFirstName: userName ? teamLeadFirstName : values.contactFirstName,
+          contactLastName: userName ? teamLeadLastName : values.contactLastName,
+          contactName: userContactName,
+          contactEmail: userContactEmail,
+          teamPublicationLevel: values.teamPublicationLevel,
+          participants: values.participants,
+          marketplaceVisibility: "ADMIN_MANAGEMENT_ONLY",
+          marketplaceMessage: "Aus der Mannschaftsanmeldung als unvollständiger MTC-Entwurf gespeichert.",
+        }),
+      });
+
+      const payload = await submitResponse.json();
+      if (!submitResponse.ok) {
+        throw new Error(payload.error || "MTC-Entwurf konnte nicht gespeichert werden");
+      }
+
+      const mailAttempts = Array.isArray(payload.mail?.attempts) ? payload.mail.attempts : [];
+      const hasMailIssues = mailAttempts.some((attempt: { status?: string }) => attempt.status && attempt.status !== "sent");
+      if (hasMailIssues) {
+        setSubmissionWarning(
+          "Der MTC-Entwurf ist angelegt, aber der Mailversand konnte nicht vollständig bestätigt werden."
+        );
+      }
+
+      setSubmittedMtcAnonymousUrl(payload.mtcAnonymousUrl || "");
+      setSubmittedRecipientEmail(userContactEmail);
+      setSubmitted(true);
+      reset(createDefaultTeamForm());
+      setLiabilityAccepted(false);
+      setStep(1);
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "MTC-Entwurf konnte nicht gespeichert werden");
+    } finally {
+      setSavingMtcDraft(false);
+    }
+  };
+
   const onSubmit = handleSubmit(async (values) => {
     setServerError("");
     setSubmissionWarning("");
@@ -606,6 +680,7 @@ export default function TeamRegistration({
     setSubmissionWarning("");
     setSubmitted(false);
     setSubmittedRecipientEmail("");
+    setSubmittedMtcAnonymousUrl("");
     setLiabilityAccepted(false);
     setOpenModerationNotes({});
     setStep(1);
@@ -716,7 +791,9 @@ export default function TeamRegistration({
               <div className="text-6xl">🏅</div>
               <h3 className="text-xl font-semibold text-green-600">Anmeldung erfolgreich uebermittelt</h3>
               <p className="text-muted-foreground">
-                {isMarketplaceRegistration
+                {submittedMtcAnonymousUrl
+                  ? "Der MTC-Entwurf ist gespeichert. Die Orga sieht ihn als unvollständigen Entwurf; über den Link kann er weiter gepflegt werden."
+                  : isMarketplaceRegistration
                   ? "Die Sportlerbörse-Meldung ist im Portal erfasst und kann durch die Orga bearbeitet werden."
                   : "Die Mannschaft ist im Portal erfasst. Alles Weitere haengt jetzt davon ab, ob du mit oder ohne Login angemeldet hast."}
               </p>
@@ -725,7 +802,20 @@ export default function TeamRegistration({
                   {submissionWarning}
                 </div>
               )}
-              {isAnonymousRegistration ? (
+              {submittedMtcAnonymousUrl ? (
+                <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
+                  <p className="text-sm font-medium">MTC-Entwurf weiter bearbeiten</p>
+                  <p className="text-sm text-muted-foreground">
+                    Der Link ist vertraulich und führt direkt auf genau diesen Entwurf, ohne Login und ohne Dashboard-Zugriff.
+                  </p>
+                  <div className="rounded-md border bg-background px-3 py-2 text-xs break-all">
+                    {submittedMtcAnonymousUrl}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Wir schicken den Link zusätzlich an <strong>{submittedRecipientEmail || effectiveContactEmail || "die angegebene Kontakt-E-Mail"}</strong>.
+                  </p>
+                </div>
+              ) : isAnonymousRegistration ? (
                   <div className="max-w-xl mx-auto rounded-lg border border-border/50 bg-muted/30 p-4 text-left space-y-3">
                   <p className="text-sm font-medium">So geht es jetzt weiter</p>
                   <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
@@ -740,7 +830,7 @@ export default function TeamRegistration({
               )}
               <div className="flex justify-center pt-2">
                 <Button onClick={startAnotherRegistration}>
-                  {isMarketplaceRegistration ? "Weitere Meldung erfassen" : "Weitere Mannschaft anmelden"}
+                  {submittedMtcAnonymousUrl ? "Weitere Anmeldung erfassen" : isMarketplaceRegistration ? "Weitere Meldung erfassen" : "Weitere Mannschaft anmelden"}
                 </Button>
               </div>
             </motion.div>
@@ -1357,6 +1447,32 @@ export default function TeamRegistration({
                             <p key={warning}>⚠️ {warning}</p>
                           ))}
                         </div>
+                      )}
+                    </div>
+                  )}
+
+                  {hasMtcDraftAlternative && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="font-medium">Noch keine vollständige Mannschaft?</p>
+                          <p className="text-xs">
+                            Speichere den aktuellen Stand als MTC-Entwurf. Vollständige Teilnehmerzeilen werden übernommen, offene oder unvollständige Slots bleiben als MTC-Slots offen.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={submitMtcDraftRegistration}
+                          disabled={savingMtcDraft || !publicRegistrationStatus.canRegister}
+                          className="shrink-0"
+                        >
+                          {savingMtcDraft ? "Speichere..." : "Als MTC-Entwurf speichern"}
+                        </Button>
+                      </div>
+                      {serverError && (
+                        <p className="mt-2 text-xs text-red-600 dark:text-red-300">{serverError}</p>
                       )}
                     </div>
                   )}

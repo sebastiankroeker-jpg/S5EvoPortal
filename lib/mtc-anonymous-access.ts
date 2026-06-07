@@ -34,6 +34,7 @@ type MtcParticipantInput = {
 
 const VALID_DISCIPLINES = new Set(["RUN", "BENCH", "STOCK", "ROAD", "MTB", "TBD"]);
 const VALID_PUBLICATION_PREFERENCES = new Set(["NAME_VERBERGEN", "NAME_VEROEFFENTLICHEN"]);
+const REQUIRED_DISCIPLINES: DisciplineSelection[] = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"];
 
 function isExpired(expiresAt: Date) {
   return expiresAt.getTime() < Date.now();
@@ -63,6 +64,18 @@ function normalizePublicationPreference(value: unknown): ParticipantPublicationP
     : "NAME_VERBERGEN";
 }
 
+function isNewSlotId(value: string) {
+  return value.startsWith("new:");
+}
+
+function hasParticipantIdentity(input: Pick<MtcParticipantInput, "firstName" | "lastName" | "birthDate">) {
+  return Boolean(
+    normalizeText(input.firstName).length >= 2 &&
+    normalizeText(input.lastName).length >= 2 &&
+    extractBirthYearFromInput(normalizeText(input.birthDate)) !== null,
+  );
+}
+
 function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousToken>>["token"]) {
   if (!tokenRecord) return null;
   const team = tokenRecord.team;
@@ -73,7 +86,7 @@ function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousTok
     return aDiscipline.localeCompare(bDiscipline);
   });
 
-  const draftParticipants = participants.map((participant) => ({
+  const existingDraftParticipants = participants.map((participant) => ({
     id: participant.id,
     firstName: participant.firstName,
     lastName: participant.lastName,
@@ -86,6 +99,30 @@ function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousTok
     moderationNote: participant.moderationNote || "",
     shirtSize: participant.shirtSize || "",
   }));
+  const usedDisciplines = new Set<DisciplineSelection>(
+    existingDraftParticipants
+      .map((participant) => participant.discipline)
+      .filter((discipline) => discipline !== DISCIPLINE_PLACEHOLDER),
+  );
+  const openDisciplineSlots = REQUIRED_DISCIPLINES.filter((discipline) => !usedDisciplines.has(discipline));
+  const openSlotCount = Math.max(0, 5 - existingDraftParticipants.length);
+  const openDraftParticipants = Array.from({ length: openSlotCount }, (_, index) => {
+    const discipline = openDisciplineSlots[index] || DISCIPLINE_PLACEHOLDER;
+    return {
+      id: `new:${discipline}:${index}`,
+      firstName: "",
+      lastName: "",
+      birthDate: "",
+      gender: "M" as const,
+      discipline,
+      desiredDiscipline: null,
+      participantPublicationPreference: "NAME_VERBERGEN" as const,
+      email: "",
+      moderationNote: "",
+      shirtSize: "",
+    };
+  });
+  const draftParticipants = [...existingDraftParticipants, ...openDraftParticipants].slice(0, 5);
 
   const evaluation = evaluateTeamDraft({
     mode: "team-edit",
@@ -201,13 +238,16 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
   const participants = Array.isArray(payload.participants) ? (payload.participants as MtcParticipantInput[]) : [];
   const existingParticipants = new Map(token.team.participants.map((participant) => [participant.id, participant]));
 
-  if (participants.length !== token.team.participants.length || participants.length !== 5) {
+  if (participants.length !== 5) {
     return { error: "Es muessen genau die 5 MTC-Slots bearbeitet werden.", status: 400 };
   }
 
   const seenParticipantIds = new Set<string>();
   for (const participant of participants) {
-    if (!participant.id || !existingParticipants.has(participant.id) || seenParticipantIds.has(participant.id)) {
+    if (!participant.id || seenParticipantIds.has(participant.id)) {
+      return { error: "Teilnehmerdaten passen nicht mehr zum MTC-Entwurf. Bitte Seite neu laden.", status: 409 };
+    }
+    if (!isNewSlotId(participant.id) && !existingParticipants.has(participant.id)) {
       return { error: "Teilnehmerdaten passen nicht mehr zum MTC-Entwurf. Bitte Seite neu laden.", status: 409 };
     }
     seenParticipantIds.add(participant.id);
@@ -229,32 +269,28 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
   const teamName = normalizeText(payload.teamName) || token.team.name;
   const contactName = normalizeText(payload.contactName) || token.team.contactName || "";
   const contactEmail = normalizeText(payload.contactEmail) || token.team.contactEmail || "";
+  const completeDraftParticipants = draftParticipants.filter((participant) =>
+    hasParticipantIdentity(participant),
+  );
+
+  for (const participant of draftParticipants) {
+    if (!isNewSlotId(participant.id) && !hasParticipantIdentity(participant)) {
+      return {
+        error: "Bestehende MTC-Teilnehmer brauchen Vorname, Nachname und plausibles Geburtsdatum.",
+        status: 400,
+      };
+    }
+  }
   const evaluation = evaluateTeamDraft({
     mode: "team-edit",
     teamName,
     contactName,
     contactEmail,
     oldClassificationCode: token.team.classificationCode,
-    participants: draftParticipants,
+    participants: completeDraftParticipants,
   });
 
-  if (evaluation.blockingErrors.length > 0) {
-    return {
-      error: evaluation.blockingErrors.join(" · "),
-      blockingErrors: evaluation.blockingErrors,
-      status: 400,
-    };
-  }
-
-  if (!evaluation.discipline.valid) {
-    return {
-      error: evaluation.discipline.warnings.join(" · "),
-      disciplineWarnings: evaluation.discipline.warnings,
-      status: 409,
-    };
-  }
-
-  const totalAge = draftParticipants.reduce((sum, participant) => {
+  const totalAge = completeDraftParticipants.reduce((sum, participant) => {
     const birthYear = extractBirthYearFromInput(participant.birthDate);
     return sum + (birthYear ? 2026 - birthYear : 0);
   }, 0);
@@ -266,28 +302,51 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
         name: teamName,
         contactName,
         contactEmail,
-        classificationCode: evaluation.classification.code,
+        classificationCode: completeDraftParticipants.length === 5 && evaluation.canSubmit
+          ? evaluation.classification.code
+          : token.team.classificationCode || "sportlerboerse",
         totalAge: totalAge || null,
       },
     });
 
-    await Promise.all(
-      draftParticipants.map((participant) =>
-        tx.participant.update({
-          where: { id: participant.id },
+    for (const participant of draftParticipants) {
+      const birthYear = extractBirthYearFromInput(participant.birthDate);
+      const participantIsComplete =
+        participant.firstName.length >= 2 && participant.lastName.length >= 2 && birthYear !== null;
+
+      if (isNewSlotId(participant.id)) {
+        if (!participantIsComplete) continue;
+        await tx.participant.create({
           data: {
+            teamId: token.teamId,
             firstName: participant.firstName,
             lastName: participant.lastName,
-            birthYear: extractBirthYearFromInput(participant.birthDate) || 1901,
+            birthYear: birthYear as number,
             gender: mapGender(participant.gender),
             disciplineCode: normalizeDiscipline(participant.discipline),
             participantPublicationPreference: normalizePublicationPreference(participant.participantPublicationPreference),
             email: participant.email || null,
             moderationNote: participant.moderationNote || null,
+            consentGiven: true,
           },
-        }),
-      ),
-    );
+        });
+        continue;
+      }
+
+      await tx.participant.update({
+        where: { id: participant.id },
+        data: {
+          firstName: participant.firstName,
+          lastName: participant.lastName,
+          birthYear: birthYear as number,
+          gender: mapGender(participant.gender),
+          disciplineCode: normalizeDiscipline(participant.discipline),
+          participantPublicationPreference: normalizePublicationPreference(participant.participantPublicationPreference),
+          email: participant.email || null,
+          moderationNote: participant.moderationNote || null,
+        },
+      });
+    }
   });
 
   await recordClaimAuditEvent({

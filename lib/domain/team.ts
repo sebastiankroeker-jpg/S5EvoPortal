@@ -252,10 +252,39 @@ export const MarketplaceRegistrationSchema = z.object({
   marketplaceMessage: z.string().max(3000, "Nachricht zu lang").optional().or(z.literal("")),
 });
 
+const MtcDraftParticipantSchema = z.object({
+  firstName: z.string().optional().or(z.literal("")),
+  lastName: z.string().optional().or(z.literal("")),
+  birthDate: z.string().optional().or(z.literal("")),
+  gender: z.enum(["M", "W", "D"]).default("M"),
+  discipline: disciplineEnum.default(DISCIPLINE_PLACEHOLDER),
+  email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
+  moderationNote: z.string().max(280, "Moderationshinweis zu lang").optional().or(z.literal("")),
+  participantPublicationPreference: participantPublicationPreferenceEnum.default("NAME_VERBERGEN"),
+  shirtSize: shirtSizeEnum.optional().or(z.literal("")),
+});
+
+export const MtcDraftRegistrationSchema = z.object({
+  registrationMode: z.literal("MARKETPLACE"),
+  marketplaceDraftType: z.literal("MTC"),
+  teamName: z.string().min(3, "MTC-Name zu kurz"),
+  contactFirstName: z.string().min(2, "Vorname zu kurz").optional().or(z.literal("")),
+  contactLastName: z.string().min(2, "Nachname zu kurz").optional().or(z.literal("")),
+  contactName: z.string().min(2, "Kontaktname zu kurz").optional().or(z.literal("")),
+  contactEmail: z.string().email("Ungültige Kontakt-E-Mail"),
+  teamPublicationLevel: teamPublicationLevelEnum.default("TEAM_ANONYM"),
+  participants: z
+    .array(MtcDraftParticipantSchema)
+    .length(5, "Es müssen genau 5 MTC-Slots übergeben werden"),
+  marketplaceVisibility: marketplaceVisibilityEnum.default("ADMIN_MANAGEMENT_ONLY"),
+  marketplaceMessage: z.string().max(3000, "Nachricht zu lang").optional().or(z.literal("")),
+});
+
 export type ParticipantInput = z.output<typeof ParticipantSchema>;
 export type TeamRegistrationInput = z.output<typeof TeamRegistrationSchema>;
 export type TeamRegistrationFormInput = z.input<typeof TeamRegistrationSchema>;
 export type MarketplaceRegistrationInput = z.output<typeof MarketplaceRegistrationSchema>;
+export type MtcDraftRegistrationInput = z.output<typeof MtcDraftRegistrationSchema>;
 export type MarketplaceVisibilityId = z.output<typeof marketplaceVisibilityEnum>;
 export type MarketplaceStatusId = (typeof MARKETPLACE_STATUS_OPTIONS)[number]["id"];
 

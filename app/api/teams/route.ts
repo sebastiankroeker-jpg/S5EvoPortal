@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import {
   MarketplaceRegistrationSchema,
+  MtcDraftRegistrationSchema,
   TeamRegistrationSchema,
   birthYearToBirthDateInput,
   extractBirthYearFromInput,
@@ -14,7 +15,7 @@ import { resolveRegistrationNotificationEmail, sendTeamRegistrationEmails } from
 import { sendParticipantClaimEmail } from '@/lib/mail/participant-claim';
 import { recordParticipantClaimAuditEvent } from '@/lib/participant-claim-audit';
 import { prisma } from '@/lib/prisma';
-import { buildParticipantClaimUrl, buildPortalHomeUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
+import { buildMtcAnonymousUrl, buildParticipantClaimUrl, buildPortalHomeUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from '@/lib/registration-claim';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { getParticipantEmailInvitationStatus, getParticipantClaimTokenStatus } from '@/lib/participant-claim-invitation';
 import {
@@ -552,6 +553,219 @@ export async function POST(request: NextRequest) {
         : null;
 
     const body = await request.json();
+
+    if (body?.registrationMode === "MARKETPLACE" && body?.marketplaceDraftType === "MTC") {
+      const validation = MtcDraftRegistrationSchema.safeParse(body);
+      if (!validation.success) {
+        return NextResponse.json(
+          { error: formatTeamRegistrationValidationIssues(validation.error.issues), details: validation.error.issues },
+          { status: 400 }
+        );
+      }
+
+      const draftData = validation.data;
+      const userEmail = normalizeEmail(sessionUserEmail || draftData.contactEmail.trim());
+      const userName =
+        sessionUserName ||
+        draftData.contactName?.trim() ||
+        [draftData.contactFirstName, draftData.contactLastName].filter(Boolean).join(" ").trim();
+      const userImage = sessionUserImage;
+
+      if (!userEmail || !userName) {
+        return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
+      }
+
+      try {
+        const competitionId = await ensureDefaultCompetition();
+        const competition = await prisma.competition.findUnique({
+          where: { id: competitionId },
+          select: {
+            tenantId: true,
+            name: true,
+            year: true,
+            date: true,
+            dateEnd: true,
+            status: true,
+            registrationDeadline: true,
+            claimTokenExpiryMode: true,
+            claimTokenTtlDays: true,
+            registrationNotificationEmail: true,
+            tenant: {
+              select: {
+                name: true,
+                contactEmail: true,
+              },
+            },
+          },
+        });
+
+        if (!competition) {
+          return NextResponse.json({ error: 'Kein aktiver Wettkampf gefunden.' }, { status: 503 });
+        }
+
+        const registrationStatusAllowsSubmissions =
+          competition.status === "DRAFT" || competition.status === "OPEN";
+
+        if (!registrationStatusAllowsSubmissions) {
+          return NextResponse.json(
+            { error: 'Die Anmeldung ist für diesen Wettkampf aktuell geschlossen.' },
+            { status: 409 }
+          );
+        }
+
+        if (isRegistrationDeadlineReached(competition.registrationDeadline)) {
+          return NextResponse.json(
+            { error: 'Der Anmeldeschluss für diesen Wettkampf ist bereits erreicht.' },
+            { status: 409 }
+          );
+        }
+
+        const resolved = await resolveCurrentUser(session, { createIfMissing: !!sessionUserEmail });
+        let user = resolved.user;
+        if (!user) {
+          user = await prisma.user.findFirst({
+            where: {
+              deletedAt: null,
+              email: {
+                equals: userEmail,
+                mode: 'insensitive',
+              },
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+        }
+        if (!user) {
+          user = await prisma.user.create({
+            data: {
+              email: userEmail,
+              name: userName || null,
+              image: userImage || null,
+              authentikSub: sessionAuthentikSub,
+            }
+          });
+        }
+
+        const completeParticipants = draftData.participants
+          .map((participant) => ({
+            participant,
+            firstName: participant.firstName?.trim() || "",
+            lastName: participant.lastName?.trim() || "",
+            birthYear: extractBirthYearFromInput(participant.birthDate || ""),
+          }))
+          .filter(({ firstName, lastName, birthYear }) => firstName.length >= 2 && lastName.length >= 2 && birthYear !== null);
+        const totalAge = completeParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
+        const finalTeamName = draftData.teamName.trim();
+        const marketplaceMessage = [
+          "MTC-Entwurf aus unvollständiger Mannschaftsanmeldung",
+          draftData.marketplaceMessage?.trim(),
+        ].filter(Boolean).join("\n\n");
+
+        const team = await prisma.team.create({
+          data: {
+            name: finalTeamName,
+            contactName: userName || "",
+            contactEmail: userEmail,
+            notes: marketplaceMessage || null,
+            teamPublicationLevel: draftData.teamPublicationLevel,
+            registrationMode: "MARKETPLACE",
+            marketplaceVisibility: draftData.marketplaceVisibility,
+            marketplaceStatus: "MATCHING",
+            marketplaceMessage: marketplaceMessage || null,
+            classificationCode: "sportlerboerse",
+            totalAge: totalAge || null,
+            competitionId,
+            ownerId: user.id,
+            teamChiefId: null,
+            participants: {
+              create: completeParticipants.map(({ participant, firstName, lastName, birthYear }) => ({
+                firstName,
+                lastName,
+                birthYear: birthYear as number,
+                gender: mapGender(participant.gender),
+                disciplineCode: mapDiscipline(participant.discipline),
+                shirtSize: participant.shirtSize || null,
+                moderationNote: participant.moderationNote?.trim() || null,
+                consentGiven: true,
+                email: participant.email || null,
+                participantPublicationPreference: participant.participantPublicationPreference || "NAME_VERBERGEN",
+              })),
+            },
+          },
+          include: {
+            participants: true,
+            owner: { select: { email: true, name: true } }
+          },
+        });
+
+        const claimToken = createRegistrationClaimToken({
+          mode: competition.claimTokenExpiryMode || "COMPETITION_END",
+          ttlDays: competition.claimTokenTtlDays || null,
+          registrationDeadline: competition.registrationDeadline || null,
+          competitionEnd: competition.dateEnd || competition.date || null,
+          maxExpiresAt: null,
+        });
+        await prisma.registrationClaimToken.create({
+          data: {
+            teamId: team.id,
+            tokenHash: claimToken.tokenHash,
+            suggestedEmail: userEmail,
+            suggestedName: userName || null,
+            expiresAt: claimToken.expiresAt,
+          },
+        });
+
+        const mtcAnonymousUrl = buildMtcAnonymousUrl(claimToken.rawToken);
+        const portalUrl = buildPortalHomeUrl();
+        const mailSummary = await sendTeamRegistrationEmails({
+          competition,
+          team: {
+            name: finalTeamName,
+            registrationMode: "MARKETPLACE",
+            marketplaceVisibility: draftData.marketplaceVisibility,
+            marketplaceStatus: "MATCHING",
+            marketplaceMessage,
+            classificationCode: "sportlerboerse",
+            contactName: userName || "",
+            contactEmail: userEmail,
+            claimUrl: mtcAnonymousUrl,
+            portalUrl,
+            alreadyLinked: false,
+            participants: team.participants.map((participant) => ({
+              firstName: participant.firstName,
+              lastName: participant.lastName,
+              birthYear: participant.birthYear,
+              gender: participant.gender,
+              disciplineCode: participant.disciplineCode,
+              shirtSize: participant.shirtSize,
+            })),
+          },
+        });
+
+        if (!mailSummary.ok) {
+          console.warn("MTC draft mail delivery incomplete", {
+            teamId: team.id,
+            competitionId,
+            attempts: mailSummary.attempts,
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `MTC-Entwurf "${finalTeamName}" wurde gespeichert.`,
+          mail: mailSummary,
+          mtcAnonymousUrl,
+          savedParticipantCount: team.participants.length,
+          openSlotCount: Math.max(0, 5 - team.participants.length),
+          team: serializeTeam(team),
+        });
+      } catch (dbError) {
+        console.error('Database error on MTC draft POST:', dbError);
+        return NextResponse.json(
+          { error: 'Datenbankfehler beim Speichern des MTC-Entwurfs. Bitte versuche es erneut.' },
+          { status: 500 }
+        );
+      }
+    }
 
     if (body?.registrationMode === "MARKETPLACE") {
       const validation = MarketplaceRegistrationSchema.safeParse(body);
