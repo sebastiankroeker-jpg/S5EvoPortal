@@ -83,8 +83,10 @@ interface Team {
   category: string;
   contactName: string;
   contactEmail: string;
+  ownerId?: string | null;
   ownerEmail?: string;
   ownerName?: string;
+  teamChiefId?: string | null;
   createdAt?: string;
   updatedAt?: string;
   isCurrentUserTeam?: boolean;
@@ -490,6 +492,41 @@ function getParticipantAccessMeta(team: Team, participant: Participant) {
     return {
       label: isMarketplaceMatchingTeam(team) ? "Portal-Konto, keine Teamchef-Rolle" : "Teilnehmer:in",
       className: "border-muted text-muted-foreground",
+    };
+  }
+
+  return {
+    label: "Kein Portal-Konto",
+    className: "border-muted text-muted-foreground",
+  };
+}
+
+function getMarketplaceContainerAccessMeta(team: Team) {
+  if (team.teamChiefId) {
+    return {
+      label: "Team Manager:in",
+      className: "border-green-300 text-green-700",
+    };
+  }
+
+  if (team.ownerId) {
+    return {
+      label: isMarketplaceMatchingTeam(team) ? "MTC-Kontakt" : "Börsen-Kontakt",
+      className: "border-green-300 text-green-700",
+    };
+  }
+
+  return {
+    label: "Kein Portal-Konto",
+    className: "border-muted text-muted-foreground",
+  };
+}
+
+function getMarketplaceContainerAccountMeta(team: Team) {
+  if (team.ownerId) {
+    return {
+      label: "Konto verknüpft",
+      className: "border-green-300 text-green-700",
     };
   }
 
@@ -3049,6 +3086,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const canEditMarketplaceMatching = capabilities.canManageSlots;
               const canDeleteTeam = team.canManageTeamManagers === true;
               const isMarketplaceContainerOpen = expandedMarketplaceContainerTeam === team.id;
+              const marketplaceContainerMailMeta = getEmailInvitationMeta(team.contactEmail ? "none" : "missing_email");
+              const marketplaceContainerAccountMeta = getMarketplaceContainerAccountMeta(team);
+              const marketplaceContainerAccessMeta = getMarketplaceContainerAccessMeta(team);
               const showCompactActionColumn = true;
               const mtcCombinedActionMeta = isMarketplaceMatching
                 ? getMtcCombinedActionMeta(completionMeta, disciplineMeta)
@@ -3429,18 +3469,39 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 </button>
 
                                 {isMarketplaceContainerOpen && (
-                                  <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-muted-foreground">
-                                    <div className="grid gap-x-3 gap-y-1 sm:grid-cols-2">
-                                      {team.contactName && <div><span className="text-foreground">Kontakt:</span> {team.contactName}</div>}
-                                      {team.contactEmail && <div><span className="text-foreground">E-Mail:</span> {team.contactEmail}</div>}
-                                      {team.createdAt && <div><span className="text-foreground">Gemeldet:</span> {formatDatePart(team.createdAt)}</div>}
-                                      {team.marketplaceMessage?.trim() && (
-                                        <div className="sm:col-span-2">
-                                          <span className="text-foreground">Notiz:</span> {team.marketplaceMessage}
+                                  <div className="rounded-md border border-border/60 bg-background p-2.5">
+                                    <div className="flex min-w-0 items-start gap-2">
+                                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30">
+                                        <UserRound className="size-4 text-muted-foreground" />
+                                      </div>
+                                      <div className="min-w-0 flex-1 space-y-1.5">
+                                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                          <p className="min-w-0 truncate text-sm font-medium text-foreground" title={team.contactName || team.name}>
+                                            {team.contactName || team.name}
+                                          </p>
+                                          <Badge variant="outline" className={`h-5 max-w-full justify-center gap-1 px-1.5 text-[10px] ${marketplaceContainerMailMeta.className}`}>
+                                            <Mail className="size-3" />
+                                            {marketplaceContainerMailMeta.label}
+                                          </Badge>
+                                          <Badge variant="outline" className={`h-5 max-w-full justify-center px-1.5 text-[10px] ${marketplaceContainerAccountMeta.className}`}>
+                                            {marketplaceContainerAccountMeta.label}
+                                          </Badge>
+                                          <Badge variant="outline" className={`h-5 max-w-full justify-center px-1.5 text-[10px] ${marketplaceContainerAccessMeta.className}`}>
+                                            {marketplaceContainerAccessMeta.label}
+                                          </Badge>
                                         </div>
-                                      )}
+                                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+                                          {team.contactEmail && <span className="truncate">{team.contactEmail}</span>}
+                                          {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
+                                        </div>
+                                        {team.marketplaceMessage?.trim() && (
+                                          <div className="rounded-md border border-border/50 bg-muted/20 px-2 py-1 text-muted-foreground">
+                                            <span className="text-foreground">Notiz:</span> {team.marketplaceMessage}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="mt-2 flex items-center gap-2 border-t border-border/60 pt-2">
                                       {canEditMarketplaceTeam && (
                                         <Button
                                           size="sm"
