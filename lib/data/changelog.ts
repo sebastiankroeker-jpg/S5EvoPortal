@@ -6,6 +6,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "v0.7.1",
+    date: "2026-06-07",
+    items: [
+      "Sportlerbörse erweitert: Teams können freie Plätze sichtbarer anbieten und MTC-Anfragen besser einordnen",
+      "Teilnehmer:innen sehen klarer, welche Plätze noch offen sind und welche Sichtbarkeit für Namen gilt",
+      "MTC- und Team-Kacheln sind ruhiger gestaltet: weniger doppelte Hinweise, kompaktere Status-Icons und bessere Lesbarkeit bei langen Teamnamen",
+      "Filter und Sortierung bleiben je Benutzer erhalten, damit Orga und Teamverantwortliche nicht jedes Mal neu einstellen müssen",
+      "Versionshistorie ist wieder direkt über die Versionsnummer im Header erreichbar",
+    ],
+  },
+  {
     version: "v0.6.0",
     date: "2026-05-31",
     items: [
