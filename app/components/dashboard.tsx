@@ -207,6 +207,7 @@ type TeamOptionalColumnKey =
   | "updatedAt";
 
 const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
+const TEAM_DASHBOARD_PREFERENCES_STORAGE_PREFIX = "s5evo.dashboard.preferences.v1";
 const QUICK_FILTER_KEYS: QuickFilterKey[] = ["mine", "needsReview", "marketplace", "mtc", "openSlots"];
 const EMPTY_QUICK_EXCLUDES: Record<QuickFilterKey, boolean> = {
   mine: false,
@@ -234,6 +235,33 @@ const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string; 
   { key: "createdAt", label: "Anmeldedatum", adminOnly: true },
   { key: "updatedAt", label: "Geändert" },
 ];
+
+const DASHBOARD_VIEW_MODES = ["cards", "list"] as const;
+const TEAM_SORT_FIELDS = ["name", "category", "contactName", "contactEmail", "ownerEmail", "participantCount", "createdAt", "updatedAt"] as const;
+const SORT_DIRECTIONS = ["asc", "desc"] as const;
+const MARKETPLACE_KIND_FILTERS = ["all", "marketplace", "mtc", "single"] as const;
+const MARKETPLACE_STATUS_FILTERS = ["all", "NEW", "REVIEWED", "MATCHING", "MATCHED", "WITHDRAWN"] as const;
+const MARKETPLACE_VISIBILITY_FILTERS = ["all", "PUBLIC", "MARKETPLACE_USERS", "PORTAL_USERS", "ADMIN_MANAGEMENT_ONLY"] as const;
+const MARKETPLACE_PUBLICATION_FILTERS = ["all", "TEAM_ANONYM", "TEAMNAME_OEFFENTLICH", "ALLES_OEFFENTLICH"] as const;
+
+type DashboardFilterPreferences = {
+  searchQuery?: string;
+  categoryFilter?: string;
+  ownerFilter?: string;
+  ownTeamsOnly?: boolean;
+  incompleteOnly?: boolean;
+  marketplaceKindFilter?: MarketplaceKindFilter;
+  marketplaceStatusFilter?: MarketplaceStatusFilter;
+  marketplaceVisibilityFilter?: MarketplaceVisibilityFilter;
+  marketplacePublicationFilter?: MarketplacePublicationFilter;
+  openMtcSlotsOnly?: boolean;
+  quickFilterExcludes?: Record<QuickFilterKey, boolean>;
+  createdFrom?: string;
+  createdTo?: string;
+  viewMode?: DashboardViewMode;
+  sortField?: TeamSortField;
+  sortDirection?: SortDirection;
+};
 
 function formatDatePart(value?: string) {
   if (!value) return "Unbekannt";
@@ -609,6 +637,68 @@ function clampDateTimeLocalToNow(value: string) {
   }
 
   return value;
+}
+
+function isStringOption<const T extends readonly string[]>(value: unknown, options: T): value is T[number] {
+  return typeof value === "string" && options.includes(value);
+}
+
+function sanitizeStoredQuickFilterExcludes(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const source = value as Partial<Record<QuickFilterKey, unknown>>;
+  return QUICK_FILTER_KEYS.reduce<Record<QuickFilterKey, boolean>>((result, key) => {
+    result[key] = source[key] === true;
+    return result;
+  }, { ...EMPTY_QUICK_EXCLUDES });
+}
+
+function sanitizeDashboardFilterPreferences(value: unknown): DashboardFilterPreferences | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  const quickFilterExcludes = sanitizeStoredQuickFilterExcludes(source.quickFilterExcludes);
+  const preferences: DashboardFilterPreferences = {};
+
+  if (typeof source.searchQuery === "string") preferences.searchQuery = source.searchQuery;
+  if (typeof source.categoryFilter === "string") preferences.categoryFilter = source.categoryFilter;
+  if (typeof source.ownerFilter === "string") preferences.ownerFilter = source.ownerFilter;
+  if (typeof source.ownTeamsOnly === "boolean") preferences.ownTeamsOnly = source.ownTeamsOnly;
+  if (typeof source.incompleteOnly === "boolean") preferences.incompleteOnly = source.incompleteOnly;
+  if (isStringOption(source.marketplaceKindFilter, MARKETPLACE_KIND_FILTERS)) preferences.marketplaceKindFilter = source.marketplaceKindFilter;
+  if (isStringOption(source.marketplaceStatusFilter, MARKETPLACE_STATUS_FILTERS)) preferences.marketplaceStatusFilter = source.marketplaceStatusFilter;
+  if (isStringOption(source.marketplaceVisibilityFilter, MARKETPLACE_VISIBILITY_FILTERS)) preferences.marketplaceVisibilityFilter = source.marketplaceVisibilityFilter;
+  if (isStringOption(source.marketplacePublicationFilter, MARKETPLACE_PUBLICATION_FILTERS)) preferences.marketplacePublicationFilter = source.marketplacePublicationFilter;
+  if (typeof source.openMtcSlotsOnly === "boolean") preferences.openMtcSlotsOnly = source.openMtcSlotsOnly;
+  if (quickFilterExcludes) preferences.quickFilterExcludes = quickFilterExcludes;
+  if (typeof source.createdFrom === "string") preferences.createdFrom = clampDateTimeLocalToNow(source.createdFrom);
+  if (typeof source.createdTo === "string") preferences.createdTo = clampDateTimeLocalToNow(source.createdTo);
+  if (isStringOption(source.viewMode, DASHBOARD_VIEW_MODES)) preferences.viewMode = source.viewMode;
+  if (isStringOption(source.sortField, TEAM_SORT_FIELDS)) preferences.sortField = source.sortField;
+  if (isStringOption(source.sortDirection, SORT_DIRECTIONS)) preferences.sortDirection = source.sortDirection;
+
+  return preferences;
+}
+
+function getStoredDashboardFilterPreferences(storageKey: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(storageKey);
+    if (!rawValue) {
+      return null;
+    }
+
+    return sanitizeDashboardFilterPreferences(JSON.parse(rawValue));
+  } catch {
+    return null;
+  }
 }
 
 function getDateTimeFilterTimestamp(value: string) {
@@ -1222,7 +1312,7 @@ function getStoredVisibleColumns() {
 }
 
 export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplaceFocus = false }: DashboardProps = {}) {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const { can, activeRole } = usePermissions();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1259,6 +1349,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [preferencesLoadedForKey, setPreferencesLoadedForKey] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>([
     "category",
     "participantCount",
@@ -1273,6 +1364,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const showAdminDashboardInfo = activeRole === "ADMIN";
   const shouldAutoShowMembersColumn = activeRole !== "TEILNEHMER";
   const userEmail = session?.user?.email;
+  const preferenceStorageKey = useMemo(() => {
+    const userPart = userEmail ? normalizeEmail(userEmail) : "anonymous";
+    const focusPart = marketplaceFocus ? "marketplace" : "teams";
+    return `${TEAM_DASHBOARD_PREFERENCES_STORAGE_PREFIX}.${userPart}.${activeRole}.${focusPart}`;
+  }, [activeRole, marketplaceFocus, userEmail]);
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const marketplaceGlobalVisibility = activeCompetition?.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE";
   const notifications = useNotifications();
@@ -1283,6 +1379,85 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     () => LIST_OPTIONAL_COLUMNS.filter((column) => !column.adminOnly || isAdmin),
     [isAdmin],
   );
+
+  useEffect(() => {
+    if (sessionStatus === "loading") {
+      return;
+    }
+
+    const preferences = getStoredDashboardFilterPreferences(preferenceStorageKey);
+    if (preferences) {
+      if (typeof preferences.searchQuery === "string") setSearchQuery(preferences.searchQuery);
+      if (typeof preferences.categoryFilter === "string") setCategoryFilter(preferences.categoryFilter);
+      if (showOwnerFilter && !initialOwnerFilter && typeof preferences.ownerFilter === "string") {
+        setOwnerFilter(preferences.ownerFilter);
+      }
+      if (typeof preferences.ownTeamsOnly === "boolean") setOwnTeamsOnly(preferences.ownTeamsOnly);
+      if (typeof preferences.incompleteOnly === "boolean") setIncompleteOnly(preferences.incompleteOnly);
+      if (preferences.marketplaceKindFilter) {
+        setMarketplaceKindFilter(marketplaceFocus && preferences.marketplaceKindFilter === "all" ? "marketplace" : preferences.marketplaceKindFilter);
+      }
+      if (preferences.marketplaceStatusFilter) setMarketplaceStatusFilter(preferences.marketplaceStatusFilter);
+      if (preferences.marketplaceVisibilityFilter) setMarketplaceVisibilityFilter(preferences.marketplaceVisibilityFilter);
+      if (preferences.marketplacePublicationFilter) setMarketplacePublicationFilter(preferences.marketplacePublicationFilter);
+      if (typeof preferences.openMtcSlotsOnly === "boolean") setOpenMtcSlotsOnly(preferences.openMtcSlotsOnly);
+      if (preferences.quickFilterExcludes) setQuickFilterExcludes(preferences.quickFilterExcludes);
+      if (typeof preferences.createdFrom === "string") setCreatedFrom(preferences.createdFrom);
+      if (typeof preferences.createdTo === "string") setCreatedTo(preferences.createdTo);
+      if (preferences.viewMode) setViewMode(preferences.viewMode);
+      if (preferences.sortField) setSortField(preferences.sortField);
+      if (preferences.sortDirection) setSortDirection(preferences.sortDirection);
+    }
+
+    setPreferencesLoadedForKey(preferenceStorageKey);
+  }, [initialOwnerFilter, marketplaceFocus, preferenceStorageKey, sessionStatus, showOwnerFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || preferencesLoadedForKey !== preferenceStorageKey) {
+      return;
+    }
+
+    const preferences: DashboardFilterPreferences = {
+      searchQuery,
+      categoryFilter,
+      ownerFilter: showOwnerFilter ? ownerFilter : "all",
+      ownTeamsOnly,
+      incompleteOnly,
+      marketplaceKindFilter,
+      marketplaceStatusFilter,
+      marketplaceVisibilityFilter,
+      marketplacePublicationFilter,
+      openMtcSlotsOnly,
+      quickFilterExcludes,
+      createdFrom,
+      createdTo,
+      viewMode,
+      sortField,
+      sortDirection,
+    };
+
+    window.localStorage.setItem(preferenceStorageKey, JSON.stringify(preferences));
+  }, [
+    categoryFilter,
+    createdFrom,
+    createdTo,
+    incompleteOnly,
+    marketplaceKindFilter,
+    marketplacePublicationFilter,
+    marketplaceStatusFilter,
+    marketplaceVisibilityFilter,
+    openMtcSlotsOnly,
+    ownerFilter,
+    ownTeamsOnly,
+    preferenceStorageKey,
+    preferencesLoadedForKey,
+    quickFilterExcludes,
+    searchQuery,
+    showOwnerFilter,
+    sortDirection,
+    sortField,
+    viewMode,
+  ]);
 
   const fetchTeams = useCallback(async () => {
     try {
