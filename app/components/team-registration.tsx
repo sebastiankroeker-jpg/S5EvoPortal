@@ -97,7 +97,7 @@ interface TeamRegistrationProps {
   allowAnonymous?: boolean;
   initialMode?: RegistrationMode;
   lockRegistrationMode?: boolean;
-  presentation?: "default" | "marketplace";
+  presentation?: "default" | "marketplace" | "mtc-draft";
 }
 
 type PublicCompetitionInfo = {
@@ -250,6 +250,7 @@ export default function TeamRegistration({
   const isAnonymousRegistration = allowAnonymous && !session?.user;
   const isMarketplaceRegistration = registrationMode === "MARKETPLACE";
   const isMarketplacePresentation = presentation === "marketplace";
+  const isMtcDraftPresentation = presentation === "mtc-draft";
   const teamDraftEvaluation = useMemo(
     () =>
       evaluateTeamDraft({
@@ -268,7 +269,7 @@ export default function TeamRegistration({
   const stepTwoBlockingErrors = teamDraftEvaluation.blockingErrors;
   const stepTwoWarnings = teamDraftEvaluation.warnings;
   const hasBlockingValidationErrors = stepTwoBlockingErrors.length > 0;
-  const hasMtcDraftAlternative = !isMarketplaceRegistration && (hasBlockingValidationErrors || !disciplineCheck.valid);
+  const hasMtcDraftAlternative = isMtcDraftPresentation && !isMarketplaceRegistration;
 
   const [teamLeadParticipates, setTeamLeadParticipates] = useState(false);
   const [teamLeadDiscipline, setTeamLeadDiscipline] = useState<DisciplineId>(DISCIPLINES[0].id);
@@ -340,7 +341,7 @@ export default function TeamRegistration({
   const showTestDataTools = !isAnonymousRegistration && competitionInfo?.status === "DRAFT";
   const completedParticipantCount = participants.filter((participant) => participant.firstName && participant.lastName).length;
   const publicationLabel = TEAM_PUBLICATION_OPTIONS.find((option) => option.id === watch("teamPublicationLevel"))?.label || "-";
-  const contactTitle = isMarketplaceRegistration ? "Kontakt für Rückfragen" : "Kontakt Team Manager:in";
+  const contactTitle = isMarketplaceRegistration || isMtcDraftPresentation ? "Kontakt für Rückfragen" : "Kontakt Team Manager:in";
 
   useEffect(() => {
     if (!userName) {
@@ -452,6 +453,11 @@ export default function TeamRegistration({
   };
 
   const handleNextFromParticipants = async () => {
+    if (isMtcDraftPresentation) {
+      await submitMtcDraftRegistration();
+      return;
+    }
+
     const ok = await trigger(["teamName", "participants"]);
     if (ok) {
       setStep(3);
@@ -839,7 +845,14 @@ export default function TeamRegistration({
               {step === 1 && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
                   {lockRegistrationMode ? (
-                    isMarketplaceRegistration && (
+                    isMtcDraftPresentation ? (
+                      <div className="rounded-md border border-primary/20 bg-primary/5 p-4 text-sm">
+                        <p className="font-medium">Unvollständige Mannschaft als MTC-Entwurf melden</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Nutze diesen Weg, wenn noch Slots offen sind oder Angaben später ergänzt werden sollen. Der Entwurf geht an die Orga und kann über einen vertraulichen Link weiter gepflegt werden.
+                        </p>
+                      </div>
+                    ) : isMarketplaceRegistration && (
                       <div className="rounded-md border border-primary/20 bg-primary/5 p-4 text-sm">
                         <p className="font-medium">Einzelteilnehmer für die Sportlerbörse melden</p>
                         <p className="mt-1 text-muted-foreground">
@@ -884,14 +897,18 @@ export default function TeamRegistration({
                         <p>
                           {isMarketplaceRegistration
                             ? "Du kannst dich jetzt ohne Login an der Sportlerbörse melden. Danach bekommst du per Mail einen Uebernahmelink/Claim-Token, mit dem du die Meldung spaeter deinem Portal-Konto zuordnen kannst."
+                            : isMtcDraftPresentation
+                              ? "Du kannst eine unvollständige Mannschaft als MTC-Entwurf ohne Login melden. Danach bekommst du per Mail einen vertraulichen Bearbeitungslink für genau diesen Entwurf."
                             : "Du kannst die Mannschaft jetzt ohne Login anmelden. Danach bekommst du per Mail einen Uebernahmelink/Claim-Token, mit dem du die Mannschaft spaeter deinem Portal-Konto zuordnen kannst."}
                         </p>
                         <p>
                           {isMarketplaceRegistration
                             ? "Falls sich Angaben aendern, kannst du sie nach der Anmeldung im Portal selbst pflegen."
+                            : isMtcDraftPresentation
+                              ? "Eine verbindliche Mannschaft entsteht erst, wenn der Entwurf vollständig und durch die Orga übernommen ist."
                             : "Falls es noch zu Veraenderungen innerhalb der Mannschaft kommen sollte kannst Du diese dort nach Anmeldung selbst pflegen."}
                         </p>
-                        {!isMarketplaceRegistration && (
+                        {!isMarketplaceRegistration && !isMtcDraftPresentation && (
                           <p>Alle T-Shirt Groessen waeren am besten mit der Mannschafts-Anmeldung hilfreich.</p>
                         )}
                         <p>Ansonsten bauen wir an weiteren Faehigkeiten um das digitale Benutzererlebnis zu verbessern.</p>
@@ -1303,8 +1320,8 @@ export default function TeamRegistration({
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← Zurück
                     </Button>
-                    <Button onClick={handleNextFromParticipants} className="flex-1" disabled={!publicRegistrationStatus.canRegister}>
-                      Weiter zur Pruefung →
+                    <Button onClick={handleNextFromParticipants} className="flex-1" disabled={!publicRegistrationStatus.canRegister || savingMtcDraft}>
+                      {isMtcDraftPresentation ? savingMtcDraft ? "Speichere..." : "Als MTC-Entwurf speichern" : "Weiter zur Pruefung →"}
                     </Button>
                   </div>
 
@@ -1451,11 +1468,11 @@ export default function TeamRegistration({
                     </div>
                   )}
 
-                  {hasMtcDraftAlternative && (
+                  {hasMtcDraftAlternative && (hasBlockingValidationErrors || stepTwoWarnings.length > 0 || completedParticipantCount < 5) && (
                     <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="space-y-1">
-                          <p className="font-medium">Noch keine vollständige Mannschaft?</p>
+                          <p className="font-medium">MTC-Entwurf mit offenen Slots</p>
                           <p className="text-xs">
                             Speichere den aktuellen Stand als MTC-Entwurf. Vollständige Teilnehmerzeilen werden übernommen, offene oder unvollständige Slots bleiben als MTC-Slots offen.
                           </p>
@@ -1482,8 +1499,8 @@ export default function TeamRegistration({
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← Zurück
                     </Button>
-                    <Button onClick={handleNextFromParticipants} className="flex-1" disabled={!publicRegistrationStatus.canRegister}>
-                      Zur finalen Prüfung →
+                    <Button onClick={handleNextFromParticipants} className="flex-1" disabled={!publicRegistrationStatus.canRegister || savingMtcDraft}>
+                      {isMtcDraftPresentation ? savingMtcDraft ? "Speichere..." : "MTC-Entwurf speichern" : "Zur finalen Prüfung →"}
                     </Button>
                   </div>
                 </motion.div>

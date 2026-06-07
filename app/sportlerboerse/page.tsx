@@ -16,6 +16,9 @@ export default function PublicMarketplaceRegistrationPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href="/sportlerboerse/mtc" className="inline-flex h-9 items-center justify-center rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary shadow-sm hover:bg-primary/15">
+              Unvollständige Mannschaft
+            </Link>
             <Link href="/anmeldung" className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
               Mannschaft anmelden
             </Link>
@@ -23,6 +26,17 @@ export default function PublicMarketplaceRegistrationPage() {
               Startseite
             </Link>
           </div>
+        </div>
+
+        <div className="mb-5 grid gap-3 sm:grid-cols-2">
+          <Link href="/sportlerboerse" className="rounded-md border border-primary bg-primary/10 p-3 text-sm">
+            <span className="block font-medium">Einzelteilnehmer melden</span>
+            <span className="text-xs text-muted-foreground">Eine Person ohne feste Mannschaft</span>
+          </Link>
+          <Link href="/sportlerboerse/mtc" className="rounded-md border border-border/60 bg-background p-3 text-sm hover:bg-muted/30">
+            <span className="block font-medium">Unvollständige Mannschaft melden</span>
+            <span className="text-xs text-muted-foreground">MTC-Entwurf mit offenen Slots</span>
+          </Link>
         </div>
 
         <TeamRegistration

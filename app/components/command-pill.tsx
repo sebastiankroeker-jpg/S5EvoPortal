@@ -178,6 +178,9 @@ export default function CommandPill() {
       case "all-teams":
         switchToTab("dashboard", { dashboardScope: "all" });
         break;
+      case "sportlerboerse-mtc":
+        navigateAndClose("/sportlerboerse/mtc");
+        break;
       case "orga":
         switchToTab("orga");
         break;

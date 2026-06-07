@@ -89,6 +89,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "sportlerboerse-dashboard":
         router.push("/sportlerboerse-dashboard");
         break;
+      case "sportlerboerse-mtc":
+        router.push("/sportlerboerse/mtc");
+        break;
       case "orga":
         switchToTab("orga");
         break;

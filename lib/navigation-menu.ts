@@ -9,6 +9,7 @@ export interface NavigationMenuItem {
     | "live"
     | "profile"
     | "all-teams"
+    | "sportlerboerse-mtc"
     | "sportlerboerse-dashboard"
     | "participants"
     | "changes"
@@ -85,6 +86,12 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     icon: "🧩",
     permission: "team.view.all",
     requiresAuth: true,
+  },
+  {
+    id: "sportlerboerse-mtc",
+    label: "Unvollständige Mannschaft",
+    keywords: ["mtc", "unvollständige mannschaft", "unvollstaendige mannschaft", "mannschaft unvollständig", "matching", "entwurf"],
+    icon: "🧩",
   },
   {
     id: "participants",

@@ -113,7 +113,7 @@ export default function TeamScreen() {
       {view === "mannschaften" && (
         <Dashboard ownerFilter={!canBrowseAllTeams && hasOwnTeams ? (session.user.email || undefined) : undefined} />
       )}
-      {view === "register" && <TeamRegistration />}
+      {view === "register" && <TeamRegistration lockRegistrationMode />}
       {view === "watchlist" && (
         <div className="text-center space-y-4 py-8">
           <span className="text-5xl">👀</span>

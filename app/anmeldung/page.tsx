@@ -16,7 +16,7 @@ export default function PublicRegistrationPage() {
             ← Startseite
           </Link>
         </div>
-        <TeamRegistration allowAnonymous />
+        <TeamRegistration allowAnonymous lockRegistrationMode />
       </main>
     </div>
   );
