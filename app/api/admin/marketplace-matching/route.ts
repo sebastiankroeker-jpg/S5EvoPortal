@@ -5,7 +5,7 @@ import type { DisciplineAssignment } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { evaluateTeamDraft } from "@/lib/domain/classification";
-import { birthYearToBirthDateInput } from "@/lib/domain/team";
+import { DISCIPLINE_IDS, birthYearToBirthDateInput } from "@/lib/domain/team";
 import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { getScopedRoleFlags } from "@/lib/server-permissions";
@@ -13,6 +13,7 @@ import { syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
 const AVAILABLE_MARKETPLACE_STATUSES = ["NEW", "REVIEWED", "MATCHING"] as const;
 const VALID_PUBLICATION_LEVELS = new Set(["TEAM_ANONYM", "TEAMNAME_OEFFENTLICH", "ALLES_OEFFENTLICH"]);
+const VALID_DISCIPLINE_ASSIGNMENTS = new Set<string>([...DISCIPLINE_IDS]);
 
 type MarketplaceMatchingAction = "createDraft" | "addParticipant" | "removeParticipant" | "finalize";
 
@@ -144,6 +145,7 @@ export async function POST(request: NextRequest) {
     competitionId?: string;
     targetTeamId?: string;
     participantId?: string;
+    targetDiscipline?: string;
     teamName?: string;
     contactName?: string;
     contactEmail?: string;
@@ -258,6 +260,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Teilnehmer ist bereits in dieser Börsen-Mannschaft." }, { status: 409 });
     }
 
+    const requestedDiscipline = body.targetDiscipline && VALID_DISCIPLINE_ASSIGNMENTS.has(body.targetDiscipline)
+      ? body.targetDiscipline as DisciplineAssignment
+      : null;
     const sourceTeam = sourceParticipant.team;
     const sourceTeamWillBeEmpty = sourceTeam.participants.length === 1;
     const now = new Date();
@@ -265,7 +270,16 @@ export async function POST(request: NextRequest) {
     await prisma.$transaction(async (tx) => {
       await tx.participant.update({
         where: { id: sourceParticipant.id },
-        data: { teamId: targetTeam.id },
+        data: {
+          teamId: targetTeam.id,
+          ...(requestedDiscipline ? { disciplineCode: requestedDiscipline } : {}),
+          ...(sourceTeamWillBeEmpty
+            ? {
+                marketplaceReturnTeamId: sourceTeam.id,
+                marketplaceReturnDisciplineCode: sourceParticipant.disciplineCode,
+              }
+            : {}),
+        },
       });
 
       await tx.team.update({
@@ -298,10 +312,12 @@ export async function POST(request: NextRequest) {
             sourceTeamId: sourceTeam.id,
             sourceTeamName: sourceTeam.name,
             sourceTeamArchived: sourceTeamWillBeEmpty,
+            sourceDiscipline: sourceParticipant.disciplineCode,
           },
           afterData: {
             targetTeamId: targetTeam.id,
             targetTeamName: targetTeam.name,
+            targetDiscipline: requestedDiscipline,
           },
           meta: {
             participantName: participantName(sourceParticipant),
@@ -373,28 +389,58 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const newTeam = await prisma.$transaction(async (tx) => {
-      const restored = await tx.team.create({
-        data: {
-          name: `Sportlerbörse: ${participantName(participant)}`,
-          contactName: participantName(participant),
-          contactEmail: participant.email ?? targetTeam.contactEmail,
-          teamPublicationLevel: targetTeam.teamPublicationLevel,
-          registrationMode: "MARKETPLACE",
-          marketplaceVisibility: targetTeam.marketplaceVisibility,
-          marketplaceStatus: "REVIEWED",
-          marketplaceMessage: participant.moderationNote ?? null,
-          classificationCode: "sportlerboerse",
-          totalAge: participant.birthYear ? auth.competition.year - participant.birthYear : null,
-          competitionId: auth.competition.id,
-          ownerId: targetTeam.ownerId,
-          teamChiefId: participant.userId ?? targetTeam.teamChiefId,
-        },
-      });
+    const restoredTeam = await prisma.$transaction(async (tx) => {
+      const returnTeam = participant.marketplaceReturnTeamId
+        ? await tx.team.findFirst({
+            where: {
+              id: participant.marketplaceReturnTeamId,
+              competitionId: auth.competition.id,
+              registrationMode: "MARKETPLACE",
+              deletedAt: { not: null },
+            },
+            select: { id: true, name: true },
+          })
+        : null;
+
+      const restored = returnTeam
+        ? await tx.team.update({
+            where: { id: returnTeam.id },
+            data: {
+              deletedAt: null,
+              contactName: participantName(participant),
+              contactEmail: participant.email ?? targetTeam.contactEmail,
+              totalAge: participant.birthYear ? auth.competition.year - participant.birthYear : null,
+              teamChiefId: participant.userId ?? targetTeam.teamChiefId,
+              marketplaceStatus: "REVIEWED",
+              marketplaceMessage: participant.moderationNote ?? null,
+            },
+          })
+        : await tx.team.create({
+            data: {
+              name: `Sportlerbörse: ${participantName(participant)}`,
+              contactName: participantName(participant),
+              contactEmail: participant.email ?? targetTeam.contactEmail,
+              teamPublicationLevel: targetTeam.teamPublicationLevel,
+              registrationMode: "MARKETPLACE",
+              marketplaceVisibility: targetTeam.marketplaceVisibility,
+              marketplaceStatus: "REVIEWED",
+              marketplaceMessage: participant.moderationNote ?? null,
+              classificationCode: "sportlerboerse",
+              totalAge: participant.birthYear ? auth.competition.year - participant.birthYear : null,
+              competitionId: auth.competition.id,
+              ownerId: targetTeam.ownerId,
+              teamChiefId: participant.userId ?? targetTeam.teamChiefId,
+            },
+          });
 
       await tx.participant.update({
         where: { id: participant.id },
-        data: { teamId: restored.id },
+        data: {
+          teamId: restored.id,
+          disciplineCode: participant.marketplaceReturnDisciplineCode ?? participant.disciplineCode,
+          marketplaceReturnTeamId: null,
+          marketplaceReturnDisciplineCode: null,
+        },
       });
 
       await tx.auditEvent.create({
@@ -405,8 +451,18 @@ export async function POST(request: NextRequest) {
           entityType: "PARTICIPANT",
           entityId: participant.id,
           reason: "marketplace_matching_unassign",
-          beforeData: { targetTeamId: targetTeam.id, targetTeamName: targetTeam.name },
-          afterData: { restoredTeamId: restored.id, restoredTeamName: restored.name },
+          beforeData: {
+            targetTeamId: targetTeam.id,
+            targetTeamName: targetTeam.name,
+            returnTeamId: participant.marketplaceReturnTeamId ?? null,
+            currentDiscipline: participant.disciplineCode,
+          },
+          afterData: {
+            restoredTeamId: restored.id,
+            restoredTeamName: restored.name,
+            restoredArchivedTeam: Boolean(returnTeam),
+            restoredDiscipline: participant.marketplaceReturnDisciplineCode ?? participant.disciplineCode,
+          },
           meta: {
             participantName: participantName(participant),
             sessionEmail: normalizeEmail(auth.userEmail),
@@ -420,7 +476,7 @@ export async function POST(request: NextRequest) {
       return restored;
     });
 
-    return NextResponse.json({ success: true, teamId: newTeam.id, message: `${participantName(participant)} wurde wieder freigegeben.` });
+    return NextResponse.json({ success: true, teamId: restoredTeam.id, message: `${participantName(participant)} wurde aus dem MTC entfernt.` });
   }
 
   if (action === "finalize") {

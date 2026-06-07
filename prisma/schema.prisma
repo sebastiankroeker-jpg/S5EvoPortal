@@ -505,6 +505,8 @@ model Participant {
   birthYear                        Int
   gender                           Gender
   disciplineCode                   DisciplineAssignment             @default(TBD)
+  marketplaceReturnTeamId          String?
+  marketplaceReturnDisciplineCode  DisciplineAssignment?
   participantPublicationPreference ParticipantPublicationPreference @default(NAME_VERBERGEN)
   shirtSize                        ShirtSize?
   moderationNote                   String?
@@ -530,6 +532,7 @@ model Participant {
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([teamId, deletedAt])
+  @@index([marketplaceReturnTeamId])
   @@index([lastName, firstName])
   @@map("participants")
 }

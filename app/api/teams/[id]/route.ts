@@ -548,6 +548,21 @@ export async function PATCH(
       data.teamPublicationLevel = body.teamPublicationLevel;
     }
 
+    if (typeof body.teamName === "string") {
+      const teamName = body.teamName.trim();
+      if (teamName) {
+        data.name = teamName;
+      }
+    }
+
+    if (typeof body.contactName === "string") {
+      data.contactName = body.contactName.trim() || null;
+    }
+
+    if (typeof body.contactEmail === "string") {
+      data.contactEmail = body.contactEmail.trim() || null;
+    }
+
     if (typeof body.marketplaceMessage === "string") {
       data.marketplaceMessage = body.marketplaceMessage.trim() || null;
       data.notes = body.marketplaceMessage.trim() || null;
@@ -563,12 +578,18 @@ export async function PATCH(
       marketplaceVisibility: existingTeam.marketplaceVisibility ?? "ADMIN_MANAGEMENT_ONLY",
       teamPublicationLevel: existingTeam.teamPublicationLevel ?? "TEAM_ANONYM",
       marketplaceMessage: existingTeam.marketplaceMessage ?? null,
+      teamName: existingTeam.name,
+      contactName: existingTeam.contactName ?? null,
+      contactEmail: existingTeam.contactEmail ?? null,
     };
     const afterSnapshot = {
       marketplaceStatus: typeof body.marketplaceStatus === "string" ? body.marketplaceStatus : beforeSnapshot.marketplaceStatus,
       marketplaceVisibility: typeof body.marketplaceVisibility === "string" ? body.marketplaceVisibility : beforeSnapshot.marketplaceVisibility,
       teamPublicationLevel: typeof body.teamPublicationLevel === "string" ? body.teamPublicationLevel : beforeSnapshot.teamPublicationLevel,
       marketplaceMessage: typeof body.marketplaceMessage === "string" ? body.marketplaceMessage.trim() || null : beforeSnapshot.marketplaceMessage,
+      teamName: typeof body.teamName === "string" && body.teamName.trim() ? body.teamName.trim() : beforeSnapshot.teamName,
+      contactName: typeof body.contactName === "string" ? body.contactName.trim() || null : beforeSnapshot.contactName,
+      contactEmail: typeof body.contactEmail === "string" ? body.contactEmail.trim() || null : beforeSnapshot.contactEmail,
     };
 
     const updatedTeam = await prisma.$transaction(async (tx) => {

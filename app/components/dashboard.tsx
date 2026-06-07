@@ -135,6 +135,9 @@ type TeamEditPayload = {
 };
 
 type MarketplaceTeamEditPayload = {
+  teamName?: string;
+  contactName?: string;
+  contactEmail?: string;
   teamPublicationLevel: NonNullable<Team["teamPublicationLevel"]>;
   marketplaceVisibility: NonNullable<Team["marketplaceVisibility"]>;
   marketplaceStatus: NonNullable<Team["marketplaceStatus"]>;
@@ -1037,11 +1040,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
   };
 
-  const handleMarketplaceMatchingAdd = async (targetTeamId: string, participantId: string) => {
+  const handleMarketplaceMatchingAdd = async (targetTeamId: string, participantId: string, targetDiscipline?: string) => {
     const data = await postMarketplaceMatchingAction({
       action: "addParticipant",
       targetTeamId,
       participantId,
+      targetDiscipline,
     });
     await fetchTeams();
     notifications.success("Teilnehmer zugeordnet", data?.message || "Die Börsen-Mannschaft wurde aktualisiert.");
@@ -1054,7 +1058,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       participantId,
     });
     await fetchTeams();
-    notifications.success("Teilnehmer freigegeben", data?.message || "Die Börsen-Mannschaft wurde aktualisiert.");
+    notifications.success("Teilnehmer entfernt", data?.message || "Die Börsen-Mannschaft wurde aktualisiert.");
   };
 
   const handleMarketplaceMatchingFinalize = async (targetTeamId: string, payload: MarketplaceMatchingFinalizePayload) => {
@@ -2866,19 +2870,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 Entwurf bearbeiten
                               </Button>
                             )}
-                            {canEditMarketplaceTeam && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingMarketplaceTeam(team);
-                                }}
-                                className="flex-1"
-                              >
-                                Börse bearbeiten
-                              </Button>
-                            )}
                             {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
                               <TeamDeleteDialog
                                 team={team}
@@ -2965,7 +2956,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           onSaveMetadata={async (targetTeamId, metadata) => {
             await saveMarketplaceTeamMetadata(targetTeamId, metadata);
             await fetchTeams();
-            notifications.success("MTC gespeichert", "Status, Sichtbarkeit und Notiz wurden aktualisiert.");
+            notifications.success("Entwurf gespeichert", "MTC-Daten und Admin-Infos wurden aktualisiert.");
           }}
           onFinalize={handleMarketplaceMatchingFinalize}
           onCancel={() => setEditingMarketplaceMatchingTeam(null)}
@@ -2999,7 +2990,7 @@ function MarketplaceMatchingModal({
   team: Team;
   competitionId?: string;
   initialDisciplineFilter?: string;
-  onAddParticipant: (targetTeamId: string, participantId: string) => void | Promise<void>;
+  onAddParticipant: (targetTeamId: string, participantId: string, targetDiscipline?: string) => void | Promise<void>;
   onRemoveParticipant: (targetTeamId: string, participantId: string) => void | Promise<void>;
   onSaveMetadata: (targetTeamId: string, data: MarketplaceTeamEditPayload) => void | Promise<void>;
   onFinalize: (targetTeamId: string, data: MarketplaceMatchingFinalizePayload) => void | Promise<void>;
@@ -3007,7 +2998,7 @@ function MarketplaceMatchingModal({
 }) {
   const [availableParticipants, setAvailableParticipants] = useState<MarketplaceAvailableParticipant[]>([]);
   const [query, setQuery] = useState("");
-  const [selectedDisciplineFilter, setSelectedDisciplineFilter] = useState(initialDisciplineFilter || "all");
+  const [openSearchSlotId, setOpenSearchSlotId] = useState<string | null>(initialDisciplineFilter || null);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
   const [busyParticipantId, setBusyParticipantId] = useState<string | null>(null);
   const [savingMetadata, setSavingMetadata] = useState(false);
@@ -3029,8 +3020,7 @@ function MarketplaceMatchingModal({
   const assignedParticipantIds = new Set(assignedParticipants.map((participant) => participant.id).filter(Boolean));
   const assignedDisciplineSlots = getTeamDisciplineSlots(team);
   const canReleaseAssignedParticipants = assignedParticipants.length > 1;
-  const filteredAvailableParticipants = availableParticipants.filter((participant) => {
-    if (selectedDisciplineFilter !== "all" && participant.disciplineCode !== selectedDisciplineFilter) return false;
+  const getSlotSearchParticipants = (slotDisciplineId: string) => availableParticipants.filter((participant) => {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return true;
     return [
@@ -3040,8 +3030,12 @@ function MarketplaceMatchingModal({
       participant.teamName,
       participant.marketplaceStatus,
     ].some((value) => value.toLowerCase().includes(normalizedQuery));
+  }).sort((left, right) => {
+    const leftMatchesSlot = left.disciplineCode === slotDisciplineId ? 0 : 1;
+    const rightMatchesSlot = right.disciplineCode === slotDisciplineId ? 0 : 1;
+    if (leftMatchesSlot !== rightMatchesSlot) return leftMatchesSlot - rightMatchesSlot;
+    return left.name.localeCompare(right.name, "de");
   });
-  const selectedDiscipline = DISCIPLINES.find((discipline) => discipline.id === selectedDisciplineFilter);
   const draftEvaluation = evaluateTeamDraft({
     mode: "admin-edit",
     teamName: formData.teamName || "Börsen-Mannschaft",
@@ -3086,7 +3080,8 @@ function MarketplaceMatchingModal({
   }, [loadAvailableParticipants]);
 
   useEffect(() => {
-    setSelectedDisciplineFilter(initialDisciplineFilter || "all");
+    setOpenSearchSlotId(initialDisciplineFilter || null);
+    setQuery("");
   }, [initialDisciplineFilter, team.id]);
 
   useEffect(() => {
@@ -3105,12 +3100,14 @@ function MarketplaceMatchingModal({
     });
   }, [team.contactEmail, team.contactName, team.marketplaceMessage, team.marketplaceStatus, team.marketplaceVisibility, team.name, team.teamPublicationLevel]);
 
-  const handleAdd = async (participantId: string) => {
+  const handleAdd = async (participantId: string, targetDiscipline?: string) => {
     setBusyParticipantId(participantId);
     setError("");
     try {
-      await onAddParticipant(team.id, participantId);
+      await onAddParticipant(team.id, participantId, targetDiscipline);
       setAvailableParticipants((current) => current.filter((participant) => participant.id !== participantId));
+      setOpenSearchSlotId(null);
+      setQuery("");
       await loadAvailableParticipants();
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : "Teilnehmer konnte nicht zugeordnet werden.");
@@ -3127,19 +3124,27 @@ function MarketplaceMatchingModal({
       await onRemoveParticipant(team.id, participantId);
       await loadAvailableParticipants();
     } catch (removeError) {
-      setError(removeError instanceof Error ? removeError.message : "Teilnehmer konnte nicht freigegeben werden.");
+      setError(removeError instanceof Error ? removeError.message : "Teilnehmer konnte nicht entfernt werden.");
     } finally {
       setBusyParticipantId(null);
     }
   };
 
-  const handleSaveMetadata = async () => {
+  const handleSaveDraft = async () => {
     setSavingMetadata(true);
     setError("");
     try {
-      await onSaveMetadata(team.id, metadataForm);
+      await onSaveMetadata(team.id, {
+        teamName: formData.teamName.trim() || team.name,
+        contactName: formData.contactName.trim(),
+        contactEmail: formData.contactEmail.trim(),
+        teamPublicationLevel: formData.teamPublicationLevel,
+        marketplaceVisibility: metadataForm.marketplaceVisibility,
+        marketplaceStatus: metadataForm.marketplaceStatus,
+        marketplaceMessage: metadataForm.marketplaceMessage,
+      });
     } catch (metadataError) {
-      setError(metadataError instanceof Error ? metadataError.message : "MTC-Metadaten konnten nicht gespeichert werden.");
+      setError(metadataError instanceof Error ? metadataError.message : "Entwurf konnte nicht gespeichert werden.");
     } finally {
       setSavingMetadata(false);
     }
@@ -3170,8 +3175,7 @@ function MarketplaceMatchingModal({
           <CardTitle className="truncate text-base">Mannschaftsentwurf bearbeiten: {team.name}</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-            <div className="space-y-3">
+          <div className="space-y-3">
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-medium text-muted-foreground">Mannschaftsname</label>
@@ -3285,11 +3289,6 @@ function MarketplaceMatchingModal({
                     placeholder="Hinweise zur Vermittlung"
                   />
                 </div>
-                <div className="flex justify-end">
-                  <Button type="button" size="sm" variant="outline" onClick={handleSaveMetadata} disabled={savingMetadata}>
-                    {savingMetadata ? "Speichert..." : "MTC-Infos speichern"}
-                  </Button>
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -3302,136 +3301,126 @@ function MarketplaceMatchingModal({
                 <div className="grid gap-2">
                   {assignedDisciplineSlots.map(({ discipline, participant }) => {
                     const participantIndex = participant ? assignedParticipants.indexOf(participant) : -1;
+                    const slotSearchOpen = !participant && openSearchSlotId === discipline.id;
+                    const slotSearchParticipants = slotSearchOpen ? getSlotSearchParticipants(discipline.id) : [];
+                    const teamFull = assignedParticipants.length >= 5;
 
                     return (
-                      <div key={discipline.id} className="flex min-h-14 items-center justify-between gap-2 rounded-md border border-border/60 bg-background p-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-muted-foreground">{discipline.icon} {discipline.label}</p>
-                          {participant ? (
-                            <>
-                              <p className="truncate text-sm font-medium">{getParticipantDisplayName(participant, participantIndex)}</p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {[participant.birthDate, participant.email].filter(Boolean).join(" · ") || "Keine weiteren Angaben"}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Noch frei</p>
+                      <div key={discipline.id} className="relative rounded-md border border-border/60 bg-background p-2">
+                        <div className="flex min-h-12 items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-muted-foreground">{discipline.icon} {discipline.label}</p>
+                            {participant ? (
+                              <>
+                                <p className="truncate text-sm font-medium">{getParticipantDisplayName(participant, participantIndex)}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {[participant.birthDate, participant.email].filter(Boolean).join(" · ") || "Keine weiteren Angaben"}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">Noch frei</p>
+                            )}
+                          </div>
+                          {participant?.id && canReleaseAssignedParticipants && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRemove(participant.id)}
+                              disabled={busyParticipantId === participant.id}
+                              aria-busy={busyParticipantId === participant.id}
+                            >
+                              Entfernen
+                            </Button>
+                          )}
+                          {participant?.id && !canReleaseAssignedParticipants && (
+                            <Badge variant="outline" className="shrink-0">
+                              Freie Meldung
+                            </Badge>
+                          )}
+                          {!participant && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={slotSearchOpen ? "default" : "outline"}
+                              onClick={() => {
+                                setOpenSearchSlotId(slotSearchOpen ? null : discipline.id);
+                                setQuery("");
+                              }}
+                            >
+                              Suchen
+                            </Button>
                           )}
                         </div>
-                        {participant?.id && canReleaseAssignedParticipants && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRemove(participant.id)}
-                            disabled={busyParticipantId === participant.id}
-                            aria-busy={busyParticipantId === participant.id}
-                          >
-                            Freigeben
-                          </Button>
-                        )}
-                        {participant?.id && !canReleaseAssignedParticipants && (
-                          <Badge variant="outline" className="shrink-0">
-                            Freie Meldung
-                          </Badge>
-                        )}
-                        {!participant && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedDisciplineFilter(discipline.id)}
-                          >
-                            Suchen
-                          </Button>
+
+                        {slotSearchOpen && (
+                          <div className="absolute right-2 top-[calc(100%-0.25rem)] z-20 w-[min(38rem,calc(100vw-2.5rem))] rounded-md border border-border bg-card p-2 shadow-lg">
+                            <div className="mb-2 flex items-center gap-2">
+                              <Input
+                                value={query}
+                                onChange={(event) => setQuery(event.target.value)}
+                                placeholder={`${discipline.label}: Name, E-Mail oder Status`}
+                                className="h-9"
+                                autoFocus
+                              />
+                              <Button type="button" size="sm" variant="outline" onClick={() => setOpenSearchSlotId(null)}>
+                                Schließen
+                              </Button>
+                            </div>
+                            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                              {loadingAvailable ? (
+                                <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Lade freie Teilnehmer...</div>
+                              ) : slotSearchParticipants.length === 0 ? (
+                                <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Keine freien Börsen-Teilnehmer gefunden.</div>
+                              ) : (
+                                slotSearchParticipants.map((availableParticipant) => {
+                                  const availableDiscipline = DISCIPLINES.find((entry) => entry.id === availableParticipant.disciplineCode);
+                                  const alreadyAssigned = assignedParticipantIds.has(availableParticipant.id);
+                                  const matchesSlot = availableParticipant.disciplineCode === discipline.id;
+
+                                  return (
+                                    <div key={availableParticipant.id} className="rounded-md border border-border/60 bg-background p-2 text-xs">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-medium">{availableParticipant.name}</p>
+                                          <p className="truncate text-muted-foreground">
+                                            {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
+                                            {availableParticipant.birthDate ? ` · ${availableParticipant.birthDate}` : ""}
+                                            {availableParticipant.email ? ` · ${availableParticipant.email}` : ""}
+                                          </p>
+                                          <div className="mt-1 flex flex-wrap gap-1">
+                                            <Badge variant={matchesSlot ? "default" : "outline"}>
+                                              {matchesSlot ? "passend" : `als ${discipline.label} zuordnen`}
+                                            </Badge>
+                                            <Badge variant="outline" className={getMarketplaceStatusClass(availableParticipant.marketplaceStatus)}>
+                                              {getMarketplaceStatusOption(availableParticipant.marketplaceStatus).label}
+                                            </Badge>
+                                            <Badge variant="outline">{availableParticipant.teamName}</Badge>
+                                          </div>
+                                        </div>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleAdd(availableParticipant.id, discipline.id)}
+                                          disabled={alreadyAssigned || teamFull || busyParticipantId === availableParticipant.id}
+                                          aria-busy={busyParticipantId === availableParticipant.id}
+                                        >
+                                          Zuordnen
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     );
                   })}
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Disziplin</label>
-                <div className="flex flex-wrap gap-1">
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant={selectedDisciplineFilter === "all" ? "default" : "outline"}
-                    onClick={() => setSelectedDisciplineFilter("all")}
-                  >
-                    Alle
-                  </Button>
-                  {DISCIPLINES.map((discipline) => (
-                    <Button
-                      key={discipline.id}
-                      type="button"
-                      size="xs"
-                      variant={selectedDisciplineFilter === discipline.id ? "default" : "outline"}
-                      onClick={() => setSelectedDisciplineFilter(discipline.id)}
-                    >
-                      <span aria-hidden="true">{discipline.icon}</span>
-                      {discipline.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Suchhilfe Börsen-Teilnehmer</label>
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={selectedDiscipline ? `${selectedDiscipline.label}: Name, E-Mail oder Status` : "Name, E-Mail, Disziplin oder Status"}
-                />
-              </div>
-
-              <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-                {loadingAvailable ? (
-                  <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Lade freie Teilnehmer...</div>
-                ) : filteredAvailableParticipants.length === 0 ? (
-                  <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Keine passenden freien Börsen-Teilnehmer gefunden.</div>
-                ) : (
-                  filteredAvailableParticipants.map((participant) => {
-                    const discipline = DISCIPLINES.find((entry) => entry.id === participant.disciplineCode);
-                    const alreadyAssigned = assignedParticipantIds.has(participant.id);
-                    const teamFull = assignedParticipants.length >= 5;
-
-                    return (
-                      <div key={participant.id} className="rounded-md border border-border/60 bg-background p-2 text-xs">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{participant.name}</p>
-                            <p className="truncate text-muted-foreground">
-                              {discipline ? `${discipline.icon} ${discipline.label}` : "Disziplin offen"}
-                              {participant.birthDate ? ` · ${participant.birthDate}` : ""}
-                              {participant.email ? ` · ${participant.email}` : ""}
-                            </p>
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              <Badge variant="outline" className={getMarketplaceStatusClass(participant.marketplaceStatus)}>
-                                {getMarketplaceStatusOption(participant.marketplaceStatus).label}
-                              </Badge>
-                              <Badge variant="outline">{participant.teamName}</Badge>
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAdd(participant.id)}
-                            disabled={alreadyAssigned || teamFull || busyParticipantId === participant.id}
-                            aria-busy={busyParticipantId === participant.id}
-                          >
-                            Zuordnen
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
           </div>
 
           {(error || draftEvaluation.blockingErrors.length > 0 || draftEvaluation.warnings.length > 0 || !isValidEmail(formData.contactEmail)) && (
@@ -3448,8 +3437,11 @@ function MarketplaceMatchingModal({
             Übernehmen ist möglich, sobald 5 Slots belegt sind und die Mannschaft fachlich plausibel ist.
           </p>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={onCancel} disabled={finalizing}>
+            <Button variant="outline" onClick={onCancel} disabled={finalizing || savingMetadata}>
               Schließen
+            </Button>
+            <Button variant="outline" onClick={handleSaveDraft} disabled={savingMetadata || finalizing} aria-busy={savingMetadata}>
+              {savingMetadata ? "Speichert..." : "Entwurf speichern"}
             </Button>
             <Button onClick={handleFinalize} disabled={!canFinalize || finalizing} aria-busy={finalizing}>
               {finalizing ? "Übernehme..." : "Als Mannschaft übernehmen"}
