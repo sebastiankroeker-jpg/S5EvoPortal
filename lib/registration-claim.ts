@@ -89,3 +89,7 @@ export function buildRegistrationClaimUrl(token: string) {
 export function buildParticipantClaimUrl(token: string) {
   return `${buildPortalHomeUrl()}/participant-claim/${token}`;
 }
+
+export function buildMtcAnonymousUrl(token: string) {
+  return `${buildPortalHomeUrl()}/mtc-anonym/${token}`;
+}

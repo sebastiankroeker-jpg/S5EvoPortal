@@ -28,6 +28,7 @@ type ClaimItem = {
   teamId: string;
   teamName: string;
   category: string;
+  registrationMode?: "TEAM" | "MARKETPLACE";
   contactEmail: string;
   contactName: string;
   ownerEmail: string;
@@ -87,6 +88,7 @@ export default function ClaimLinkDashboard() {
   const [togglingGlobal, setTogglingGlobal] = useState(false);
   const [claimLinksEnabled, setClaimLinksEnabled] = useState(true);
   const [generatedLinks, setGeneratedLinks] = useState<Record<string, string>>({});
+  const [generatedMtcLinks, setGeneratedMtcLinks] = useState<Record<string, string>>({});
   const [opsEvents, setOpsEvents] = useState<ClaimAuditEvent[]>([]);
 
   const loadItems = useCallback(async () => {
@@ -169,8 +171,13 @@ export default function ClaimLinkDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Claim-Link konnte nicht erzeugt werden");
       setGeneratedLinks((current) => ({ ...current, [`${item.itemType}:${item.itemId}`]: data.claimUrl }));
+      if (item.itemType === "team" && data.mtcAnonymousUrl) {
+        setGeneratedMtcLinks((current) => ({ ...current, [`${item.itemType}:${item.itemId}`]: data.mtcAnonymousUrl }));
+      }
       notifications.success(
-        item.itemType === "participant" ? "Neuer Teilnehmer-Claim-Link erzeugt" : "Neuer Team-Claim-Link erzeugt",
+        item.registrationMode === "MARKETPLACE"
+          ? "Neuer MTC-Link erzeugt"
+          : item.itemType === "participant" ? "Neuer Teilnehmer-Claim-Link erzeugt" : "Neuer Team-Claim-Link erzeugt",
         "Der neue Link kann direkt kopiert werden.",
       );
       await loadItems();
@@ -360,7 +367,9 @@ export default function ClaimLinkDashboard() {
               const tokenStatus = item.token?.status || "none";
               const statusMeta = STATUS_META[tokenStatus];
               const generatedLink = generatedLinks[`${item.itemType}:${item.itemId}`];
+              const generatedMtcLink = generatedMtcLinks[`${item.itemType}:${item.itemId}`];
               const itemLabel = item.itemType === "participant" ? "Teilnehmer-Claim" : "Team-Claim";
+              const isMtcTeam = item.itemType === "team" && item.registrationMode === "MARKETPLACE";
 
               return (
                 <div key={`${item.itemType}:${item.itemId}`} className="rounded-lg border border-border/50 bg-card p-4 space-y-3 shadow-sm">
@@ -370,6 +379,7 @@ export default function ClaimLinkDashboard() {
                         <span className="font-medium">{item.itemType === "participant" ? item.contactName : item.teamName}</span>
                         <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
                         <Badge variant="outline">{itemLabel}</Badge>
+                        {isMtcTeam ? <Badge variant="outline">MTC anonym</Badge> : null}
                         <Badge variant="outline">{item.category}</Badge>
                       </div>
                       <div className="text-xs text-muted-foreground space-y-1">
@@ -413,7 +423,12 @@ export default function ClaimLinkDashboard() {
                       </Button>
                       {generatedLink ? (
                         <Button size="sm" variant="outline" onClick={() => void copyToClipboard(generatedLink)}>
-                          Link kopieren
+                          Claim-Link kopieren
+                        </Button>
+                      ) : null}
+                      {generatedMtcLink ? (
+                        <Button size="sm" variant="outline" onClick={() => void copyToClipboard(generatedMtcLink)}>
+                          MTC-Link kopieren
                         </Button>
                       ) : null}
                       {item.token?.status === "active" ? (

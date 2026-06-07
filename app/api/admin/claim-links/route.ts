@@ -5,7 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { normalizeEmail } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { createParticipantClaimInvitation } from "@/lib/participant-claim-invitation";
-import { buildParticipantClaimUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from "@/lib/registration-claim";
+import { buildMtcAnonymousUrl, buildParticipantClaimUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from "@/lib/registration-claim";
 import { recordParticipantClaimAuditEvent } from "@/lib/participant-claim-audit";
 import { recordClaimAuditEvent } from "@/lib/registration-claim-audit";
 import { requireTenantRoles } from "@/lib/server-permissions";
@@ -118,6 +118,7 @@ export async function GET(request: NextRequest) {
       teamId: team.id,
       teamName: team.name,
       category: team.classificationCode || "–",
+      registrationMode: team.registrationMode,
       contactEmail: team.contactEmail || team.owner?.email || "",
       contactName: team.contactName || team.owner?.name || "",
       ownerEmail: team.owner?.email || "",
@@ -365,6 +366,7 @@ export async function POST(request: NextRequest) {
       revokedAt: tokenRecord.revokedAt,
     },
     claimUrl: buildRegistrationClaimUrl(claimToken.rawToken),
+    mtcAnonymousUrl: team.registrationMode === "MARKETPLACE" ? buildMtcAnonymousUrl(claimToken.rawToken) : null,
   });
 }
 
