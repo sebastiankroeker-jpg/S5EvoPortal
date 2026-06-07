@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -750,14 +751,75 @@ function getParticipantPublicationLabel(value?: Participant["participantPublicat
   return PARTICIPANT_PUBLICATION_OPTIONS.find((option) => option.id === (value || "NAME_VERBERGEN"))?.label || "Name verbergen";
 }
 
+function getTeamVisibilityMeta(team: Team): { label: string; icon: LucideIcon; className: string } {
+  if (team.registrationMode === "MARKETPLACE") {
+    const visibilityMeta = getMarketplaceVisibilityMeta(team.marketplaceVisibility);
+    return {
+      label: visibilityMeta.label,
+      icon: visibilityMeta.icon,
+      className: visibilityMeta.className,
+    };
+  }
+
+  const publicationLevel = team.teamPublicationLevel || "TEAM_ANONYM";
+
+  if (publicationLevel === "ALLES_OEFFENTLICH") {
+    return {
+      label: getTeamPublicationLabel(publicationLevel),
+      icon: Eye,
+      className: "border-green-300 text-green-700",
+    };
+  }
+
+  if (publicationLevel === "TEAMNAME_OEFFENTLICH") {
+    return {
+      label: getTeamPublicationLabel(publicationLevel),
+      icon: Eye,
+      className: "border-blue-300 text-blue-700",
+    };
+  }
+
+  return {
+    label: getTeamPublicationLabel(publicationLevel),
+    icon: EyeOff,
+    className: "border-amber-300 text-amber-700",
+  };
+}
+
+function TeamVisibilityIconBadge({ team, active, onToggle }: { team: Team; active: boolean; onToggle: () => void }) {
+  const visibilityMeta = getTeamVisibilityMeta(team);
+  const VisibilityIcon = visibilityMeta.icon;
+
+  return (
+    <span className="relative inline-flex shrink-0">
+      <button
+        type="button"
+        className={`inline-flex size-6 items-center justify-center rounded-full border bg-background shadow-sm transition-colors hover:bg-muted ${visibilityMeta.className}`}
+        title={visibilityMeta.label}
+        aria-label={visibilityMeta.label}
+        aria-expanded={active}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggle();
+        }}
+      >
+        <VisibilityIcon className="size-3.5" aria-hidden="true" />
+      </button>
+      {active && (
+        <span className="absolute left-1/2 top-full z-30 mt-1 max-w-[min(70vw,16rem)] -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md">
+          {visibilityMeta.label}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team: Team; compact?: boolean; subtle?: boolean }) {
   if (team.registrationMode !== "MARKETPLACE") return null;
 
   const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
   const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
   const marketplaceDraftStatus = getMarketplaceDraftStatusMeta(team);
-  const visibilityMeta = getMarketplaceVisibilityMeta(team.marketplaceVisibility);
-  const VisibilityIcon = visibilityMeta.icon;
   const compactClassName = compact ? "h-6 shrink-0 px-1.5 text-[10px]" : "";
   const statusClassName = subtle
     ? "border-muted-foreground/30 text-muted-foreground"
@@ -779,14 +841,6 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
           </Badge>
         </>
       )}
-      <Badge
-        variant="outline"
-        className={`${compactClassName} gap-1 ${visibilityMeta.className}`}
-        title={visibilityMeta.label}
-      >
-        <VisibilityIcon className="size-3" />
-        {visibilityMeta.shortLabel}
-      </Badge>
       {!subtle && !isMarketplaceMatching && (
         <Badge variant="outline" className={`${compactClassName} border-muted-foreground/30 text-muted-foreground`}>
           {getTeamPublicationLabel(team.teamPublicationLevel)}
@@ -1197,6 +1251,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [creatingMatchingDraft, setCreatingMatchingDraft] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [expandedMarketplaceContainerTeam, setExpandedMarketplaceContainerTeam] = useState<string | null>(null);
+  const [teamVisibilityInfoTeamId, setTeamVisibilityInfoTeamId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewModeMenuOpen, setViewModeMenuOpen] = useState(false);
   const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
@@ -1454,6 +1509,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     setMarketplaceMatchingDisciplineFilter(disciplineId);
     setEditingMarketplaceMatchingTeam(team);
   };
+
+  const toggleTeamVisibilityInfo = useCallback((teamId: string) => {
+    setTeamVisibilityInfoTeamId((currentTeamId) => (currentTeamId === teamId ? null : teamId));
+  }, []);
 
   // Pending owner filter (set before teams are loaded)
   const [pendingOwnerFilter, setPendingOwnerFilter] = useState<string | null>(null);
@@ -2797,7 +2856,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                         <div className={`grid items-start gap-1.5 ${showCompactActionColumn ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-1"}`}>
                           <div className="min-w-0 space-y-1.5">
                             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                              <h3 className="min-w-0 truncate text-sm font-medium">{team.name}</h3>
+                              <div className="flex min-w-0 max-w-full flex-1 basis-40 items-center gap-1.5">
+                                <h3 className="min-w-0 truncate text-sm font-medium" title={team.name}>{team.name}</h3>
+                                <TeamVisibilityIconBadge
+                                  team={team}
+                                  active={teamVisibilityInfoTeamId === team.id}
+                                  onToggle={() => toggleTeamVisibilityInfo(team.id)}
+                                />
+                              </div>
                               {team.isCurrentUserTeam && (
                                 <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
                                   <Star className="size-3" />
@@ -2998,7 +3064,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                         <CardContent className="space-y-2 p-2">
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                              <h3 className="min-w-0 truncate text-base font-semibold">{team.name}</h3>
+                              <div className="flex min-w-0 max-w-full flex-1 basis-48 items-center gap-1.5">
+                                <h3 className="min-w-0 truncate text-base font-semibold" title={team.name}>{team.name}</h3>
+                                <TeamVisibilityIconBadge
+                                  team={team}
+                                  active={teamVisibilityInfoTeamId === team.id}
+                                  onToggle={() => toggleTeamVisibilityInfo(team.id)}
+                                />
+                              </div>
                               {team.isCurrentUserTeam && (
                                 <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
                                   <Star className="size-3" />
