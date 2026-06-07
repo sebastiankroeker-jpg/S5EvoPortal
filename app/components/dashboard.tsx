@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -190,6 +191,8 @@ type MarketplaceStatusFilter = "all" | NonNullable<Team["marketplaceStatus"]>;
 type MarketplaceVisibilityFilter = "all" | NonNullable<Team["marketplaceVisibility"]>;
 type MarketplacePublicationFilter = "all" | NonNullable<Team["teamPublicationLevel"]>;
 type MarketplaceKindFilter = "all" | "marketplace" | "mtc" | "single";
+type QuickFilterMode = "exclude" | "neutral" | "include";
+type QuickFilterKey = "mine" | "needsReview" | "marketplace" | "mtc" | "openSlots";
 type TeamOptionalColumnKey =
   | "category"
   | "contactName"
@@ -201,6 +204,14 @@ type TeamOptionalColumnKey =
   | "updatedAt";
 
 const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
+const QUICK_FILTER_KEYS: QuickFilterKey[] = ["mine", "needsReview", "marketplace", "mtc", "openSlots"];
+const EMPTY_QUICK_EXCLUDES: Record<QuickFilterKey, boolean> = {
+  mine: false,
+  needsReview: false,
+  marketplace: false,
+  mtc: false,
+  openSlots: false,
+};
 const SORT_OPTIONS: Array<{ value: TeamSortField; label: string; adminOnly?: boolean }> = [
   { value: "updatedAt", label: "Zuletzt geändert" },
   { value: "createdAt", label: "Anmeldedatum", adminOnly: true },
@@ -1117,6 +1128,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [creatingMatchingDraft, setCreatingMatchingDraft] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
+  const [quickFilterExcludes, setQuickFilterExcludes] = useState<Record<QuickFilterKey, boolean>>(EMPTY_QUICK_EXCLUDES);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -1541,6 +1554,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         marketplacePublicationFilter === "all" ||
         (capabilities.isMarketplaceTeam && (team.teamPublicationLevel || "TEAM_ANONYM") === marketplacePublicationFilter);
       const matchesOpenMtcSlots = !openMtcSlotsOnly || capabilities.hasOpenMtcSlots;
+      const matchesQuickExcludes =
+        (!quickFilterExcludes.mine || team.isCurrentUserTeam !== true) &&
+        (!quickFilterExcludes.needsReview || !(canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team))) &&
+        (!quickFilterExcludes.marketplace || !capabilities.isMarketplaceTeam) &&
+        (!quickFilterExcludes.mtc || !capabilities.isMtcDraft) &&
+        (!quickFilterExcludes.openSlots || !capabilities.hasOpenMtcSlots);
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = getDateTimeFilterTimestamp(createdFrom);
       const createdToMs = getDateTimeFilterTimestamp(createdTo);
@@ -1566,10 +1585,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         matchesMarketplaceVisibility &&
         matchesMarketplacePublication &&
         matchesOpenMtcSlots &&
+        matchesQuickExcludes &&
         matchesCreatedAt &&
         matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceKindFilter, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, openMtcSlotsOnly, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin, canEditAll]);
+  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceKindFilter, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, openMtcSlotsOnly, quickFilterExcludes, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin, canEditAll]);
 
   const categories = [...new Set(teams.map(t => t.category))];
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
@@ -1669,6 +1689,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const marketplacePotentiallyVisibleCount = marketplaceGlobalVisibility === "OFFLINE"
     ? 0
     : marketplaceTeams.filter((team) => (team.marketplaceVisibility || "ADMIN_MANAGEMENT_ONLY") !== "ADMIN_MANAGEMENT_ONLY").length;
+  const quickExcludeCount = QUICK_FILTER_KEYS.filter((key) => quickFilterExcludes[key]).length;
   const hasActiveFilters =
     searchQuery !== "" ||
     categoryFilter !== "all" ||
@@ -1680,6 +1701,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     marketplaceVisibilityFilter !== "all" ||
     marketplacePublicationFilter !== "all" ||
     openMtcSlotsOnly ||
+    quickExcludeCount > 0 ||
     (isAdmin && createdFrom !== "") ||
     (isAdmin && createdTo !== "");
   const activeFilterCount = [
@@ -1693,27 +1715,83 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     marketplaceVisibilityFilter !== "all",
     marketplacePublicationFilter !== "all",
     openMtcSlotsOnly,
+    ...QUICK_FILTER_KEYS.map((key) => quickFilterExcludes[key]),
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
   const canEditOwn = can("team.edit.own");
   const maxCreatedDateTime = formatDateTimeLocalInput(new Date());
 
-  const toggleMarketplaceKindQuickFilter = (kind: MarketplaceKindFilter) => {
-    setOpenMtcSlotsOnly(false);
-    setMarketplaceKindFilter((current) => {
-      if (current === kind) {
-        return marketplaceFocus ? "marketplace" : "all";
-      }
-      return kind;
-    });
+  const getQuickFilterMode = (key: QuickFilterKey): QuickFilterMode => {
+    if (quickFilterExcludes[key]) return "exclude";
+    if (key === "mine") return ownTeamsOnly ? "include" : "neutral";
+    if (key === "needsReview") return incompleteOnly ? "include" : "neutral";
+    if (key === "marketplace") return marketplaceKindFilter === "marketplace" && !openMtcSlotsOnly ? "include" : "neutral";
+    if (key === "mtc") return marketplaceKindFilter === "mtc" && !openMtcSlotsOnly ? "include" : "neutral";
+    if (key === "openSlots") return openMtcSlotsOnly ? "include" : "neutral";
+    return "neutral";
   };
 
-  const toggleOpenMtcSlotsQuickFilter = () => {
-    const nextActive = !(marketplaceKindFilter === "mtc" && openMtcSlotsOnly);
-    setMarketplaceKindFilter(nextActive ? "mtc" : marketplaceFocus ? "marketplace" : "all");
-    setOpenMtcSlotsOnly(nextActive);
+  const setQuickFilterMode = (key: QuickFilterKey, mode: QuickFilterMode) => {
+    setQuickFilterExcludes((current) => ({ ...current, [key]: mode === "exclude" }));
+
+    if (key === "mine") {
+      setOwnTeamsOnly(mode === "include");
+      return;
+    }
+    if (key === "needsReview") {
+      setIncompleteOnly(mode === "include");
+      return;
+    }
+    if (key === "marketplace") {
+      setOpenMtcSlotsOnly(false);
+      setMarketplaceKindFilter(mode === "include" ? "marketplace" : marketplaceFocus ? "marketplace" : "all");
+      return;
+    }
+    if (key === "mtc") {
+      setOpenMtcSlotsOnly(false);
+      setMarketplaceKindFilter(mode === "include" ? "mtc" : marketplaceFocus ? "marketplace" : "all");
+      return;
+    }
+    if (key === "openSlots") {
+      setOpenMtcSlotsOnly(mode === "include");
+      setMarketplaceKindFilter(mode === "include" ? "mtc" : marketplaceFocus ? "marketplace" : "all");
+    }
   };
+
+  const quickFilterRows = [
+    !marketplaceFocus && {
+      key: "mine" as const,
+      icon: <Star className="size-3.5" />,
+      label: "Meine Teams",
+      count: ownTeamCount,
+    },
+    {
+      key: "needsReview" as const,
+      icon: <AlertTriangle className="size-3.5" />,
+      label: "Prüfen",
+      count: incompleteTeams,
+    },
+    isAdmin && !marketplaceFocus && {
+      key: "marketplace" as const,
+      icon: <Search className="size-3.5" />,
+      label: "Sportlerbörse",
+      count: marketplaceTeams.length,
+    },
+    isAdmin && {
+      key: "mtc" as const,
+      icon: <ClipboardList className="size-3.5" />,
+      label: "MTC",
+      count: mtcTeams.length,
+    },
+    isAdmin && {
+      key: "openSlots" as const,
+      icon: <AlertTriangle className="size-3.5" />,
+      label: "Offene Slots",
+      count: openMtcSlotTeams.length,
+    },
+  ].filter(Boolean) as Array<{ key: QuickFilterKey; icon: ReactNode; label: string; count: number }>;
+  const quickActiveCount = quickFilterRows.filter((row) => getQuickFilterMode(row.key) !== "neutral").length;
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -1726,6 +1804,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     setMarketplaceVisibilityFilter("all");
     setMarketplacePublicationFilter("all");
     setOpenMtcSlotsOnly(false);
+    setQuickFilterExcludes(EMPTY_QUICK_EXCLUDES);
     setCreatedFrom("");
     setCreatedTo("");
   };
@@ -1903,74 +1982,67 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             </Button>
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="hidden text-[10px] font-medium uppercase text-muted-foreground sm:inline">
-              Schnellzugriff
-            </span>
-            {!marketplaceFocus && (
-              <Button
-                type="button"
-                size="xs"
-                variant={ownTeamsOnly ? "default" : "outline"}
-                onClick={() => setOwnTeamsOnly((current) => !current)}
-                title="Eigene Mannschaften anzeigen"
-              >
-                <Star className="size-3" />
-                Meine
-                <Badge variant={ownTeamsOnly ? "secondary" : "outline"}>{ownTeamCount}</Badge>
-              </Button>
-            )}
+          <div className="relative flex min-w-0 items-center">
             <Button
               type="button"
-              size="xs"
-              variant={incompleteOnly ? "default" : "outline"}
-              onClick={() => setIncompleteOnly((current) => !current)}
-              title="Teams mit offenen Angaben oder Plausibilitätsbedarf"
+              size="sm"
+              variant={quickActiveCount > 0 ? "default" : "outline"}
+              onClick={() => setQuickFilterMenuOpen((open) => !open)}
+              aria-expanded={quickFilterMenuOpen}
+              title="Schnellfilter öffnen"
             >
-              <AlertTriangle className="size-3" />
-              Prüfen
-              <Badge variant={incompleteOnly ? "secondary" : "outline"}>{incompleteTeams}</Badge>
+              <SlidersHorizontal className="size-3.5" />
+              Schnellfilter
+              <Badge variant={quickActiveCount > 0 ? "secondary" : "outline"}>{quickActiveCount}</Badge>
             </Button>
-            {isAdmin && !marketplaceFocus && (
-              <Button
-                type="button"
-                size="xs"
-                variant={marketplaceKindFilter === "marketplace" && !openMtcSlotsOnly ? "default" : "outline"}
-                onClick={() => toggleMarketplaceKindQuickFilter("marketplace")}
-                title="Sportlerbörse anzeigen"
-              >
-                <Search className="size-3" />
-                Börse
-                <Badge variant={marketplaceKindFilter === "marketplace" && !openMtcSlotsOnly ? "secondary" : "outline"}>
-                  {marketplaceTeams.length}
-                </Badge>
-              </Button>
-            )}
-            {isAdmin && (
-              <Button
-                type="button"
-                size="xs"
-                variant={marketplaceKindFilter === "mtc" && !openMtcSlotsOnly ? "default" : "outline"}
-                onClick={() => toggleMarketplaceKindQuickFilter("mtc")}
-                title="MTC-Mannschaften anzeigen"
-              >
-                <ClipboardList className="size-3" />
-                MTC
-                <Badge variant={marketplaceKindFilter === "mtc" && !openMtcSlotsOnly ? "secondary" : "outline"}>{mtcTeams.length}</Badge>
-              </Button>
-            )}
-            {isAdmin && (
-              <Button
-                type="button"
-                size="xs"
-                variant={openMtcSlotsOnly ? "default" : "outline"}
-                onClick={toggleOpenMtcSlotsQuickFilter}
-                title="MTCs mit offenen Slots anzeigen"
-              >
-                <AlertTriangle className="size-3" />
-                Slots offen
-                <Badge variant={openMtcSlotsOnly ? "secondary" : "outline"}>{openMtcSlotTeams.length}</Badge>
-              </Button>
+            {quickFilterMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setQuickFilterMenuOpen(false)} />
+                <div className="absolute left-0 top-full z-50 mt-1 w-[min(92vw,24rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
+                  <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
+                    Betrachtungen kombinieren
+                  </div>
+                  <div className="space-y-1">
+                    {quickFilterRows.map((row) => {
+                      const mode = getQuickFilterMode(row.key);
+                      const modeOptions: Array<{ value: QuickFilterMode; label: string; icon: ReactNode; title: string }> = [
+                        { value: "exclude", label: "Ohne", icon: <XCircle className="size-3" />, title: `${row.label} ausschließen` },
+                        { value: "neutral", label: "Neutral", icon: <RotateCcw className="size-3" />, title: `${row.label} neutral behandeln` },
+                        { value: "include", label: "Nur", icon: <CheckCircle2 className="size-3" />, title: `${row.label} einschließen` },
+                      ];
+
+                      return (
+                        <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent/50">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="text-muted-foreground">{row.icon}</span>
+                            <span className="min-w-0 truncate text-xs font-medium">{row.label}</span>
+                            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{row.count}</Badge>
+                          </div>
+                          <div className="flex shrink-0 rounded-md border border-border/60 bg-background/80 p-0.5">
+                            {modeOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setQuickFilterMode(row.key, option.value)}
+                                className={`inline-flex h-6 items-center gap-1 rounded px-1.5 text-[10px] transition-colors ${
+                                  mode === option.value
+                                    ? "bg-primary text-primary-foreground"
+                                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                }`}
+                                title={option.title}
+                                aria-pressed={mode === option.value}
+                              >
+                                {option.icon}
+                                <span className={option.value === "neutral" ? "hidden sm:inline" : ""}>{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
