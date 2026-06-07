@@ -65,6 +65,7 @@ import {
   Star,
   Trash2,
   UserRound,
+  UsersRound,
   X,
   XCircle,
 } from "lucide-react";
@@ -1959,8 +1960,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     herren: "🏋️",
     masters: "🎖️",
     "damen-a": "🏋️‍♀️",
-    "damen-b": "👩‍🦳"
+    "damen-b": "👩‍🦳",
+    sportlerboerse: "👥",
   };
+
+  const renderCategoryBadge = (team: Team, className = "") => (
+    <Badge variant="outline" className={`gap-1 ${className}`}>
+      {team.category === "sportlerboerse" ? (
+        <UsersRound className="size-3" aria-hidden="true" />
+      ) : (
+        <span>{categoryEmojis[team.category] || "🏆"}</span>
+      )}
+      {team.category}
+    </Badge>
+  );
 
   if (loading) {
     return (
@@ -2881,10 +2894,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="font-medium">{team.name}</div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <MarketplaceTeamBadges team={team} />
-                            <Badge variant="outline" className="gap-1">
-                              <span>{categoryEmojis[team.category] || "🏆"}</span>
-                              {team.category}
-                            </Badge>
+                            {renderCategoryBadge(team)}
                             <span>{getParticipantCount(team)} / 5 Teilnehmer:innen</span>
                           </div>
                         </div>
@@ -2895,12 +2905,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
                         switch (column.key) {
                           case "category":
-                            content = (
-                              <Badge variant="outline" className="gap-1">
-                                <span>{categoryEmojis[team.category] || "🏆"}</span>
-                                {team.category}
-                              </Badge>
-                            );
+                            content = renderCategoryBadge(team);
                             break;
                           case "contactName":
                             content = team.contactName || getContactFallbackLabel(team);
@@ -3044,6 +3049,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="min-w-0 space-y-1.5">
                             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                               <div className="flex min-w-0 max-w-full flex-1 basis-40 items-center gap-1.5">
+                                {team.category === "sportlerboerse" && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
                                 <h3 className="min-w-0 truncate text-sm font-medium" title={team.name}>{team.name}</h3>
                                 <TeamVisibilityIconBadge
                                   team={team}
@@ -3057,10 +3063,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Mein Team
                                 </Badge>
                               )}
-                              <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
-                                <span>{categoryEmojis[team.category] || "🏆"}</span>
-                                {team.category}
-                              </Badge>
+                              {team.category !== "sportlerboerse" && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
                               <MarketplaceTeamBadges team={team} compact />
                             </div>
                             {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
@@ -3252,6 +3255,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                               <div className="flex min-w-0 max-w-full flex-1 basis-48 items-center gap-1.5">
+                                {team.category === "sportlerboerse" && !isMarketplaceMatching && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
                                 <h3 className="min-w-0 truncate text-base font-semibold" title={team.name}>{team.name}</h3>
                                 <TeamVisibilityIconBadge
                                   team={team}
@@ -3265,12 +3269,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Mein Team
                                 </Badge>
                               )}
-                              {!isMarketplaceMatching && (
-                                <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
-                                  <span>{categoryEmojis[team.category] || "🏆"}</span>
-                                  {team.category}
-                                </Badge>
-                              )}
+                              {!isMarketplaceMatching && team.category !== "sportlerboerse" && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
                               <MarketplaceTeamBadges team={team} compact subtle={expandedTeam === team.id} />
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
