@@ -104,6 +104,21 @@ Admin-Bearbeitung der Sportlerboerse trennt deshalb bewusst zwei Oberflaechen:
 
 Teamname, Kontaktname und Kontakt-E-Mail bleiben aus dem Teilnehmer abgeleitet, damit der Container nicht fachlich von der Teilnehmer-Entitaet driftet.
 
+## Marketplace-Team-Container (MTC)
+
+Ein `MARKETPLACE`-Team kann im Status `MATCHING` als Orga-Entwurf fuer eine aus Boersenteilnehmern gebildete Mannschaft dienen.
+
+Leitplanken:
+
+- Einzelmeldungen bleiben `registrationMode = MARKETPLACE` und haben typischerweise genau einen Teilnehmer.
+- Ein MTC bleibt ebenfalls `registrationMode = MARKETPLACE`, darf aber im Status `MATCHING` bis zu 5 Teilnehmer enthalten.
+- Freie Boersen-Teilnehmer koennen durch Admins in einen MTC verschoben werden, wenn ihr aktueller Boersenstatus `NEW`, `REVIEWED` oder `MATCHING` ist und sie nicht bereits in einem mehrteiligen MTC gebunden sind.
+- Solange `registrationMode = MARKETPLACE` gilt, zaehlt der MTC nicht als echte Mannschaft in Teamanzahl, Ergebnislisten oder Mannschaftsexporten.
+- Erst die Aktion "In echte Mannschaft ueberfuehren" setzt `registrationMode = TEAM`, berechnet Klasse/Gesamtalter neu und schreibt den finalen Mannschaftskontext.
+- Das Verschieben, Freigeben und Finalisieren wird auditierbar protokolliert.
+
+Damit bleibt der Status Workflowsteuerung, waehrend `registrationMode` weiterhin die fachliche Grenze zwischen Boerse und echter Mannschaft markiert.
+
 ## Sportlerboerse-Sichtbarkeit
 
 Die globale Veroeffentlichung der Sportlerboerse wird am aktiven Wettkampf gesteuert:

@@ -53,11 +53,14 @@ import {
   ClipboardList,
   Info,
   Mail,
+  Pencil,
   RotateCcw,
   Search,
   Send,
   SlidersHorizontal,
   Star,
+  Trash2,
+  UserRound,
   X,
   XCircle,
 } from "lucide-react";
@@ -136,6 +139,29 @@ type MarketplaceTeamEditPayload = {
   marketplaceVisibility: NonNullable<Team["marketplaceVisibility"]>;
   marketplaceStatus: NonNullable<Team["marketplaceStatus"]>;
   marketplaceMessage: string;
+};
+
+type MarketplaceAvailableParticipant = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  marketplaceStatus: NonNullable<Team["marketplaceStatus"]>;
+  name: string;
+  firstName: string;
+  lastName: string;
+  birthDate: string;
+  gender: string;
+  disciplineCode: string;
+  email: string;
+  shirtSize: string;
+  participantPublicationPreference: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN";
+};
+
+type MarketplaceMatchingFinalizePayload = {
+  teamName: string;
+  contactName: string;
+  contactEmail: string;
+  teamPublicationLevel: NonNullable<Team["teamPublicationLevel"]>;
 };
 
 type EditableParticipant = Omit<Participant, "id"> & { id: string };
@@ -577,6 +603,7 @@ function TeamDeleteDialog({
   onTriggerClick?: (event: React.MouseEvent) => void;
 }) {
   const participantCount = getParticipantCount(team);
+  const isMarketplace = team.registrationMode === "MARKETPLACE";
 
   return (
     <AlertDialog>
@@ -591,14 +618,22 @@ function TeamDeleteDialog({
           />
         }
       >
-        {deleting === team.id ? "..." : "🗑️ Löschen"}
+        {deleting === team.id ? (
+          "..."
+        ) : (
+          <>
+            <Trash2 className="size-3.5" />
+            Löschen
+          </>
+        )}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Mannschaft archivieren?</AlertDialogTitle>
+          <AlertDialogTitle>{isMarketplace ? "Sportlerbörse-Meldung archivieren?" : "Mannschaft archivieren?"}</AlertDialogTitle>
           <AlertDialogDescription>
-            „{team.name}“ wird aus Dashboards, Ergebnislisten und Exporten ausgeblendet. {participantCount} Teilnehmer:innen
-            werden mit ausgeblendet, Benutzerkonten bleiben erhalten. Admins können die Mannschaft später im Archiv wiederherstellen.
+            {isMarketplace
+              ? `„${team.name}“ wird aus der Sportlerbörse ausgeblendet. Der zugehörige Teilnehmerdatensatz wird mit archiviert, Benutzerkonten bleiben erhalten. Admins können die Meldung später im Archiv wiederherstellen.`
+              : `„${team.name}“ wird aus Dashboards, Ergebnislisten und Exporten ausgeblendet. ${participantCount} Teilnehmer:innen werden mit ausgeblendet, Benutzerkonten bleiben erhalten. Admins können die Mannschaft später im Archiv wiederherstellen.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -612,6 +647,68 @@ function TeamDeleteDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+function MarketplacePersonSummary({
+  team,
+  participant,
+  revealPrivateName,
+}: {
+  team: Team;
+  participant?: Participant | null;
+  revealPrivateName: boolean;
+}) {
+  const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
+  const participantLabel = participant
+    ? getDashboardParticipantLabel(team, participant, participantIndex, { revealPrivateName })
+    : "Kein Teilnehmer erfasst";
+  const disciplineCode = participant?.discipline || participant?.disciplineCode || "TBD";
+  const discipline = DISCIPLINES.find((entry) => entry.id === disciplineCode);
+  const latestChangeMeta = participant ? getLatestChangeMeta(participant.latestChange?.status) : null;
+  const emailInviteMeta = participant ? getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email")) : null;
+
+  return (
+    <div className="rounded-md border border-border/60 bg-background p-2.5 text-xs">
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30">
+          <UserRound className="size-4 text-muted-foreground" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <p className="min-w-0 truncate text-sm font-medium" title={participantLabel}>
+              {participantLabel}
+            </p>
+            {participant && (
+              <ParticipantPublicationPreferenceIcon
+                preference={participant.participantPublicationPreference}
+                teamPublicationLevel={team.teamPublicationLevel}
+              />
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+            <span>{discipline ? `${discipline.icon} ${discipline.label}` : "Disziplin offen"}</span>
+            {participant?.birthDate && <span>{participant.birthDate}</span>}
+            {participant?.email && <span>{participant.email}</span>}
+          </div>
+          {(latestChangeMeta || emailInviteMeta) && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {latestChangeMeta && (
+                <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${latestChangeMeta.className}`}>
+                  {latestChangeMeta.label}
+                </Badge>
+              )}
+              {emailInviteMeta && (
+                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className}`}>
+                  <Mail className="size-3" />
+                  {emailInviteMeta.label}
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -670,8 +767,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [viewMode, setViewMode] = useState<DashboardViewMode>("cards");
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingMarketplaceTeam, setEditingMarketplaceTeam] = useState<Team | null>(null);
+  const [editingMarketplaceMatchingTeam, setEditingMarketplaceMatchingTeam] = useState<Team | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [creatingMatchingDraft, setCreatingMatchingDraft] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
@@ -833,6 +932,83 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         error instanceof Error ? error.message : "Bitte versuche es erneut.",
       );
     }
+  };
+
+  const postMarketplaceMatchingAction = async (payload: Record<string, unknown>) => {
+    const response = await fetch("/api/admin/marketplace-matching", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        competitionId: activeCompetition?.id,
+        ...payload,
+      }),
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Börsen-Mannschaft konnte nicht aktualisiert werden.");
+    }
+
+    return data;
+  };
+
+  const handleCreateMarketplaceMatchingDraft = async () => {
+    setCreatingMatchingDraft(true);
+    try {
+      const data = await postMarketplaceMatchingAction({
+        action: "createDraft",
+        teamName: "Börsen-Mannschaft",
+      });
+      await fetchTeams();
+      if (data?.teamId) {
+        setExpandedTeam(data.teamId);
+      }
+      notifications.success("Börsen-Mannschaft angelegt", "Der Matching-Entwurf kann jetzt befüllt werden.");
+    } catch (error) {
+      notifications.error(
+        "Börsen-Mannschaft konnte nicht angelegt werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    } finally {
+      setCreatingMatchingDraft(false);
+    }
+  };
+
+  const handleMarketplaceMatchingAdd = async (targetTeamId: string, participantId: string) => {
+    const data = await postMarketplaceMatchingAction({
+      action: "addParticipant",
+      targetTeamId,
+      participantId,
+    });
+    await fetchTeams();
+    notifications.success("Teilnehmer zugeordnet", data?.message || "Die Börsen-Mannschaft wurde aktualisiert.");
+  };
+
+  const handleMarketplaceMatchingRemove = async (targetTeamId: string, participantId: string) => {
+    const data = await postMarketplaceMatchingAction({
+      action: "removeParticipant",
+      targetTeamId,
+      participantId,
+    });
+    await fetchTeams();
+    notifications.success("Teilnehmer freigegeben", data?.message || "Die Börsen-Mannschaft wurde aktualisiert.");
+  };
+
+  const handleMarketplaceMatchingFinalize = async (targetTeamId: string, payload: MarketplaceMatchingFinalizePayload) => {
+    const data = await postMarketplaceMatchingAction({
+      action: "finalize",
+      targetTeamId,
+      ...payload,
+    });
+    setEditingMarketplaceMatchingTeam(null);
+    await fetchTeams();
+    notifications.success(
+      "Mannschaft übernommen",
+      [
+        data?.message || "Die Börsen-Mannschaft wurde in eine echte Mannschaft überführt.",
+        ...((Array.isArray(data?.classificationWarnings) ? data.classificationWarnings : []) as string[]),
+      ].filter(Boolean).join("\n"),
+    );
   };
 
   const openParticipantDetails = (team: Team, participant?: Participant | null) => {
@@ -1208,6 +1384,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     createdAt: "createdAt",
     updatedAt: "updatedAt",
   };
+  const activeMarketplaceMatchingTeam = editingMarketplaceMatchingTeam
+    ? teams.find((team) => team.id === editingMarketplaceMatchingTeam.id) ?? editingMarketplaceMatchingTeam
+    : null;
 
   return (
     <div className="space-y-4">
@@ -1250,6 +1429,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 >
                   Alle anzeigen
                 </Button>
+                {canEditAll && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCreateMarketplaceMatchingDraft}
+                    disabled={creatingMatchingDraft}
+                    aria-busy={creatingMatchingDraft}
+                  >
+                    {creatingMatchingDraft ? "Lege an..." : "MTC anlegen"}
+                  </Button>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -1784,6 +1975,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
                   const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
                   const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
+                  const canEditMarketplaceMatching = Boolean(
+                    canEditAll &&
+                    team.registrationMode === "MARKETPLACE" &&
+                    (team.marketplaceStatus === "MATCHING" || getParticipantCount(team) !== 1),
+                  );
+                  const canDeleteTeam = team.canManageTeamManagers === true;
 
                   return (
                     <tr key={team.id} className="border-b border-border/50 align-top transition-colors hover:bg-muted/20">
@@ -1858,24 +2055,39 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
                       {(canEditAll || canEditOwn) && (
                         <td className="px-4 py-3">
-                          {canEditMarketplaceParticipant ? (
+                          {team.registrationMode === "MARKETPLACE" && (canEditMarketplaceParticipant || canEditMarketplaceTeam || canEditMarketplaceMatching || canDeleteTeam) ? (
                             <div className="flex justify-end gap-2">
+                              {canEditMarketplaceMatching && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingMarketplaceMatchingTeam(team)}
+                                >
+                                  MTC
+                                </Button>
+                              )}
+                              {canEditMarketplaceParticipant && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openParticipantDetails(team, marketplaceParticipant)}
+                                >
+                                  <Pencil className="size-3.5" />
+                                  Person
+                                </Button>
+                              )}
                               {canEditMarketplaceTeam && (
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => setEditingMarketplaceTeam(team)}
                                 >
-                                  Börse bearbeiten
+                                  Börse
                                 </Button>
                               )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openParticipantDetails(team, marketplaceParticipant)}
-                              >
-                                Teilnehmer bearbeiten
-                              </Button>
+                              {canDeleteTeam && (
+                                <TeamDeleteDialog team={team} deleting={deleting} onDelete={handleDeleteTeam} />
+                              )}
                             </div>
                           ) : isEditable ? (
                             <div className="flex justify-end gap-2">
@@ -1919,6 +2131,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
               const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
               const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
+              const canEditMarketplaceMatching = Boolean(
+                canEditAll &&
+                team.registrationMode === "MARKETPLACE" &&
+                (team.marketplaceStatus === "MATCHING" || getParticipantCount(team) !== 1),
+              );
+              const canDeleteTeam = team.canManageTeamManagers === true;
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -1959,62 +2177,66 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               </Badge>
                             )}
                           </div>
-                          <div className="grid gap-1 sm:grid-cols-5">
-                            {disciplineSlots.map(({ discipline, participant }) => {
-                              const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
-                              const participantLabel = participant
-                                ? getDashboardParticipantLabel(team, participant, participantIndex, {
-                                    revealPrivateName: revealPrivateDashboardNames,
-                                  })
-                                : "Offen";
-                              const canOpenParticipant = Boolean(
-                                participant?.id &&
-                                  (canEditAll ||
-                                    team.canCurrentUserEdit ||
-                                    (participant.isCurrentUserParticipant && can("participant.edit.self"))),
-                              );
+                          {team.registrationMode === "MARKETPLACE" ? (
+                            <MarketplacePersonSummary
+                              team={team}
+                              participant={marketplaceParticipant}
+                              revealPrivateName={revealPrivateDashboardNames}
+                            />
+                          ) : (
+                            <div className="grid gap-1 sm:grid-cols-5">
+                              {disciplineSlots.map(({ discipline, participant }) => {
+                                const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
+                                const participantLabel = participant
+                                  ? getDashboardParticipantLabel(team, participant, participantIndex, {
+                                      revealPrivateName: revealPrivateDashboardNames,
+                                    })
+                                  : "Offen";
+                                const canOpenParticipant = Boolean(
+                                  participant?.id &&
+                                    (canEditAll ||
+                                      team.canCurrentUserEdit ||
+                                      (participant.isCurrentUserParticipant && can("participant.edit.self"))),
+                                );
 
-                              return (
-                                <div
-                                  key={discipline.id}
-                                  className={`flex min-h-8 min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 ${
-                                    canOpenParticipant ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
-                                  }`}
-                                  title={participant ? `${participantLabel} öffnen` : `${discipline.label}: offen`}
-                                  role={canOpenParticipant ? "button" : undefined}
-                                  tabIndex={canOpenParticipant ? 0 : undefined}
-                                  onClick={(event) => {
-                                    if (!canOpenParticipant) return;
-                                    event.stopPropagation();
-                                    openParticipantDetails(team, participant);
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (!canOpenParticipant || (event.key !== "Enter" && event.key !== " ")) return;
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    openParticipantDetails(team, participant);
-                                  }}
-                                >
-                                  <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
-                                  <span className="min-w-0 truncate text-xs font-medium leading-5 text-foreground">
-                                    {participantLabel}
-                                  </span>
-                                  {participant && (
-                                    <ParticipantPublicationPreferenceIcon
-                                      preference={participant.participantPublicationPreference}
-                                      teamPublicationLevel={team.teamPublicationLevel}
-                                    />
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {marketplaceFocus && team.registrationMode === "MARKETPLACE" && (
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                              {team.contactName && <span>{team.contactName}</span>}
-                              {team.contactEmail && <span>{team.contactEmail}</span>}
-                              {team.createdAt && <span>Gemeldet: {formatDatePart(team.createdAt)}</span>}
+                                return (
+                                  <div
+                                    key={discipline.id}
+                                    className={`flex min-h-8 min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 ${
+                                      canOpenParticipant ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
+                                    }`}
+                                    title={participant ? `${participantLabel} öffnen` : `${discipline.label}: offen`}
+                                    role={canOpenParticipant ? "button" : undefined}
+                                    tabIndex={canOpenParticipant ? 0 : undefined}
+                                    onClick={(event) => {
+                                      if (!canOpenParticipant) return;
+                                      event.stopPropagation();
+                                      openParticipantDetails(team, participant);
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (!canOpenParticipant || (event.key !== "Enter" && event.key !== " ")) return;
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      openParticipantDetails(team, participant);
+                                    }}
+                                  >
+                                    <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
+                                    <span className="min-w-0 truncate text-xs font-medium leading-5 text-foreground">
+                                      {participantLabel}
+                                    </span>
+                                    {participant && (
+                                      <ParticipantPublicationPreferenceIcon
+                                        preference={participant.participantPublicationPreference}
+                                        teamPublicationLevel={team.teamPublicationLevel}
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
+                          )}
+                          {marketplaceFocus && team.registrationMode === "MARKETPLACE" && team.createdAt && (
+                            <div className="text-xs text-muted-foreground">Gemeldet: {formatDatePart(team.createdAt)}</div>
                           )}
                           {showCompactStatusRow && (
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -2039,8 +2261,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             </div>
                           )}
                         </div>
-                        <div className="flex items-start justify-end">
+                          <div className="flex items-start justify-end">
                           <div className="flex flex-col gap-1">
+                            {canEditMarketplaceMatching && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 shrink-0 px-2 text-[11px]"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setEditingMarketplaceMatchingTeam(team);
+                                }}
+                              >
+                                MTC
+                              </Button>
+                            )}
                             {canEditMarketplaceParticipant && (
                               <Button
                                 type="button"
@@ -2052,7 +2288,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   openParticipantDetails(team, marketplaceParticipant);
                                 }}
                               >
-                                Bearbeiten
+                                Person
                               </Button>
                             )}
                             {canEditMarketplaceTeam && (
@@ -2068,6 +2304,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               >
                                 Börse
                               </Button>
+                            )}
+                            {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
+                              <TeamDeleteDialog
+                                team={team}
+                                deleting={deleting}
+                                onDelete={handleDeleteTeam}
+                                className="h-7 shrink-0 px-2 text-[11px]"
+                                onTriggerClick={(event) => event.stopPropagation()}
+                              />
                             )}
                             <Button
                               type="button"
@@ -2127,7 +2372,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     openParticipantDetails(team, marketplaceParticipant);
                                   }}
                                 >
-                                  Teilnehmer bearbeiten
+                                  <Pencil className="size-3.5" />
+                                  Person
+                                </Button>
+                              )}
+                              {canEditMarketplaceMatching && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingMarketplaceMatchingTeam(team);
+                                  }}
+                                >
+                                  MTC
                                 </Button>
                               )}
                               {canEditMarketplaceTeam && (
@@ -2139,8 +2397,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     setEditingMarketplaceTeam(team);
                                   }}
                                 >
-                                  Börse bearbeiten
+                                  Börse
                                 </Button>
+                              )}
+                              {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
+                                <TeamDeleteDialog
+                                  team={team}
+                                  deleting={deleting}
+                                  onDelete={handleDeleteTeam}
+                                  className="h-6 px-2 text-xs"
+                                  onTriggerClick={(event) => event.stopPropagation()}
+                                />
                               )}
                               {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
                                 <Button
@@ -2200,8 +2467,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             </div>
                           )}
 
-                          {showAdminDashboardInfo && team.registrationMode === "MARKETPLACE" && (
-                            <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
+                          {team.registrationMode === "MARKETPLACE" && (
+                            <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]">
+                              <MarketplacePersonSummary
+                                team={team}
+                                participant={marketplaceParticipant}
+                                revealPrivateName={revealPrivateDashboardNames}
+                              />
+                              <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
                               <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
@@ -2219,43 +2492,47 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   </div>
                                 </div>
 
-                                <Select
-                                  value={team.marketplaceStatus || "NEW"}
-                                  onValueChange={(value) =>
-                                    handleMarketplaceStatusChange(team.id, value as NonNullable<Team["marketplaceStatus"]>)
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 w-full bg-background text-xs sm:w-[170px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {MARKETPLACE_STATUS_OPTIONS.map((option) => (
-                                      <SelectItem key={option.id} value={option.id}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                {showAdminDashboardInfo && (
+                                  <Select
+                                    value={team.marketplaceStatus || "NEW"}
+                                    onValueChange={(value) =>
+                                      handleMarketplaceStatusChange(team.id, value as NonNullable<Team["marketplaceStatus"]>)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 w-full bg-background text-xs sm:w-[170px]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {MARKETPLACE_STATUS_OPTIONS.map((option) => (
+                                        <SelectItem key={option.id} value={option.id}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
                               </div>
 
-                              <div className="flex flex-wrap gap-1">
-                                {MARKETPLACE_STATUS_OPTIONS.map((option) => (
-                                  <Button
-                                    key={option.id}
-                                    type="button"
-                                    size="xs"
-                                    variant={(team.marketplaceStatus || "NEW") === option.id ? "default" : "outline"}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      if ((team.marketplaceStatus || "NEW") !== option.id) {
-                                        void handleMarketplaceStatusChange(team.id, option.id);
-                                      }
-                                    }}
-                                  >
-                                    {option.label}
-                                  </Button>
-                                ))}
-                              </div>
+                              {showAdminDashboardInfo && (
+                                <div className="flex flex-wrap gap-1">
+                                  {MARKETPLACE_STATUS_OPTIONS.map((option) => (
+                                    <Button
+                                      key={option.id}
+                                      type="button"
+                                      size="xs"
+                                      variant={(team.marketplaceStatus || "NEW") === option.id ? "default" : "outline"}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        if ((team.marketplaceStatus || "NEW") !== option.id) {
+                                          void handleMarketplaceStatusChange(team.id, option.id);
+                                        }
+                                      }}
+                                    >
+                                      {option.label}
+                                    </Button>
+                                  ))}
+                                </div>
+                              )}
 
                               {team.marketplaceMessage?.trim() && (
                                 <div className="rounded-md border border-border/50 bg-background/70 p-2">
@@ -2263,10 +2540,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   <p className="whitespace-pre-wrap text-muted-foreground">{team.marketplaceMessage}</p>
                                 </div>
                               )}
+                              </div>
                             </div>
                           )}
 
-                          {team.participants && team.participants.length > 0 && (
+                          {team.registrationMode !== "MARKETPLACE" && team.participants && team.participants.length > 0 && (
                             <div className="space-y-1">
                               <div className="grid gap-1 md:grid-cols-5">
                                 {disciplineSlots.map(({ discipline, participant }) => {
@@ -2441,7 +2719,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 }}
                                 className="flex-1"
                               >
-                                Teilnehmer bearbeiten
+                                <Pencil className="size-4" />
+                                Person bearbeiten
+                              </Button>
+                            )}
+                            {canEditMarketplaceMatching && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingMarketplaceMatchingTeam(team);
+                                }}
+                                className="flex-1"
+                              >
+                                MTC bearbeiten
                               </Button>
                             )}
                             {canEditMarketplaceTeam && (
@@ -2456,6 +2748,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               >
                                 Börse bearbeiten
                               </Button>
+                            )}
+                            {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
+                              <TeamDeleteDialog
+                                team={team}
+                                deleting={deleting}
+                                onDelete={handleDeleteTeam}
+                                className="flex-1"
+                                onTriggerClick={(event) => event.stopPropagation()}
+                              />
                             )}
                             {team.canCurrentUserEdit && team.registrationMode !== "MARKETPLACE" && (
                               <>
@@ -2524,6 +2825,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           onCancel={() => setEditingMarketplaceTeam(null)}
         />
       )}
+      {activeMarketplaceMatchingTeam && (
+        <MarketplaceMatchingModal
+          team={activeMarketplaceMatchingTeam}
+          competitionId={activeCompetition?.id}
+          onAddParticipant={handleMarketplaceMatchingAdd}
+          onRemoveParticipant={handleMarketplaceMatchingRemove}
+          onFinalize={handleMarketplaceMatchingFinalize}
+          onCancel={() => setEditingMarketplaceMatchingTeam(null)}
+        />
+      )}
 
       {/* Participant Edit Dialog */}
       <ParticipantEditDialog
@@ -2535,6 +2846,337 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         isAdminEdit={canEditAll}
         showModerationNote={canEditAll || editingParticipant?.teamCanEdit === true || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
       />
+    </div>
+  );
+}
+
+function MarketplaceMatchingModal({
+  team,
+  competitionId,
+  onAddParticipant,
+  onRemoveParticipant,
+  onFinalize,
+  onCancel,
+}: {
+  team: Team;
+  competitionId?: string;
+  onAddParticipant: (targetTeamId: string, participantId: string) => void | Promise<void>;
+  onRemoveParticipant: (targetTeamId: string, participantId: string) => void | Promise<void>;
+  onFinalize: (targetTeamId: string, data: MarketplaceMatchingFinalizePayload) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const [availableParticipants, setAvailableParticipants] = useState<MarketplaceAvailableParticipant[]>([]);
+  const [query, setQuery] = useState("");
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [busyParticipantId, setBusyParticipantId] = useState<string | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
+  const [error, setError] = useState("");
+  const [formData, setFormData] = useState<MarketplaceMatchingFinalizePayload>({
+    teamName: team.name === "Börsen-Mannschaft" ? "" : team.name.replace(/^Börsen-Mannschaft:?\s*/i, ""),
+    contactName: team.contactName || "",
+    contactEmail: team.contactEmail || "",
+    teamPublicationLevel: team.teamPublicationLevel || "TEAM_ANONYM",
+  });
+  const assignedParticipants = team.participants ?? [];
+  const assignedParticipantIds = new Set(assignedParticipants.map((participant) => participant.id).filter(Boolean));
+  const filteredAvailableParticipants = availableParticipants.filter((participant) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+    return [
+      participant.name,
+      participant.email,
+      participant.disciplineCode,
+      participant.teamName,
+      participant.marketplaceStatus,
+    ].some((value) => value.toLowerCase().includes(normalizedQuery));
+  });
+  const draftEvaluation = evaluateTeamDraft({
+    mode: "admin-edit",
+    teamName: formData.teamName || "Börsen-Mannschaft",
+    participants: assignedParticipants.map((participant) => ({
+      firstName: participant.firstName,
+      lastName: participant.lastName,
+      birthDate: participant.birthDate,
+      gender: participant.gender === "W" || participant.gender === "FEMALE" ? "W" : "M",
+      discipline: participant.discipline || participant.disciplineCode || "TBD",
+    })),
+    oldClassificationCode: team.category,
+  });
+  const canFinalize =
+    assignedParticipants.length === 5 &&
+    formData.teamName.trim().length >= 3 &&
+    formData.contactName.trim().length >= 2 &&
+    isValidEmail(formData.contactEmail) &&
+    draftEvaluation.blockingErrors.length === 0;
+
+  const loadAvailableParticipants = useCallback(async () => {
+    setLoadingAvailable(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (competitionId) params.set("competitionId", competitionId);
+      params.set("targetTeamId", team.id);
+      const response = await fetch(`/api/admin/marketplace-matching?${params.toString()}`);
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Börsen-Teilnehmer konnten nicht geladen werden.");
+      }
+      setAvailableParticipants(Array.isArray(data?.availableParticipants) ? data.availableParticipants : []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Börsen-Teilnehmer konnten nicht geladen werden.");
+    } finally {
+      setLoadingAvailable(false);
+    }
+  }, [competitionId, team.id]);
+
+  useEffect(() => {
+    void loadAvailableParticipants();
+  }, [loadAvailableParticipants]);
+
+  useEffect(() => {
+    setFormData((current) => ({
+      ...current,
+      teamName: current.teamName || (team.name === "Börsen-Mannschaft" ? "" : team.name.replace(/^Börsen-Mannschaft:?\s*/i, "")),
+      contactName: current.contactName || team.contactName || "",
+      contactEmail: current.contactEmail || team.contactEmail || "",
+      teamPublicationLevel: current.teamPublicationLevel || team.teamPublicationLevel || "TEAM_ANONYM",
+    }));
+  }, [team.contactEmail, team.contactName, team.name, team.teamPublicationLevel]);
+
+  const handleAdd = async (participantId: string) => {
+    setBusyParticipantId(participantId);
+    setError("");
+    try {
+      await onAddParticipant(team.id, participantId);
+      setAvailableParticipants((current) => current.filter((participant) => participant.id !== participantId));
+      await loadAvailableParticipants();
+    } catch (addError) {
+      setError(addError instanceof Error ? addError.message : "Teilnehmer konnte nicht zugeordnet werden.");
+    } finally {
+      setBusyParticipantId(null);
+    }
+  };
+
+  const handleRemove = async (participantId?: string) => {
+    if (!participantId) return;
+    setBusyParticipantId(participantId);
+    setError("");
+    try {
+      await onRemoveParticipant(team.id, participantId);
+      await loadAvailableParticipants();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "Teilnehmer konnte nicht freigegeben werden.");
+    } finally {
+      setBusyParticipantId(null);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!canFinalize) return;
+    setFinalizing(true);
+    setError("");
+    try {
+      await onFinalize(team.id, {
+        teamName: formData.teamName.trim(),
+        contactName: formData.contactName.trim(),
+        contactEmail: formData.contactEmail.trim(),
+        teamPublicationLevel: formData.teamPublicationLevel,
+      });
+    } catch (finalizeError) {
+      setError(finalizeError instanceof Error ? finalizeError.message : "Börsen-Mannschaft konnte nicht überführt werden.");
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-3">
+      <Card size="sm" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden">
+        <CardHeader className="px-4">
+          <CardTitle className="truncate text-base">Börsen-Mannschaft bearbeiten</CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+            <div className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground">Mannschaftsname</label>
+                  <Input
+                    value={formData.teamName}
+                    onChange={(event) => setFormData({ ...formData, teamName: event.target.value })}
+                    placeholder="Finaler Mannschaftsname"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Kontaktname</label>
+                  <Input
+                    value={formData.contactName}
+                    onChange={(event) => setFormData({ ...formData, contactName: event.target.value })}
+                    placeholder="Team Manager:in"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Kontakt-E-Mail</label>
+                  <Input
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={(event) => setFormData({ ...formData, contactEmail: event.target.value })}
+                    placeholder="team@example.de"
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground">Veröffentlichung</label>
+                  <Select
+                    value={formData.teamPublicationLevel}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        teamPublicationLevel: value as MarketplaceMatchingFinalizePayload["teamPublicationLevel"],
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEAM_PUBLICATION_OPTIONS.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Slots</p>
+                  <Badge variant={assignedParticipants.length === 5 ? "default" : "outline"}>
+                    {assignedParticipants.length}/5 belegt
+                  </Badge>
+                </div>
+                <div className="grid gap-2">
+                  {Array.from({ length: 5 }).map((_, index) => {
+                    const participant = assignedParticipants[index];
+                    const discipline = DISCIPLINES.find((entry) => entry.id === (participant?.discipline || participant?.disciplineCode));
+
+                    return (
+                      <div key={participant?.id || `empty-${index}`} className="flex min-h-14 items-center justify-between gap-2 rounded-md border border-border/60 bg-background p-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground">Slot {index + 1}</p>
+                          {participant ? (
+                            <>
+                              <p className="truncate text-sm font-medium">{getParticipantDisplayName(participant, index)}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {discipline ? `${discipline.icon} ${discipline.label}` : "Disziplin offen"}
+                                {participant.birthDate ? ` · ${participant.birthDate}` : ""}
+                                {participant.email ? ` · ${participant.email}` : ""}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Noch frei</p>
+                          )}
+                        </div>
+                        {participant?.id && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRemove(participant.id)}
+                            disabled={busyParticipantId === participant.id}
+                            aria-busy={busyParticipantId === participant.id}
+                          >
+                            Freigeben
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Suchhilfe Börsen-Teilnehmer</label>
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Name, E-Mail, Disziplin oder Status"
+                />
+              </div>
+
+              <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                {loadingAvailable ? (
+                  <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Lade freie Teilnehmer...</div>
+                ) : filteredAvailableParticipants.length === 0 ? (
+                  <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Keine passenden freien Börsen-Teilnehmer gefunden.</div>
+                ) : (
+                  filteredAvailableParticipants.map((participant) => {
+                    const discipline = DISCIPLINES.find((entry) => entry.id === participant.disciplineCode);
+                    const alreadyAssigned = assignedParticipantIds.has(participant.id);
+                    const teamFull = assignedParticipants.length >= 5;
+
+                    return (
+                      <div key={participant.id} className="rounded-md border border-border/60 bg-background p-2 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{participant.name}</p>
+                            <p className="truncate text-muted-foreground">
+                              {discipline ? `${discipline.icon} ${discipline.label}` : "Disziplin offen"}
+                              {participant.birthDate ? ` · ${participant.birthDate}` : ""}
+                              {participant.email ? ` · ${participant.email}` : ""}
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              <Badge variant="outline" className={getMarketplaceStatusClass(participant.marketplaceStatus)}>
+                                {getMarketplaceStatusOption(participant.marketplaceStatus).label}
+                              </Badge>
+                              <Badge variant="outline">{participant.teamName}</Badge>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAdd(participant.id)}
+                            disabled={alreadyAssigned || teamFull || busyParticipantId === participant.id}
+                            aria-busy={busyParticipantId === participant.id}
+                          >
+                            Zuordnen
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {(error || draftEvaluation.blockingErrors.length > 0 || draftEvaluation.warnings.length > 0 || !isValidEmail(formData.contactEmail)) && (
+            <div className="space-y-1 rounded-md border border-amber-500/40 bg-card p-2 text-xs">
+              {error && <p className="text-destructive">{error}</p>}
+              {formData.contactEmail && !isValidEmail(formData.contactEmail) && <p>Kontakt-E-Mail ist ungültig.</p>}
+              {draftEvaluation.blockingErrors.map((issue) => <p key={issue}>{issue}</p>)}
+              {draftEvaluation.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+            </div>
+          )}
+        </CardContent>
+        <div className="flex shrink-0 flex-col gap-2 border-t border-border bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Überführen ist möglich, sobald 5 Slots belegt sind und die Mannschaft fachlich plausibel ist.
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={onCancel} disabled={finalizing}>
+              Schließen
+            </Button>
+            <Button onClick={handleFinalize} disabled={!canFinalize || finalizing} aria-busy={finalizing}>
+              {finalizing ? "Überführe..." : "In echte Mannschaft überführen"}
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
