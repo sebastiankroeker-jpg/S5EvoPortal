@@ -919,7 +919,7 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
     <>
       {isMarketplaceMatching ? (
         <Badge variant="outline" className={`${compactClassName} ${statusClassName}`}>
-          MTC · {getParticipantCount(team)}/5
+          MTC {getParticipantCount(team)}/5
         </Badge>
       ) : (
         <>
@@ -3253,10 +3253,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Mein Team
                                 </Badge>
                               )}
-                              <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
-                                <span>{categoryEmojis[team.category] || "🏆"}</span>
-                                {team.category}
-                              </Badge>
+                              {!isMarketplaceMatching && (
+                                <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
+                                  <span>{categoryEmojis[team.category] || "🏆"}</span>
+                                  {team.category}
+                                </Badge>
+                              )}
                               <MarketplaceTeamBadges team={team} compact subtle={expandedTeam === team.id} />
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
@@ -3540,9 +3542,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         </div>
                                       </div>
 
-                                      {((participant && isMarketplaceMatching) || latestChangeMeta || emailInviteMeta || showRights) && (
+                                      {(latestChangeMeta || emailInviteMeta || showRights) && (
                                         <div className="flex min-w-0 flex-wrap gap-1">
-                                          {participant && <MarketplaceParticipantBadges team={team} participant={participant} />}
                                           {latestChangeMeta && (
                                             <Badge
                                               variant="outline"
