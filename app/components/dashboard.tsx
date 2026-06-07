@@ -772,6 +772,171 @@ function MarketplacePersonSummary({
   );
 }
 
+function MarketplaceSlotSearchPopover({
+  team,
+  competitionId,
+  discipline,
+  assignedParticipants,
+  onAddParticipant,
+}: {
+  team: Team;
+  competitionId?: string;
+  discipline: (typeof DISCIPLINES)[number];
+  assignedParticipants: Participant[];
+  onAddParticipant: (targetTeamId: string, participantId: string, targetDiscipline?: string) => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [availableParticipants, setAvailableParticipants] = useState<MarketplaceAvailableParticipant[]>([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [busyParticipantId, setBusyParticipantId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const assignedParticipantIds = new Set(assignedParticipants.map((participant) => participant.id).filter(Boolean));
+  const teamFull = assignedParticipants.length >= 5;
+
+  const loadAvailableParticipants = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (competitionId) params.set("competitionId", competitionId);
+      params.set("targetTeamId", team.id);
+      const response = await fetch(`/api/admin/marketplace-matching?${params.toString()}`);
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Börsen-Teilnehmer konnten nicht geladen werden.");
+      }
+      setAvailableParticipants(Array.isArray(data?.availableParticipants) ? data.availableParticipants : []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Börsen-Teilnehmer konnten nicht geladen werden.");
+    } finally {
+      setLoading(false);
+    }
+  }, [competitionId, team.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    void loadAvailableParticipants();
+  }, [loadAvailableParticipants, open]);
+
+  const filteredParticipants = availableParticipants.filter((participant) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+    return [
+      participant.name,
+      participant.email,
+      participant.disciplineCode,
+      participant.teamName,
+      participant.marketplaceStatus,
+    ].some((value) => value.toLowerCase().includes(normalizedQuery));
+  }).sort((left, right) => {
+    const leftMatchesSlot = left.disciplineCode === discipline.id ? 0 : 1;
+    const rightMatchesSlot = right.disciplineCode === discipline.id ? 0 : 1;
+    if (leftMatchesSlot !== rightMatchesSlot) return leftMatchesSlot - rightMatchesSlot;
+    return left.name.localeCompare(right.name, "de");
+  });
+
+  const handleAdd = async (participantId: string) => {
+    setBusyParticipantId(participantId);
+    setError("");
+    try {
+      await onAddParticipant(team.id, participantId, discipline.id);
+      setOpen(false);
+      setQuery("");
+    } catch (addError) {
+      setError(addError instanceof Error ? addError.message : "Teilnehmer konnte nicht zugeordnet werden.");
+    } finally {
+      setBusyParticipantId(null);
+    }
+  };
+
+  return (
+    <div className="relative mt-auto" onClick={(event) => event.stopPropagation()}>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((current) => !current);
+          setQuery("");
+        }}
+        className="min-h-7 w-full rounded border border-primary/40 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10"
+        title={`${discipline.label}: Teilnehmer suchen`}
+      >
+        Teilnehmer suchen
+      </button>
+
+      {open && (
+        <div
+          className="absolute inset-x-0 top-[calc(100%+0.25rem)] z-50 rounded-md border border-border bg-card p-2 text-xs shadow-xl md:left-auto md:right-0 md:w-[min(38rem,calc(100vw-2.5rem))]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={`${discipline.label}: Name, E-Mail oder Status`}
+              className="h-9"
+              autoFocus
+            />
+            <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>
+              Schließen
+            </Button>
+          </div>
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {error ? (
+              <div className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">{error}</div>
+            ) : loading ? (
+              <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Lade freie Teilnehmer...</div>
+            ) : filteredParticipants.length === 0 ? (
+              <div className="rounded-md border border-border/60 p-3 text-sm text-muted-foreground">Keine freien Börsen-Teilnehmer gefunden.</div>
+            ) : (
+              filteredParticipants.map((availableParticipant) => {
+                const availableDiscipline = DISCIPLINES.find((entry) => entry.id === availableParticipant.disciplineCode);
+                const alreadyAssigned = assignedParticipantIds.has(availableParticipant.id);
+                const matchesSlot = availableParticipant.disciplineCode === discipline.id;
+
+                return (
+                  <div key={availableParticipant.id} className="rounded-md border border-border/60 bg-background p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{availableParticipant.name}</p>
+                        <p className="truncate text-muted-foreground">
+                          {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
+                          {availableParticipant.birthDate ? ` · ${availableParticipant.birthDate}` : ""}
+                          {availableParticipant.email ? ` · ${availableParticipant.email}` : ""}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <Badge variant={matchesSlot ? "default" : "outline"}>
+                            {matchesSlot ? "passend" : `als ${discipline.label} zuordnen`}
+                          </Badge>
+                          <Badge variant="outline" className={getMarketplaceStatusClass(availableParticipant.marketplaceStatus)}>
+                            {getMarketplaceStatusOption(availableParticipant.marketplaceStatus).label}
+                          </Badge>
+                          <Badge variant="outline">{availableParticipant.teamName}</Badge>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdd(availableParticipant.id)}
+                        disabled={alreadyAssigned || teamFull || busyParticipantId === availableParticipant.id}
+                        aria-busy={busyParticipantId === availableParticipant.id}
+                      >
+                        Zuordnen
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function compareDates(a?: string, b?: string) {
   const aTime = a ? new Date(a).getTime() : 0;
   const bTime = b ? new Date(b).getTime() : 0;
@@ -2678,7 +2843,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         (participant.isCurrentUserParticipant && can("participant.edit.self"))),
                                   );
                                   const canFillMarketplaceSlot = Boolean(canEditMarketplaceMatching && !participant);
-                                  const canUseSlotAction = canOpenParticipant || canFillMarketplaceSlot;
+                                  const canUseSlotAction = canOpenParticipant;
 
                                   return (
                                     <div
@@ -2692,8 +2857,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         if (!canUseSlotAction) return;
                                         if (participant) {
                                           openParticipantDetails(team, participant);
-                                        } else {
-                                          openMarketplaceMatching(team, discipline.id);
                                         }
                                       }}
                                       onKeyDown={(event) => {
@@ -2701,8 +2864,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         event.preventDefault();
                                         if (participant) {
                                           openParticipantDetails(team, participant);
-                                        } else {
-                                          openMarketplaceMatching(team, discipline.id);
                                         }
                                       }}
                                     >
@@ -2822,18 +2983,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                           )}
                                         </div>
                                       ) : canFillMarketplaceSlot ? (
-                                        <div className="mt-auto">
-                                          <button
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              openMarketplaceMatching(team, discipline.id);
-                                            }}
-                                            className="min-h-7 w-full rounded border border-primary/40 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10"
-                                            title={`${discipline.label}: Teilnehmer suchen`}
-                                          >
-                                            Teilnehmer suchen
-                                          </button>
-                                        </div>
+                                        <MarketplaceSlotSearchPopover
+                                          team={team}
+                                          competitionId={activeCompetition?.id}
+                                          discipline={discipline}
+                                          assignedParticipants={team.participants ?? []}
+                                          onAddParticipant={handleMarketplaceMatchingAdd}
+                                        />
                                       ) : null}
                                     </div>
                                   );
