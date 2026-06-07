@@ -2923,6 +2923,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                             <p className="min-w-0 truncate text-sm font-medium" title={participantLabel}>
                                               {participantLabel}
                                             </p>
+                                            {participant && isMarketplaceMatching && desiredDisciplineId !== assignedDisciplineId && (
+                                              <span
+                                                className="max-w-full shrink truncate rounded border border-border/60 bg-muted/20 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground"
+                                                title={`Wunsch: ${getDisciplineLabel(desiredDisciplineId)}`}
+                                              >
+                                                Wunsch {getDisciplineLabel(desiredDisciplineId)}
+                                              </span>
+                                            )}
                                             {participant && (
                                               <ParticipantPublicationPreferenceIcon
                                                 preference={participant.participantPublicationPreference}
@@ -2990,12 +2998,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                               {participantAccessMeta?.label ?? "Kein Portal-Konto"}
                                             </Badge>
                                           )}
-                                        </div>
-                                      )}
-
-                                      {participant && isMarketplaceMatching && desiredDisciplineId !== assignedDisciplineId && (
-                                        <div className="rounded border border-amber-300/60 bg-amber-50 px-1.5 py-1 text-[10px] text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-                                          Wunsch: {getDisciplineLabel(desiredDisciplineId)}
                                         </div>
                                       )}
 
@@ -3578,13 +3580,12 @@ function MarketplaceMatchingModal({
                               <>
                                 <p className="truncate text-sm font-medium">{getParticipantDisplayName(participant, participantIndex)}</p>
                                 <p className="truncate text-xs text-muted-foreground">
-                                  {[participant.birthDate, participant.email].filter(Boolean).join(" · ") || "Keine weiteren Angaben"}
+                                  {[
+                                    participant.birthDate,
+                                    participant.email,
+                                    desiredDisciplineId !== assignedDisciplineId ? `Wunsch: ${getDisciplineLabel(desiredDisciplineId)}` : null,
+                                  ].filter(Boolean).join(" · ") || "Keine weiteren Angaben"}
                                 </p>
-                                {desiredDisciplineId !== assignedDisciplineId && (
-                                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                                    Wunsch: {getDisciplineLabel(desiredDisciplineId)}
-                                  </p>
-                                )}
                               </>
                             ) : (
                               <p className="text-sm text-muted-foreground">Noch frei</p>
