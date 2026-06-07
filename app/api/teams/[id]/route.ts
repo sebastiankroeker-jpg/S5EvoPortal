@@ -170,6 +170,7 @@ type SerializableParticipant = {
   moderationNote?: string | null;
   email?: string | null;
   disciplineCode?: string | null;
+  marketplaceReturnDisciplineCode?: string | null;
   shirtSize?: string | null;
   isTeamManager?: boolean;
   canBeTeamManager?: boolean;
@@ -237,6 +238,7 @@ function serializeParticipant(
     linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
     participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
+    marketplaceReturnDisciplineCode: participant.marketplaceReturnDisciplineCode ?? null,
     shirtSize: canSeeSensitiveParticipantFields ? participant.shirtSize ?? "" : "",
     isTeamManager: !!participant.userId && options?.activeTeamManagerUserIds?.has(participant.userId) === true,
     canBeTeamManager: !!participant.userId,

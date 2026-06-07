@@ -47,12 +47,15 @@ interface Participant {
   gender: string;
   disciplineCode?: string;
   discipline?: string;
+  marketplaceReturnDisciplineCode?: string | null;
   shirtSize?: string | null;
   moderationNote?: string | null;
   email?: string | null;
   linkedUserId?: string | null;
   teamName?: string;
   teamCategory?: string;
+  teamRegistrationMode?: "TEAM" | "MARKETPLACE";
+  teamMarketplaceStatus?: "NEW" | "REVIEWED" | "MATCHING" | "MATCHED" | "WITHDRAWN";
   emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   isTeamManager?: boolean;
@@ -108,6 +111,12 @@ function normalizeDisciplineValue(value?: string | null) {
 
 function normalizeComparableText(value?: string | null) {
   return value?.normalize("NFC").trim() ?? "";
+}
+
+function getDisciplineLabel(value?: string | null) {
+  if (!value || value === "TBD") return "Noch offen";
+  const discipline = DISCIPLINES.find((entry) => entry.id === value);
+  return discipline ? `${discipline.icon} ${discipline.label}` : value;
 }
 
 function getStatusMeta(status?: string | null) {
@@ -344,6 +353,10 @@ export default function ParticipantEditDialog({
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 
   const hasPendingChange = latestChange?.status === "PENDING" || participant?.pendingChanges?.some(c => c.status === "PENDING");
+  const isMarketplaceMatchingParticipant =
+    participant?.teamRegistrationMode === "MARKETPLACE" &&
+    participant?.teamMarketplaceStatus === "MATCHING" &&
+    (participant?.teamParticipants?.length ?? 0) > 1;
   const statusMeta = getStatusMeta(latestChange?.status);
   const saveFeedback = result?.applied
       ? { type: "success" as const, text: "Gespeichert!" }
@@ -824,9 +837,32 @@ export default function ParticipantEditDialog({
               </Select>
             </div>
 
+            {isMarketplaceMatchingParticipant ? (
+              <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-muted-foreground">Disziplinen im MTC</label>
+                  <InfoHint text="Die Wunsch-Disziplin stammt aus der Sportlerbörse. Die zugeordnete Slot-Disziplin wird im MTC-Entwurf geändert." />
+                </div>
+                <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                  <div className="rounded-md border border-border/50 bg-background/70 p-2">
+                    <p className="text-[10px] font-medium uppercase text-muted-foreground">Wunsch-Disziplin</p>
+                    <p className="mt-1 font-medium">{getDisciplineLabel(participant.marketplaceReturnDisciplineCode || participant.disciplineCode || participant.discipline)}</p>
+                  </div>
+                  <div className="rounded-md border border-border/50 bg-background/70 p-2">
+                    <p className="text-[10px] font-medium uppercase text-muted-foreground">Zugeordneter Slot</p>
+                    <p className="mt-1 font-medium">{getDisciplineLabel(disciplineCode)}</p>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Slot-Wechsel bitte in den MTC-Details über die Slot-Auswahl ändern.
+                </p>
+              </div>
+            ) : (
             <div>
               <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-muted-foreground">Disziplin-Zuordnung</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {participant?.teamRegistrationMode === "MARKETPLACE" ? "Wunsch-Disziplin" : "Disziplin-Zuordnung"}
+                </label>
                 {!directEdit && <ApprovalFieldBadge />}
               </div>
               <Select value={disciplineCode} onValueChange={setDisciplineCode}>
@@ -843,6 +879,7 @@ export default function ParticipantEditDialog({
                 </SelectContent>
               </Select>
             </div>
+            )}
 
             <div>
               <div className="flex items-center gap-2">

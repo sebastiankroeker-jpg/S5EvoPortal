@@ -97,6 +97,7 @@ interface Participant {
   birthYear?: number;
   discipline?: string;
   disciplineCode?: string;
+  marketplaceReturnDisciplineCode?: string | null;
   shirtSize?: string;
   moderationNote?: string;
   email?: string | null;
@@ -117,6 +118,8 @@ interface Participant {
   teamOwnerEmail?: string;
   teamCanEdit?: boolean;
   teamCategory?: string;
+  teamRegistrationMode?: Team["registrationMode"];
+  teamMarketplaceStatus?: Team["marketplaceStatus"];
   teamParticipants?: Participant[];
 }
 
@@ -166,6 +169,12 @@ type MarketplaceMatchingFinalizePayload = {
   contactEmail: string;
   teamPublicationLevel: NonNullable<Team["teamPublicationLevel"]>;
 };
+
+function getDisciplineLabel(value?: string | null) {
+  if (!value || value === "TBD") return "Noch offen";
+  const discipline = DISCIPLINES.find((entry) => entry.id === value);
+  return discipline ? `${discipline.icon} ${discipline.label}` : value;
+}
 
 type EditableParticipant = Omit<Participant, "id"> & { id: string };
 
@@ -908,7 +917,7 @@ function MarketplaceSlotSearchPopover({
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{availableParticipant.name}</p>
                         <p className="truncate text-muted-foreground">
-                          {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
+                          Wunsch: {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
                           {availableParticipant.birthDate ? ` · ${availableParticipant.birthDate}` : ""}
                           {availableParticipant.email ? ` · ${availableParticipant.email}` : ""}
                         </p>
@@ -1224,6 +1233,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     notifications.success("Teilnehmer zugeordnet", data?.message || "Die Börsen-Mannschaft wurde aktualisiert.");
   };
 
+  const handleMarketplaceMatchingMove = async (targetTeamId: string, participantId: string, targetDiscipline: string) => {
+    const data = await postMarketplaceMatchingAction({
+      action: "moveParticipant",
+      targetTeamId,
+      participantId,
+      targetDiscipline,
+    });
+    await fetchTeams();
+    notifications.success("Slot-Zuordnung geändert", data?.message || "Die Börsen-Mannschaft wurde aktualisiert.");
+  };
+
   const handleMarketplaceMatchingRemove = async (targetTeamId: string, participantId: string) => {
     const data = await postMarketplaceMatchingAction({
       action: "removeParticipant",
@@ -1260,6 +1280,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       teamOwnerEmail: team.ownerEmail || team.contactEmail,
       teamCanEdit: team.canCurrentUserEdit,
       teamCategory: team.category,
+      teamRegistrationMode: team.registrationMode,
+      teamMarketplaceStatus: team.marketplaceStatus,
       teamParticipants: team.participants ?? [],
     });
   };
@@ -2852,6 +2874,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   );
                                   const canFillMarketplaceSlot = Boolean(canEditMarketplaceMatching && !participant);
                                   const canUseSlotAction = canOpenParticipant;
+                                  const assignedDisciplineId = participant?.discipline || participant?.disciplineCode || "TBD";
+                                  const desiredDisciplineId = participant?.marketplaceReturnDisciplineCode || assignedDisciplineId;
+                                  const assignedDisciplineIds = new Set(
+                                    (team.participants ?? [])
+                                      .map((entry) => entry.discipline || entry.disciplineCode)
+                                      .filter((value): value is string => Boolean(value) && value !== "TBD"),
+                                  );
+                                  const slotOptions = DISCIPLINES.filter(
+                                    (entry) => entry.id === assignedDisciplineId || !assignedDisciplineIds.has(entry.id),
+                                  );
 
                                   return (
                                     <div
@@ -2963,8 +2995,37 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         </div>
                                       )}
 
+                                      {participant && isMarketplaceMatching && desiredDisciplineId !== assignedDisciplineId && (
+                                        <div className="rounded border border-amber-300/60 bg-amber-50 px-1.5 py-1 text-[10px] text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+                                          Wunsch: {getDisciplineLabel(desiredDisciplineId)}
+                                        </div>
+                                      )}
+
                                       {participant ? (
                                         <div className="mt-auto flex flex-wrap gap-1">
+                                          {canEditMarketplaceMatching && participant.id && (
+                                            <div className="w-full" onClick={(event) => event.stopPropagation()}>
+                                              <Select
+                                                value={assignedDisciplineId}
+                                                onValueChange={(value) => {
+                                                  if (value !== assignedDisciplineId && participant.id) {
+                                                    void handleMarketplaceMatchingMove(team.id, participant.id, value);
+                                                  }
+                                                }}
+                                              >
+                                                <SelectTrigger className="h-7 text-[10px]" title="Zugeordneten MTC-Slot ändern">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {slotOptions.map((slotOption) => (
+                                                    <SelectItem key={slotOption.id} value={slotOption.id}>
+                                                      {slotOption.icon} Slot: {slotOption.label}
+                                                    </SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                          )}
                                           {canManageModerationNote && (
                                           <button
                                             onClick={(e) => {
@@ -3116,6 +3177,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           competitionId={activeCompetition?.id}
           initialDisciplineFilter={marketplaceMatchingDisciplineFilter}
           onAddParticipant={handleMarketplaceMatchingAdd}
+          onMoveParticipant={handleMarketplaceMatchingMove}
           onRemoveParticipant={handleMarketplaceMatchingRemove}
           onSaveMetadata={async (targetTeamId, metadata) => {
             await saveMarketplaceTeamMetadata(targetTeamId, metadata);
@@ -3146,6 +3208,7 @@ function MarketplaceMatchingModal({
   competitionId,
   initialDisciplineFilter,
   onAddParticipant,
+  onMoveParticipant,
   onRemoveParticipant,
   onSaveMetadata,
   onFinalize,
@@ -3155,6 +3218,7 @@ function MarketplaceMatchingModal({
   competitionId?: string;
   initialDisciplineFilter?: string;
   onAddParticipant: (targetTeamId: string, participantId: string, targetDiscipline?: string) => void | Promise<void>;
+  onMoveParticipant: (targetTeamId: string, participantId: string, targetDiscipline: string) => void | Promise<void>;
   onRemoveParticipant: (targetTeamId: string, participantId: string) => void | Promise<void>;
   onSaveMetadata: (targetTeamId: string, data: MarketplaceTeamEditPayload) => void | Promise<void>;
   onFinalize: (targetTeamId: string, data: MarketplaceMatchingFinalizePayload) => void | Promise<void>;
@@ -3275,6 +3339,19 @@ function MarketplaceMatchingModal({
       await loadAvailableParticipants();
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : "Teilnehmer konnte nicht zugeordnet werden.");
+    } finally {
+      setBusyParticipantId(null);
+    }
+  };
+
+  const handleMove = async (participantId: string | undefined, targetDiscipline: string) => {
+    if (!participantId) return;
+    setBusyParticipantId(participantId);
+    setError("");
+    try {
+      await onMoveParticipant(team.id, participantId, targetDiscipline);
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : "Slot-Zuordnung konnte nicht geändert werden.");
     } finally {
       setBusyParticipantId(null);
     }
@@ -3468,6 +3545,16 @@ function MarketplaceMatchingModal({
                     const slotSearchOpen = !participant && openSearchSlotId === discipline.id;
                     const slotSearchParticipants = slotSearchOpen ? getSlotSearchParticipants(discipline.id) : [];
                     const teamFull = assignedParticipants.length >= 5;
+                    const assignedDisciplineId = participant?.discipline || participant?.disciplineCode || "TBD";
+                    const desiredDisciplineId = participant?.marketplaceReturnDisciplineCode || assignedDisciplineId;
+                    const occupiedDisciplineIds = new Set(
+                      assignedParticipants
+                        .map((entry) => entry.discipline || entry.disciplineCode)
+                        .filter((value): value is string => Boolean(value) && value !== "TBD"),
+                    );
+                    const availableSlotOptions = DISCIPLINES.filter(
+                      (entry) => entry.id === assignedDisciplineId || !occupiedDisciplineIds.has(entry.id),
+                    );
 
                     return (
                       <div key={discipline.id} className="relative rounded-md border border-border/60 bg-background p-2">
@@ -3480,27 +3567,55 @@ function MarketplaceMatchingModal({
                                 <p className="truncate text-xs text-muted-foreground">
                                   {[participant.birthDate, participant.email].filter(Boolean).join(" · ") || "Keine weiteren Angaben"}
                                 </p>
+                                {desiredDisciplineId !== assignedDisciplineId && (
+                                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                                    Wunsch: {getDisciplineLabel(desiredDisciplineId)}
+                                  </p>
+                                )}
                               </>
                             ) : (
                               <p className="text-sm text-muted-foreground">Noch frei</p>
                             )}
                           </div>
-                          {participant?.id && canReleaseAssignedParticipants && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRemove(participant.id)}
-                              disabled={busyParticipantId === participant.id}
-                              aria-busy={busyParticipantId === participant.id}
-                            >
-                              Entfernen
-                            </Button>
-                          )}
-                          {participant?.id && !canReleaseAssignedParticipants && (
-                            <Badge variant="outline" className="shrink-0">
-                              Freie Meldung
-                            </Badge>
+                          {participant?.id && (
+                            <div className="flex shrink-0 flex-col gap-1.5 sm:min-w-44">
+                              <Select
+                                value={assignedDisciplineId}
+                                onValueChange={(value) => {
+                                  if (value !== assignedDisciplineId) {
+                                    void handleMove(participant.id, value);
+                                  }
+                                }}
+                                disabled={busyParticipantId === participant.id}
+                              >
+                                <SelectTrigger className="h-8 text-xs" title="Zugeordneten MTC-Slot ändern">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {availableSlotOptions.map((slotOption) => (
+                                    <SelectItem key={slotOption.id} value={slotOption.id}>
+                                      {slotOption.icon} Slot: {slotOption.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {canReleaseAssignedParticipants ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemove(participant.id)}
+                                  disabled={busyParticipantId === participant.id}
+                                  aria-busy={busyParticipantId === participant.id}
+                                >
+                                  Entfernen
+                                </Button>
+                              ) : (
+                                <Badge variant="outline" className="justify-center">
+                                  Freie Meldung
+                                </Badge>
+                              )}
+                            </div>
                           )}
                           {!participant && (
                             <Button
@@ -3558,7 +3673,7 @@ function MarketplaceMatchingModal({
                                           <div className="min-w-0">
                                             <p className="truncate text-sm font-medium">{availableParticipant.name}</p>
                                             <p className="truncate text-muted-foreground">
-                                              {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
+                                              Wunsch: {availableDiscipline ? `${availableDiscipline.icon} ${availableDiscipline.label}` : "Disziplin offen"}
                                               {availableParticipant.birthDate ? ` · ${availableParticipant.birthDate}` : ""}
                                               {availableParticipant.email ? ` · ${availableParticipant.email}` : ""}
                                             </p>

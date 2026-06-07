@@ -15,7 +15,7 @@ const AVAILABLE_MARKETPLACE_STATUSES = ["NEW", "REVIEWED", "MATCHING"] as const;
 const VALID_PUBLICATION_LEVELS = new Set(["TEAM_ANONYM", "TEAMNAME_OEFFENTLICH", "ALLES_OEFFENTLICH"]);
 const VALID_DISCIPLINE_ASSIGNMENTS = new Set<string>([...DISCIPLINE_IDS]);
 
-type MarketplaceMatchingAction = "createDraft" | "addParticipant" | "removeParticipant" | "finalize";
+type MarketplaceMatchingAction = "createDraft" | "addParticipant" | "moveParticipant" | "removeParticipant" | "finalize";
 
 function participantName(participant: { firstName: string; lastName: string }) {
   return `${participant.firstName} ${participant.lastName}`.trim();
@@ -331,6 +331,84 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, message: `${participantName(sourceParticipant)} wurde zugeordnet.` });
+  }
+
+  if (action === "moveParticipant") {
+    if (!body.participantId) {
+      return NextResponse.json({ error: "Teilnehmer fehlt." }, { status: 400 });
+    }
+
+    const participant = targetTeam.participants.find((entry) => entry.id === body.participantId);
+    if (!participant) {
+      return NextResponse.json({ error: "Teilnehmer gehört nicht zu dieser Börsen-Mannschaft." }, { status: 404 });
+    }
+
+    const requestedDiscipline = body.targetDiscipline && VALID_DISCIPLINE_ASSIGNMENTS.has(body.targetDiscipline)
+      ? body.targetDiscipline as DisciplineAssignment
+      : null;
+
+    if (!requestedDiscipline) {
+      return NextResponse.json({ error: "Ziel-Disziplin fehlt." }, { status: 400 });
+    }
+
+    if (participant.disciplineCode === requestedDiscipline) {
+      return NextResponse.json({ success: true, message: `${participantName(participant)} ist bereits diesem Slot zugeordnet.` });
+    }
+
+    const occupiedByOtherParticipant = targetTeam.participants.some(
+      (entry) => entry.id !== participant.id && entry.disciplineCode === requestedDiscipline,
+    );
+
+    if (occupiedByOtherParticipant) {
+      return NextResponse.json({ error: "Dieser Slot ist bereits belegt." }, { status: 409 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.participant.update({
+        where: { id: participant.id },
+        data: { disciplineCode: requestedDiscipline },
+      });
+
+      await tx.team.update({
+        where: { id: targetTeam.id },
+        data: {
+          marketplaceStatus: "MATCHING",
+          updatedAt: new Date(),
+        },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          action: "MARKETPLACE_PARTICIPANT_SLOT_CHANGED",
+          scopeType: "TEAM",
+          scopeId: targetTeam.id,
+          entityType: "PARTICIPANT",
+          entityId: participant.id,
+          reason: "marketplace_matching_move",
+          beforeData: {
+            targetTeamId: targetTeam.id,
+            targetTeamName: targetTeam.name,
+            assignedDiscipline: participant.disciplineCode,
+            desiredDiscipline: participant.marketplaceReturnDisciplineCode ?? participant.disciplineCode,
+          },
+          afterData: {
+            targetTeamId: targetTeam.id,
+            targetTeamName: targetTeam.name,
+            assignedDiscipline: requestedDiscipline,
+            desiredDiscipline: participant.marketplaceReturnDisciplineCode ?? participant.disciplineCode,
+          },
+          meta: {
+            participantName: participantName(participant),
+            sessionEmail: normalizeEmail(auth.userEmail),
+          },
+          tenantId: auth.competition.tenantId,
+          competitionId: auth.competition.id,
+          actorId: auth.user.id,
+        },
+      });
+    });
+
+    return NextResponse.json({ success: true, message: `${participantName(participant)} wurde ${requestedDiscipline} zugeordnet.` });
   }
 
   if (action === "removeParticipant") {
