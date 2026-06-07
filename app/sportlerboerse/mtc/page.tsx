@@ -1,11 +1,12 @@
 import Link from "next/link";
 
+import ExternalBottomTabs from "@/app/components/external-bottom-tabs";
 import NavBar from "@/app/components/nav-bar";
 import TeamRegistration from "@/app/components/team-registration";
 
 export default function PublicMtcDraftRegistrationPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-24 lg:pb-0">
       <NavBar />
       <main className="mx-auto max-w-5xl px-4 py-6">
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -36,6 +37,7 @@ export default function PublicMtcDraftRegistrationPage() {
           presentation="mtc-draft"
         />
       </main>
+      <ExternalBottomTabs />
     </div>
   );
 }
