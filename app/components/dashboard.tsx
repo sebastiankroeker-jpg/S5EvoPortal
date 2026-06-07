@@ -1952,28 +1952,54 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   const visibleColumnDefs = listOptionalColumns.filter((column) => visibleColumns.includes(column.key));
 
-  const categoryEmojis: { [key: string]: string } = {
-    "schueler-a": "🧒",
-    "schueler-b": "👦",
-    jugend: "🌟", 
-    jungsters: "⚡",
-    herren: "🏋️",
-    masters: "🎖️",
-    "damen-a": "🏋️‍♀️",
-    "damen-b": "👩‍🦳",
-    sportlerboerse: "👥",
+  const categoryMeta: Record<string, { icon: string; className: string; label?: string }> = {
+    "schueler-a": { icon: "SA", label: "Schueler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
+    "schueler-b": { icon: "SB", label: "Schueler B", className: "border-cyan-300 bg-cyan-50 text-cyan-800" },
+    jugend: { icon: "J", label: "Jugend", className: "border-violet-300 bg-violet-50 text-violet-800" },
+    jungsters: { icon: "⚡", label: "Jungsters", className: "border-yellow-300 bg-yellow-50 text-yellow-800" },
+    herren: { icon: "♂", label: "Herren", className: "border-blue-300 bg-blue-50 text-blue-800" },
+    masters: { icon: "M", label: "Masters", className: "border-amber-300 bg-amber-50 text-amber-800" },
+    "damen-a": { icon: "♀A", label: "Damen A", className: "border-pink-300 bg-pink-50 text-pink-800" },
+    "damen-b": { icon: "♀B", label: "Damen B", className: "border-rose-300 bg-rose-50 text-rose-800" },
+    sportlerboerse: { icon: "", label: "Sportlerbörse", className: "border-emerald-300 bg-emerald-50 text-emerald-800" },
   };
 
-  const renderCategoryBadge = (team: Team, className = "") => (
-    <Badge variant="outline" className={`gap-1 ${className}`}>
+  const getCategoryMeta = (category: string) =>
+    categoryMeta[category] || { icon: "🏆", label: category, className: "border-muted-foreground/30 text-muted-foreground" };
+
+  const renderCategoryBadge = (team: Team, className = "") => {
+    const meta = getCategoryMeta(team.category);
+
+    return (
+      <Badge variant="outline" className={`gap-1 ${meta.className} ${className}`}>
+        {team.category === "sportlerboerse" ? (
+          <UsersRound className="size-3" aria-hidden="true" />
+        ) : (
+          <span>{meta.icon}</span>
+        )}
+        {team.category}
+      </Badge>
+    );
+  };
+
+  const renderCategoryIconBadge = (team: Team, className = "") => {
+    const meta = getCategoryMeta(team.category);
+
+    return (
+      <Badge
+        variant="outline"
+        className={`h-6 w-8 shrink-0 px-0 text-[10px] font-semibold ${meta.className} ${className}`}
+        title={`Klasse: ${meta.label || team.category}`}
+        aria-label={`Klasse: ${meta.label || team.category}`}
+      >
       {team.category === "sportlerboerse" ? (
         <UsersRound className="size-3" aria-hidden="true" />
       ) : (
-        <span>{categoryEmojis[team.category] || "🏆"}</span>
+        <span aria-hidden="true">{meta.icon}</span>
       )}
-      {team.category}
-    </Badge>
-  );
+      </Badge>
+    );
+  };
 
   if (loading) {
     return (
@@ -2495,7 +2521,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                       variant={categoryFilter === cat.category ? "default" : "outline"}
                       onClick={() => setCategoryFilter(cat.category)}
                     >
-                      <span>{categoryEmojis[cat.category] || "🏆"}</span>
+                      <span>{cat.category === "sportlerboerse" ? "👥" : getCategoryMeta(cat.category).icon}</span>
                       {cat.category} ({cat.count})
                     </Button>
                   ))}
@@ -2524,7 +2550,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                     <SelectItem value="all">Alle Klassen</SelectItem>
                     {categories.map((cat) => (
                       <SelectItem key={cat} value={cat}>
-                        {categoryEmojis[cat] || "🏆"} {cat}
+                        {cat === "sportlerboerse" ? "👥" : getCategoryMeta(cat).icon} {cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -3049,7 +3075,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="min-w-0 space-y-1.5">
                             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                               <div className="flex min-w-0 max-w-full flex-1 basis-40 items-center gap-1.5">
-                                {team.category === "sportlerboerse" && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
+                                {renderCategoryIconBadge(team)}
                                 <h3 className="min-w-0 truncate text-sm font-medium" title={team.name}>{team.name}</h3>
                                 <TeamVisibilityIconBadge
                                   team={team}
@@ -3063,7 +3089,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Mein Team
                                 </Badge>
                               )}
-                              {team.category !== "sportlerboerse" && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
                               <MarketplaceTeamBadges team={team} compact />
                             </div>
                             {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
@@ -3255,7 +3280,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                               <div className="flex min-w-0 max-w-full flex-1 basis-48 items-center gap-1.5">
-                                {team.category === "sportlerboerse" && !isMarketplaceMatching && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
+                                {!isMarketplaceMatching && renderCategoryIconBadge(team)}
                                 <h3 className="min-w-0 truncate text-base font-semibold" title={team.name}>{team.name}</h3>
                                 <TeamVisibilityIconBadge
                                   team={team}
@@ -3269,7 +3294,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Mein Team
                                 </Badge>
                               )}
-                              {!isMarketplaceMatching && team.category !== "sportlerboerse" && renderCategoryBadge(team, "h-6 shrink-0 px-1.5 text-[10px]")}
                               <MarketplaceTeamBadges team={team} compact subtle={expandedTeam === team.id} />
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
