@@ -52,6 +52,8 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  Eye,
+  EyeOff,
   Info,
   Mail,
   Pencil,
@@ -398,16 +400,11 @@ function getMtcCombinedActionMeta(
   completionMeta: ReturnType<typeof getTeamCompletionMeta>,
   disciplineMeta: ReturnType<typeof getTeamDisciplineMeta>,
 ) {
-  const labels = [
-    completionMeta.isImportant ? completionMeta.label : null,
-    disciplineMeta.isImportant ? disciplineMeta.label : null,
-  ].filter(Boolean);
-
-  if (labels.length === 0) return null;
+  if (!disciplineMeta.isImportant) return null;
 
   return {
-    label: labels.join(" · "),
-    toneClass: completionMeta.isImportant ? completionMeta.toneClass : disciplineMeta.toneClass,
+    label: disciplineMeta.label,
+    toneClass: disciplineMeta.toneClass || completionMeta.toneClass,
     icon: AlertTriangle,
   };
 }
@@ -706,6 +703,45 @@ function getMarketplaceVisibilityLabel(value?: Team["marketplaceVisibility"] | n
   return MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === (value || "ADMIN_MANAGEMENT_ONLY"))?.label || "Nur für Admins/MGMT sichtbar";
 }
 
+function getMarketplaceVisibilityMeta(value?: Team["marketplaceVisibility"] | null) {
+  const normalized = value || "ADMIN_MANAGEMENT_ONLY";
+  const label = getMarketplaceVisibilityLabel(normalized);
+
+  if (normalized === "PUBLIC") {
+    return {
+      label,
+      shortLabel: "Öffentlich",
+      icon: Eye,
+      className: "border-green-300 text-green-700",
+    };
+  }
+
+  if (normalized === "MARKETPLACE_USERS") {
+    return {
+      label,
+      shortLabel: "Börse",
+      icon: UserRound,
+      className: "border-blue-300 text-blue-700",
+    };
+  }
+
+  if (normalized === "PORTAL_USERS") {
+    return {
+      label,
+      shortLabel: "Portal",
+      icon: UserRound,
+      className: "border-indigo-300 text-indigo-700",
+    };
+  }
+
+  return {
+    label,
+    shortLabel: "Admin/MGMT",
+    icon: EyeOff,
+    className: "border-amber-300 text-amber-700",
+  };
+}
+
 function getTeamPublicationLabel(value?: Team["teamPublicationLevel"] | null) {
   return TEAM_PUBLICATION_OPTIONS.find((option) => option.id === (value || "TEAM_ANONYM"))?.label || "Team anonym";
 }
@@ -720,6 +756,8 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
   const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
   const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
   const marketplaceDraftStatus = getMarketplaceDraftStatusMeta(team);
+  const visibilityMeta = getMarketplaceVisibilityMeta(team.marketplaceVisibility);
+  const VisibilityIcon = visibilityMeta.icon;
   const compactClassName = compact ? "h-6 shrink-0 px-1.5 text-[10px]" : "";
   const statusClassName = subtle
     ? "border-muted-foreground/30 text-muted-foreground"
@@ -729,7 +767,7 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
     <>
       {isMarketplaceMatching ? (
         <Badge variant="outline" className={`${compactClassName} ${statusClassName}`}>
-          MTC · {getParticipantCount(team)}/5 · {marketplaceDraftStatus.label}
+          MTC · {getParticipantCount(team)}/5
         </Badge>
       ) : (
         <>
@@ -741,10 +779,15 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
           </Badge>
         </>
       )}
-      <Badge variant="outline" className={`${compactClassName} border-primary/30 text-primary`}>
-        {getMarketplaceVisibilityLabel(team.marketplaceVisibility)}
+      <Badge
+        variant="outline"
+        className={`${compactClassName} gap-1 ${visibilityMeta.className}`}
+        title={visibilityMeta.label}
+      >
+        <VisibilityIcon className="size-3" />
+        {visibilityMeta.shortLabel}
       </Badge>
-      {!subtle && (
+      {!subtle && !isMarketplaceMatching && (
         <Badge variant="outline" className={`${compactClassName} border-muted-foreground/30 text-muted-foreground`}>
           {getTeamPublicationLabel(team.teamPublicationLevel)}
         </Badge>
@@ -2735,7 +2778,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 : null;
               const MtcCombinedActionIcon = mtcCombinedActionMeta?.icon;
               const showCompactStatusRow =
-                (showActionStatus && (mtcCombinedActionMeta || completionMeta.isImportant || disciplineMeta.isImportant)) ||
+                (showActionStatus && (isMarketplaceMatching
+                  ? mtcCombinedActionMeta
+                  : completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
 
               return (
@@ -2845,13 +2890,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     {mtcCombinedActionMeta.label}
                                   </Badge>
                                 )}
-                                {showActionStatus && !mtcCombinedActionMeta && completionMeta.isImportant && (
+                                {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && completionMeta.isImportant && (
                                   <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                     <CompletionIcon className="size-3" />
                                     {completionMeta.label}
                                   </Badge>
                                 )}
-                                {showActionStatus && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
+                                {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
                                   <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                     <DisciplineIcon className="size-3" />
                                     {disciplineMeta.label}
@@ -3040,7 +3085,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             </div>
                           </div>
 
-                          {((showActionStatus && (mtcCombinedActionMeta || completionMeta.isImportant || disciplineMeta.isImportant)) ||
+                          {((showActionStatus && (isMarketplaceMatching
+                            ? mtcCombinedActionMeta
+                            : completionMeta.isImportant || disciplineMeta.isImportant)) ||
                             (showAdminDashboardInfo && pendingChangeCount > 0)) && (
                             <div className="flex flex-wrap gap-1">
                               {showActionStatus && mtcCombinedActionMeta && MtcCombinedActionIcon && (
@@ -3049,13 +3096,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   {mtcCombinedActionMeta.label}
                                 </Badge>
                               )}
-                              {showActionStatus && !mtcCombinedActionMeta && completionMeta.isImportant && (
+                              {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && completionMeta.isImportant && (
                                 <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                   <CompletionIcon className="size-3" />
                                   {completionMeta.label}
                                 </Badge>
                               )}
-                              {showActionStatus && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
+                              {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
                                 <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                   <DisciplineIcon className="size-3" />
                                   {disciplineMeta.label}
