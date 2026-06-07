@@ -120,9 +120,14 @@ export default function NavBar() {
             </>
           )}
         </div>
-        <Link href="/changelog" aria-label="Projektstand und Changelog öffnen" className="hidden sm:inline-flex">
-          <Badge variant="secondary" className="gap-1 text-[10px] hover:bg-primary/20 cursor-pointer whitespace-nowrap">
-            <span className="hidden sm:inline">Projektstand</span>
+        <Link
+          href="/changelog"
+          aria-label="Projektstand und Changelog öffnen"
+          className="inline-flex shrink-0"
+          title="Projektstand und Changelog öffnen"
+        >
+          <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px] hover:bg-primary/20 cursor-pointer whitespace-nowrap">
+            <span className="hidden lg:inline">Projektstand</span>
             <span>{APP_VERSION}</span>
           </Badge>
         </Link>
