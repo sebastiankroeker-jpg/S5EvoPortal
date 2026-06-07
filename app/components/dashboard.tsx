@@ -3028,6 +3028,7 @@ function MarketplaceMatchingModal({
   const assignedParticipants = team.participants ?? [];
   const assignedParticipantIds = new Set(assignedParticipants.map((participant) => participant.id).filter(Boolean));
   const assignedDisciplineSlots = getTeamDisciplineSlots(team);
+  const canReleaseAssignedParticipants = assignedParticipants.length > 1;
   const filteredAvailableParticipants = availableParticipants.filter((participant) => {
     if (selectedDisciplineFilter !== "all" && participant.disciplineCode !== selectedDisciplineFilter) return false;
     const normalizedQuery = query.trim().toLowerCase();
@@ -3317,7 +3318,7 @@ function MarketplaceMatchingModal({
                             <p className="text-sm text-muted-foreground">Noch frei</p>
                           )}
                         </div>
-                        {participant?.id && (
+                        {participant?.id && canReleaseAssignedParticipants && (
                           <Button
                             type="button"
                             size="sm"
@@ -3328,6 +3329,11 @@ function MarketplaceMatchingModal({
                           >
                             Freigeben
                           </Button>
+                        )}
+                        {participant?.id && !canReleaseAssignedParticipants && (
+                          <Badge variant="outline" className="shrink-0">
+                            Freie Meldung
+                          </Badge>
                         )}
                         {!participant && (
                           <Button

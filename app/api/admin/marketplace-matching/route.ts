@@ -327,6 +327,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Teilnehmer gehört nicht zu dieser Börsen-Mannschaft." }, { status: 404 });
     }
 
+    if (targetTeam.participants.length <= 1) {
+      await prisma.$transaction(async (tx) => {
+        await tx.team.update({
+          where: { id: targetTeam.id },
+          data: {
+            marketplaceStatus: "REVIEWED",
+            marketplaceMessage: participant.moderationNote ?? null,
+          },
+        });
+
+        await tx.auditEvent.create({
+          data: {
+            action: "MARKETPLACE_PARTICIPANT_UNASSIGNED",
+            scopeType: "TEAM",
+            scopeId: targetTeam.id,
+            entityType: "PARTICIPANT",
+            entityId: participant.id,
+            reason: "marketplace_matching_unassign_single",
+            beforeData: {
+              targetTeamId: targetTeam.id,
+              targetTeamName: targetTeam.name,
+              participantCount: targetTeam.participants.length,
+            },
+            afterData: {
+              restoredTeamId: targetTeam.id,
+              restoredTeamName: targetTeam.name,
+              participantCount: targetTeam.participants.length,
+            },
+            meta: {
+              participantName: participantName(participant),
+              sessionEmail: normalizeEmail(auth.userEmail),
+            },
+            tenantId: auth.competition.tenantId,
+            competitionId: auth.competition.id,
+            actorId: auth.user.id,
+          },
+        });
+      });
+
+      return NextResponse.json({
+        success: true,
+        teamId: targetTeam.id,
+        message: `${participantName(participant)} ist bereits eine freie Börsen-Meldung.`,
+      });
+    }
+
     const newTeam = await prisma.$transaction(async (tx) => {
       const restored = await tx.team.create({
         data: {
