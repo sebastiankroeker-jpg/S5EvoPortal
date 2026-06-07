@@ -1862,7 +1862,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       const matchesQuickExcludes =
         (!quickFilterExcludes.mine || team.isCurrentUserTeam !== true) &&
         (!quickFilterExcludes.needsReview || !(canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team))) &&
-        (!quickFilterExcludes.marketplace || !capabilities.isMarketplaceTeam) &&
+        (!quickFilterExcludes.marketplace || !(capabilities.isMarketplaceTeam && !capabilities.isMtcDraft)) &&
         (!quickFilterExcludes.mtc || !capabilities.isMtcDraft) &&
         (!quickFilterExcludes.openSlots || !capabilities.hasOpenMtcSlots);
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
@@ -2031,7 +2031,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     if (quickFilterExcludes[key]) return "exclude";
     if (key === "mine") return ownTeamsOnly ? "include" : "neutral";
     if (key === "needsReview") return incompleteOnly ? "include" : "neutral";
-    if (key === "marketplace") return marketplaceKindFilter === "marketplace" && !openMtcSlotsOnly ? "include" : "neutral";
+    if (key === "marketplace") return marketplaceKindFilter === "single" && !openMtcSlotsOnly ? "include" : "neutral";
     if (key === "mtc") return marketplaceKindFilter === "mtc" && !openMtcSlotsOnly ? "include" : "neutral";
     if (key === "openSlots") return openMtcSlotsOnly ? "include" : "neutral";
     return "neutral";
@@ -2050,7 +2050,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
     if (key === "marketplace") {
       setOpenMtcSlotsOnly(false);
-      setMarketplaceKindFilter(mode === "include" ? "marketplace" : marketplaceFocus ? "marketplace" : "all");
+      setMarketplaceKindFilter(mode === "include" ? "single" : marketplaceFocus ? "marketplace" : "all");
       return;
     }
     if (key === "mtc") {
@@ -2080,8 +2080,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     isAdmin && !marketplaceFocus && {
       key: "marketplace" as const,
       icon: <Search className="size-3.5" />,
-      label: "Sportlerbörse",
-      count: marketplaceTeams.length,
+      label: "Einzelsportler",
+      count: marketplaceSingleTeams.length,
     },
     isAdmin && {
       key: "mtc" as const,
@@ -2383,6 +2383,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           </div>
                         );
                       })}
+                    </div>
+                    <div className="mt-1 flex justify-end border-t border-border/40 pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setQuickFilterMenuOpen(false)}
+                        className="inline-flex h-7 items-center gap-1 rounded px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                        title="Schnellzugriff zuklappen"
+                        aria-label="Schnellzugriff zuklappen"
+                      >
+                        <ChevronUp className="size-3.5" />
+                        Zuklappen
+                      </button>
                     </div>
                   </div>
                 </>
