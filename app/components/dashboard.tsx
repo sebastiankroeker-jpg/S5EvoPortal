@@ -2663,202 +2663,205 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const canEditMarketplaceMatching = capabilities.canManageSlots;
               const canDeleteTeam = team.canManageTeamManagers === true;
               const isMarketplaceContainerOpen = expandedMarketplaceContainerTeam === team.id;
+              const showCompactActionColumn = !isMarketplaceMatching;
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
 
               return (
-              <div key={team.id} className="space-y-2">
-                {/* Team-Kachel mit Teilnehmern */}
-                {expandedTeam !== team.id && (
-                  <Card
-                    className="cursor-pointer transition-colors hover:bg-muted/50"
-                    onClick={() => {
-                      setExpandedTeam(team.id);
-                    }}
-                  >
-                    <CardContent className="p-2">
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1.5">
-                        <div className="min-w-0 space-y-1.5">
-                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                            <h3 className="min-w-0 truncate text-sm font-medium">{team.name}</h3>
-                            <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
-                              <span>{categoryEmojis[team.category] || "🏆"}</span>
-                              {team.category}
-                            </Badge>
-                            <MarketplaceTeamBadges team={team} compact />
-                            {team.isCurrentUserTeam && (
-                              <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
-                                <Star className="size-3" />
-                                Mein Team
+                <div key={team.id} className="space-y-2">
+                  {/* Team-Kachel mit Teilnehmern */}
+                  {expandedTeam !== team.id && (
+                    <Card
+                      className="cursor-pointer transition-colors hover:bg-muted/50"
+                      onClick={() => {
+                        setExpandedTeam(team.id);
+                      }}
+                    >
+                      <CardContent className="p-2">
+                        <div className={`grid items-start gap-1.5 ${showCompactActionColumn ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-1"}`}>
+                          <div className="min-w-0 space-y-1.5">
+                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                              <h3 className="min-w-0 truncate text-sm font-medium">{team.name}</h3>
+                              <Badge variant="outline" className="h-6 shrink-0 gap-1 px-1.5 text-[10px]">
+                                <span>{categoryEmojis[team.category] || "🏆"}</span>
+                                {team.category}
                               </Badge>
+                              <MarketplaceTeamBadges team={team} compact />
+                              {team.isCurrentUserTeam && (
+                                <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
+                                  <Star className="size-3" />
+                                  Mein Team
+                                </Badge>
+                              )}
+                            </div>
+                            {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
+                              <MarketplacePersonSummary
+                                team={team}
+                                participant={marketplaceParticipant}
+                                revealPrivateName={revealPrivateDashboardNames}
+                              />
+                            ) : (
+                              <div className="grid gap-1 sm:grid-cols-5">
+                                {disciplineSlots.map(({ discipline, participant }) => {
+                                  const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
+                                  const participantLabel = participant
+                                    ? getDashboardParticipantLabel(team, participant, participantIndex, {
+                                        revealPrivateName: revealPrivateDashboardNames,
+                                      })
+                                    : "Offen";
+                                  const canOpenParticipant = Boolean(
+                                    participant?.id &&
+                                      (canEditAll ||
+                                        team.canCurrentUserEdit ||
+                                        (participant.isCurrentUserParticipant && can("participant.edit.self"))),
+                                  );
+                                  const canFillMarketplaceSlot = Boolean(capabilities.canSearchParticipants && !participant);
+                                  const canUseSlotAction = canOpenParticipant || canFillMarketplaceSlot;
+
+                                  return (
+                                    <div
+                                      key={discipline.id}
+                                      className={`flex min-h-8 min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 ${
+                                        canUseSlotAction ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
+                                      }`}
+                                      title={participant ? `${participantLabel} öffnen` : `${discipline.label}: Teilnehmer suchen`}
+                                      role={canUseSlotAction ? "button" : undefined}
+                                      tabIndex={canUseSlotAction ? 0 : undefined}
+                                      onClick={(event) => {
+                                        if (!canUseSlotAction) return;
+                                        event.stopPropagation();
+                                        if (participant) {
+                                          openParticipantDetails(team, participant);
+                                        } else {
+                                          openMarketplaceMatching(team, discipline.id);
+                                        }
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (!canUseSlotAction || (event.key !== "Enter" && event.key !== " ")) return;
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        if (participant) {
+                                          openParticipantDetails(team, participant);
+                                        } else {
+                                          openMarketplaceMatching(team, discipline.id);
+                                        }
+                                      }}
+                                    >
+                                      <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
+                                      <span className="min-w-0 truncate text-xs font-medium leading-5 text-foreground">
+                                        {participantLabel}
+                                      </span>
+                                      {participant && (
+                                        <ParticipantPublicationPreferenceIcon
+                                          preference={participant.participantPublicationPreference}
+                                          teamPublicationLevel={team.teamPublicationLevel}
+                                        />
+                                      )}
+                                      {participant && <MarketplaceParticipantBadges team={team} participant={participant} compact />}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {marketplaceFocus && team.registrationMode === "MARKETPLACE" && team.createdAt && (
+                              <div className="text-xs text-muted-foreground">Gemeldet: {formatDatePart(team.createdAt)}</div>
+                            )}
+                            {showCompactStatusRow && (
+                              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                {showActionStatus && completionMeta.isImportant && (
+                                  <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
+                                    <CompletionIcon className="size-3" />
+                                    {completionMeta.label}
+                                  </Badge>
+                                )}
+                                {showActionStatus && disciplineMeta.isImportant && (
+                                  <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
+                                    <DisciplineIcon className="size-3" />
+                                    {disciplineMeta.label}
+                                  </Badge>
+                                )}
+                                {showAdminDashboardInfo && pendingChangeCount > 0 && (
+                                  <Badge variant="outline" className="h-5 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                                    <ClipboardList className="size-3" />
+                                    {pendingChangeCount} Änderung(en)
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </div>
-                          {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
-                            <MarketplacePersonSummary
-                              team={team}
-                              participant={marketplaceParticipant}
-                              revealPrivateName={revealPrivateDashboardNames}
-                            />
-                          ) : (
-                            <div className="grid gap-1 sm:grid-cols-5">
-                              {disciplineSlots.map(({ discipline, participant }) => {
-                                const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
-                                const participantLabel = participant
-                                  ? getDashboardParticipantLabel(team, participant, participantIndex, {
-                                      revealPrivateName: revealPrivateDashboardNames,
-                                    })
-                                  : "Offen";
-                                const canOpenParticipant = Boolean(
-                                  participant?.id &&
-                                    (canEditAll ||
-                                      team.canCurrentUserEdit ||
-                                      (participant.isCurrentUserParticipant && can("participant.edit.self"))),
-                                );
-                                const canFillMarketplaceSlot = Boolean(capabilities.canSearchParticipants && !participant);
-                                const canUseSlotAction = canOpenParticipant || canFillMarketplaceSlot;
-
-                                return (
-                                  <div
-                                    key={discipline.id}
-                                    className={`flex min-h-8 min-w-0 items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 ${
-                                      canUseSlotAction ? "cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/5" : ""
-                                    }`}
-                                    title={participant ? `${participantLabel} öffnen` : `${discipline.label}: Teilnehmer suchen`}
-                                    role={canUseSlotAction ? "button" : undefined}
-                                    tabIndex={canUseSlotAction ? 0 : undefined}
+                          {showCompactActionColumn && (
+                            <div className="flex items-start justify-end">
+                              <div className="flex flex-col gap-1">
+                                {canEditMarketplaceMatching && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 shrink-0 px-2 text-[11px]"
                                     onClick={(event) => {
-                                      if (!canUseSlotAction) return;
                                       event.stopPropagation();
-                                      if (participant) {
-                                        openParticipantDetails(team, participant);
-                                      } else {
-                                        openMarketplaceMatching(team, discipline.id);
-                                      }
-                                    }}
-                                    onKeyDown={(event) => {
-                                      if (!canUseSlotAction || (event.key !== "Enter" && event.key !== " ")) return;
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      if (participant) {
-                                        openParticipantDetails(team, participant);
-                                      } else {
-                                        openMarketplaceMatching(team, discipline.id);
-                                      }
+                                      openMarketplaceMatching(team);
                                     }}
                                   >
-                                    <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
-                                    <span className="min-w-0 truncate text-xs font-medium leading-5 text-foreground">
-                                      {participantLabel}
-                                    </span>
-                                    {participant && (
-                                      <ParticipantPublicationPreferenceIcon
-                                        preference={participant.participantPublicationPreference}
-                                        teamPublicationLevel={team.teamPublicationLevel}
-                                      />
-                                    )}
-                                    {participant && <MarketplaceParticipantBadges team={team} participant={participant} compact />}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {marketplaceFocus && team.registrationMode === "MARKETPLACE" && team.createdAt && (
-                            <div className="text-xs text-muted-foreground">Gemeldet: {formatDatePart(team.createdAt)}</div>
-                          )}
-                          {showCompactStatusRow && (
-                            <div className="flex flex-wrap gap-1.5 pt-0.5">
-                              {showActionStatus && completionMeta.isImportant && (
-                                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
-                                  <CompletionIcon className="size-3" />
-                                  {completionMeta.label}
-                                </Badge>
-                              )}
-                              {showActionStatus && disciplineMeta.isImportant && (
-                                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
-                                  <DisciplineIcon className="size-3" />
-                                  {disciplineMeta.label}
-                                </Badge>
-                              )}
-                              {showAdminDashboardInfo && pendingChangeCount > 0 && (
-                                <Badge variant="outline" className="h-5 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
-                                  <ClipboardList className="size-3" />
-                                  {pendingChangeCount} Änderung(en)
-                                </Badge>
-                              )}
+                                    Entwurf
+                                  </Button>
+                                )}
+                                {canEditMarketplaceParticipant && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 shrink-0 px-2 text-[11px]"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openParticipantDetails(team, marketplaceParticipant);
+                                    }}
+                                  >
+                                    Person
+                                  </Button>
+                                )}
+                                {canEditMarketplaceTeam && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 shrink-0 px-2 text-[11px]"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setEditingMarketplaceTeam(team);
+                                    }}
+                                  >
+                                    Börse
+                                  </Button>
+                                )}
+                                {canDeleteTeam && team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching && (
+                                  <TeamDeleteDialog
+                                    team={team}
+                                    deleting={deleting}
+                                    onDelete={handleDeleteTeam}
+                                    className="h-7 shrink-0 px-2 text-[11px]"
+                                    onTriggerClick={(event) => event.stopPropagation()}
+                                  />
+                                )}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 shrink-0 px-2 text-[11px]"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setExpandedTeam(team.id);
+                                  }}
+                                >
+                                  Details
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>
-                          <div className="flex items-start justify-end">
-                          <div className="flex flex-col gap-1">
-                            {canEditMarketplaceMatching && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 shrink-0 px-2 text-[11px]"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openMarketplaceMatching(team);
-                                }}
-                              >
-                                Entwurf
-                              </Button>
-                            )}
-                            {canEditMarketplaceParticipant && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 shrink-0 px-2 text-[11px]"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openParticipantDetails(team, marketplaceParticipant);
-                                }}
-                              >
-                                Person
-                              </Button>
-                            )}
-                            {canEditMarketplaceTeam && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 shrink-0 px-2 text-[11px]"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setEditingMarketplaceTeam(team);
-                                }}
-                              >
-                                Börse
-                              </Button>
-                            )}
-                            {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
-                              <TeamDeleteDialog
-                                team={team}
-                                deleting={deleting}
-                                onDelete={handleDeleteTeam}
-                                className="h-7 shrink-0 px-2 text-[11px]"
-                                onTriggerClick={(event) => event.stopPropagation()}
-                              />
-                            )}
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-7 shrink-0 px-2 text-[11px]"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setExpandedTeam(team.id);
-                              }}
-                            >
-                              Details
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
                 )}
 
                 {/* Expandierte Detail-View */}
@@ -2895,7 +2898,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Person
                                 </Button>
                               )}
-                              {canEditMarketplaceMatching && (
+                              {canEditMarketplaceMatching && !isMarketplaceMatching && (
                                 <Button
                                   size="xs"
                                   variant="outline"
@@ -2919,7 +2922,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Börse
                                 </Button>
                               )}
-                              {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
+                              {canDeleteTeam && team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching && (
                                 <TeamDeleteDialog
                                   team={team}
                                   deleting={deleting}
