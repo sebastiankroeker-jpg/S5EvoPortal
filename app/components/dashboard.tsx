@@ -1129,6 +1129,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [expandedMarketplaceContainerTeam, setExpandedMarketplaceContainerTeam] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [viewModeMenuOpen, setViewModeMenuOpen] = useState(false);
   const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
   const [quickFilterExcludes, setQuickFilterExcludes] = useState<Record<QuickFilterKey, boolean>>(EMPTY_QUICK_EXCLUDES);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
@@ -1967,84 +1968,123 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
         <div className="space-y-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <Button
-              size="sm"
-              variant={viewMode === "cards" ? "default" : "outline"}
-              onClick={() => setViewMode("cards")}
-            >
-              Kacheln
-            </Button>
-            <Button
-              size="sm"
-              variant={viewMode === "list" ? "default" : "outline"}
-              onClick={() => setViewMode("list")}
-            >
-              Liste
-            </Button>
-          </div>
-
-          <div className="relative flex min-w-0 items-center">
-            <Button
-              type="button"
-              size="sm"
-              variant={quickActiveCount > 0 ? "default" : "outline"}
-              onClick={() => setQuickFilterMenuOpen((open) => !open)}
-              aria-expanded={quickFilterMenuOpen}
-              title="Schnellzugriff öffnen"
-            >
-              <SlidersHorizontal className="size-3.5" />
-              Schnellzugriff
-              <Badge variant={quickActiveCount > 0 ? "secondary" : "outline"}>{quickActiveCount}</Badge>
-            </Button>
-            {quickFilterMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setQuickFilterMenuOpen(false)} />
-                <div className="absolute left-0 top-full z-50 mt-1 w-[min(92vw,24rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
-                  <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
-                    Betrachtungen kombinieren
+            <div className="relative flex min-w-0 items-center">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setViewModeMenuOpen((open) => !open);
+                  setQuickFilterMenuOpen(false);
+                }}
+                aria-expanded={viewModeMenuOpen}
+                title="Ansicht auswählen"
+              >
+                {viewMode === "cards" ? "Kacheln" : "Liste"}
+                <ChevronDown className="size-3.5" />
+              </Button>
+              {viewModeMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setViewModeMenuOpen(false)} />
+                  <div className="absolute left-0 top-full z-50 mt-1 w-[min(72vw,13rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
+                    <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
+                      Ansicht auswählen
+                    </div>
+                    <div className="space-y-1">
+                      {[
+                        { value: "cards" as const, label: "Kacheln", description: "Kartenansicht" },
+                        { value: "list" as const, label: "Liste", description: "Tabellenansicht" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setViewMode(option.value);
+                            setViewModeMenuOpen(false);
+                          }}
+                          className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors ${
+                            viewMode === option.value ? "bg-primary/10 text-primary" : "hover:bg-accent/50"
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium">{option.label}</span>
+                            <span className="block truncate text-[10px] text-muted-foreground">{option.description}</span>
+                          </span>
+                          {viewMode === option.value && <CheckCircle2 className="size-3.5" />}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {quickFilterRows.map((row) => {
-                      const mode = getQuickFilterMode(row.key);
-                      const modeOptions: Array<{ value: QuickFilterMode; label: string; icon: ReactNode; title: string }> = [
-                        { value: "exclude", label: "Ohne", icon: <XCircle className="size-3" />, title: `${row.label} ausschließen` },
-                        { value: "neutral", label: "Neutral", icon: <RotateCcw className="size-3" />, title: `${row.label} neutral behandeln` },
-                        { value: "include", label: "Nur", icon: <CheckCircle2 className="size-3" />, title: `${row.label} einschließen` },
-                      ];
+                </>
+              )}
+            </div>
 
-                      return (
-                        <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent/50">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="text-muted-foreground">{row.icon}</span>
-                            <span className="min-w-0 truncate text-xs font-medium">{row.label}</span>
-                            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{row.count}</Badge>
+            <div className="relative flex min-w-0 items-center">
+              <Button
+                type="button"
+                size="sm"
+                variant={quickActiveCount > 0 ? "default" : "outline"}
+                onClick={() => {
+                  setQuickFilterMenuOpen((open) => !open);
+                  setViewModeMenuOpen(false);
+                }}
+                aria-expanded={quickFilterMenuOpen}
+                title="Schnellzugriff öffnen"
+              >
+                <SlidersHorizontal className="size-3.5" />
+                Schnellzugriff
+                <Badge variant={quickActiveCount > 0 ? "secondary" : "outline"}>{quickActiveCount}</Badge>
+              </Button>
+              {quickFilterMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setQuickFilterMenuOpen(false)} />
+                  <div className="absolute left-0 top-full z-50 mt-1 w-[min(92vw,24rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
+                    <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
+                      Betrachtungen kombinieren
+                    </div>
+                    <div className="space-y-1">
+                      {quickFilterRows.map((row) => {
+                        const mode = getQuickFilterMode(row.key);
+                        const modeOptions: Array<{ value: QuickFilterMode; label: string; icon: ReactNode; title: string }> = [
+                          { value: "exclude", label: "Ohne", icon: <XCircle className="size-3" />, title: `${row.label} ausschließen` },
+                          { value: "neutral", label: "Neutral", icon: <RotateCcw className="size-3" />, title: `${row.label} neutral behandeln` },
+                          { value: "include", label: "Nur", icon: <CheckCircle2 className="size-3" />, title: `${row.label} einschließen` },
+                        ];
+
+                        return (
+                          <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent/50">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="text-muted-foreground">{row.icon}</span>
+                              <span className="min-w-0 truncate text-xs font-medium">{row.label}</span>
+                              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{row.count}</Badge>
+                            </div>
+                            <div className="flex shrink-0 rounded-md border border-border/60 bg-background/80 p-0.5">
+                              {modeOptions.map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => setQuickFilterMode(row.key, option.value)}
+                                  className={`inline-flex h-6 items-center gap-1 rounded px-1.5 text-[10px] transition-colors ${
+                                    mode === option.value
+                                      ? "bg-primary text-primary-foreground"
+                                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                  }`}
+                                  title={option.title}
+                                  aria-pressed={mode === option.value}
+                                >
+                                  {option.icon}
+                                  <span className={option.value === "neutral" ? "hidden sm:inline" : ""}>{option.label}</span>
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <div className="flex shrink-0 rounded-md border border-border/60 bg-background/80 p-0.5">
-                            {modeOptions.map((option) => (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => setQuickFilterMode(row.key, option.value)}
-                                className={`inline-flex h-6 items-center gap-1 rounded px-1.5 text-[10px] transition-colors ${
-                                  mode === option.value
-                                    ? "bg-primary text-primary-foreground"
-                                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                                }`}
-                                title={option.title}
-                                aria-pressed={mode === option.value}
-                              >
-                                {option.icon}
-                                <span className={option.value === "neutral" ? "hidden sm:inline" : ""}>{option.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
 
           <div className="relative">
@@ -2663,7 +2703,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const canEditMarketplaceMatching = capabilities.canManageSlots;
               const canDeleteTeam = team.canManageTeamManagers === true;
               const isMarketplaceContainerOpen = expandedMarketplaceContainerTeam === team.id;
-              const showCompactActionColumn = !isMarketplaceMatching;
+              const showCompactActionColumn = true;
               const showCompactStatusRow =
                 (showActionStatus && (completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -2793,7 +2833,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           {showCompactActionColumn && (
                             <div className="flex items-start justify-end">
                               <div className="flex flex-col gap-1">
-                                {canEditMarketplaceMatching && (
+                                {canEditMarketplaceMatching && !isMarketplaceMatching && (
                                   <Button
                                     type="button"
                                     size="sm"
@@ -2821,7 +2861,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     Person
                                   </Button>
                                 )}
-                                {canEditMarketplaceTeam && (
+                                {canEditMarketplaceTeam && !isMarketplaceMatching && (
                                   <Button
                                     type="button"
                                     size="sm"
