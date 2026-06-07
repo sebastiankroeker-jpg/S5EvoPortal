@@ -589,6 +589,10 @@ function DirectFieldBadge() {
   );
 }
 
+function isMarketplaceMatchingTeam(team: Team) {
+  return team.registrationMode === "MARKETPLACE" && (team.marketplaceStatus === "MATCHING" || getParticipantCount(team) !== 1);
+}
+
 function TeamDeleteDialog({
   team,
   deleting,
@@ -604,6 +608,7 @@ function TeamDeleteDialog({
 }) {
   const participantCount = getParticipantCount(team);
   const isMarketplace = team.registrationMode === "MARKETPLACE";
+  const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
 
   return (
     <AlertDialog>
@@ -629,10 +634,18 @@ function TeamDeleteDialog({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{isMarketplace ? "Sportlerbörse-Meldung archivieren?" : "Mannschaft archivieren?"}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {isMarketplaceMatching
+              ? "Börsen-Mannschaft archivieren?"
+              : isMarketplace
+                ? "Sportlerbörse-Meldung archivieren?"
+                : "Mannschaft archivieren?"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            {isMarketplace
-              ? `„${team.name}“ wird aus der Sportlerbörse ausgeblendet. Der zugehörige Teilnehmerdatensatz wird mit archiviert, Benutzerkonten bleiben erhalten. Admins können die Meldung später im Archiv wiederherstellen.`
+            {isMarketplaceMatching
+              ? `„${team.name}“ wird als Börsen-Mannschaft ausgeblendet. ${participantCount} zugeordnete Teilnehmer:innen bleiben erhalten, Benutzerkonten bleiben erhalten. Admins können den Entwurf später im Archiv wiederherstellen.`
+              : isMarketplace
+                ? `„${team.name}“ wird aus der Sportlerbörse ausgeblendet. Der zugehörige Teilnehmerdatensatz wird mit archiviert, Benutzerkonten bleiben erhalten. Admins können die Meldung später im Archiv wiederherstellen.`
               : `„${team.name}“ wird aus Dashboards, Ergebnislisten und Exporten ausgeblendet. ${participantCount} Teilnehmer:innen werden mit ausgeblendet, Benutzerkonten bleiben erhalten. Admins können die Mannschaft später im Archiv wiederherstellen.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -1972,13 +1985,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               <tbody>
                 {sortedTeams.map((team) => {
                   const isEditable = team.canCurrentUserEdit === true && team.registrationMode !== "MARKETPLACE";
+                  const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
                   const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
-                  const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
+                  const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
                   const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
                   const canEditMarketplaceMatching = Boolean(
                     canEditAll &&
-                    team.registrationMode === "MARKETPLACE" &&
-                    (team.marketplaceStatus === "MATCHING" || getParticipantCount(team) !== 1),
+                    isMarketplaceMatching,
                   );
                   const canDeleteTeam = team.canManageTeamManagers === true;
 
@@ -1991,6 +2004,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             {team.registrationMode === "MARKETPLACE" && (
                               <Badge variant="secondary" className="gap-1">
                                 Sportlerbörse
+                              </Badge>
+                            )}
+                            {isMarketplaceMatching && (
+                              <Badge variant="outline" className="border-primary/40 text-primary">
+                                MTC
                               </Badge>
                             )}
                             {team.registrationMode === "MARKETPLACE" && (
@@ -2063,7 +2081,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   variant="outline"
                                   onClick={() => setEditingMarketplaceMatchingTeam(team)}
                                 >
-                                  MTC
+                                  MTC bearbeiten
                                 </Button>
                               )}
                               {canEditMarketplaceParticipant && (
@@ -2128,13 +2146,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const disciplineSlots = getTeamDisciplineSlots(team);
               const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
               const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
+              const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
               const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
-              const canEditMarketplaceParticipant = Boolean(marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
+              const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
               const canEditMarketplaceTeam = Boolean(canEditAll && team.registrationMode === "MARKETPLACE");
               const canEditMarketplaceMatching = Boolean(
                 canEditAll &&
-                team.registrationMode === "MARKETPLACE" &&
-                (team.marketplaceStatus === "MATCHING" || getParticipantCount(team) !== 1),
+                isMarketplaceMatching,
               );
               const canDeleteTeam = team.canManageTeamManagers === true;
               const showCompactStatusRow =
@@ -2165,6 +2183,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 Sportlerbörse
                               </Badge>
                             )}
+                            {isMarketplaceMatching && (
+                              <Badge variant="outline" className="h-6 shrink-0 border-primary/40 px-1.5 text-[10px] text-primary">
+                                MTC
+                              </Badge>
+                            )}
                             {team.registrationMode === "MARKETPLACE" && (
                               <Badge variant="outline" className={`h-6 shrink-0 px-1.5 text-[10px] ${getMarketplaceStatusClass(team.marketplaceStatus)}`}>
                                 {marketplaceStatus.label}
@@ -2177,7 +2200,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               </Badge>
                             )}
                           </div>
-                          {team.registrationMode === "MARKETPLACE" ? (
+                          {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
                             <MarketplacePersonSummary
                               team={team}
                               participant={marketplaceParticipant}
@@ -2356,6 +2379,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Sportlerbörse
                                 </Badge>
                               )}
+                              {isMarketplaceMatching && (
+                                <Badge variant="outline" className="h-6 shrink-0 border-primary/40 px-1.5 text-[10px] text-primary">
+                                  MTC
+                                </Badge>
+                              )}
                               {team.registrationMode === "MARKETPLACE" && (
                                 <Badge variant="outline" className={`h-6 shrink-0 px-1.5 text-[10px] ${getMarketplaceStatusClass(team.marketplaceStatus)}`}>
                                   {marketplaceStatus.label}
@@ -2468,19 +2496,31 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           )}
 
                           {team.registrationMode === "MARKETPLACE" && (
-                            <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]">
-                              <MarketplacePersonSummary
-                                team={team}
-                                participant={marketplaceParticipant}
-                                revealPrivateName={revealPrivateDashboardNames}
-                              />
+                            <div className={isMarketplaceMatching ? "space-y-2" : "grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]"}>
+                              {!isMarketplaceMatching && (
+                                <MarketplacePersonSummary
+                                  team={team}
+                                  participant={marketplaceParticipant}
+                                  revealPrivateName={revealPrivateDashboardNames}
+                                />
+                              )}
                               <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
                               <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
+                                    {isMarketplaceMatching && (
+                                      <Badge variant="outline" className="border-primary/40 text-primary">
+                                        MTC-Entwurf
+                                      </Badge>
+                                    )}
                                     <Badge variant="outline" className={getMarketplaceStatusClass(team.marketplaceStatus)}>
                                       {marketplaceStatus.label}
                                     </Badge>
+                                    {isMarketplaceMatching && (
+                                      <Badge variant="outline">
+                                        {getParticipantCount(team)} / 5 Teilnehmer:innen
+                                      </Badge>
+                                    )}
                                     <Badge variant="outline">
                                       {MARKETPLACE_VISIBILITY_OPTIONS.find((option) => option.id === team.marketplaceVisibility)?.label || "Nur für Admins/MGMT sichtbar"}
                                     </Badge>
@@ -2544,7 +2584,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             </div>
                           )}
 
-                          {team.registrationMode !== "MARKETPLACE" && team.participants && team.participants.length > 0 && (
+                          {(team.registrationMode !== "MARKETPLACE" || isMarketplaceMatching) && team.participants && team.participants.length > 0 && (
                             <div className="space-y-1">
                               <div className="grid gap-1 md:grid-cols-5">
                                 {disciplineSlots.map(({ discipline, participant }) => {
