@@ -3004,7 +3004,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                       {participant ? (
                                         <div className="mt-auto flex flex-wrap gap-1">
                                           {canEditMarketplaceMatching && participant.id && (
-                                            <div className="w-full" onClick={(event) => event.stopPropagation()}>
+                                            <div className="min-w-[7.5rem] flex-[1.15_1_0]" onClick={(event) => event.stopPropagation()}>
                                               <Select
                                                 value={assignedDisciplineId}
                                                 onValueChange={(value) => {
@@ -3013,7 +3013,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                                   }
                                                 }}
                                               >
-                                                <SelectTrigger className="h-7 text-[10px]" title="Zugeordneten MTC-Slot ändern">
+                                                <SelectTrigger className="h-7 px-2 text-[10px]" title="Zugeordneten MTC-Slot ändern">
                                                   <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -3023,7 +3023,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
                                                     return (
                                                       <SelectItem key={slotOption.id} value={slotOption.id}>
-                                                        {slotOption.icon} Slot: {slotOption.label}
+                                                        {slotOption.icon} {slotOption.label}
                                                         {isSwapTarget && slotParticipant ? ` - tauschen mit ${getParticipantDisplayName(slotParticipant)}` : ""}
                                                       </SelectItem>
                                                     );
@@ -3038,7 +3038,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                               e.stopPropagation();
                                               openParticipantDetails(team, participant);
                                             }}
-                                            className={`min-h-7 flex-1 rounded border px-2 py-0.5 text-[10px] transition-colors ${participant.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
+                                            className={`min-h-7 min-w-[4.75rem] flex-1 rounded border px-2 py-0.5 text-[10px] transition-colors ${participant.moderationNote?.trim() ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:text-primary"}`}
                                             title="Moderationshinweis bearbeiten"
                                           >
                                             {participant.moderationNote?.trim() ? "Notiz" : "Notiz +"}
@@ -3050,7 +3050,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                                 e.stopPropagation();
                                                 openParticipantDetails(team, participant);
                                               }}
-                                              className="min-h-7 flex-1 rounded border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-primary"
+                                              className="min-h-7 min-w-[4.75rem] flex-1 rounded border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-primary"
                                               title="Teilnehmerdialog mit Einladung öffnen"
                                             >
                                               Einladung
@@ -3062,7 +3062,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                                 e.stopPropagation();
                                                 openParticipantDetails(team, participant);
                                               }}
-                                              className="min-h-7 flex-1 rounded border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-primary"
+                                              className="min-h-7 min-w-[4.75rem] flex-1 rounded border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-primary"
                                               title="Teilnehmer bearbeiten"
                                             >
                                               Bearbeiten
@@ -3612,7 +3612,7 @@ function MarketplaceMatchingModal({
 
                                     return (
                                       <SelectItem key={slotOption.id} value={slotOption.id}>
-                                        {slotOption.icon} Slot: {slotOption.label}
+                                        {slotOption.icon} {slotOption.label}
                                         {isSwapTarget && slotParticipant ? ` - tauschen mit ${getParticipantDisplayName(slotParticipant)}` : ""}
                                       </SelectItem>
                                     );
