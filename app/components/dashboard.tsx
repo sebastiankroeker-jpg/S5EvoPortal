@@ -1990,10 +1990,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               variant={quickActiveCount > 0 ? "default" : "outline"}
               onClick={() => setQuickFilterMenuOpen((open) => !open)}
               aria-expanded={quickFilterMenuOpen}
-              title="Schnellfilter öffnen"
+              title="Schnellzugriff öffnen"
             >
               <SlidersHorizontal className="size-3.5" />
-              Schnellfilter
+              Schnellzugriff
               <Badge variant={quickActiveCount > 0 ? "secondary" : "outline"}>{quickActiveCount}</Badge>
             </Button>
             {quickFilterMenuOpen && (
@@ -3024,20 +3024,35 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         </div>
                                       )}
                                     </div>
-                                    {canEditMarketplaceTeam && (
+                                    <div className="flex items-center gap-2">
+                                      {canEditMarketplaceTeam && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-8 flex-1"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            setEditingMarketplaceTeam(team);
+                                          }}
+                                        >
+                                          <SlidersHorizontal className="size-4" />
+                                          Container bearbeiten
+                                        </Button>
+                                      )}
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        className="h-8 w-full"
+                                        className="h-8 w-8 shrink-0 p-0"
+                                        title="Container-Information schließen"
+                                        aria-label="Container-Information schließen"
                                         onClick={(event) => {
                                           event.stopPropagation();
-                                          setEditingMarketplaceTeam(team);
+                                          setExpandedMarketplaceContainerTeam(null);
                                         }}
                                       >
-                                        <SlidersHorizontal className="size-4" />
-                                        Container bearbeiten
+                                        <X className="size-4" />
                                       </Button>
-                                    )}
+                                    </div>
                                   </div>
                                 )}
                               </div>
