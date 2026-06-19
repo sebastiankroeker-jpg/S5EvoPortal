@@ -84,6 +84,7 @@ interface Team {
   contactName: string;
   contactEmail: string;
   ownerId?: string | null;
+  ownerHasPortalAccount?: boolean;
   ownerEmail?: string;
   ownerName?: string;
   teamChiefId?: string | null;
@@ -92,8 +93,18 @@ interface Team {
   isCurrentUserTeam?: boolean;
   canCurrentUserEdit?: boolean;
   canManageTeamManagers?: boolean;
+  ownerClaim?: OwnerClaimInfo | null;
   participants?: Participant[];
 }
+
+type OwnerClaimInfo = {
+  suggestedEmail?: string | null;
+  suggestedName?: string | null;
+  sentAt?: string | null;
+  expiresAt?: string | null;
+  claimedAt?: string | null;
+  revokedAt?: string | null;
+};
 
 interface Participant {
   id?: string;
@@ -478,6 +489,85 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   if (status === "revoked") return { label: "Einladung gesperrt", className: "border-red-300 text-red-700" };
   if (status === "missing_email") return { label: "Keine E-Mail", className: "border-muted text-muted-foreground" };
   return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
+}
+
+function getOwnerClaimStatus(team: Team) {
+  if (team.ownerHasPortalAccount) return "linked";
+  if (!team.ownerClaim && !team.ownerEmail && !team.contactEmail) return "missing_email";
+  if (!team.ownerClaim) return "none";
+  if (team.ownerClaim.revokedAt) return "revoked";
+  if (team.ownerClaim.claimedAt) return "claimed";
+
+  const expiresAt = team.ownerClaim.expiresAt ? new Date(team.ownerClaim.expiresAt).getTime() : Number.NaN;
+  if (!Number.isNaN(expiresAt) && expiresAt < Date.now()) return "expired";
+
+  if (team.ownerId) return "user_exists";
+
+  return "active";
+}
+
+function getOwnerClaimMeta(team: Team) {
+  switch (getOwnerClaimStatus(team)) {
+    case "linked":
+      return {
+        label: "Konto verknüpft",
+        className: "border-green-300 bg-green-50 text-green-800",
+        description: "Der Owner ist bereits ein Portal-User.",
+      };
+    case "claimed":
+      return {
+        label: "Claim eingelöst",
+        className: "border-green-300 bg-green-50 text-green-800",
+        description: "Der Owner-Claim-Link wurde bereits verwendet.",
+      };
+    case "active":
+      return {
+        label: "Claim-Link offen",
+        className: "border-blue-300 bg-blue-50 text-blue-800",
+        description: "Der Owner kann die Mannschaft noch per Claim-Link übernehmen.",
+      };
+    case "user_exists":
+      return {
+        label: "User angelegt",
+        className: "border-sky-300 bg-sky-50 text-sky-800",
+        description: "Ein Owner-User existiert, der Portal-Login ist noch nicht bestätigt.",
+      };
+    case "expired":
+      return {
+        label: "Claim abgelaufen",
+        className: "border-amber-300 bg-amber-50 text-amber-800",
+        description: "Der Owner-Claim-Link ist abgelaufen.",
+      };
+    case "revoked":
+      return {
+        label: "Claim gesperrt",
+        className: "border-red-300 bg-red-50 text-red-800",
+        description: "Der Owner-Claim-Link wurde gesperrt.",
+      };
+    case "missing_email":
+      return {
+        label: "Keine Owner-Mail",
+        className: "border-muted bg-muted/30 text-muted-foreground",
+        description: "Ohne E-Mail kann kein Owner-Claim-Link zugestellt werden.",
+      };
+    default:
+      return {
+        label: "Kein Claim-Token",
+        className: "border-muted bg-muted/30 text-muted-foreground",
+        description: "Für diese Mannschaft ist kein Owner-Claim-Token hinterlegt.",
+      };
+  }
+}
+
+function OwnerClaimBadge({ team }: { team: Team }) {
+  const meta = getOwnerClaimMeta(team);
+
+  return (
+    <Badge variant="outline" className={`h-5 max-w-full gap-1 px-1.5 text-[10px] ${meta.className}`} title={meta.description}>
+      <UserRound className="size-3" />
+      {meta.label}
+    </Badge>
+  );
 }
 
 function getParticipantAccessMeta(team: Team, participant: Participant) {
@@ -965,6 +1055,72 @@ function TeamVisibilityIconBadge({ team, active, onToggle }: { team: Team; activ
   );
 }
 
+function TeamAdminInfoButton({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
+      title="Mannschafts-Info"
+      aria-label="Mannschafts-Info"
+      aria-expanded={active}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+    >
+      <Info className="size-3.5" aria-hidden="true" />
+    </button>
+  );
+}
+
+function TeamAdminInfoPanel({
+  team,
+  compact = false,
+  onClick,
+}: {
+  team: Team;
+  compact?: boolean;
+  onClick?: (event: React.MouseEvent) => void;
+}) {
+  const ownerClaimMeta = getOwnerClaimMeta(team);
+
+  return (
+    <div
+      className={`rounded-md border border-border/60 bg-muted/20 ${compact ? "p-2 text-[11px]" : "p-2.5 text-xs"}`}
+      onClick={onClick}
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <OwnerClaimBadge team={team} />
+        <span className="text-muted-foreground">{ownerClaimMeta.description}</span>
+      </div>
+      <div className="mt-1.5 grid gap-x-3 gap-y-1 text-muted-foreground sm:grid-cols-2">
+        {team.createdAt && <span><strong className="text-foreground">Angelegt:</strong> {formatDatePart(team.createdAt)}, {formatTimePart(team.createdAt)}</span>}
+        {team.updatedAt && <span><strong className="text-foreground">Geändert:</strong> {formatDateTime(team.updatedAt) || "Unbekannt"}</span>}
+        {(team.ownerName || team.ownerEmail) && (
+          <span className="min-w-0 truncate">
+            <strong className="text-foreground">Owner:</strong> {team.ownerName || team.ownerEmail}
+          </span>
+        )}
+        {(team.ownerEmail || team.contactEmail) && (
+          <span className="min-w-0 truncate">
+            <strong className="text-foreground">Owner-Mail:</strong> {team.ownerEmail || team.contactEmail}
+          </span>
+        )}
+        {team.ownerClaim?.suggestedEmail && (
+          <span className="min-w-0 truncate">
+            <strong className="text-foreground">Claim-Mail:</strong> {team.ownerClaim.suggestedEmail}
+          </span>
+        )}
+        {team.ownerClaim?.sentAt && <span><strong className="text-foreground">Claim erstellt:</strong> {formatDateTime(team.ownerClaim.sentAt) || "Unbekannt"}</span>}
+        {team.ownerClaim?.claimedAt && <span><strong className="text-foreground">Claim eingelöst:</strong> {formatDateTime(team.ownerClaim.claimedAt) || "Unbekannt"}</span>}
+        {team.ownerClaim?.expiresAt && !team.ownerClaim.claimedAt && (
+          <span><strong className="text-foreground">Claim gültig bis:</strong> {formatDateTime(team.ownerClaim.expiresAt) || "Unbekannt"}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team: Team; compact?: boolean; subtle?: boolean }) {
   if (team.registrationMode !== "MARKETPLACE") return null;
 
@@ -1403,6 +1559,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [expandedMarketplaceContainerTeam, setExpandedMarketplaceContainerTeam] = useState<string | null>(null);
   const [teamVisibilityInfoTeamId, setTeamVisibilityInfoTeamId] = useState<string | null>(null);
+  const [teamAdminInfoTeamId, setTeamAdminInfoTeamId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewModeMenuOpen, setViewModeMenuOpen] = useState(false);
   const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
@@ -1748,6 +1905,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   const toggleTeamVisibilityInfo = useCallback((teamId: string) => {
     setTeamVisibilityInfoTeamId((currentTeamId) => (currentTeamId === teamId ? null : teamId));
+  }, []);
+
+  const toggleTeamAdminInfo = useCallback((teamId: string) => {
+    setTeamAdminInfoTeamId((currentTeamId) => (currentTeamId === teamId ? null : teamId));
   }, []);
 
   // Pending owner filter (set before teams are loaded)
@@ -3145,6 +3306,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   active={teamVisibilityInfoTeamId === team.id}
                                   onToggle={() => toggleTeamVisibilityInfo(team.id)}
                                 />
+                                {showAdminDashboardInfo && (
+                                  <TeamAdminInfoButton
+                                    active={teamAdminInfoTeamId === team.id}
+                                    onToggle={() => toggleTeamAdminInfo(team.id)}
+                                  />
+                                )}
                               </div>
                               {team.isCurrentUserTeam && (
                                 <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
@@ -3154,6 +3321,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               )}
                               <MarketplaceTeamBadges team={team} compact />
                             </div>
+                            {showAdminDashboardInfo && teamAdminInfoTeamId === team.id && (
+                              <TeamAdminInfoPanel
+                                team={team}
+                                compact
+                                onClick={(event) => event.stopPropagation()}
+                              />
+                            )}
                             {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
                               <MarketplacePersonSummary
                                 team={team}
@@ -3350,6 +3524,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   active={teamVisibilityInfoTeamId === team.id}
                                   onToggle={() => toggleTeamVisibilityInfo(team.id)}
                                 />
+                                {showAdminDashboardInfo && (
+                                  <TeamAdminInfoButton
+                                    active={teamAdminInfoTeamId === team.id}
+                                    onToggle={() => toggleTeamAdminInfo(team.id)}
+                                  />
+                                )}
                               </div>
                               {team.isCurrentUserTeam && (
                                 <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
@@ -3432,6 +3612,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               </Button>
                             </div>
                           </div>
+
+                          {showAdminDashboardInfo && teamAdminInfoTeamId === team.id && (
+                            <TeamAdminInfoPanel team={team} onClick={(event) => event.stopPropagation()} />
+                          )}
 
                           {((showActionStatus && (isMarketplaceMatching
                             ? mtcCombinedActionMeta
@@ -3896,6 +4080,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           onSave={handleEditTeam}
           onCancel={() => setEditingTeam(null)}
           showAdminInfo={canEditAll}
+          showOwnerClaimInfo={isAdmin}
           canManageTeamManagers={editingTeam.canManageTeamManagers === true}
         />
       )}
@@ -4617,11 +4802,19 @@ function EditMarketplaceTeamModal({ team, onSave, onCancel }: {
 }
 
 // Edit Team Modal Component
-function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManageTeamManagers = false }: {
+function EditTeamModal({
+  team,
+  onSave,
+  onCancel,
+  showAdminInfo = false,
+  showOwnerClaimInfo = false,
+  canManageTeamManagers = false,
+}: {
   team: Team;
   onSave: (data: TeamEditPayload) => void | Promise<void>;
   onCancel: () => void;
   showAdminInfo?: boolean;
+  showOwnerClaimInfo?: boolean;
   canManageTeamManagers?: boolean;
 }) {
   const [showInfo, setShowInfo] = useState(false);
@@ -4895,6 +5088,12 @@ function EditTeamModal({ team, onSave, onCancel, showAdminInfo = false, canManag
           )}
           {showAdminInfo && showInfo && (
             <div className="space-y-1 rounded-md border border-border/60 bg-muted/30 p-2.5 text-xs">
+              {showOwnerClaimInfo && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <OwnerClaimBadge team={team} />
+                  <span className="text-muted-foreground">{getOwnerClaimMeta(team).description}</span>
+                </div>
+              )}
               {team.createdAt && (
                 <>
                   <div><strong>Anlagedatum:</strong> {formatDatePart(team.createdAt)}</div>

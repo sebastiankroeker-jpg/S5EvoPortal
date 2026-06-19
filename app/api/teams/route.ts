@@ -114,12 +114,21 @@ type SerializableTeam = {
   contactName?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
-  owner?: { email?: string | null; name?: string | null } | null;
+  owner?: { email?: string | null; name?: string | null; authentikSub?: string | null } | null;
   ownerId?: string | null;
   teamChiefId?: string | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
   participants?: SerializableParticipant[];
+  registrationClaimTokens?: Array<{
+    id: string;
+    suggestedEmail: string;
+    suggestedName?: string | null;
+    createdAt: Date;
+    expiresAt: Date;
+    claimedAt?: Date | null;
+    revokedAt?: Date | null;
+  }>;
   competition?: {
     marketplaceGlobalVisibility?: "SELECTIVE" | "OFFLINE" | null;
   } | null;
@@ -202,6 +211,7 @@ function serializeTeam(
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
     canSeeSensitiveParticipantFields?: boolean;
+    canSeeOwnerClaimFields?: boolean;
     canEditAllTeams?: boolean;
   },
 ) {
@@ -244,6 +254,10 @@ function serializeTeam(
     teamPublicationLevel: team.teamPublicationLevel,
     canSeeFullPublication: canSeeFullTeamPublication,
   });
+  const latestRegistrationClaimToken = Array.isArray(team.registrationClaimTokens)
+    ? team.registrationClaimTokens[0]
+    : null;
+  const canSeeOwnerClaimFields = options?.canSeeOwnerClaimFields === true;
   return {
     id: team.id,
     name: visibleTeamName,
@@ -257,6 +271,7 @@ function serializeTeam(
     contactEmail: canSeeFullTeamPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
     contactPhone: canSeeFullTeamPublication ? team.contactPhone ?? "" : "",
     ownerId: canSeeSensitiveParticipantFields ? team.ownerId ?? null : null,
+    ownerHasPortalAccount: canSeeOwnerClaimFields ? Boolean(team.owner?.authentikSub) : false,
     ownerEmail: canSeeFullTeamPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
     ownerName: canSeeFullTeamPublication ? team.owner?.name ?? team.contactName ?? "" : "",
     teamChiefId: canSeeSensitiveParticipantFields ? team.teamChiefId ?? null : null,
@@ -265,6 +280,16 @@ function serializeTeam(
     canManageTeamManagers: teamAccess.canManageTeamManagers,
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updatedAt: team.updatedAt?.toISOString?.() ?? team.createdAt?.toISOString?.() ?? new Date().toISOString(),
+    ownerClaim: canSeeOwnerClaimFields && latestRegistrationClaimToken
+      ? {
+          suggestedEmail: latestRegistrationClaimToken.suggestedEmail,
+          suggestedName: latestRegistrationClaimToken.suggestedName ?? null,
+          sentAt: latestRegistrationClaimToken.createdAt?.toISOString?.() ?? null,
+          expiresAt: latestRegistrationClaimToken.expiresAt?.toISOString?.() ?? null,
+          claimedAt: latestRegistrationClaimToken.claimedAt?.toISOString?.() ?? null,
+          revokedAt: latestRegistrationClaimToken.revokedAt?.toISOString?.() ?? null,
+        }
+      : null,
     participants: Array.isArray(team.participants)
       ? team.participants
           .map((participant) =>
@@ -509,7 +534,20 @@ export async function GET(request: NextRequest) {
               }
             }
           },
-          owner: { select: { email: true, name: true } },
+          owner: { select: { email: true, name: true, authentikSub: true } },
+          registrationClaimTokens: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              suggestedEmail: true,
+              suggestedName: true,
+              createdAt: true,
+              expiresAt: true,
+              claimedAt: true,
+              revokedAt: true,
+            },
+          },
           memberRoles: {
             where: { role: "TEAM_MANAGER", revokedAt: null },
             select: { userId: true, revokedAt: true },
@@ -554,6 +592,7 @@ export async function GET(request: NextRequest) {
             canSeeFullPublication,
             canEditAllTeams: access.canEditAllTeams,
             canSeeSensitiveParticipantFields: access.canEditAllTeams,
+            canSeeOwnerClaimFields: effectiveScopeRole === "ADMIN" && access.isAdmin,
           })];
         }),
       });
