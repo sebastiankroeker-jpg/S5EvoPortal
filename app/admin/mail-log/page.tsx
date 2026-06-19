@@ -16,7 +16,7 @@ import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { usePermissions } from "@/lib/permissions-context";
 
 type MailEventStatus = "sent" | "skipped" | "failed" | "generated" | "unknown";
-type MailEventSource = "team_lifecycle" | "participant_claim" | "participant_change";
+type MailEventSource = "team_registration" | "team_lifecycle" | "participant_claim" | "participant_change";
 
 type MailEvent = {
   id: string;
@@ -63,6 +63,7 @@ function statusVariant(status: MailEventStatus): "destructive" | "outline" | "se
 }
 
 function sourceLabel(source: MailEventSource) {
+  if (source === "team_registration") return "Anmeldungen";
   if (source === "team_lifecycle") return "Archiv/Restore";
   if (source === "participant_change") return "Teilnehmer-Änderungen";
   return "Teilnehmer-Einladung";
@@ -191,6 +192,7 @@ export default function AdminMailLogPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Alle Quellen</SelectItem>
+                    <SelectItem value="team_registration">Anmeldungen</SelectItem>
                     <SelectItem value="team_lifecycle">Archiv/Restore</SelectItem>
                     <SelectItem value="participant_change">Teilnehmer-Änderungen</SelectItem>
                     <SelectItem value="participant_claim">Teilnehmer-Einladungen</SelectItem>

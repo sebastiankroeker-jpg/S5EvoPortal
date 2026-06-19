@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
 type MailEventStatus = "sent" | "skipped" | "failed" | "generated" | "unknown";
-type MailEventSource = "team_lifecycle" | "participant_claim" | "participant_change";
+type MailEventSource = "team_registration" | "team_lifecycle" | "participant_claim" | "participant_change";
 
 type MailEvent = {
   id: string;
@@ -90,7 +90,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ events: [], summary: { total: 0, sent: 0, generated: 0, issues: 0 } });
   }
 
-  const [lifecycleEvents, participantChangeEvents, participantClaimEvents] = await Promise.all([
+  const [registrationEvents, lifecycleEvents, participantChangeEvents, participantClaimEvents] = await Promise.all([
+    sourceFilter !== "all" && sourceFilter !== "team_registration"
+      ? Promise.resolve([])
+      : prisma.auditEvent.findMany({
+          where: {
+            tenantId: auth.tenantId,
+            ...(competitionId ? { competitionId } : {}),
+            action: "TEAM_REGISTRATION_MAIL",
+            scopeType: "TEAM",
+            scopeId: { in: teamIds },
+          },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          select: {
+            id: true,
+            createdAt: true,
+            scopeId: true,
+            reason: true,
+            afterData: true,
+            meta: true,
+            actor: { select: { name: true, email: true } },
+          },
+        }),
     sourceFilter !== "all" && sourceFilter !== "team_lifecycle"
       ? Promise.resolve([])
       : prisma.auditEvent.findMany({
@@ -169,6 +191,31 @@ export async function GET(request: NextRequest) {
   const participantTokenById = new Map(participantTokens.map((token) => [token.id, token]));
 
   const events: MailEvent[] = [
+    ...registrationEvents.map((event) => {
+      const afterData = asRecord(event.afterData);
+      const meta = asRecord(event.meta);
+      const status = normalizeStatus(stringValue(afterData, "mailStatus"));
+      const target = stringValue(afterData, "target");
+      const registrationMode = stringValue(meta, "registrationMode");
+      const actor = event.actor?.name || event.actor?.email || null;
+      const baseTitle =
+        registrationMode === "MARKETPLACE"
+          ? "Anmeldebestätigung Sportlerbörse"
+          : "Anmeldebestätigung Mannschaft";
+
+      return {
+        id: `team-registration:${event.id}`,
+        createdAt: event.createdAt.toISOString(),
+        source: "team_registration" as const,
+        title: target === "org" ? `${baseTitle} an Orga` : baseTitle,
+        status,
+        recipients: stringArrayValue(afterData, "recipients"),
+        subject: stringValue(afterData, "subject"),
+        teamName: stringValue(meta, "teamName") || teamNameById.get(event.scopeId) || null,
+        actor,
+        detail: stringValue(afterData, "reason") || event.reason,
+      };
+    }),
     ...lifecycleEvents.map((event) => {
       const afterData = asRecord(event.afterData);
       const meta = asRecord(event.meta);

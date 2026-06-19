@@ -11,7 +11,7 @@ import {
 } from '@/lib/domain/team';
 import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
-import { resolveRegistrationNotificationEmail, sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
+import { recordTeamRegistrationMailAuditEvents, resolveRegistrationNotificationEmail, sendTeamRegistrationEmails } from '@/lib/mail/team-registration';
 import { sendParticipantClaimEmail } from '@/lib/mail/participant-claim';
 import { recordParticipantClaimAuditEvent } from '@/lib/participant-claim-audit';
 import { prisma } from '@/lib/prisma';
@@ -781,6 +781,16 @@ export async function POST(request: NextRequest) {
             })),
           },
         });
+        await recordTeamRegistrationMailAuditEvents(prisma, {
+          tenantId: competition.tenantId,
+          competitionId,
+          teamId: team.id,
+          teamName: finalTeamName,
+          registrationMode: "MARKETPLACE",
+          actorId: user.id,
+          reason: "mtc_draft_created",
+          mailSummary,
+        }).catch((auditError) => console.error("MTC draft mail audit failed", auditError));
 
         if (!mailSummary.ok) {
           console.warn("MTC draft mail delivery incomplete", {
@@ -1009,6 +1019,16 @@ export async function POST(request: NextRequest) {
             })),
           },
         });
+        await recordTeamRegistrationMailAuditEvents(prisma, {
+          tenantId: competition.tenantId,
+          competitionId,
+          teamId: team.id,
+          teamName: finalTeamName,
+          registrationMode: "MARKETPLACE",
+          actorId: user.id,
+          reason: "marketplace_registration_created",
+          mailSummary,
+        }).catch((auditError) => console.error("Marketplace registration mail audit failed", auditError));
 
         if (!mailSummary.ok) {
           console.warn("Marketplace registration mail delivery incomplete", {
@@ -1317,6 +1337,16 @@ export async function POST(request: NextRequest) {
             })),
           },
         });
+        await recordTeamRegistrationMailAuditEvents(prisma, {
+          tenantId: competition.tenantId,
+          competitionId,
+          teamId: team.id,
+          teamName: finalTeamName,
+          registrationMode: "TEAM",
+          actorId: user.id,
+          reason: "team_registration_created",
+          mailSummary,
+        }).catch((auditError) => console.error("Team registration mail audit failed", auditError));
 
         const participantClaimReplyTo = resolveRegistrationNotificationEmail(competition)[0] || competition.tenant?.contactEmail || null;
         const participantMailResults = await Promise.allSettled(
