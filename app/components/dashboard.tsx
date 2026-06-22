@@ -594,8 +594,17 @@ function AccountLinkStatusDialog({
   actions?: AccountLinkDetailAction[];
   compact?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+
+  const handleActionClick = (action: AccountLinkDetailAction) => {
+    setOpen(false);
+    window.setTimeout(() => {
+      action.onClick();
+    }, 0);
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
           <button
@@ -633,7 +642,7 @@ function AccountLinkStatusDialog({
         {actions && actions.length > 0 && (
           <DialogFooter>
             {actions.map((action) => (
-              <Button key={action.label} type="button" variant={action.variant || "outline"} onClick={action.onClick}>
+              <Button key={action.label} type="button" variant={action.variant || "outline"} onClick={() => handleActionClick(action)}>
                 {action.label}
               </Button>
             ))}
