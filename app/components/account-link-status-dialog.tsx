@@ -111,12 +111,15 @@ export default function AccountLinkStatusDialog({
         <AccountLinkStatusIcon status={meta.status} className="size-3 shrink-0" />
         <span className="truncate">{meta.label}</span>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg" onClick={stopPropagation ? (event) => event.stopPropagation() : undefined}>
-        <DialogHeader>
+      <DialogContent
+        className="grid max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-lg"
+        onClick={stopPropagation ? (event) => event.stopPropagation() : undefined}
+      >
+        <DialogHeader className="border-b border-border/60 px-4 py-4 pr-12">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{meta.description}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="min-h-0 space-y-3 overflow-y-auto px-4 py-4">
           <div className={`inline-flex w-fit items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${meta.className}`}>
             <AccountLinkStatusIcon status={meta.status} className="size-3.5" />
             {meta.label}
@@ -161,7 +164,7 @@ export default function AccountLinkStatusDialog({
           </div>
         </div>
         {visibleActions.length > 0 && (
-          <DialogFooter>
+          <DialogFooter className="mt-0">
             {visibleActions.map((action) => (
               <Button key={action.label} type="button" variant={action.variant || "outline"} onClick={() => runAndClose(action.onClick)}>
                 {action.label}
