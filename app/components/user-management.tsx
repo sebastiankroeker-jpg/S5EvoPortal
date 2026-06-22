@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, Ban, Mail, UserCheck, UserRound } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,16 +16,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import AccountLinkStatusDialog, { AccountLinkStatusIcon } from "./account-link-status-dialog";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import {
   deriveAccountLinkStatus,
@@ -140,26 +131,6 @@ function isMtcScope(team: UserEntry["teamScopes"][number]) {
   return team.registrationMode === "MARKETPLACE";
 }
 
-function renderAccountLinkIcon(status: AccountLinkStatusMeta["status"], className: string) {
-  switch (status) {
-    case "linked":
-      return <UserCheck className={className} />;
-    case "portal_account":
-    case "placeholder_user":
-      return <UserRound className={className} />;
-    case "invitation_open":
-      return <Mail className={className} />;
-    case "expired":
-      return <AlertTriangle className={className} />;
-    case "revoked":
-      return <Ban className={className} />;
-    case "missing_email":
-      return <AlertTriangle className={className} />;
-    default:
-      return <Mail className={className} />;
-  }
-}
-
 function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][number]) {
   const isMtc = isMtcScope(team);
   const hasExplicitTeamRight = team.isLegacyTeamChief || (team.isTeamManager && !team.isOwner);
@@ -184,73 +155,6 @@ function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][
   });
 }
 
-function AccountLinkStatusDialog({
-  meta,
-  title,
-  rows,
-  actions,
-}: {
-  meta: AccountLinkStatusMeta;
-  title: string;
-  rows: Array<{ label: string; value?: ReactNode | null }>;
-  actions?: Array<{ label: string; onClick: () => void }>;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const handleActionClick = (action: { onClick: () => void }) => {
-    setOpen(false);
-    window.setTimeout(action.onClick, 0);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <button
-            type="button"
-            className={`inline-flex h-6 max-w-full items-center justify-center gap-1 rounded-md border px-1.5 text-[10px] font-medium transition-colors hover:bg-muted ${meta.className}`}
-            title={meta.description}
-          />
-        }
-      >
-        {renderAccountLinkIcon(meta.status, "size-3 shrink-0")}
-        <span className="truncate">{meta.label}</span>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{meta.description}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className={`inline-flex w-fit items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${meta.className}`}>
-            {renderAccountLinkIcon(meta.status, "size-3.5")}
-            {meta.label}
-          </div>
-          <div className="grid gap-2 text-sm">
-            {rows
-              .filter((row) => row.value !== undefined && row.value !== null && row.value !== "")
-              .map((row) => (
-                <div key={row.label} className="grid gap-1 rounded-md border border-border/60 bg-muted/20 px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
-                  <span className="text-xs font-medium uppercase text-muted-foreground">{row.label}</span>
-                  <span className="min-w-0 break-words text-foreground">{row.value}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-        {actions && actions.length > 0 && (
-          <DialogFooter>
-            {actions.map((action) => (
-              <Button key={action.label} type="button" variant="outline" onClick={() => handleActionClick(action)}>
-                {action.label}
-              </Button>
-            ))}
-          </DialogFooter>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function UserTeamScopeStatusDialog({ user, team }: { user: UserEntry; team: UserEntry["teamScopes"][number] }) {
   const meta = getTeamScopeAccountMeta(user, team);
   const isMtc = isMtcScope(team);
@@ -262,21 +166,17 @@ function UserTeamScopeStatusDialog({ user, team }: { user: UserEntry; team: User
       title={isMtc ? "MTC-Zugriff" : "Mannschafts-Zugriff"}
       rows={[
         { label: "Benutzer", value: user.name || user.email },
-        { label: "User-Mail", value: user.email },
-        { label: "Team", value: team.name },
+        { label: "User", value: user.email, targetType: "user" },
+        { label: "Team", value: team.name, targetType: "team", onClick: () => openTeamDashboard({ teamId: team.id }) },
         { label: "Typ", value: isMtc ? `MTC/Börse (${team.participantCount}/5)` : "Mannschaft" },
         { label: "Relation", value: team.relations.join(" · ") },
         { label: "Kontakt-Mail", value: team.contactEmail },
         { label: "Claim-Mail", value: team.participantLink?.email || team.ownerClaim?.suggestedEmail },
         { label: "Portal-Konto", value: user.authentikSub ? "vorhanden" : "User angelegt, Login offen" },
-        { label: "Claim", value: meta.label },
+        { label: "Claim", value: meta.label, targetType: "claim", onClick: () => { window.location.href = "/claim-links"; } },
         { label: "Versendet", value: formatDateTime(claim?.sentAt) },
         { label: "Gültig bis", value: claim?.expiresAt && !claim.claimedAt ? formatDateTime(claim.expiresAt) : null },
         { label: "Eingelöst", value: formatDateTime(claim?.claimedAt) },
-      ]}
-      actions={[
-        { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
-        { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
       ]}
     />
   );
@@ -591,7 +491,7 @@ export default function UserManagement() {
                       <div className="mt-2 flex flex-wrap gap-1">
                         {statusSummaryItems.map(({ meta, count }) => (
                           <Badge key={meta.status} variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${meta.className}`}>
-                            {renderAccountLinkIcon(meta.status, "size-3")}
+                            <AccountLinkStatusIcon status={meta.status} className="size-3" />
                             {meta.label}
                             <span className="rounded bg-background/70 px-1">{count}</span>
                           </Badge>

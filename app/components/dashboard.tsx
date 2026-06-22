@@ -12,15 +12,6 @@ import { StatusMessage } from "@/components/ui/status-message";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -57,7 +48,6 @@ import {
 import {
   deriveAccountLinkStatus,
   type AccountLinkClaimStatus,
-  type AccountLinkStatusMeta,
 } from "@/lib/account-link-status";
 import { DASHBOARD_SCOPE_STORAGE_KEY, getStoredDashboardScope, setStoredDashboardScope } from "@/lib/dashboard-navigation";
 import { useSession } from "next-auth/react";
@@ -65,7 +55,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   ArrowDownUp,
-  Ban,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -82,12 +71,12 @@ import {
   SlidersHorizontal,
   Star,
   Trash2,
-  UserCheck,
   UserRound,
   UsersRound,
   X,
   XCircle,
 } from "lucide-react";
+import AccountLinkStatusDialog from "./account-link-status-dialog";
 import ParticipantEditDialog from "./participant-edit-dialog";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 
@@ -556,104 +545,6 @@ function getParticipantLinkMeta(team: Team, participant: Participant) {
   });
 }
 
-function renderAccountLinkIcon(status: AccountLinkStatusMeta["status"], className: string) {
-  switch (status) {
-    case "linked":
-      return <UserCheck className={className} />;
-    case "portal_account":
-    case "placeholder_user":
-      return <UserRound className={className} />;
-    case "invitation_open":
-      return <Mail className={className} />;
-    case "expired":
-      return <AlertTriangle className={className} />;
-    case "revoked":
-      return <Ban className={className} />;
-    case "missing_email":
-      return <AlertTriangle className={className} />;
-    default:
-      return <Mail className={className} />;
-  }
-}
-
-type AccountLinkDetailAction = {
-  label: string;
-  onClick: () => void;
-  variant?: "default" | "outline" | "secondary" | "destructive";
-};
-
-function AccountLinkStatusDialog({
-  meta,
-  title,
-  rows,
-  actions,
-  compact = false,
-}: {
-  meta: AccountLinkStatusMeta;
-  title: string;
-  rows: Array<{ label: string; value?: ReactNode | null }>;
-  actions?: AccountLinkDetailAction[];
-  compact?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const handleActionClick = (action: AccountLinkDetailAction) => {
-    setOpen(false);
-    window.setTimeout(() => {
-      action.onClick();
-    }, 0);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <button
-            type="button"
-            className={`inline-flex max-w-full items-center justify-center gap-1 rounded-md border px-1.5 font-medium transition-colors hover:bg-muted ${compact ? "h-5 text-[10px]" : "h-5 text-[10px]"} ${meta.className}`}
-            title={meta.description}
-            onClick={(event) => event.stopPropagation()}
-          />
-        }
-      >
-        {renderAccountLinkIcon(meta.status, "size-3 shrink-0")}
-        <span className="truncate">{meta.label}</span>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg" onClick={(event) => event.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{meta.description}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className={`inline-flex w-fit items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${meta.className}`}>
-            {renderAccountLinkIcon(meta.status, "size-3.5")}
-            {meta.label}
-          </div>
-          <div className="grid gap-2 text-sm">
-            {rows
-              .filter((row) => row.value !== undefined && row.value !== null && row.value !== "")
-              .map((row) => (
-                <div key={row.label} className="grid gap-1 rounded-md border border-border/60 bg-muted/20 px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
-                  <span className="text-xs font-medium uppercase text-muted-foreground">{row.label}</span>
-                  <span className="min-w-0 break-words text-foreground">{row.value}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-        {actions && actions.length > 0 && (
-          <DialogFooter>
-            {actions.map((action) => (
-              <Button key={action.label} type="button" variant={action.variant || "outline"} onClick={() => handleActionClick(action)}>
-                {action.label}
-              </Button>
-            ))}
-          </DialogFooter>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function OwnerClaimBadge({ team }: { team: Team }) {
   const meta = getOwnerClaimMeta(team);
 
@@ -662,19 +553,21 @@ function OwnerClaimBadge({ team }: { team: Team }) {
       meta={meta}
       title="Team-Owner Status"
       rows={[
-        { label: "Team", value: team.name },
+        { label: "Team", value: team.name, targetType: "team", onClick: () => openTeamDashboard({ teamId: team.id }) },
         { label: "Person", value: team.ownerName || team.contactName || "Unbekannt" },
-        { label: "E-Mail", value: team.ownerEmail || team.contactEmail || team.ownerClaim?.suggestedEmail },
+        {
+          label: "User",
+          value: team.ownerEmail || team.contactEmail || team.ownerClaim?.suggestedEmail,
+          targetType: "user",
+          onClick: team.ownerEmail || team.contactEmail
+            ? () => openUserDashboard({ email: team.ownerEmail || team.contactEmail, teamId: team.id })
+            : undefined,
+        },
         { label: "Portal-Konto", value: team.ownerHasPortalAccount ? "vorhanden" : team.ownerId ? "User angelegt, Login offen" : "nicht erkannt" },
-        { label: "Claim", value: meta.label },
+        { label: "Claim", value: meta.label, targetType: "claim", onClick: () => { window.location.href = "/claim-links"; } },
         { label: "Erstellt", value: team.ownerClaim?.sentAt ? formatDateTime(team.ownerClaim.sentAt) : null },
         { label: "Gültig bis", value: team.ownerClaim?.expiresAt && !team.ownerClaim.claimedAt ? formatDateTime(team.ownerClaim.expiresAt) : null },
         { label: "Eingelöst", value: team.ownerClaim?.claimedAt ? formatDateTime(team.ownerClaim.claimedAt) : null },
-      ]}
-      actions={[
-        { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
-        { label: "Zum User", onClick: () => openUserDashboard({ email: team.ownerEmail || team.contactEmail, teamId: team.id }) },
-        { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
       ]}
     />
   );
@@ -1402,18 +1295,21 @@ function MarketplacePersonSummary({
                   title="Teilnehmer Status"
                   rows={[
                     { label: "Teilnehmer", value: participantLabel },
-                    { label: "Team", value: team.name },
+                    { label: "Team", value: team.name, targetType: "team", onClick: () => openTeamDashboard({ teamId: team.id }) },
                     { label: "E-Mail", value: participant?.email },
+                    {
+                      label: "User",
+                      value: participant?.portalAccount?.email || participant?.email || "nicht verknüpft",
+                      targetType: "user",
+                      onClick: participant?.linkedUserId || participant?.portalAccount?.email || participant?.email
+                        ? () => openUserDashboard({ userId: participant?.linkedUserId, email: participant?.portalAccount?.email || participant?.email, teamId: team.id })
+                        : undefined,
+                    },
                     { label: "Portal-Konto", value: participant?.linkedUserId ? "verknüpft" : participant?.portalAccount?.email || "nicht verknüpft" },
-                    { label: "Claim", value: emailInviteMeta.label },
+                    { label: "Claim", value: emailInviteMeta.label, targetType: "claim", onClick: () => { window.location.href = "/claim-links"; } },
                     { label: "Versendet", value: participant?.emailInvitation?.sentAt ? formatDateTime(participant.emailInvitation.sentAt) : null },
                     { label: "Gültig bis", value: participant?.emailInvitation?.expiresAt && !participant.emailInvitation.claimedAt ? formatDateTime(participant.emailInvitation.expiresAt) : null },
                     { label: "Eingelöst", value: participant?.emailInvitation?.claimedAt ? formatDateTime(participant.emailInvitation.claimedAt) : null },
-                  ]}
-                  actions={[
-                    { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
-                    { label: "Zum User", onClick: () => openUserDashboard({ userId: participant?.linkedUserId, email: participant?.portalAccount?.email || participant?.email, teamId: team.id }) },
-                    { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
                   ]}
                 />
               )}
@@ -4057,18 +3953,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                               title="Teilnehmer Status"
                                               rows={[
                                                 { label: "Teilnehmer", value: participantLabel },
-                                                { label: "Team", value: team.name },
+                                                { label: "Team", value: team.name, targetType: "team", onClick: () => openTeamDashboard({ teamId: team.id }) },
                                                 { label: "E-Mail", value: participant?.email },
+                                                {
+                                                  label: "User",
+                                                  value: participant?.portalAccount?.email || participant?.email || "nicht verknüpft",
+                                                  targetType: "user",
+                                                  onClick: participant?.linkedUserId || participant?.portalAccount?.email || participant?.email
+                                                    ? () => openUserDashboard({ userId: participant?.linkedUserId, email: participant?.portalAccount?.email || participant?.email, teamId: team.id })
+                                                    : undefined,
+                                                },
                                                 { label: "Portal-Konto", value: participant?.linkedUserId ? "verknüpft" : participant?.portalAccount?.email || "nicht verknüpft" },
-                                                { label: "Claim", value: emailInviteMeta.label },
+                                                { label: "Claim", value: emailInviteMeta.label, targetType: "claim", onClick: () => { window.location.href = "/claim-links"; } },
                                                 { label: "Versendet", value: participant?.emailInvitation?.sentAt ? formatDateTime(participant.emailInvitation.sentAt) : null },
                                                 { label: "Gültig bis", value: participant?.emailInvitation?.expiresAt && !participant.emailInvitation.claimedAt ? formatDateTime(participant.emailInvitation.expiresAt) : null },
                                                 { label: "Eingelöst", value: participant?.emailInvitation?.claimedAt ? formatDateTime(participant.emailInvitation.claimedAt) : null },
-                                              ]}
-                                              actions={[
-                                                { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
-                                                { label: "Zum User", onClick: () => openUserDashboard({ userId: participant?.linkedUserId, email: participant?.portalAccount?.email || participant?.email, teamId: team.id }) },
-                                                { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
                                               ]}
                                               compact
                                             />
