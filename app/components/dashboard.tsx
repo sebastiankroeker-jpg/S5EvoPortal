@@ -12,6 +12,15 @@ import { StatusMessage } from "@/components/ui/status-message";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -41,14 +50,21 @@ import {
   TEAM_FOCUS_STORAGE_KEY,
   TEAM_SEARCH_STORAGE_KEY,
   openChangesDashboard,
+  openTeamDashboard,
   openUserDashboard,
 } from "@/lib/admin-routing";
+import {
+  deriveAccountLinkStatus,
+  type AccountLinkClaimStatus,
+  type AccountLinkStatusMeta,
+} from "@/lib/account-link-status";
 import { DASHBOARD_SCOPE_STORAGE_KEY, getStoredDashboardScope, setStoredDashboardScope } from "@/lib/dashboard-navigation";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   ArrowDownUp,
+  Ban,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -64,6 +80,7 @@ import {
   SlidersHorizontal,
   Star,
   Trash2,
+  UserCheck,
   UserRound,
   UsersRound,
   X,
@@ -120,6 +137,7 @@ interface Participant {
   moderationNote?: string;
   email?: string | null;
   linkedUserId?: string | null;
+  portalAccount?: { id: string; email?: string | null; name?: string | null } | null;
   emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN";
   isCurrentUserParticipant?: boolean;
@@ -491,162 +509,221 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
 }
 
-function getOwnerClaimStatus(team: Team) {
-  if (team.ownerHasPortalAccount) return "linked";
-  if (!team.ownerClaim && !team.ownerEmail && !team.contactEmail) return "missing_email";
-  if (!team.ownerClaim) return "none";
-  if (team.ownerClaim.revokedAt) return "revoked";
-  if (team.ownerClaim.claimedAt) return "claimed";
+function getClaimStatus(token?: {
+  claimedAt?: string | null;
+  revokedAt?: string | null;
+  expiresAt?: string | null;
+} | null): AccountLinkClaimStatus {
+  if (!token) return "none";
+  if (token.revokedAt) return "revoked";
+  if (token.claimedAt) return "claimed";
 
-  const expiresAt = team.ownerClaim.expiresAt ? new Date(team.ownerClaim.expiresAt).getTime() : Number.NaN;
+  const expiresAt = token.expiresAt ? new Date(token.expiresAt).getTime() : Number.NaN;
   if (!Number.isNaN(expiresAt) && expiresAt < Date.now()) return "expired";
-
-  if (team.ownerId) return "user_exists";
 
   return "active";
 }
 
 function getOwnerClaimMeta(team: Team) {
-  switch (getOwnerClaimStatus(team)) {
+  return deriveAccountLinkStatus({
+    entityLabel: "Team-Owner",
+    hasEmail: Boolean(team.ownerEmail || team.contactEmail || team.ownerClaim?.suggestedEmail),
+    hasEntityLink: Boolean(team.ownerClaim?.claimedAt),
+    hasPortalAccount: Boolean(team.ownerHasPortalAccount),
+    hasPlaceholderUser: Boolean(team.ownerId && !team.ownerHasPortalAccount),
+    claimStatus: team.ownerClaim ? getClaimStatus(team.ownerClaim) : "none",
+  });
+}
+
+function getParticipantLinkMeta(team: Team, participant: Participant) {
+  const participantEmail = normalizeEmail(participant.email);
+  const emailMatchesPortalOwner =
+    Boolean(participantEmail && team.ownerHasPortalAccount) &&
+    [team.ownerEmail, team.contactEmail].some((email) => normalizeEmail(email) === participantEmail);
+  const emailMatchesPlaceholderOwner =
+    Boolean(participantEmail && team.ownerId && !team.ownerHasPortalAccount) &&
+    [team.ownerEmail, team.contactEmail].some((email) => normalizeEmail(email) === participantEmail);
+
+  return deriveAccountLinkStatus({
+    entityLabel: "Teilnehmer",
+    hasEmail: Boolean(participant.email),
+    hasEntityLink: Boolean(participant.linkedUserId || participant.emailInvitation?.status === "linked"),
+    hasPortalAccount: Boolean(participant.portalAccount || emailMatchesPortalOwner),
+    hasPlaceholderUser: emailMatchesPlaceholderOwner,
+    claimStatus: participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"),
+  });
+}
+
+function renderAccountLinkIcon(status: AccountLinkStatusMeta["status"], className: string) {
+  switch (status) {
     case "linked":
-      return {
-        label: "Konto verknüpft",
-        className: "border-green-300 bg-green-50 text-green-800",
-        description: "Der Owner ist bereits ein Portal-User.",
-      };
-    case "claimed":
-      return {
-        label: "Claim eingelöst",
-        className: "border-green-300 bg-green-50 text-green-800",
-        description: "Der Owner-Claim-Link wurde bereits verwendet.",
-      };
-    case "active":
-      return {
-        label: "Claim-Link offen",
-        className: "border-blue-300 bg-blue-50 text-blue-800",
-        description: "Der Owner kann die Mannschaft noch per Claim-Link übernehmen.",
-      };
-    case "user_exists":
-      return {
-        label: "User angelegt",
-        className: "border-sky-300 bg-sky-50 text-sky-800",
-        description: "Ein Owner-User existiert, der Portal-Login ist noch nicht bestätigt.",
-      };
+      return <UserCheck className={className} />;
+    case "portal_account":
+    case "placeholder_user":
+      return <UserRound className={className} />;
+    case "invitation_open":
+      return <Mail className={className} />;
     case "expired":
-      return {
-        label: "Claim abgelaufen",
-        className: "border-amber-300 bg-amber-50 text-amber-800",
-        description: "Der Owner-Claim-Link ist abgelaufen.",
-      };
+      return <AlertTriangle className={className} />;
     case "revoked":
-      return {
-        label: "Claim gesperrt",
-        className: "border-red-300 bg-red-50 text-red-800",
-        description: "Der Owner-Claim-Link wurde gesperrt.",
-      };
+      return <Ban className={className} />;
     case "missing_email":
-      return {
-        label: "Keine Owner-Mail",
-        className: "border-muted bg-muted/30 text-muted-foreground",
-        description: "Ohne E-Mail kann kein Owner-Claim-Link zugestellt werden.",
-      };
+      return <AlertTriangle className={className} />;
     default:
-      return {
-        label: "Kein Claim-Token",
-        className: "border-muted bg-muted/30 text-muted-foreground",
-        description: "Für diese Mannschaft ist kein Owner-Claim-Token hinterlegt.",
-      };
+      return <Mail className={className} />;
   }
+}
+
+type AccountLinkDetailAction = {
+  label: string;
+  onClick: () => void;
+  variant?: "default" | "outline" | "secondary" | "destructive";
+};
+
+function AccountLinkStatusDialog({
+  meta,
+  title,
+  rows,
+  actions,
+  compact = false,
+}: {
+  meta: AccountLinkStatusMeta;
+  title: string;
+  rows: Array<{ label: string; value?: ReactNode | null }>;
+  actions?: AccountLinkDetailAction[];
+  compact?: boolean;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <button
+            type="button"
+            className={`inline-flex max-w-full items-center justify-center gap-1 rounded-md border px-1.5 font-medium transition-colors hover:bg-muted ${compact ? "h-5 text-[10px]" : "h-5 text-[10px]"} ${meta.className}`}
+            title={meta.description}
+            onClick={(event) => event.stopPropagation()}
+          />
+        }
+      >
+        {renderAccountLinkIcon(meta.status, "size-3 shrink-0")}
+        <span className="truncate">{meta.label}</span>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg" onClick={(event) => event.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{meta.description}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className={`inline-flex w-fit items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${meta.className}`}>
+            {renderAccountLinkIcon(meta.status, "size-3.5")}
+            {meta.label}
+          </div>
+          <div className="grid gap-2 text-sm">
+            {rows
+              .filter((row) => row.value !== undefined && row.value !== null && row.value !== "")
+              .map((row) => (
+                <div key={row.label} className="grid gap-1 rounded-md border border-border/60 bg-muted/20 px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                  <span className="text-xs font-medium uppercase text-muted-foreground">{row.label}</span>
+                  <span className="min-w-0 break-words text-foreground">{row.value}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+        {actions && actions.length > 0 && (
+          <DialogFooter>
+            {actions.map((action) => (
+              <Button key={action.label} type="button" variant={action.variant || "outline"} onClick={action.onClick}>
+                {action.label}
+              </Button>
+            ))}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function OwnerClaimBadge({ team }: { team: Team }) {
   const meta = getOwnerClaimMeta(team);
 
   return (
-    <Badge variant="outline" className={`h-5 max-w-full gap-1 px-1.5 text-[10px] ${meta.className}`} title={meta.description}>
-      <UserRound className="size-3" />
-      {meta.label}
-    </Badge>
+    <AccountLinkStatusDialog
+      meta={meta}
+      title="Team-Owner Status"
+      rows={[
+        { label: "Team", value: team.name },
+        { label: "Person", value: team.ownerName || team.contactName || "Unbekannt" },
+        { label: "E-Mail", value: team.ownerEmail || team.contactEmail || team.ownerClaim?.suggestedEmail },
+        { label: "Portal-Konto", value: team.ownerHasPortalAccount ? "vorhanden" : team.ownerId ? "User angelegt, Login offen" : "nicht erkannt" },
+        { label: "Claim", value: meta.label },
+        { label: "Erstellt", value: team.ownerClaim?.sentAt ? formatDateTime(team.ownerClaim.sentAt) : null },
+        { label: "Gültig bis", value: team.ownerClaim?.expiresAt && !team.ownerClaim.claimedAt ? formatDateTime(team.ownerClaim.expiresAt) : null },
+        { label: "Eingelöst", value: team.ownerClaim?.claimedAt ? formatDateTime(team.ownerClaim.claimedAt) : null },
+      ]}
+      actions={[
+        { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
+        { label: "Zum User", onClick: () => openUserDashboard({ email: team.ownerEmail || team.contactEmail, teamId: team.id }) },
+        { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
+      ]}
+    />
   );
 }
 
 function getParticipantAccessMeta(team: Team, participant: Participant) {
-  const participantEmailMatchesContainer =
-    Boolean(team.ownerId && participant.email) &&
-    [team.ownerEmail, team.contactEmail].some((email) => normalizeEmail(email) === normalizeEmail(participant.email));
-
   if (participant.isTeamManager) {
     return {
       label: isMarketplaceMatchingTeam(team) ? "MTC-Teamchef bewusst" : "Team Manager:in",
-      className: "border-green-300 text-green-700",
+      className: "border-green-300 bg-green-50 text-green-800",
     };
   }
 
   if (participant.canBeTeamManager) {
     return {
       label: isMarketplaceMatchingTeam(team) ? "Portal-Konto, keine Teamchef-Rolle" : "Teilnehmer:in",
-      className: "border-muted text-muted-foreground",
+      className: "border-muted bg-muted/30 text-muted-foreground",
     };
   }
 
-  if (participantEmailMatchesContainer) {
+  if (team.registrationMode === "MARKETPLACE" && normalizeEmail(participant.email) && [team.ownerEmail, team.contactEmail].some((email) => normalizeEmail(email) === normalizeEmail(participant.email))) {
     return {
       label: isMarketplaceMatchingTeam(team) ? "MTC-Kontakt" : "Börsen-Kontakt",
-      className: "border-green-300 text-green-700",
+      className: "border-sky-300 bg-sky-50 text-sky-800",
     };
   }
 
   return {
     label: "Kein Portal-Konto",
-    className: "border-muted text-muted-foreground",
+    className: "border-muted bg-muted/30 text-muted-foreground",
   };
 }
 
 function getParticipantEmailInvitationMeta(team: Team, participant: Participant) {
-  const participantEmailMatchesContainer =
-    Boolean(team.ownerId && participant.email) &&
-    [team.ownerEmail, team.contactEmail].some((email) => normalizeEmail(email) === normalizeEmail(participant.email));
-
-  if (participant.emailInvitation?.status === "linked" || participant.linkedUserId || participantEmailMatchesContainer) {
-    return getEmailInvitationMeta("linked");
-  }
-
-  return getEmailInvitationMeta(participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"));
+  return getParticipantLinkMeta(team, participant);
 }
 
 function getMarketplaceContainerAccessMeta(team: Team) {
-  if (team.teamChiefId) {
+  if (team.teamChiefId && team.ownerClaim?.claimedAt) {
     return {
       label: "Team Manager:in",
-      className: "border-green-300 text-green-700",
+      className: "border-green-300 bg-green-50 text-green-800",
     };
   }
 
-  if (team.ownerId) {
+  if (team.registrationMode === "MARKETPLACE" && team.ownerId) {
     return {
       label: isMarketplaceMatchingTeam(team) ? "MTC-Kontakt" : "Börsen-Kontakt",
-      className: "border-green-300 text-green-700",
+      className: "border-sky-300 bg-sky-50 text-sky-800",
     };
   }
 
   return {
     label: "Kein Portal-Konto",
-    className: "border-muted text-muted-foreground",
+    className: "border-muted bg-muted/30 text-muted-foreground",
   };
 }
 
 function getMarketplaceContainerAccountMeta(team: Team) {
-  if (team.ownerId) {
-    return {
-      label: "Konto verknüpft",
-      className: "border-green-300 text-green-700",
-    };
-  }
-
-  return {
-    label: "Kein Portal-Konto",
-    className: "border-muted text-muted-foreground",
-  };
+  return getOwnerClaimMeta(team);
 }
 
 function isFemaleParticipant(gender?: string | null) {
@@ -1309,10 +1386,25 @@ function MarketplacePersonSummary({
                 </Badge>
               )}
               {emailInviteMeta && (
-                <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${emailInviteMeta.className}`}>
-                  <Mail className="size-3" />
-                  {emailInviteMeta.label}
-                </Badge>
+                <AccountLinkStatusDialog
+                  meta={emailInviteMeta}
+                  title="Teilnehmer Status"
+                  rows={[
+                    { label: "Teilnehmer", value: participantLabel },
+                    { label: "Team", value: team.name },
+                    { label: "E-Mail", value: participant?.email },
+                    { label: "Portal-Konto", value: participant?.linkedUserId ? "verknüpft" : participant?.portalAccount?.email || "nicht verknüpft" },
+                    { label: "Claim", value: emailInviteMeta.label },
+                    { label: "Versendet", value: participant?.emailInvitation?.sentAt ? formatDateTime(participant.emailInvitation.sentAt) : null },
+                    { label: "Gültig bis", value: participant?.emailInvitation?.expiresAt && !participant.emailInvitation.claimedAt ? formatDateTime(participant.emailInvitation.expiresAt) : null },
+                    { label: "Eingelöst", value: participant?.emailInvitation?.claimedAt ? formatDateTime(participant.emailInvitation.claimedAt) : null },
+                  ]}
+                  actions={[
+                    { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
+                    { label: "Zum User", onClick: () => openUserDashboard({ userId: participant?.linkedUserId, email: participant?.portalAccount?.email || participant?.email, teamId: team.id }) },
+                    { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
+                  ]}
+                />
               )}
             </div>
           )}
@@ -3866,21 +3958,26 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                             </Badge>
                                           )}
                                           {emailInviteMeta && (
-                                            <Badge
-                                              variant="outline"
-                                              className={`h-5 max-w-full justify-center gap-1 px-1.5 text-[10px] ${emailInviteMeta.className} ${canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "cursor-pointer" : ""}`}
-                                              onClick={(event) => {
-                                                event.stopPropagation();
-                                                if (canUseAdminLinks && (participant?.linkedUserId || participant?.email)) {
-                                                  openUserDashboard({ userId: participant.linkedUserId, email: participant.email, teamId: team.id });
-                                                }
-                                              }}
-                                              role={canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "link" : undefined}
-                                              title={canUseAdminLinks && (participant?.linkedUserId || participant?.email) ? "Benutzerverwaltung öffnen" : undefined}
-                                            >
-                                              <Mail className="size-3" />
-                                              {emailInviteMeta.label}
-                                            </Badge>
+                                            <AccountLinkStatusDialog
+                                              meta={emailInviteMeta}
+                                              title="Teilnehmer Status"
+                                              rows={[
+                                                { label: "Teilnehmer", value: participantLabel },
+                                                { label: "Team", value: team.name },
+                                                { label: "E-Mail", value: participant?.email },
+                                                { label: "Portal-Konto", value: participant?.linkedUserId ? "verknüpft" : participant?.portalAccount?.email || "nicht verknüpft" },
+                                                { label: "Claim", value: emailInviteMeta.label },
+                                                { label: "Versendet", value: participant?.emailInvitation?.sentAt ? formatDateTime(participant.emailInvitation.sentAt) : null },
+                                                { label: "Gültig bis", value: participant?.emailInvitation?.expiresAt && !participant.emailInvitation.claimedAt ? formatDateTime(participant.emailInvitation.expiresAt) : null },
+                                                { label: "Eingelöst", value: participant?.emailInvitation?.claimedAt ? formatDateTime(participant.emailInvitation.claimedAt) : null },
+                                              ]}
+                                              actions={[
+                                                { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
+                                                { label: "Zum User", onClick: () => openUserDashboard({ userId: participant?.linkedUserId, email: participant?.portalAccount?.email || participant?.email, teamId: team.id }) },
+                                                { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
+                                              ]}
+                                              compact
+                                            />
                                           )}
 
                                           {showRights && participant && (

@@ -84,6 +84,12 @@ type SerializableParticipant = {
   gender: "MALE" | "FEMALE";
   birthYear: number | null;
   userId?: string | null;
+  portalAccount?: {
+    id: string;
+    email: string;
+    name?: string | null;
+    authentikSub?: string | null;
+  } | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   moderationNote?: string | null;
   email?: string | null;
@@ -171,6 +177,13 @@ function serializeParticipant(
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
     linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
+    portalAccount: canSeeSensitiveParticipantFields && participant.portalAccount?.authentikSub
+      ? {
+          id: participant.portalAccount.id,
+          email: participant.portalAccount.email,
+          name: participant.portalAccount.name ?? null,
+        }
+      : null,
     emailInvitation: canSeeSensitiveParticipantFields
       ? {
           status: getParticipantEmailInvitationStatus({
@@ -557,6 +570,28 @@ export async function GET(request: NextRequest) {
           },
         }
       });
+      const participantEmails = Array.from(
+        new Set(
+          teams
+            .flatMap((team) => team.participants ?? [])
+            .map((participant) => normalizeEmail(participant.email))
+            .filter((email): email is string => Boolean(email)),
+        ),
+      );
+      const portalAccountsByEmail = new Map(
+        (
+          participantEmails.length > 0
+            ? await prisma.user.findMany({
+                where: {
+                  deletedAt: null,
+                  authentikSub: { not: null },
+                  email: { in: participantEmails, mode: "insensitive" },
+                },
+                select: { id: true, email: true, name: true, authentikSub: true },
+              })
+            : []
+        ).map((user) => [normalizeEmail(user.email), user]),
+      );
 
       return NextResponse.json({
         teams: teams.flatMap((team) => {
@@ -586,7 +621,15 @@ export async function GET(request: NextRequest) {
               ownsTeam: teamAccess.canEditTeam,
             });
 
-          return [serializeTeam(team, {
+          const teamWithParticipantAccounts = {
+            ...team,
+            participants: team.participants.map((participant) => ({
+              ...participant,
+              portalAccount: portalAccountsByEmail.get(normalizeEmail(participant.email)) ?? null,
+            })),
+          };
+
+          return [serializeTeam(teamWithParticipantAccounts, {
             currentUserId: user?.id ?? null,
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,

@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       },
     },
     include: {
-      owner: { select: { email: true, name: true } },
+      owner: { select: { id: true, email: true, name: true, authentikSub: true } },
       registrationClaimTokens: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
           claimedByUser: { select: { email: true, name: true } },
         },
       },
-      user: { select: { id: true, email: true, name: true } },
+      user: { select: { id: true, email: true, name: true, authentikSub: true } },
     },
     orderBy: [
       { team: { updatedAt: "desc" } },
@@ -110,8 +110,33 @@ export async function GET(request: NextRequest) {
     ],
   });
 
+  const emailsForPortalLookup = Array.from(
+    new Set(
+      [
+        ...teams.map((team) => normalizeEmail(team.contactEmail || team.owner?.email)),
+        ...participants.map((participant) => normalizeEmail(participant.email)),
+      ].filter((email): email is string => Boolean(email)),
+    ),
+  );
+  const portalAccountsByEmail = new Map(
+    (
+      emailsForPortalLookup.length > 0
+        ? await prisma.user.findMany({
+            where: {
+              deletedAt: null,
+              authentikSub: { not: null },
+              email: { in: emailsForPortalLookup, mode: "insensitive" },
+            },
+            select: { id: true, email: true, name: true, authentikSub: true },
+          })
+        : []
+    ).map((user) => [normalizeEmail(user.email), user]),
+  );
+
   const teamItems = teams.map((team) => {
     const latestToken = team.registrationClaimTokens[0] ?? null;
+    const contactEmail = team.contactEmail || team.owner?.email || "";
+    const portalAccount = portalAccountsByEmail.get(normalizeEmail(contactEmail)) ?? null;
     return {
       itemType: "team" as const,
       itemId: team.id,
@@ -119,9 +144,12 @@ export async function GET(request: NextRequest) {
       teamName: team.name,
       category: team.classificationCode || "–",
       registrationMode: team.registrationMode,
-      contactEmail: team.contactEmail || team.owner?.email || "",
+      contactEmail,
       contactName: team.contactName || team.owner?.name || "",
       ownerEmail: team.owner?.email || "",
+      ownerId: team.ownerId,
+      ownerHasPortalAccount: Boolean(team.owner?.authentikSub || portalAccount?.authentikSub),
+      portalAccount,
       participantId: null,
       participantName: null,
       token: latestToken
@@ -142,6 +170,7 @@ export async function GET(request: NextRequest) {
 
   const participantItems = participants.map((participant) => {
     const latestToken = participant.claimTokens[0] ?? null;
+    const portalAccount = portalAccountsByEmail.get(normalizeEmail(participant.email)) ?? null;
     return {
       itemType: "participant" as const,
       itemId: participant.id,
@@ -154,6 +183,7 @@ export async function GET(request: NextRequest) {
       participantId: participant.id,
       participantName: `${participant.firstName} ${participant.lastName}`.trim(),
       linkedUser: participant.user,
+      portalAccount,
       token: latestToken
         ? {
             id: latestToken.id,

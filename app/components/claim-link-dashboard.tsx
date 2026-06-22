@@ -4,11 +4,27 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useCompetition } from "@/lib/competition-context";
 import { useNotifications } from "@/lib/notification-context";
+import { openTeamDashboard, openUserDashboard } from "@/lib/admin-routing";
+import {
+  deriveAccountLinkStatus,
+  type AccountLinkClaimStatus,
+  type AccountLinkStatusMeta,
+} from "@/lib/account-link-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertTriangle, Ban, Mail, UserCheck, UserRound } from "lucide-react";
 
 type ClaimTokenInfo = {
   id: string;
@@ -32,9 +48,12 @@ type ClaimItem = {
   contactEmail: string;
   contactName: string;
   ownerEmail: string;
+  ownerId?: string | null;
+  ownerHasPortalAccount?: boolean;
   participantId: string | null;
   participantName: string | null;
   linkedUser?: { id: string; email?: string | null; name?: string | null } | null;
+  portalAccount?: { id: string; email?: string | null; name?: string | null } | null;
   token: ClaimTokenInfo | null;
 };
 
@@ -52,19 +71,98 @@ type ClaimAuditEvent = {
   participantId?: string | null;
 };
 
-const STATUS_META: Record<ClaimTokenInfo["status"] | "none", { label: string; variant: "default" | "secondary" | "outline" | "destructive"; }> = {
-  none: { label: "Kein Link", variant: "outline" },
-  active: { label: "Offen", variant: "default" },
-  claimed: { label: "Eingelöst", variant: "secondary" },
-  expired: { label: "Abgelaufen", variant: "outline" },
-  revoked: { label: "Gesperrt", variant: "destructive" },
-};
-
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("de-DE");
+}
+
+function renderAccountLinkIcon(status: AccountLinkStatusMeta["status"], className: string) {
+  switch (status) {
+    case "linked":
+      return <UserCheck className={className} />;
+    case "portal_account":
+    case "placeholder_user":
+      return <UserRound className={className} />;
+    case "invitation_open":
+      return <Mail className={className} />;
+    case "expired":
+    case "missing_email":
+      return <AlertTriangle className={className} />;
+    case "revoked":
+      return <Ban className={className} />;
+    default:
+      return <Mail className={className} />;
+  }
+}
+
+function getDisplayStatus(item: ClaimItem) {
+  return deriveAccountLinkStatus({
+    entityLabel: item.itemType === "participant" ? "Teilnehmer" : "Team-Owner",
+    hasEmail: Boolean(item.contactEmail || item.ownerEmail || item.token?.suggestedEmail),
+    hasEntityLink: Boolean(item.itemType === "participant" ? item.linkedUser : item.token?.claimedAt),
+    hasPortalAccount: Boolean(item.itemType === "participant" ? item.linkedUser?.id || item.portalAccount?.id : item.ownerHasPortalAccount || item.portalAccount?.id),
+    hasPlaceholderUser: Boolean(item.itemType === "team" && item.ownerId && !item.ownerHasPortalAccount),
+    claimStatus: (item.token?.status || (item.contactEmail || item.ownerEmail ? "none" : "missing_email")) as AccountLinkClaimStatus,
+  });
+}
+
+function AccountLinkStatusDialog({ item, meta }: { item: ClaimItem; meta: AccountLinkStatusMeta }) {
+  const accountEmail = item.linkedUser?.email || item.portalAccount?.email || item.ownerEmail || null;
+
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <button
+            type="button"
+            className={`inline-flex h-6 max-w-full items-center justify-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors hover:bg-muted ${meta.className}`}
+            title={meta.description}
+          />
+        }
+      >
+        {renderAccountLinkIcon(meta.status, "size-3.5 shrink-0")}
+        <span className="truncate">{meta.label}</span>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{item.itemType === "participant" ? "Teilnehmer-Claim" : "Team-Claim"}</DialogTitle>
+          <DialogDescription>{meta.description}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className={`inline-flex w-fit items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${meta.className}`}>
+            {renderAccountLinkIcon(meta.status, "size-3.5")}
+            {meta.label}
+          </div>
+          <div className="grid gap-2 text-sm">
+            {[
+              { label: "Objekt", value: item.itemType === "participant" ? item.participantName || item.contactName : item.teamName },
+              { label: "Team", value: item.teamName },
+              { label: "E-Mail", value: item.contactEmail || item.ownerEmail || item.token?.suggestedEmail },
+              { label: "Portal-Konto", value: accountEmail || "nicht erkannt" },
+              { label: "Claim", value: item.token?.status || "none" },
+              { label: "Erstellt", value: item.token?.createdAt ? formatDateTime(item.token.createdAt) : null },
+              { label: "Gültig bis", value: item.token?.expiresAt && !item.token.claimedAt ? formatDateTime(item.token.expiresAt) : null },
+              { label: "Eingelöst", value: item.token?.claimedAt ? formatDateTime(item.token.claimedAt) : null },
+              { label: "Gesperrt", value: item.token?.revokedAt ? formatDateTime(item.token.revokedAt) : null },
+            ]
+              .filter((row) => row.value)
+              .map((row) => (
+                <div key={row.label} className="grid gap-1 rounded-md border border-border/60 bg-muted/20 px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                  <span className="text-xs font-medium uppercase text-muted-foreground">{row.label}</span>
+                  <span className="min-w-0 break-words text-foreground">{row.value}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => openTeamDashboard({ teamId: item.teamId })}>Zum Team</Button>
+          <Button variant="outline" onClick={() => openUserDashboard({ userId: item.linkedUser?.id || item.portalAccount?.id, email: accountEmail || item.contactEmail, teamId: item.teamId })}>Zum User</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function maskEmail(email?: string | null) {
@@ -364,8 +462,7 @@ export default function ClaimLinkDashboard() {
         ) : (
           <div className="space-y-3">
             {visibleItems.map((item) => {
-              const tokenStatus = item.token?.status || "none";
-              const statusMeta = STATUS_META[tokenStatus];
+              const statusMeta = getDisplayStatus(item);
               const generatedLink = generatedLinks[`${item.itemType}:${item.itemId}`];
               const generatedMtcLink = generatedMtcLinks[`${item.itemType}:${item.itemId}`];
               const itemLabel = item.itemType === "participant" ? "Teilnehmer-Claim" : "Team-Claim";
@@ -377,7 +474,7 @@ export default function ClaimLinkDashboard() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{item.itemType === "participant" ? item.contactName : item.teamName}</span>
-                        <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                        <AccountLinkStatusDialog item={item} meta={statusMeta} />
                         <Badge variant="outline">{itemLabel}</Badge>
                         {isMtcTeam ? <Badge variant="outline">MTC anonym</Badge> : null}
                         <Badge variant="outline">{item.category}</Badge>
