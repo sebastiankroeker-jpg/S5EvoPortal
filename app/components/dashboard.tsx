@@ -47,6 +47,7 @@ import { useCompetition } from "@/lib/competition-context";
 import { useNotifications } from "@/lib/notification-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import {
+  TEAM_DASHBOARD_FOCUS_EVENT,
   TEAM_FOCUS_STORAGE_KEY,
   TEAM_SEARCH_STORAGE_KEY,
   openChangesDashboard,
@@ -2109,6 +2110,36 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
   }, [teams, pendingOwnerFilter]);
 
+  const focusTeam = useCallback((teamId?: string | null, search?: string | null) => {
+    if (!teamId || !teams.some((team) => team.id === teamId)) {
+      if (search?.trim()) {
+        setSearchQuery(search.trim());
+      }
+      return;
+    }
+
+    setSearchQuery(search?.trim() || "");
+    setViewMode("cards");
+    setExpandedTeam(teamId);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`team-${teamId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [teams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const listener: EventListener = (event) => {
+      const detail = (event as CustomEvent<{ teamId?: string | null; search?: string | null }>).detail;
+      focusTeam(detail?.teamId, detail?.search);
+    };
+
+    window.addEventListener(TEAM_DASHBOARD_FOCUS_EVENT, listener);
+    return () => window.removeEventListener(TEAM_DASHBOARD_FOCUS_EVENT, listener);
+  }, [focusTeam]);
+
   useEffect(() => {
     if (typeof window === "undefined" || teams.length === 0) {
       return;
@@ -2120,9 +2151,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
 
     window.sessionStorage.removeItem(TEAM_FOCUS_STORAGE_KEY);
-    setExpandedTeam(focusTeamId);
-    setViewMode("cards");
-  }, [teams]);
+    focusTeam(focusTeamId);
+  }, [focusTeam, teams]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -3377,7 +3407,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 (showAdminDashboardInfo && pendingChangeCount > 0);
 
               return (
-                <div key={team.id} className="space-y-2">
+                <div key={team.id} id={`team-${team.id}`} className="space-y-2 scroll-mt-24">
                   {/* Team-Kachel mit Teilnehmern */}
                   {expandedTeam !== team.id && (
                     <Card

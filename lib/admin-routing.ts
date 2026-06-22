@@ -6,6 +6,7 @@ export const ACTIVE_TAB_STORAGE_KEY = "s5evo-active-tab";
 export const TEAM_VIEW_STORAGE_KEY = "s5evo-team-view";
 export const TEAM_FOCUS_STORAGE_KEY = "s5evo.dashboard.focusTeamId";
 export const TEAM_SEARCH_STORAGE_KEY = "s5evo.dashboard.searchQuery";
+export const TEAM_DASHBOARD_FOCUS_EVENT = "teamDashboardFocus";
 
 function pushLocation(path: string) {
   window.location.href = path;
@@ -16,6 +17,11 @@ export function openTeamDashboard(input: { teamId?: string | null; search?: stri
   window.sessionStorage.setItem(TEAM_VIEW_STORAGE_KEY, "mannschaften");
   if (input.teamId) window.sessionStorage.setItem(TEAM_FOCUS_STORAGE_KEY, input.teamId);
   if (input.search?.trim()) window.sessionStorage.setItem(TEAM_SEARCH_STORAGE_KEY, input.search.trim());
+  window.dispatchEvent(new CustomEvent(TEAM_DASHBOARD_FOCUS_EVENT, { detail: input }));
+  window.dispatchEvent(new CustomEvent("switchTab", { detail: { tabId: "registration", teamView: "mannschaften" } }));
+  if (window.location.pathname === "/" && window.location.hash === "#registration") {
+    return;
+  }
   pushLocation("/#registration");
 }
 
