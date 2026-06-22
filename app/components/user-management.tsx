@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
+import { AlertTriangle, Ban, Mail, UserCheck, UserRound } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,8 +17,22 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { openTeamDashboard } from "@/lib/admin-routing";
+import {
+  deriveAccountLinkStatus,
+  type AccountLinkClaimStatus,
+  type AccountLinkStatusMeta,
+} from "@/lib/account-link-status";
 import { useNotifications } from "@/lib/notification-context";
 
 interface UserRole {
@@ -31,17 +46,41 @@ interface UserEntry {
   id: string;
   email: string;
   name: string | null;
+  authentikSub?: string | null;
   createdAt: string;
   roles: UserRole[];
   teamCount: number;
   teamScopes: Array<{
     id: string;
     name: string;
+    registrationMode: string;
+    marketplaceStatus: string | null;
+    contactEmail: string | null;
+    participantCount: number;
     relations: string[];
     isOwner: boolean;
     isLegacyTeamChief: boolean;
     isParticipant: boolean;
     isTeamManager: boolean;
+    ownerClaim: {
+      suggestedEmail: string;
+      suggestedName: string | null;
+      sentAt: string;
+      expiresAt: string;
+      claimedAt: string | null;
+      revokedAt: string | null;
+    } | null;
+    participantLink: {
+      participantId: string;
+      email: string | null;
+      linkedUserId: string | null;
+      claim: {
+        sentAt: string;
+        expiresAt: string;
+        claimedAt: string | null;
+        revokedAt: string | null;
+      } | null;
+    } | null;
   }>;
 }
 
@@ -65,8 +104,182 @@ function formatCreatedAt(value: string) {
   return date.toLocaleDateString("de-DE");
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function joinClasses(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function getClaimStatus(token?: {
+  claimedAt?: string | null;
+  revokedAt?: string | null;
+  expiresAt?: string | null;
+} | null): AccountLinkClaimStatus {
+  if (!token) return "none";
+  if (token.revokedAt) return "revoked";
+  if (token.claimedAt) return "claimed";
+
+  const expiresAt = token.expiresAt ? new Date(token.expiresAt).getTime() : Number.NaN;
+  if (!Number.isNaN(expiresAt) && expiresAt < Date.now()) return "expired";
+
+  return "active";
+}
+
+function isMtcScope(team: UserEntry["teamScopes"][number]) {
+  return team.registrationMode === "MARKETPLACE";
+}
+
+function renderAccountLinkIcon(status: AccountLinkStatusMeta["status"], className: string) {
+  switch (status) {
+    case "linked":
+      return <UserCheck className={className} />;
+    case "portal_account":
+    case "placeholder_user":
+      return <UserRound className={className} />;
+    case "invitation_open":
+      return <Mail className={className} />;
+    case "expired":
+      return <AlertTriangle className={className} />;
+    case "revoked":
+      return <Ban className={className} />;
+    case "missing_email":
+      return <AlertTriangle className={className} />;
+    default:
+      return <Mail className={className} />;
+  }
+}
+
+function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][number]) {
+  const isMtc = isMtcScope(team);
+  const hasExplicitTeamRight = team.isLegacyTeamChief || (team.isTeamManager && !team.isOwner);
+
+  if (team.participantLink) {
+    return deriveAccountLinkStatus({
+      entityLabel: isMtc ? "MTC-Teilnehmer" : "Teilnehmer",
+      hasEmail: Boolean(team.participantLink.email || user.email),
+      hasEntityLink: team.participantLink.linkedUserId === user.id,
+      hasPortalAccount: Boolean(user.authentikSub),
+      claimStatus: team.participantLink.claim ? getClaimStatus(team.participantLink.claim) : "none",
+    });
+  }
+
+  return deriveAccountLinkStatus({
+    entityLabel: isMtc ? "MTC-Kontakt" : "Team-Owner",
+    hasEmail: Boolean(team.ownerClaim?.suggestedEmail || team.contactEmail || user.email),
+    hasEntityLink: Boolean(team.ownerClaim?.claimedAt || hasExplicitTeamRight),
+    hasPortalAccount: Boolean(user.authentikSub),
+    hasPlaceholderUser: Boolean(!user.authentikSub),
+    claimStatus: team.ownerClaim ? getClaimStatus(team.ownerClaim) : "none",
+  });
+}
+
+function AccountLinkStatusDialog({
+  meta,
+  title,
+  rows,
+  actions,
+}: {
+  meta: AccountLinkStatusMeta;
+  title: string;
+  rows: Array<{ label: string; value?: ReactNode | null }>;
+  actions?: Array<{ label: string; onClick: () => void }>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const handleActionClick = (action: { onClick: () => void }) => {
+    setOpen(false);
+    window.setTimeout(action.onClick, 0);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <button
+            type="button"
+            className={`inline-flex h-6 max-w-full items-center justify-center gap-1 rounded-md border px-1.5 text-[10px] font-medium transition-colors hover:bg-muted ${meta.className}`}
+            title={meta.description}
+          />
+        }
+      >
+        {renderAccountLinkIcon(meta.status, "size-3 shrink-0")}
+        <span className="truncate">{meta.label}</span>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{meta.description}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className={`inline-flex w-fit items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${meta.className}`}>
+            {renderAccountLinkIcon(meta.status, "size-3.5")}
+            {meta.label}
+          </div>
+          <div className="grid gap-2 text-sm">
+            {rows
+              .filter((row) => row.value !== undefined && row.value !== null && row.value !== "")
+              .map((row) => (
+                <div key={row.label} className="grid gap-1 rounded-md border border-border/60 bg-muted/20 px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                  <span className="text-xs font-medium uppercase text-muted-foreground">{row.label}</span>
+                  <span className="min-w-0 break-words text-foreground">{row.value}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+        {actions && actions.length > 0 && (
+          <DialogFooter>
+            {actions.map((action) => (
+              <Button key={action.label} type="button" variant="outline" onClick={() => handleActionClick(action)}>
+                {action.label}
+              </Button>
+            ))}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UserTeamScopeStatusDialog({ user, team }: { user: UserEntry; team: UserEntry["teamScopes"][number] }) {
+  const meta = getTeamScopeAccountMeta(user, team);
+  const isMtc = isMtcScope(team);
+  const claim = team.participantLink?.claim ?? team.ownerClaim;
+
+  return (
+    <AccountLinkStatusDialog
+      meta={meta}
+      title={isMtc ? "MTC-Zugriff" : "Mannschafts-Zugriff"}
+      rows={[
+        { label: "Benutzer", value: user.name || user.email },
+        { label: "User-Mail", value: user.email },
+        { label: "Team", value: team.name },
+        { label: "Typ", value: isMtc ? `MTC/Börse (${team.participantCount}/5)` : "Mannschaft" },
+        { label: "Relation", value: team.relations.join(" · ") },
+        { label: "Kontakt-Mail", value: team.contactEmail },
+        { label: "Claim-Mail", value: team.participantLink?.email || team.ownerClaim?.suggestedEmail },
+        { label: "Portal-Konto", value: user.authentikSub ? "vorhanden" : "User angelegt, Login offen" },
+        { label: "Claim", value: meta.label },
+        { label: "Versendet", value: formatDateTime(claim?.sentAt) },
+        { label: "Gültig bis", value: claim?.expiresAt && !claim.claimedAt ? formatDateTime(claim.expiresAt) : null },
+        { label: "Eingelöst", value: formatDateTime(claim?.claimedAt) },
+      ]}
+      actions={[
+        { label: "Zum Team", onClick: () => openTeamDashboard({ teamId: team.id }) },
+        { label: "Zum Claim-Dashboard", onClick: () => { window.location.href = "/claim-links"; } },
+      ]}
+    />
+  );
 }
 
 export default function UserManagement() {
@@ -327,6 +540,28 @@ export default function UserManagement() {
         const isCurrentUser = user.id === currentUserId;
         const isLastAdmin = adminCount === 1 && user.roles.some((role) => role.role === "ADMIN");
         const isDeleting = deletingUserId === user.id;
+        const statusSummary = user.teamScopes.reduce((acc, team) => {
+          const meta = getTeamScopeAccountMeta(user, team);
+          const existing = acc.get(meta.status);
+          acc.set(meta.status, {
+            meta,
+            count: (existing?.count ?? 0) + 1,
+          });
+          return acc;
+        }, new Map<AccountLinkStatusMeta["status"], { meta: AccountLinkStatusMeta; count: number }>());
+        const statusSummaryItems = Array.from(statusSummary.values()).sort((left, right) => {
+          const order: AccountLinkStatusMeta["status"][] = [
+            "linked",
+            "portal_account",
+            "invitation_open",
+            "placeholder_user",
+            "expired",
+            "revoked",
+            "missing_email",
+            "no_invitation",
+          ];
+          return order.indexOf(left.meta.status) - order.indexOf(right.meta.status);
+        });
 
         return (
           <motion.div key={user.id} layout>
@@ -352,6 +587,17 @@ export default function UserManagement() {
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       Registriert seit {formatCreatedAt(user.createdAt)}
                     </p>
+                    {statusSummaryItems.length > 0 && editingUser !== user.id && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {statusSummaryItems.map(({ meta, count }) => (
+                          <Badge key={meta.status} variant="outline" className={`h-6 gap-1 px-1.5 text-[10px] ${meta.className}`}>
+                            {renderAccountLinkIcon(meta.status, "size-3")}
+                            {meta.label}
+                            <span className="rounded bg-background/70 px-1">{count}</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
 
                     {editingUser !== user.id && (
                       <div className="mt-2 flex flex-wrap gap-1">
@@ -435,6 +681,7 @@ export default function UserManagement() {
                           {user.teamScopes.map((team) => {
                             const isFixedManager = team.isOwner || team.isLegacyTeamChief;
                             const isUpdating = updatingTeamScopeKey === `${user.id}:${team.id}`;
+                            const isMtc = isMtcScope(team);
 
                             return (
                               <div
@@ -450,12 +697,20 @@ export default function UserManagement() {
                                   onClick={() => openTeam(team.id)}
                                   title="Mannschaft öffnen"
                                 >
-                                  <span className="block truncate font-medium">{team.name}</span>
+                                  <span className="flex min-w-0 items-center gap-1.5">
+                                    {isMtc && (
+                                      <Badge variant="outline" className="h-5 shrink-0 border-emerald-300 bg-emerald-50 px-1.5 text-[10px] text-emerald-800">
+                                        MTC {team.participantCount}/5
+                                      </Badge>
+                                    )}
+                                    <span className="block min-w-0 truncate font-medium">{team.name}</span>
+                                  </span>
                                   <span className="block text-[11px] text-muted-foreground">
                                     {team.relations.join(" · ")}
                                   </span>
                                 </button>
                                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                                  <UserTeamScopeStatusDialog user={user} team={team} />
                                   <Badge
                                     variant="outline"
                                     className={`shrink-0 ${team.isTeamManager ? "border-green-300 text-green-700" : "border-muted text-muted-foreground"}`}
