@@ -70,6 +70,7 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  Download,
   Eye,
   EyeOff,
   Info,
@@ -1667,6 +1668,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
   const [quickFilterExcludes, setQuickFilterExcludes] = useState<Record<QuickFilterKey, boolean>>(EMPTY_QUICK_EXCLUDES);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [preferencesLoadedForKey, setPreferencesLoadedForKey] = useState("");
@@ -1682,6 +1684,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const isAdmin = activeRole === "ADMIN";
   const canUseAdminLinks = activeRole === "ADMIN";
   const showAdminDashboardInfo = activeRole === "ADMIN";
+  const canExportCompetitionCsv = activeRole === "ADMIN" || activeRole === "MODERATOR";
   const shouldAutoShowMembersColumn = activeRole !== "TEILNEHMER";
   const userEmail = session?.user?.email;
   const preferenceStorageKey = useMemo(() => {
@@ -1828,6 +1831,45 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       );
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleDownloadCompetitionCsv = async () => {
+    if (!activeCompetition?.id) {
+      notifications.error("CSV-Export nicht möglich", "Es ist kein aktiver Wettkampf ausgewählt.");
+      return;
+    }
+
+    setExportingCsv(true);
+    try {
+      const params = new URLSearchParams({ competitionId: activeCompetition.id });
+      const response = await fetch(`/api/admin/teams-export?${params.toString()}`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "CSV-Export fehlgeschlagen.");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const filenameMatch = disposition.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] || `teams-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      notifications.success("CSV exportiert", "Der Mannschaftsexport wurde heruntergeladen.");
+    } catch (error) {
+      console.error("Failed to download team CSV export:", error);
+      notifications.error(
+        "CSV-Export fehlgeschlagen",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    } finally {
+      setExportingCsv(false);
     }
   };
 
@@ -2817,6 +2859,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             </div>
 
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {canExportCompetitionCsv && (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={handleDownloadCompetitionCsv}
+                  disabled={exportingCsv || !activeCompetition?.id}
+                  title="Mannschaften als CSV herunterladen"
+                >
+                  <Download className="size-3.5" />
+                  {exportingCsv ? "CSV..." : "CSV"}
+                </Button>
+              )}
               {viewMode === "list" && (
                 <Button
                   type="button"
