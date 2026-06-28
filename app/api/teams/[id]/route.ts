@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import type { Prisma, ShirtSize } from '@prisma/client';
@@ -6,9 +8,10 @@ import { recordAppliedChangeRequest, upsertLegacyParticipantChangeRequest } from
 import {
   TeamRegistrationSchema,
   type TeamRegistrationInput,
-  birthYearToBirthDateInput,
   extractBirthYearFromInput,
   formatTeamRegistrationValidationIssues,
+  normalizeBirthDateForStorage,
+  storedBirthDateToInput,
 } from '@/lib/domain/team';
 import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
@@ -16,12 +19,14 @@ import { sendTeamLifecycleOrgEmail } from '@/lib/mail/team-lifecycle';
 import {
   diffParticipantSnapshots,
   hasParticipantChangeData,
+  parseSnapshot,
   pickDirectParticipantChangeData,
   serializeSnapshot,
   summarizeDirectParticipantChangeFields,
   summarizeParticipantChanges,
   toParticipantSnapshot,
 } from '@/lib/participant-change';
+import { validatePendingChangeBundle } from '@/lib/participant-change-bundle';
 import { createParticipantClaimInvitation, shouldInviteParticipantClaim } from '@/lib/participant-claim-invitation';
 import {
   canViewerSeeFullPublication,
@@ -54,6 +59,21 @@ function normalizeSubmittedText(value?: string | null) {
 
 function participantDisplayName(participant: { firstName: string; lastName: string }) {
   return `${participant.firstName} ${participant.lastName}`.trim();
+}
+
+function sortedDisciplineKey(values: string[]) {
+  return [...values].sort().join('|');
+}
+
+function isCompleteDisciplineSwap(
+  changes: Array<{ currentDisciplineCode: string; nextDisciplineCode: string }>,
+) {
+  if (changes.length < 2) return false;
+  if (changes.some((change) => change.currentDisciplineCode === "TBD" || change.nextDisciplineCode === "TBD")) return false;
+  return (
+    sortedDisciplineKey(changes.map((change) => change.currentDisciplineCode)) ===
+    sortedDisciplineKey(changes.map((change) => change.nextDisciplineCode))
+  );
 }
 
 function marketplaceTeamNameForParticipant(participant: { firstName: string; lastName: string }) {
@@ -173,6 +193,7 @@ type SerializableParticipant = {
   lastName: string;
   gender: "MALE" | "FEMALE";
   birthYear: number | null;
+  birthDate?: string | null;
   userId?: string | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   moderationNote?: string | null;
@@ -249,7 +270,9 @@ function serializeParticipant(
     firstName: splitName.firstName,
     lastName: splitName.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
-    birthDate: canSeeFullPublication || isCurrentUserParticipant ? birthYearToBirthDateInput(participant.birthYear) : "",
+    birthDate: canSeeFullPublication || isCurrentUserParticipant
+      ? storedBirthDateToInput(participant.birthDate, participant.birthYear)
+      : "",
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
     linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
@@ -890,6 +913,7 @@ export async function PUT(
         .map((participant) => ({
           participant,
           birthYear: extractBirthYearFromInput(participant.birthDate),
+          birthDate: normalizeBirthDateForStorage(participant.birthDate),
         }))
         .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
       const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
@@ -904,9 +928,19 @@ export async function PUT(
         let updatedRequests = 0;
         let directlyAppliedParticipants = 0;
         let updatedTeamPublication = false;
+        let bundledSwapRequests = 0;
         const createdChangeMailItems: Array<{
           participantName: string;
           changeSummary: ReturnType<typeof summarizeParticipantChanges>;
+        }> = [];
+        const pendingBundleCandidates: Array<{
+          id: string;
+          participantId: string;
+          teamId: string;
+          status: "PENDING";
+          beforeData: string | null;
+          changeData: string;
+          previousBundleId?: string | null;
         }> = [];
         const participantInviteCandidates: Array<{
           participantId: string;
@@ -916,6 +950,65 @@ export async function PUT(
           lastName: string;
           userId?: string | null;
         }> = [];
+        const disciplineChangeRequests = matchedParticipantsResult.matches
+          .map(({ submittedParticipant, existingParticipant }) => ({
+            participantId: existingParticipant.id,
+            currentDisciplineCode: existingParticipant.disciplineCode || "TBD",
+            nextDisciplineCode: mapDiscipline(submittedParticipant.discipline),
+          }))
+          .filter((change) => change.currentDisciplineCode !== change.nextDisciplineCode);
+        const shouldCreateSwapBundle = isCompleteDisciplineSwap(disciplineChangeRequests);
+        const swapParticipantIds = new Set(
+          shouldCreateSwapBundle ? disciplineChangeRequests.map((change) => change.participantId) : [],
+        );
+        let swapBundleId: string | null = shouldCreateSwapBundle ? randomUUID() : null;
+
+        if (shouldCreateSwapBundle) {
+          const existingBundledSwapChanges = await prisma.pendingChange.findMany({
+            where: {
+              participantId: { in: [...swapParticipantIds] },
+              status: "PENDING",
+              bundleId: { not: null },
+            },
+            select: {
+              id: true,
+              bundleId: true,
+            },
+          });
+          const existingBundleIds = [
+            ...new Set(
+              existingBundledSwapChanges
+                .map((change) => change.bundleId)
+                .filter((bundleId): bundleId is string => typeof bundleId === "string" && bundleId.length > 0),
+            ),
+          ];
+
+          if (existingBundleIds.length > 1) {
+            return NextResponse.json(
+              { error: "Der Disziplinstausch betrifft mehrere bestehende Tausch-Bundles. Bitte die offenen Antraege erst entscheiden oder neu laden." },
+              { status: 409 },
+            );
+          }
+
+          if (existingBundleIds.length === 1) {
+            const existingBundleId = existingBundleIds[0];
+            const existingBundleSize = await prisma.pendingChange.count({
+              where: {
+                bundleId: existingBundleId,
+                status: "PENDING",
+              },
+            });
+
+            if (existingBundleSize !== existingBundledSwapChanges.length) {
+              return NextResponse.json(
+                { error: "Ein bestehendes Tausch-Bundle enthaelt weitere Antraege. Bitte die offenen Antraege erst entscheiden oder neu laden." },
+                { status: 409 },
+              );
+            }
+
+            swapBundleId = existingBundleId;
+          }
+        }
 
         if (requestedTeamPublicationLevel !== existingTeam.teamPublicationLevel) {
           await prisma.team.update({
@@ -929,11 +1022,13 @@ export async function PUT(
 
         for (const { submittedParticipant, existingParticipant } of matchedParticipantsResult.matches) {
           const requestedBirthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
+          const requestedBirthDate = normalizeBirthDateForStorage(submittedParticipant.birthDate);
           const currentSnapshot = toParticipantSnapshot(existingParticipant);
           const requestedSnapshot = toParticipantSnapshot({
             firstName: normalizeSubmittedText(submittedParticipant.firstName),
             lastName: normalizeSubmittedText(submittedParticipant.lastName),
             birthYear: requestedBirthYear,
+            birthDate: requestedBirthDate,
             gender: mapGender(submittedParticipant.gender),
             disciplineCode: mapDiscipline(submittedParticipant.discipline),
             shirtSize: submittedParticipant.shirtSize || null,
@@ -1018,7 +1113,7 @@ export async function PUT(
 
           if (existingPendingChange) {
             updatedRequests += 1;
-            await prisma.$transaction(async (tx) => {
+            const updatedPendingChange = await prisma.$transaction(async (tx) => {
               const updatedPendingChange = await tx.pendingChange.update({
                 where: { id: existingPendingChange.id },
                 data: {
@@ -1053,10 +1148,22 @@ export async function PUT(
                 legacyPendingChangeId: updatedPendingChange.id,
                 message: 'Offene Teilnehmer-Aenderungsanfrage durch Team Manager:in aktualisiert',
               });
+
+              return updatedPendingChange;
+            });
+
+            pendingBundleCandidates.push({
+              id: updatedPendingChange.id,
+              participantId: updatedPendingChange.participantId,
+              teamId: existingTeam.id,
+              status: "PENDING",
+              beforeData: updatedPendingChange.beforeData,
+              changeData: updatedPendingChange.changeData,
+              previousBundleId: existingPendingChange.bundleId,
             });
           } else {
             createdRequests += 1;
-            await prisma.$transaction(async (tx) => {
+            const createdPendingChange = await prisma.$transaction(async (tx) => {
               const createdPendingChange = await tx.pendingChange.create({
                 data: {
                   beforeData: serializeSnapshot(approvalBaseSnapshot),
@@ -1089,12 +1196,87 @@ export async function PUT(
                 legacyPendingChangeId: createdPendingChange.id,
                 message: 'Teilnehmer-Aenderungsanfrage durch Team Manager:in eingereicht',
               });
+
+              return createdPendingChange;
+            });
+
+            pendingBundleCandidates.push({
+              id: createdPendingChange.id,
+              participantId: createdPendingChange.participantId,
+              teamId: existingTeam.id,
+              status: "PENDING",
+              beforeData: createdPendingChange.beforeData,
+              changeData: createdPendingChange.changeData,
+              previousBundleId: null,
             });
 
             createdChangeMailItems.push({
               participantName: existingParticipant.firstName + ' ' + existingParticipant.lastName,
               changeSummary,
             });
+          }
+        }
+
+        if (shouldCreateSwapBundle && swapBundleId) {
+          const swapCandidates = pendingBundleCandidates.filter((candidate) =>
+            swapParticipantIds.has(candidate.participantId),
+          );
+
+          if (swapCandidates.length === swapParticipantIds.size) {
+            const validation = validatePendingChangeBundle(
+              swapCandidates.map((candidate) => ({
+                ...candidate,
+                beforeData: candidate.beforeData,
+                changeData: candidate.changeData,
+                liveParticipantSnapshot: candidate.beforeData ? parseSnapshot(candidate.beforeData) : undefined,
+              })),
+              existingTeam.participants,
+              existingTeam.classificationCode,
+            );
+
+            if (!validation.valid) {
+              return NextResponse.json(
+                {
+                  error: "Der Disziplinstausch konnte nicht als gemeinsamer Antrag gebuendelt werden.",
+                  issues: validation.issues,
+                },
+                { status: 409 },
+              );
+            }
+
+            const swapCandidateIds = swapCandidates.map((candidate) => candidate.id);
+
+            await prisma.$transaction(async (tx) => {
+              const updated = await tx.pendingChange.updateMany({
+                where: {
+                  id: { in: swapCandidateIds },
+                  status: "PENDING",
+                },
+                data: {
+                  bundleId: swapBundleId,
+                  bundleType: "SWAP",
+                  bundleStatus: "PENDING",
+                },
+              });
+
+              if (updated.count !== swapCandidateIds.length) {
+                throw new Error("SWAP_BUNDLE_STATE_CHANGED");
+              }
+
+              await tx.participantAuditLog.createMany({
+                data: swapCandidates.map((candidate) => ({
+                  action: 'REQUEST_UPDATED',
+                  participantId: candidate.participantId,
+                  actorId: user!.id,
+                  pendingChangeId: candidate.id,
+                  beforeData: candidate.beforeData,
+                  afterData: candidate.changeData,
+                  message: 'Disziplinstausch automatisch als gemeinsamer Antrag gebuendelt',
+                })),
+              });
+            });
+
+            bundledSwapRequests = swapCandidates.length;
           }
         }
 
@@ -1156,6 +1338,7 @@ export async function PUT(
           sentInvitationCount > 0 || failedInvitationCount > 0
             ? `, ${sentInvitationCount} ${invitationNoun} versendet${failedInvitationCount > 0 ? `, ${failedInvitationCount} fehlgeschlagen` : ''}`
             : '';
+        const swapBundleMessage = bundledSwapRequests > 0 ? `, Disziplinstausch als ${bundledSwapRequests}er-Bundle gebuendelt` : '';
 
         const refreshedTeam = await prisma.team.findFirst({
           where: { id, deletedAt: null },
@@ -1220,10 +1403,10 @@ export async function PUT(
           applied: updatedTeamPublication || directlyAppliedParticipants > 0,
           message:
             createdRequests > 0 && updatedRequests > 0
-              ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert`
+              ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert${swapBundleMessage}`
               : createdRequests > 0
-                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht`
-                : `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${updatedRequests} offene Aenderungsanfrage(n) aktualisiert`,
+                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht${swapBundleMessage}`
+                : `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${updatedRequests} offene Aenderungsanfrage(n) aktualisiert${swapBundleMessage}`,
           classificationWarnings: requestedTeamState.classificationWarnings,
           pendingCount: createdRequests + updatedRequests,
           participantClaimMails: participantClaimMailResults,
@@ -1291,16 +1474,35 @@ export async function PUT(
       const participantUpdates = matchedParticipantsResult.matches
         .map(({ submittedParticipant, existingParticipant }) => {
           const birthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
+          const birthDate = normalizeBirthDateForStorage(submittedParticipant.birthDate);
           if (birthYear === null || !submittedParticipant.id) return null;
+          const beforeSnapshot = toParticipantSnapshot(existingParticipant);
+          const afterSnapshot = toParticipantSnapshot({
+            firstName: normalizeSubmittedText(submittedParticipant.firstName),
+            lastName: normalizeSubmittedText(submittedParticipant.lastName),
+            birthYear,
+            birthDate,
+            gender: mapGender(submittedParticipant.gender),
+            disciplineCode: mapDiscipline(submittedParticipant.discipline),
+            shirtSize: parseShirtSize(submittedParticipant.shirtSize),
+            moderationNote: submittedParticipant.moderationNote?.trim() || null,
+            email: normalizeSubmittedText(submittedParticipant.email) || null,
+            participantPublicationPreference: submittedParticipant.participantPublicationPreference || "NAME_VERBERGEN",
+          });
+          const changedFields = diffParticipantSnapshots(beforeSnapshot, afterSnapshot);
 
           return {
             id: submittedParticipant.id,
             currentDisciplineCode: existingParticipant.disciplineCode || "TBD",
             nextDisciplineCode: mapDiscipline(submittedParticipant.discipline),
+            beforeSnapshot,
+            afterSnapshot,
+            changedFields,
             data: {
               firstName: normalizeSubmittedText(submittedParticipant.firstName),
               lastName: normalizeSubmittedText(submittedParticipant.lastName),
               birthYear,
+              birthDate,
               gender: mapGender(submittedParticipant.gender),
               disciplineCode: mapDiscipline(submittedParticipant.discipline),
               shirtSize: parseShirtSize(submittedParticipant.shirtSize),
@@ -1344,6 +1546,72 @@ export async function PUT(
             where: { id: update.id },
             data: update.data,
           });
+
+          if (Object.keys(update.changedFields).length > 0) {
+            await tx.pendingChange.updateMany({
+              where: {
+                participantId: update.id,
+                status: "PENDING",
+              },
+              data: {
+                status: "REJECTED",
+                reviewedAt: new Date(),
+                reviewedById: user?.id ?? null,
+                reviewComment: "Durch direkte Admin-Änderung überholt",
+              },
+            });
+
+            const overriddenChangeRequests = await tx.changeRequest.findMany({
+              where: {
+                targetType: "PARTICIPANT",
+                targetId: update.id,
+                changeType: "UPDATE",
+                status: "PENDING",
+              },
+              select: { id: true, requestedSnapshot: true },
+            });
+
+            await tx.changeRequest.updateMany({
+              where: {
+                targetType: "PARTICIPANT",
+                targetId: update.id,
+                changeType: "UPDATE",
+                status: "PENDING",
+              },
+              data: {
+                status: "REJECTED",
+                reviewedAt: new Date(),
+                reviewedById: user?.id ?? null,
+                reviewComment: "Durch direkte Admin-Änderung überholt",
+              },
+            });
+
+            for (const changeRequest of overriddenChangeRequests) {
+              await tx.changeRequestAuditLog.create({
+                data: {
+                  changeRequestId: changeRequest.id,
+                  actorId: user?.id ?? null,
+                  action: "REJECTED",
+                  beforeData: changeRequest.requestedSnapshot as Prisma.InputJsonValue,
+                  afterData: update.afterSnapshot,
+                  message: "Durch direkte Admin-Änderung überholt",
+                },
+              });
+            }
+
+            await tx.participantAuditLog.create({
+              data: {
+                action: "DIRECT_CHANGE",
+                participantId: update.id,
+                actorId: user?.id ?? null,
+                beforeData: serializeSnapshot(update.beforeSnapshot),
+                afterData: serializeSnapshot(update.afterSnapshot),
+                message: summarizeParticipantChanges(update.beforeSnapshot, update.afterSnapshot)
+                  .map((change) => change.label)
+                  .join(", ") + " direkt durch Admin aktualisiert",
+              },
+            });
+          }
         }
       });
 
@@ -1481,6 +1749,7 @@ export async function DELETE(
               firstName: true,
               lastName: true,
               birthYear: true,
+              birthDate: true,
               disciplineCode: true,
               email: true,
               moderationNote: true,

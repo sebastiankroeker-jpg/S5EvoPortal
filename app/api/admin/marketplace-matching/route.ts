@@ -5,7 +5,7 @@ import type { DisciplineAssignment } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { evaluateTeamDraft } from "@/lib/domain/classification";
-import { DISCIPLINE_IDS, birthYearToBirthDateInput } from "@/lib/domain/team";
+import { DISCIPLINE_IDS, storedBirthDateToInput } from "@/lib/domain/team";
 import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { getScopedRoleFlags } from "@/lib/server-permissions";
@@ -29,13 +29,14 @@ function toTeamDraftParticipant(participant: {
   firstName: string;
   lastName: string;
   birthYear: number | null;
+  birthDate?: string | null;
   gender: "MALE" | "FEMALE";
   disciplineCode: DisciplineAssignment | null;
 }) {
   return {
     firstName: participant.firstName,
     lastName: participant.lastName,
-    birthDate: birthYearToBirthDateInput(participant.birthYear),
+    birthDate: storedBirthDateToInput(participant.birthDate, participant.birthYear),
     gender: participant.gender === "FEMALE" ? ("W" as const) : ("M" as const),
     discipline: participant.disciplineCode || ("TBD" as const),
   };
@@ -94,6 +95,7 @@ async function loadAvailableMarketplaceParticipants(competitionId: string, targe
           firstName: true,
           lastName: true,
           birthYear: true,
+          birthDate: true,
           gender: true,
           disciplineCode: true,
           email: true,
@@ -118,7 +120,7 @@ async function loadAvailableMarketplaceParticipants(competitionId: string, targe
       name: participantName(participant),
       firstName: participant.firstName,
       lastName: participant.lastName,
-      birthDate: birthYearToBirthDateInput(participant.birthYear),
+      birthDate: storedBirthDateToInput(participant.birthDate, participant.birthYear),
       gender: participant.gender === "FEMALE" ? "W" : "M",
       disciplineCode: participant.disciplineCode || "TBD",
       email: participant.email ?? "",

@@ -37,6 +37,16 @@ Die Routine liefert strukturierte Kategorien:
 - Teamname, Teilnehmer, Geburtsdatum, Geschlecht, Klassifikation und Disziplinen werden in beiden Modi identisch bewertet.
 - UI-Komponenten duerfen keine eigenen Geburtsdatum- oder Disziplinwarnlisten mehr neben der Domain-Routine aufbauen.
 
+## Klassifikation
+
+Jugendklassen werden nach Jahrgaengen bewertet, nicht nach Gesamtalter:
+
+- Schueler A: Jahrgang 2016 bis 2018
+- Schueler B: Jahrgang 2013 bis 2015
+- Jugend: Jahrgang 2009 bis 2012
+
+Bei Ueberschneidungen der Jugend-Jahrgangsklassen bestimmt der aelteste Teilnehmer die Klasse. Ein Team mit Jahrgaengen 2015 und 2016 startet damit in Schueler B; ein Team mit 2012 und 2016 startet in Jugend. Erst wenn ein Team nicht vollstaendig in den Jugendbereich 2009 bis 2018 faellt, greifen die Erwachsenenklassen nach Gesamtalter.
+
 ## Umsetzungspakete
 
 1. Domain-Basis: `evaluateTeamDraft(...)` einfuehren und in der Registrierungs-UI als einzige Live-Quelle verwenden. Status: umgesetzt.

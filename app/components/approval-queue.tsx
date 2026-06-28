@@ -129,6 +129,7 @@ const fieldLabels: Record<string, string> = {
   firstName: "Vorname",
   lastName: "Nachname",
   birthYear: "Geburtsjahr",
+  birthDate: "Geburtsdatum",
   gender: "Geschlecht",
   disciplineCode: "Disziplin",
   shirtSize: "T-Shirt",
@@ -159,6 +160,20 @@ function formatValue(value: string | number | null | undefined) {
   if (value === "NAME_VEROEFFENTLICHEN") return "Name veröffentlichen";
   if (value === "NAME_VERBERGEN") return "Name verbergen";
   return String(value);
+}
+
+function getChangeTitle(change: DecoratedChange) {
+  if (change.bundleType === "SWAP" && (change.bundleGroupSize || 0) > 1) {
+    return `Disziplinstausch (${change.bundleGroupSize})`;
+  }
+  if (change.bundleId && (change.bundleGroupSize || 0) > 1) {
+    return `Bundle (${change.bundleGroupSize})`;
+  }
+  return change.participantName;
+}
+
+function getBundleMembers(change: DecoratedChange) {
+  return change.bundleMembers && change.bundleMembers.length > 1 ? change.bundleMembers : [change];
 }
 
 function formatDateTime(value: string) {
@@ -776,6 +791,101 @@ function DecisionResultCard({ result }: { result: DecisionResult }) {
   );
 }
 
+function SwapBundleSummary({ members }: { members: DecoratedChange[] }) {
+  const entries = members
+    .map((member) => {
+      const disciplineField = member.fields.find((field) => field.key === "disciplineCode");
+      return disciplineField
+        ? {
+            participantName: member.participantName,
+            before: disciplineField.before,
+            after: disciplineField.after,
+          }
+        : null;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2.5 text-sm text-blue-950 dark:border-blue-900/70 dark:bg-blue-950/25 dark:text-blue-100">
+      <div className="text-xs font-medium uppercase tracking-[0.14em] opacity-80">Disziplinstausch</div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {entries.map((entry) => (
+          <div key={entry.participantName} className="rounded-md bg-background/70 px-3 py-2">
+            <div className="font-medium">{entry.participantName}</div>
+            <div className="mt-1 text-xs opacity-80">
+              {formatValue(entry.before)} {"->"} {formatValue(entry.after)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; members: DecoratedChange[] }) {
+  if (members.length > 1) {
+    const membersWithFields = members.filter((member) => member.fields.length > 0);
+
+    if (membersWithFields.length === 0) {
+      return <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>;
+    }
+
+    return (
+      <div className="space-y-2">
+        {membersWithFields.map((member) => (
+          <div key={member.id} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
+            <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              {member.participantName}
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {member.fields.map((field) => (
+                <div key={`${member.id}-${field.key}`} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {fieldLabels[field.key] || field.key}
+                  </div>
+                  <div className="mt-1 text-sm">
+                    <span className="text-muted-foreground">{formatValue(field.before)}</span>
+                    <span className="mx-1 text-muted-foreground">{"->"}</span>
+                    <span className="font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (change.fields.length === 0) {
+    return <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {change.fields.map((field) => (
+        <div key={field.key} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
+          <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            {fieldLabels[field.key] || field.key}
+          </div>
+          <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Bisher</div>
+              <div className="mt-1 text-muted-foreground">{formatValue(field.before)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">Beantragt</div>
+              <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ChangeList({
   changes,
   comments,
@@ -817,6 +927,12 @@ function ChangeList({
         const displayStatus = resolveDisplayStatus(change);
         const commentKey = change.bundleId ? `bundle:${change.bundleId}` : change.id;
         const processingKey = change.bundleId ? `bundle:${change.bundleId}` : change.id;
+        const bundleMembers = getBundleMembers(change);
+        const changeTitle = getChangeTitle(change);
+        const isSwapBundle = change.bundleType === "SWAP" && bundleMembers.length > 1;
+        const previewFields = bundleMembers.flatMap((member) =>
+          member.fields.map((field) => ({ member, field })),
+        );
         return (
         <motion.div
           key={change.id}
@@ -840,9 +956,7 @@ function ChangeList({
                   <div className="min-w-0 space-y-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       <span className="min-w-0 truncate text-sm font-medium">
-                        {change.bundleId && (change.bundleGroupSize || 0) > 1
-                          ? `Tausch-Bundle (${change.bundleGroupSize})`
-                          : change.participantName}
+                        {changeTitle}
                       </span>
                       <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${getStatusTone(displayStatus)}`}>
                         {getStatusLabel(displayStatus)}
@@ -853,7 +967,7 @@ function ChangeList({
                       <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">
                         {change.bundleFieldCount ?? change.fields.length} Felder
                       </Badge>
-                      {change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
+                      {isSwapBundle ? <Badge variant="secondary">Tausch-Bundle</Badge> : change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
                     </div>
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                       <button
@@ -872,16 +986,17 @@ function ChangeList({
                       <span>·</span>
                       <span>{formatDateTime(change.updatedAt)}</span>
                     </div>
-                    {change.fields.length > 0 && (
+                    {previewFields.length > 0 && (
                       <div className="rounded-md border border-border/50 bg-muted/25 px-2 py-1.5 text-[11px] text-muted-foreground">
                         <span className="font-medium text-foreground">Betroffen:</span>{" "}
-                        {change.fields.slice(0, 2).map((field, index) => (
-                          <span key={field.key} className="mr-2">
+                        {previewFields.slice(0, 2).map(({ member, field }, index) => (
+                          <span key={`${member.id}-${field.key}`} className="mr-2">
                             {index > 0 ? "· " : ""}
+                            {bundleMembers.length > 1 ? `${member.participantName}: ` : ""}
                             {fieldLabels[field.key] || field.key}: {formatValue(field.before)} {"->"} {formatValue(field.after)}
                           </span>
                         ))}
-                        {change.fields.length > 2 ? `+${change.fields.length - 2} weitere` : ""}
+                        {previewFields.length > 2 ? `+${previewFields.length - 2} weitere` : ""}
                       </div>
                     )}
                     {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
@@ -953,29 +1068,8 @@ function ChangeList({
                         </div>
                       ) : null}
 
-                      {change.fields.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {change.fields.map((field) => (
-                            <div key={field.key} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
-                              <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                                {fieldLabels[field.key] || field.key}
-                              </div>
-                              <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                                <div>
-                                  <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Bisher</div>
-                                  <div className="mt-1 text-muted-foreground">{formatValue(field.before)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">Beantragt</div>
-                                  <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {isSwapBundle ? <SwapBundleSummary members={bundleMembers} /> : null}
+                      <ChangeFieldsBlock change={change} members={bundleMembers} />
                     </div>
 
                     {change.recentHistory?.length ? (
@@ -1078,16 +1172,14 @@ function ChangeList({
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle className={compact ? "text-base" : "text-xl leading-tight"}>
-                        {change.bundleId && (change.bundleGroupSize || 0) > 1
-                          ? `Tausch-Bundle (${change.bundleGroupSize})`
-                          : change.participantName}
+                        {changeTitle}
                       </CardTitle>
                       <Badge variant="outline" className={getStatusTone(displayStatus)}>
                         {getStatusLabel(displayStatus)}
                       </Badge>
                       <Badge variant="outline">{getTargetTypeLabel(change.targetType)}</Badge>
                       <Badge variant="secondary">{change.bundleFieldCount ?? change.fields.length} Feldwechsel</Badge>
-                      {change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
+                      {isSwapBundle ? <Badge variant="secondary">Tausch-Bundle</Badge> : change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
                       {change.changeRequestId ? <Badge variant="secondary">ChangeRequest</Badge> : null}
                     </div>
                     {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
@@ -1195,29 +1287,8 @@ function ChangeList({
                   </div>
                 ) : null}
 
-                {change.fields.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {change.fields.map((field) => (
-                      <div key={field.key} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
-                        <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                          {fieldLabels[field.key] || field.key}
-                        </div>
-                        <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                          <div>
-                            <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Bisher</div>
-                            <div className="mt-1 text-muted-foreground">{formatValue(field.before)}</div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">Beantragt</div>
-                            <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {isSwapBundle ? <SwapBundleSummary members={bundleMembers} /> : null}
+                <ChangeFieldsBlock change={change} members={bundleMembers} />
               </div>
 
               {change.recentHistory?.length ? (

@@ -2,7 +2,8 @@
 // Prisma + PostgreSQL (Prisma Postgres)
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -248,6 +249,7 @@ model User {
   name         String?
   image        String?
   authentikSub String?   @unique
+  lastSeenAt   DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
@@ -274,6 +276,7 @@ model User {
   resetSnapshotsCreated     CompetitionResetSnapshot[] @relation("CompetitionResetSnapshotCreator")
   auditEventsCreated        AuditEvent[]               @relation("AuditEventActor")
 
+  @@index([lastSeenAt])
   @@map("users")
 }
 
@@ -503,6 +506,7 @@ model Participant {
   firstName                        String
   lastName                         String
   birthYear                        Int
+  birthDate                        String?
   gender                           Gender
   disciplineCode                   DisciplineAssignment             @default(TBD)
   marketplaceReturnTeamId          String?

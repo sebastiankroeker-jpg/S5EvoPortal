@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -485,8 +485,6 @@ function getContactFallbackLabel(team: Team) {
 
 function getLatestChangeMeta(status?: string | null) {
   if (status === "PENDING") return { label: "In Prüfung", className: "border-amber-300 text-amber-700" };
-  if (status === "APPROVED") return { label: "Genehmigt", className: "border-green-300 text-green-700" };
-  if (status === "REJECTED") return { label: "Abgelehnt", className: "border-red-300 text-red-700" };
   return null;
 }
 
@@ -496,8 +494,8 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   if (status === "active") return { label: "Einladung versendet", className: "border-blue-300 text-blue-700" };
   if (status === "expired") return { label: "Einladung abgelaufen", className: "border-amber-300 text-amber-700" };
   if (status === "revoked") return { label: "Einladung gesperrt", className: "border-red-300 text-red-700" };
-  if (status === "missing_email") return { label: "Keine E-Mail", className: "border-muted text-muted-foreground" };
-  return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
+  if (status === "missing_email") return { label: "Keine E-Mail hinterlegt", className: "border-muted text-muted-foreground" };
+  return { label: "Keine Einladung versendet", className: "border-muted text-muted-foreground" };
 }
 
 function getClaimStatus(token?: {
@@ -563,7 +561,7 @@ function OwnerClaimBadge({ team }: { team: Team }) {
             ? () => openUserDashboard({ email: team.ownerEmail || team.contactEmail, teamId: team.id })
             : undefined,
         },
-        { label: "Portal-Konto", value: team.ownerHasPortalAccount ? "vorhanden" : team.ownerId ? "User angelegt, Login offen" : "nicht erkannt" },
+        { label: "Portal-Konto", value: team.ownerHasPortalAccount ? "vorhanden" : team.ownerId ? "Login noch nicht aktiviert" : "nicht erkannt" },
         { label: "Claim", value: meta.label, targetType: "claim", onClick: () => { window.location.href = "/claim-links"; } },
         { label: "Erstellt", value: team.ownerClaim?.sentAt ? formatDateTime(team.ownerClaim.sentAt) : null },
         { label: "Gültig bis", value: team.ownerClaim?.expiresAt && !team.ownerClaim.claimedAt ? formatDateTime(team.ownerClaim.expiresAt) : null },
@@ -1556,6 +1554,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [deleting, setDeleting] = useState<string | null>(null);
   const [creatingMatchingDraft, setCreatingMatchingDraft] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const pendingFocusTeamIdRef = useRef<string | null>(null);
   const [expandedMarketplaceContainerTeam, setExpandedMarketplaceContainerTeam] = useState<string | null>(null);
   const [teamVisibilityInfoTeamId, setTeamVisibilityInfoTeamId] = useState<string | null>(null);
   const [teamAdminInfoTeamId, setTeamAdminInfoTeamId] = useState<string | null>(null);
@@ -2057,6 +2056,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
   }, [teams, pendingOwnerFilter]);
 
+  const scrollTeamIntoView = useCallback((teamId: string) => {
+    const scroll = () => {
+      document.getElementById(`team-${teamId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    window.requestAnimationFrame(() => {
+      scroll();
+      window.setTimeout(scroll, 260);
+    });
+  }, []);
+
   const focusTeam = useCallback((teamId?: string | null, search?: string | null) => {
     if (!teamId || !teams.some((team) => team.id === teamId)) {
       if (search?.trim()) {
@@ -2067,11 +2077,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
     setSearchQuery(search?.trim() || "");
     setViewMode("cards");
+    pendingFocusTeamIdRef.current = teamId;
     setExpandedTeam(teamId);
-    window.requestAnimationFrame(() => {
-      document.getElementById(`team-${teamId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  }, [teams]);
+    scrollTeamIntoView(teamId);
+  }, [scrollTeamIntoView, teams]);
+
+  useEffect(() => {
+    const pendingFocusTeamId = pendingFocusTeamIdRef.current;
+    if (!pendingFocusTeamId || expandedTeam !== pendingFocusTeamId || viewMode !== "cards") {
+      return;
+    }
+
+    pendingFocusTeamIdRef.current = null;
+    scrollTeamIntoView(pendingFocusTeamId);
+  }, [expandedTeam, scrollTeamIntoView, viewMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2243,8 +2262,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const visibleColumnDefs = listOptionalColumns.filter((column) => visibleColumns.includes(column.key));
 
   const categoryMeta: Record<string, { icon: string; className: string; label?: string }> = {
-    "schueler-a": { icon: "SA", label: "Schueler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
-    "schueler-b": { icon: "SB", label: "Schueler B", className: "border-cyan-300 bg-cyan-50 text-cyan-800" },
+    "schueler-a": { icon: "SA", label: "Schüler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
+    "schueler-b": { icon: "SB", label: "Schüler B", className: "border-cyan-300 bg-cyan-50 text-cyan-800" },
     jugend: { icon: "J", label: "Jugend", className: "border-violet-300 bg-violet-50 text-violet-800" },
     jungsters: { icon: "⚡", label: "Jungsters", className: "border-yellow-300 bg-yellow-50 text-yellow-800" },
     herren: { icon: "♂", label: "Herren", className: "border-blue-300 bg-blue-50 text-blue-800" },
@@ -2267,7 +2286,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         ) : (
           <span>{meta.icon}</span>
         )}
-        {team.category}
+        {meta.label || team.category}
       </Badge>
     );
   };
@@ -4204,7 +4223,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         participant={editingParticipant}
         open={!!editingParticipant}
         onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
-        onSaved={() => { setEditingParticipant(null); fetchTeams(); }}
+        onSaved={() => { fetchTeams(); }}
         directEdit={canEditAll}
         isAdminEdit={canEditAll}
         showModerationNote={canEditAll || editingParticipant?.teamCanEdit === true || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
@@ -4914,6 +4933,7 @@ function EditTeamModal({
   const [updatingManagerIndex, setUpdatingManagerIndex] = useState<number | null>(null);
   const [inviteMessages, setInviteMessages] = useState<Record<number, { type: "success" | "error"; text: string }>>({});
   const [managerMessages, setManagerMessages] = useState<Record<number, { type: "success" | "error"; text: string }>>({});
+  const [disciplineSwapMessages, setDisciplineSwapMessages] = useState<Record<number, string>>({});
   const [footerIssuesExpanded, setFooterIssuesExpanded] = useState(true);
   const [savedInvitationEmails, setSavedInvitationEmails] = useState<Record<number, string>>(() =>
     Object.fromEntries((team.participants || []).map((participant, index) => [index, participant.email || ""])),
@@ -5015,10 +5035,44 @@ function EditTeamModal({
 
   const handleParticipantChange = (index: number, field: string, value: string) => {
     const newParticipants = [...formData.participants];
+    const currentParticipant = newParticipants[index];
+
+    if (field === "discipline" && currentParticipant) {
+      const previousDiscipline = currentParticipant.discipline || currentParticipant.disciplineCode || "TBD";
+      const occupiedIndex = newParticipants.findIndex((participant, participantIndex) =>
+        participantIndex !== index && (participant.discipline || participant.disciplineCode || "TBD") === value,
+      );
+
+      if (occupiedIndex !== -1) {
+        const occupiedParticipant = newParticipants[occupiedIndex];
+        newParticipants[occupiedIndex] = { ...occupiedParticipant, discipline: previousDiscipline };
+        newParticipants[index] = { ...currentParticipant, discipline: value };
+
+        const currentName = getParticipantDisplayName(currentParticipant, index);
+        const occupiedName = getParticipantDisplayName(occupiedParticipant, occupiedIndex);
+        const currentTarget = getDisciplineLabel(value);
+        const occupiedTarget = getDisciplineLabel(previousDiscipline);
+        setFormData({ ...formData, participants: newParticipants });
+        setDisciplineSwapMessages((current) => ({
+          ...current,
+          [index]: `Tausch erkannt: ${currentName} -> ${currentTarget}, ${occupiedName} -> ${occupiedTarget}.`,
+          [occupiedIndex]: `Tausch erkannt: ${occupiedName} -> ${occupiedTarget}, ${currentName} -> ${currentTarget}.`,
+        }));
+        return;
+      }
+    }
+
     newParticipants[index] = { ...newParticipants[index], [field]: value };
     setFormData({ ...formData, participants: newParticipants });
     if (field === "email") {
       setInviteMessages((current) => {
+        const next = { ...current };
+        delete next[index];
+        return next;
+      });
+    }
+    if (field === "discipline") {
+      setDisciplineSwapMessages((current) => {
         const next = { ...current };
         delete next[index];
         return next;
@@ -5336,7 +5390,7 @@ function EditTeamModal({
                       <Input
                         type="text"
                         inputMode="numeric"
-                        placeholder="TT.MM.JJJJ"
+	                        placeholder="TT.MM.JJJJ oder JJJJ"
                         autoComplete="bday"
                         value={participant.birthDate}
                         onChange={(e) => handleParticipantChange(index, 'birthDate', formatBirthDateInput(e.target.value))}
@@ -5362,13 +5416,27 @@ function EditTeamModal({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="TBD">❓ Noch offen</SelectItem>
-                          {DISCIPLINES.map((discipline) => (
-                            <SelectItem key={discipline.id} value={discipline.id}>
-                              {discipline.icon} {discipline.label}
-                            </SelectItem>
-                          ))}
+                          {DISCIPLINES.map((discipline) => {
+                            const slotParticipantIndex = formData.participants.findIndex((teamParticipant, participantIndex) =>
+                              participantIndex !== index &&
+                              (teamParticipant.discipline || teamParticipant.disciplineCode || "TBD") === discipline.id,
+                            );
+                            const slotParticipant = slotParticipantIndex === -1 ? null : formData.participants[slotParticipantIndex];
+
+                            return (
+                              <SelectItem key={discipline.id} value={discipline.id}>
+                                {discipline.icon} {discipline.label}
+                                {slotParticipant ? ` - tauschen mit ${getParticipantDisplayName(slotParticipant, slotParticipantIndex)}` : ""}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
+                      {disciplineSwapMessages[index] ? (
+                        <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                          {disciplineSwapMessages[index]}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div>

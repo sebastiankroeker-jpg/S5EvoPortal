@@ -37,14 +37,25 @@ interface Participant {
 }
 
 const categoryEmojis: Record<string, string> = {
-  "schueler-a": "🧒",
-  "schueler-b": "👦", 
-  "jugend": "🌟",
+  "schueler-a": "SA",
+  "schueler-b": "SB",
+  "jugend": "J",
   "jungsters": "⚡",
   "herren": "🏋️",
   "masters": "🎖️",
   "damen-a": "🏋️‍♀️",
   "damen-b": "👩‍🦳",
+};
+
+const categoryLabels: Record<string, string> = {
+  "schueler-a": "Schüler A",
+  "schueler-b": "Schüler B",
+  jugend: "Jugend",
+  jungsters: "Jungsters",
+  herren: "Herren",
+  masters: "Masters",
+  "damen-a": "Damen A",
+  "damen-b": "Damen B",
 };
 
 // Helper function to get discipline display
@@ -165,7 +176,7 @@ export default function LiveScreen() {
               >
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {category}
+                    {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {categoryLabels[category] || category}
                   </span>
                   <Badge variant="outline">
                     {categoryTeams.length} Team{categoryTeams.length !== 1 ? 's' : ''}
@@ -314,7 +325,7 @@ export default function LiveScreen() {
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
                               <span className="flex items-center gap-2">
-                                {isClassExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {category}
+                                {isClassExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {categoryLabels[category] || category}
                               </span>
                               <Badge variant="outline" className="text-xs">
                                 {participants.length} Starter:innen
@@ -409,7 +420,7 @@ export default function LiveScreen() {
               <SelectItem value="all">Alle Klassen</SelectItem>
               {allClasses.map(category => (
                 <SelectItem key={category} value={category}>
-                  {categoryEmojis[category] || "🏆"} {category}
+                  {categoryEmojis[category] || "🏆"} {categoryLabels[category] || category}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -429,7 +440,7 @@ export default function LiveScreen() {
               <div className="text-sm text-muted-foreground">
                 Filter aktiv: 
                 {disciplineFilter !== "all" && ` ${DISCIPLINES.find(d => d.id === disciplineFilter)?.label}`}
-                {classFilter !== "all" && ` ${categoryEmojis[classFilter] || ""} ${classFilter}`}
+                {classFilter !== "all" && ` ${categoryEmojis[classFilter] || ""} ${categoryLabels[classFilter] || classFilter}`}
               </div>
             )}
           </CardContent>

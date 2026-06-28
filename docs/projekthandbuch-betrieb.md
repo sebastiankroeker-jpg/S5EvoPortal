@@ -13,9 +13,26 @@ Vor einem Deploy mit Datenbankbezug immer pruefen:
 - Session-Handoff lesen, sofern vorhanden.
 - `git status --short` pruefen und nur produktive App-Aenderungen stagen.
 - Workspace-/Agent-Dateien wie `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md` nicht in App-Commits aufnehmen.
+- Bei isolierten Snapshot-Deploys sicherstellen, dass der Snapshot nicht auf einem aelteren technischen Basisstand ohne benoetigte Runtime-/Prisma-Anpassungen basiert.
 - TypeScript, Lint und Build ausfuehren.
 - Prisma-Migrationsstatus gegen die konfigurierte Datenbank pruefen.
 - Bei Produktivdaten ein Backup ziehen oder vorhandene Backup-Option bestaetigen.
+
+## Pflicht-Smoke-Test nach Produktivdeploy
+
+Ein `HTTP 200` auf `/` reicht nicht als Produktionsfreigabe. Nach jedem Produktivdeploy muessen mindestens diese Checks erfolgreich sein:
+
+```bash
+curl -I -L https://portal.s5evo.de
+curl -sS https://portal.s5evo.de/api/competition
+```
+
+Erwartung:
+
+- `/` liefert `HTTP 200`
+- `/api/competition` liefert JSON mit Wettbewerbsdaten, nicht nur eine generische Fehlerantwort
+
+Wenn der Deploy Prisma, Datenbankzugriffe oder serverseitige Runtime betrifft, zusaetzlich mindestens eine weitere betroffene API- oder Auth-Route pruefen.
 
 ## Datenbank, Prisma und Migrationen
 
@@ -71,3 +88,10 @@ Wenn eine erwartete neue Datei fehlt, gezielt mit `git add -f <datei>` aufnehmen
 - `registrationMode = MARKETPLACE` trennt Boerseneintraege fachlich von echten Teams.
 - Auswertungen wie Teamanzahl muessen echte Teams filtern und Boerseneintraege ausschliessen.
 - Claim-Token und Mailflow sind sensible Bestandteile und nach Aenderungen besonders zu pruefen.
+
+## Incident-Learning 2026-06-28
+
+- Eine fachlich harmlose UI-Aenderung kann beim isolierten Snapshot-Deploy trotzdem produktiv scheitern, wenn der Snapshot auf einem aelteren technischen Stand basiert.
+- Im konkreten Fall fehlte im deployten Basisstand der Prisma-`binaryTargets`-Eintrag fuer `rhel-openssl-3.0.x`; der Build wirkte nach aussen erfolgreich, die Runtime schlug aber auf `/api/competition` fehl.
+- Konsequenz: Bei Snapshot-Deploys immer auch technische Begleitdateien wie `prisma/schema.prisma`, Build-Skripte und Runtime-Konfiguration gegenpruefen.
+- Konsequenz: Produktionsfreigabe nie nur auf Landing-Page-Checks stuetzen.

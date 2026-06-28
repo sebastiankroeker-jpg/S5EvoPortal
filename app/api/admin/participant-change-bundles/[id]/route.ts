@@ -7,16 +7,10 @@ import { validatePendingChangeBundle } from "@/lib/participant-change-bundle";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
-const BUNDLE_FEATURE_FLAG = process.env.ENABLE_PENDING_CHANGE_BUNDLES === "true";
-
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!BUNDLE_FEATURE_FLAG) {
-    return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
-  }
-
   const session = await getServerSession(authOptions);
   const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
   if ("error" in auth) return auth.error;

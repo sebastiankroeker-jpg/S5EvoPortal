@@ -105,6 +105,28 @@ export async function GET(request: NextRequest) {
       return legacyPendingChangeId ? [legacyPendingChangeId] : [];
     }),
   );
+  const legacyPendingChangeMetaById = new Map(
+    (legacyPendingChangeIds.size > 0
+      ? await prisma.pendingChange.findMany({
+          where: {
+            id: { in: [...legacyPendingChangeIds] },
+            participant: {
+              team: {
+                competition: {
+                  tenantId: auth.tenantId,
+                },
+              },
+            },
+          },
+          select: {
+            id: true,
+            bundleId: true,
+            bundleType: true,
+            bundleStatus: true,
+          },
+        })
+      : []).map((change) => [change.id, change]),
+  );
 
   const legacyChanges = await prisma.pendingChange.findMany({
     where: {
@@ -183,11 +205,15 @@ export async function GET(request: NextRequest) {
 
     const requestedSnapshot = normalizeJsonSnapshot(changeRequest.requestedSnapshot);
     const beforeSnapshot = normalizeJsonSnapshot(changeRequest.beforeSnapshot);
+    const pendingChangeMeta = legacyPendingChangeMetaById.get(legacyPendingChangeId);
 
     return [
       decorateParticipantChange({
         id: legacyPendingChangeId,
         changeRequestId: changeRequest.id,
+        bundleId: pendingChangeMeta?.bundleId,
+        bundleType: pendingChangeMeta?.bundleType,
+        bundleStatus: pendingChangeMeta?.bundleStatus,
         changeData: serializeSnapshot(requestedSnapshot),
         beforeData: serializeSnapshot(beforeSnapshot),
         status: normalizeChangeRequestStatus(changeRequest.status),

@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { upsertLegacyParticipantChangeRequest } from "@/lib/change-request";
-import { birthYearToBirthDateInput } from "@/lib/domain/team";
+import { extractBirthYearFromInput, normalizeBirthDateForStorage, storedBirthDateToInput } from "@/lib/domain/team";
 import { sendParticipantChangeSubmittedEmails, sendParticipantDirectChangeEmail } from "@/lib/mail/participant-change";
 import {
   createParticipantClaimInvitation,
@@ -89,6 +89,7 @@ export async function GET(
           name: true,
           contactEmail: true,
           registrationMode: true,
+          teamPublicationLevel: true,
           ownerId: true,
           teamChiefId: true,
           owner: { select: { email: true } },
@@ -102,6 +103,23 @@ export async function GET(
               status: true,
               shirtOrderDeadline: true,
               tenantId: true,
+            },
+          },
+          participants: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              birthYear: true,
+              birthDate: true,
+              gender: true,
+              disciplineCode: true,
+              shirtSize: true,
+              moderationNote: true,
+              email: true,
+              participantPublicationPreference: true,
             },
           },
         },
@@ -154,19 +172,35 @@ export async function GET(
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
-  const { phone: _ignoredPhone, ...participantWithoutPhone } = participant;
+  const participantWithoutPhone = { ...participant };
+  delete (participantWithoutPhone as { phone?: unknown }).phone;
+  const visibleTeamParticipants = participant.team.participants.map((teamParticipant) => ({
+    ...teamParticipant,
+    birthDate: storedBirthDateToInput(teamParticipant.birthDate, teamParticipant.birthYear),
+    email: isModeratorGlobalView ? null : teamParticipant.email,
+    shirtSize: isModeratorGlobalView ? null : teamParticipant.shirtSize,
+  }));
+  const visibleTeam = {
+    ...participant.team,
+    participants: visibleTeamParticipants,
+  };
   const visibleParticipant = isModeratorGlobalView
     ? {
         ...participantWithoutPhone,
+        team: visibleTeam,
         email: null,
         shirtSize: null,
         claimTokens: [],
       }
-    : participantWithoutPhone;
+    : { ...participantWithoutPhone, team: visibleTeam };
 
   return NextResponse.json({
     ...visibleParticipant,
-    birthDate: birthYearToBirthDateInput(participant.birthYear),
+    teamId: participant.team.id,
+    teamName: participant.team.name,
+    teamPublicationLevel: participant.team.teamPublicationLevel,
+    teamParticipants: visibleTeamParticipants,
+    birthDate: storedBirthDateToInput(participant.birthDate, participant.birthYear),
     emailInvitation: isModeratorGlobalView
       ? null
       : {
@@ -196,7 +230,16 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
-  const changeData = buildParticipantChangeData(body as Record<string, unknown>);
+  const normalizedBody = { ...(body as Record<string, unknown>) };
+  if (typeof normalizedBody.birthDate === "string") {
+    const extractedBirthYear = extractBirthYearFromInput(normalizedBody.birthDate);
+    if (extractedBirthYear === null) {
+      return NextResponse.json({ error: "Geburtsdatum unplausibel" }, { status: 400 });
+    }
+    normalizedBody.birthYear = extractedBirthYear;
+    normalizedBody.birthDate = normalizeBirthDateForStorage(normalizedBody.birthDate);
+  }
+  const changeData = buildParticipantChangeData(normalizedBody);
 
   const participant = await prisma.participant.findUnique({
     where: { id, deletedAt: null },

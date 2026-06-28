@@ -426,7 +426,7 @@ export default function ParticipantList() {
         participant={editingParticipant}
         open={!!editingParticipant}
         onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
-        onSaved={() => { setEditingParticipant(null); fetchParticipants(); }}
+        onSaved={() => { fetchParticipants(); }}
         directEdit={true}
         isAdminEdit={canSeeAdminOnlyFields}
         showModerationNote

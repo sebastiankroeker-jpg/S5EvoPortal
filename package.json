@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "smoke:core": "node scripts/smoke-core-flows.mjs",
+    "smoke:public": "node scripts/smoke-core-flows.mjs",
+    "verify:account-link-status": "tsx scripts/verify-account-link-status.ts",
     "verify:team-draft": "tsx scripts/verify-team-draft-evaluation.ts",
     "verify:participant-edit-flow": "tsx scripts/verify-participant-edit-flow.ts",
     "db:migrate": "prisma migrate dev",

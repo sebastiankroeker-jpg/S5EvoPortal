@@ -28,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCompetition } from "@/lib/competition-context";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
-import { evaluateTeamDraft } from "@/lib/domain/classification";
+import { evaluateTeamDraft, YOUTH_CLASS_YEAR_RANGES } from "@/lib/domain/classification";
 
 type TeamClassId =
   | "schueler-a"
@@ -54,9 +54,9 @@ const TEAM_CLASSES: { id: TeamClassId; label: string }[] = [
 type RegistrationMode = "TEAM" | "MARKETPLACE";
 
 const CLASS_CONFIG: Record<TeamClassId, { minYear: number; maxYear: number; gender: "M" | "W" | "mixed" }> = {
-  "schueler-a": { minYear: 2016, maxYear: 2018, gender: "mixed" },
-  "schueler-b": { minYear: 2013, maxYear: 2015, gender: "mixed" },
-  jugend: { minYear: 2009, maxYear: 2012, gender: "mixed" },
+  "schueler-a": { ...YOUTH_CLASS_YEAR_RANGES["schueler-a"], gender: "mixed" },
+  "schueler-b": { ...YOUTH_CLASS_YEAR_RANGES["schueler-b"], gender: "mixed" },
+  jugend: { ...YOUTH_CLASS_YEAR_RANGES.jugend, gender: "mixed" },
   jungsters: { minYear: 2001, maxYear: 2004, gender: "M" },
   herren: { minYear: 1985, maxYear: 1995, gender: "M" },
   masters: { minYear: 1965, maxYear: 1975, gender: "M" },
@@ -996,7 +996,7 @@ export default function TeamRegistration({
                           <input
                             type="text"
                             inputMode="numeric"
-                            placeholder="TT.MM.JJJJ"
+	                                  placeholder="TT.MM.JJJJ oder JJJJ"
                             autoComplete="bday"
                             className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm"
                             value={marketplaceBirthDate}

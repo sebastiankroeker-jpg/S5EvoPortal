@@ -50,6 +50,8 @@
 :root {
     --background: oklch(0.99 0.002 240);
     --foreground: oklch(0.15 0.01 240);
+    --discipline-icon-color: oklch(0.42 0.12 244);
+    --discipline-icon-soft: oklch(0.95 0.03 244);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.18 0.01 240);
     --popover: oklch(1 0 0);
@@ -85,6 +87,8 @@
 .dark {
     --background: oklch(0.13 0.01 260);
     --foreground: oklch(0.93 0.005 240);
+    --discipline-icon-color: oklch(0.82 0.08 95);
+    --discipline-icon-soft: oklch(0.29 0.02 250);
     --card: oklch(0.16 0.01 260);
     --card-foreground: oklch(0.93 0.005 240);
     --popover: oklch(0.16 0.01 260);
@@ -180,6 +184,16 @@
 /* ESV Mode */
 .esv-bg {
   background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+[data-theme="esv"] {
+  --discipline-icon-color: #f2d046;
+  --discipline-icon-soft: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="bunt"] {
+  --discipline-icon-color: #00f5ff;
+  --discipline-icon-soft: rgba(255, 0, 217, 0.18);
 }
 
 /* Sys-Admin Mode */
