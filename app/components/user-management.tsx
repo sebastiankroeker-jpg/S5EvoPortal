@@ -134,13 +134,16 @@ function isMtcScope(team: UserEntry["teamScopes"][number]) {
 function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][number]) {
   const isMtc = isMtcScope(team);
   const hasExplicitTeamRight = team.isLegacyTeamChief || (team.isTeamManager && !team.isOwner);
+  const hasConfirmedPortalLogin = Boolean(user.authentikSub);
 
   if (team.participantLink) {
+    const isLinkedParticipantUser = team.participantLink.linkedUserId === user.id;
     return deriveAccountLinkStatus({
       entityLabel: isMtc ? "MTC-Teilnehmer" : "Teilnehmer",
       hasEmail: Boolean(team.participantLink.email || user.email),
-      hasEntityLink: team.participantLink.linkedUserId === user.id,
-      hasPortalAccount: Boolean(user.authentikSub),
+      hasEntityLink: isLinkedParticipantUser && hasConfirmedPortalLogin,
+      hasPortalAccount: hasConfirmedPortalLogin,
+      hasPlaceholderUser: isLinkedParticipantUser && !hasConfirmedPortalLogin,
       claimStatus: team.participantLink.claim ? getClaimStatus(team.participantLink.claim) : "none",
     });
   }
@@ -148,9 +151,9 @@ function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][
   return deriveAccountLinkStatus({
     entityLabel: isMtc ? "MTC-Kontakt" : "Team-Owner",
     hasEmail: Boolean(team.ownerClaim?.suggestedEmail || team.contactEmail || user.email),
-    hasEntityLink: Boolean(team.ownerClaim?.claimedAt || hasExplicitTeamRight),
-    hasPortalAccount: Boolean(user.authentikSub),
-    hasPlaceholderUser: Boolean(!user.authentikSub),
+    hasEntityLink: Boolean(team.ownerClaim?.claimedAt || (hasExplicitTeamRight && hasConfirmedPortalLogin)),
+    hasPortalAccount: hasConfirmedPortalLogin,
+    hasPlaceholderUser: Boolean((hasExplicitTeamRight || team.isOwner) && !hasConfirmedPortalLogin),
     claimStatus: team.ownerClaim ? getClaimStatus(team.ownerClaim) : "none",
   });
 }
@@ -172,7 +175,7 @@ function UserTeamScopeStatusDialog({ user, team }: { user: UserEntry; team: User
         { label: "Relation", value: team.relations.join(" · ") },
         { label: "Kontakt-Mail", value: team.contactEmail },
         { label: "Claim-Mail", value: team.participantLink?.email || team.ownerClaim?.suggestedEmail },
-        { label: "Portal-Konto", value: user.authentikSub ? "vorhanden" : "User angelegt, Login offen" },
+        { label: "Portal-Konto", value: user.authentikSub ? "vorhanden" : "Login noch nicht aktiviert" },
         { label: "Claim", value: meta.label, targetType: "claim", onClick: () => { window.location.href = "/claim-links"; } },
         { label: "Versendet", value: formatDateTime(claim?.sentAt) },
         { label: "Gültig bis", value: claim?.expiresAt && !claim.claimedAt ? formatDateTime(claim.expiresAt) : null },
