@@ -1,0 +1,45 @@
+name: CI Main Guardrails
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Recovery guardrails
+        run: npm run verify:recovery-guardrails
+        env:
+          GUARDRAIL_BASE_REF: origin/main
+          GUARDRAIL_HEAD_REF: HEAD
+          GUARDRAIL_MAX_FILES: "40"
+          GUARDRAIL_MAX_LINES: "1800"
+
+      - name: Verify team draft
+        run: npm run verify:team-draft
+
+      - name: Verify participant edit flow
+        run: npm run verify:participant-edit-flow
+
+      - name: Build
+        run: npm run build
+
