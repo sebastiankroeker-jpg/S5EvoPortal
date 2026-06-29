@@ -124,6 +124,34 @@ type OpsClaimAuditEvent = {
   suspicious: boolean;
 };
 
+type ParticipantDirectAuditEntry = {
+  id: string;
+  action: string;
+  beforeData: string | null;
+  afterData: string | null;
+  message: string | null;
+  createdAt: string;
+  actor: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+  participant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    team: {
+      id: string;
+      name: string;
+      competition: {
+        id: string;
+        name: string;
+        year: number;
+      };
+    };
+  };
+};
+
 const ADMIN_TABS = new Set(["tenant", "competition", "users", "audits", "restore"]);
 const STATUS_OPTIONS = ["DRAFT", "OPEN", "RUNNING", "CLOSED"];
 const THEME_OPTIONS = ["LIGHT", "DARK", "ESV"];
@@ -147,6 +175,51 @@ function labelForResetAction(action: string) {
     default:
       return action;
   }
+}
+
+function parseAuditSnapshot(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function formatAuditValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "leer";
+  if (value === "MALE") return "Herr";
+  if (value === "FEMALE") return "Dame";
+  if (value === "RUN") return "Laufen";
+  if (value === "BENCH") return "Bankdrücken";
+  if (value === "STOCK") return "Stockschießen";
+  if (value === "ROAD") return "Rennrad";
+  if (value === "MTB") return "Mountainbike";
+  if (value === "NAME_VEROEFFENTLICHEN") return "Name veröffentlichen";
+  if (value === "NAME_VERBERGEN") return "Name verbergen";
+  return String(value);
+}
+
+function summarizeParticipantDirectAudit(entry: ParticipantDirectAuditEntry) {
+  const labels: Record<string, string> = {
+    firstName: "Vorname",
+    lastName: "Nachname",
+    birthYear: "Geburtsjahr",
+    birthDate: "Geburtsdatum",
+    gender: "Geschlecht",
+    disciplineCode: "Disziplin",
+    shirtSize: "T-Shirt",
+    moderationNote: "Moderationshinweis",
+    email: "E-Mail",
+    participantPublicationPreference: "Namensveröffentlichung",
+  };
+  const before = parseAuditSnapshot(entry.beforeData);
+  const after = parseAuditSnapshot(entry.afterData);
+
+  return Object.keys(after)
+    .filter((key) => before[key] !== after[key])
+    .map((key) => `${labels[key] || key}: ${formatAuditValue(before[key])} → ${formatAuditValue(after[key])}`);
 }
 
 function renderResetCounts(counts: ResetCounts) {
@@ -233,6 +306,7 @@ export default function AdminPage() {
   const [resetAuditEvents, setResetAuditEvents] = useState<ResetAuditEntry[]>([]);
   const [opsLifecycleMailFailures, setOpsLifecycleMailFailures] = useState(0);
   const [opsSuspiciousClaimEvents, setOpsSuspiciousClaimEvents] = useState<OpsClaimAuditEvent[]>([]);
+  const [participantDirectAuditEvents, setParticipantDirectAuditEvents] = useState<ParticipantDirectAuditEntry[]>([]);
   const [loadingResetMeta, setLoadingResetMeta] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<InlineFeedback | null>(null);
   const hasAdminAccess = !!session && can("config.edit");
@@ -312,13 +386,15 @@ export default function AdminPage() {
 
   const loadOpsSummary = useCallback(async (compId: string) => {
     try {
-      const [mailRes, claimRes] = await Promise.all([
+      const [mailRes, claimRes, participantAuditRes] = await Promise.all([
         fetch(`/api/admin/audit-events?competitionId=${encodeURIComponent(compId)}&scopeType=TEAM&action=TEAM_LIFECYCLE_MAIL&limit=20`),
         fetch(`/api/admin/claim-audit?competitionId=${encodeURIComponent(compId)}&suspiciousOnly=true&limit=20`),
+        fetch(`/api/admin/participant-audit?competitionId=${encodeURIComponent(compId)}&action=DIRECT_CHANGE&limit=20`),
       ]);
 
       const mailData = await mailRes.json().catch(() => ({ events: [] }));
       const claimData = await claimRes.json().catch(() => ({ events: [] }));
+      const participantAuditData = await participantAuditRes.json().catch(() => ({ logs: [] }));
 
       if (mailRes.ok) {
         const failedMailCount = Array.isArray(mailData.events)
@@ -337,10 +413,17 @@ export default function AdminPage() {
       } else {
         setOpsSuspiciousClaimEvents([]);
       }
+
+      if (participantAuditRes.ok) {
+        setParticipantDirectAuditEvents(Array.isArray(participantAuditData.logs) ? participantAuditData.logs : []);
+      } else {
+        setParticipantDirectAuditEvents([]);
+      }
     } catch (error) {
       console.error("Failed to load ops summary:", error);
       setOpsLifecycleMailFailures(0);
       setOpsSuspiciousClaimEvents([]);
+      setParticipantDirectAuditEvents([]);
     }
   }, []);
 
@@ -618,7 +701,7 @@ export default function AdminPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-md border border-border/50 px-3 py-2">
                 <p className="text-xs text-muted-foreground">Fehlgeschlagene Lifecycle-Mails</p>
                 <p className="text-lg font-semibold">{opsLifecycleMailFailures}</p>
@@ -626,6 +709,10 @@ export default function AdminPage() {
               <div className="rounded-md border border-border/50 px-3 py-2">
                 <p className="text-xs text-muted-foreground">Auffällige Claim-Ereignisse</p>
                 <p className="text-lg font-semibold">{opsSuspiciousClaimEvents.length}</p>
+              </div>
+              <div className="rounded-md border border-border/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Direkte Teilnehmeränderungen</p>
+                <p className="text-lg font-semibold">{participantDirectAuditEvents.length}</p>
               </div>
               <div className="rounded-md border border-border/50 px-3 py-2">
                 <p className="text-xs text-muted-foreground">Letzter Reset-Audit</p>
@@ -1354,7 +1441,7 @@ export default function AdminPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-4">
                     <div className="rounded-md border border-border/50 px-3 py-2">
                       <p className="text-xs text-muted-foreground">Fehlgeschlagene Lifecycle-Mails</p>
                       <p className="text-lg font-semibold">{opsLifecycleMailFailures}</p>
@@ -1362,6 +1449,10 @@ export default function AdminPage() {
                     <div className="rounded-md border border-border/50 px-3 py-2">
                       <p className="text-xs text-muted-foreground">Auffällige Claim-Ereignisse</p>
                       <p className="text-lg font-semibold">{opsSuspiciousClaimEvents.length}</p>
+                    </div>
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Direkte Teilnehmeränderungen</p>
+                      <p className="text-lg font-semibold">{participantDirectAuditEvents.length}</p>
                     </div>
                     <div className="rounded-md border border-border/50 px-3 py-2">
                       <p className="text-xs text-muted-foreground">Letzter Reset-Audit</p>
@@ -1385,6 +1476,55 @@ export default function AdminPage() {
                       📝 Änderungsanträge
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Direkte Teilnehmeränderungen</CardTitle>
+                  <CardDescription>Admin- und Moderator-Änderungen, die ohne Genehmigungsantrag sofort gespeichert wurden.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {participantDirectAuditEvents.length === 0 ? (
+                    <div className="rounded-md border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                      Keine direkten Teilnehmeränderungen im aktuellen Quickcheck.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {participantDirectAuditEvents.map((entry) => {
+                        const participantName = `${entry.participant.firstName} ${entry.participant.lastName}`.trim();
+                        const changes = summarizeParticipantDirectAudit(entry);
+
+                        return (
+                          <div key={entry.id} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary">Direkt geändert</Badge>
+                              <span className="font-medium">{participantName || "Teilnehmer"}</span>
+                              <span className="text-xs text-muted-foreground">{entry.participant.team.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDateTime(entry.createdAt)} • {entry.actor?.name || entry.actor?.email || "Unbekannt"}
+                              </span>
+                            </div>
+                            {entry.message && <p className="mt-1 text-muted-foreground">{entry.message}</p>}
+                            {changes.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {changes.slice(0, 6).map((change) => (
+                                  <Badge key={change} variant="outline" className="font-normal">
+                                    {change}
+                                  </Badge>
+                                ))}
+                                {changes.length > 6 && (
+                                  <Badge variant="outline" className="font-normal">
+                                    +{changes.length - 6} weitere
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

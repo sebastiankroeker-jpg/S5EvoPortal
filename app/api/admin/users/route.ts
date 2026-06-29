@@ -227,6 +227,7 @@ export async function GET() {
         email: u.email,
         name: u.name,
         authentikSub: u.authentikSub,
+        lastSeenAt: u.lastSeenAt,
         createdAt: u.createdAt,
         roles: visibleRoles.map((tr) => ({
           id: tr.id,

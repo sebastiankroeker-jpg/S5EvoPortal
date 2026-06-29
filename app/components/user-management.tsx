@@ -38,6 +38,7 @@ interface UserEntry {
   email: string;
   name: string | null;
   authentikSub?: string | null;
+  lastSeenAt?: string | null;
   createdAt: string;
   roles: UserRole[];
   teamCount: number;
@@ -82,6 +83,8 @@ interface UsersResponse {
 }
 
 const ALL_ROLES = ["ADMIN", "MODERATOR", "TEILNEHMER"] as const;
+const ONLINE_WINDOW_MS = 3 * 60 * 1000;
+const RECENT_ACTIVITY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ROLE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
   ADMIN: { icon: "👑", label: "Admin", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300", desc: "Vollzugriff" },
   MODERATOR: { icon: "🛡️", label: "Moderator:in", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300", desc: "Ergebnisse & Teams" },
@@ -106,6 +109,78 @@ function formatDateTime(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatLastSeen(value?: string | null, now = Date.now()) {
+  if (!value) return "noch nie aktiv";
+
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return "unbekannt";
+
+  const diffMs = Math.max(0, now - timestamp);
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  if (diffMinutes < 1) return "gerade eben";
+  if (diffMinutes < 60) return `vor ${diffMinutes} Min.`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `vor ${diffHours} Std.`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `vor ${diffDays} Tag${diffDays === 1 ? "" : "en"}`;
+
+  return formatDateTime(value) || "unbekannt";
+}
+
+function getPresenceMeta(lastSeenAt?: string | null, now = Date.now()) {
+  if (!lastSeenAt) {
+    return {
+      label: "nie aktiv",
+      detail: "Keine Aktivität erfasst",
+      state: "offline" as const,
+      className: "border-muted text-muted-foreground",
+      dotClassName: "bg-muted-foreground/40",
+    };
+  }
+
+  const timestamp = new Date(lastSeenAt).getTime();
+  if (Number.isNaN(timestamp)) {
+    return {
+      label: "unbekannt",
+      detail: "Aktivität nicht lesbar",
+      state: "offline" as const,
+      className: "border-muted text-muted-foreground",
+      dotClassName: "bg-muted-foreground/40",
+    };
+  }
+
+  const diffMs = now - timestamp;
+  if (diffMs <= ONLINE_WINDOW_MS) {
+    return {
+      label: "online",
+      detail: `Aktiv ${formatLastSeen(lastSeenAt, now)}`,
+      state: "online" as const,
+      className: "border-emerald-300 bg-emerald-50 text-emerald-800",
+      dotClassName: "bg-emerald-500",
+    };
+  }
+
+  if (diffMs <= RECENT_ACTIVITY_WINDOW_MS) {
+    return {
+      label: "zuletzt aktiv",
+      detail: formatLastSeen(lastSeenAt, now),
+      state: "recent" as const,
+      className: "border-amber-300 bg-amber-50 text-amber-800",
+      dotClassName: "bg-amber-500",
+    };
+  }
+
+  return {
+    label: "offline",
+    detail: formatLastSeen(lastSeenAt, now),
+    state: "offline" as const,
+    className: "border-muted text-muted-foreground",
+    dotClassName: "bg-muted-foreground/40",
+  };
 }
 
 function joinClasses(...classes: Array<string | false | null | undefined>) {
@@ -199,16 +274,20 @@ export default function UserManagement() {
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [onlineOnly, setOnlineOnly] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (options?: { silent?: boolean }) => {
     try {
       const res = await fetch("/api/admin/users");
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        notifications.error(
-          "Fehler beim Laden der Benutzer",
-          data.error || "Bitte später erneut versuchen.",
-        );
+        if (!options?.silent) {
+          notifications.error(
+            "Fehler beim Laden der Benutzer",
+            data.error || "Bitte später erneut versuchen.",
+          );
+        }
         return;
       }
 
@@ -218,10 +297,12 @@ export default function UserManagement() {
       setAdminCount(data.adminCount || 0);
     } catch (err) {
       console.error("Fehler beim Laden:", err);
-      notifications.error(
-        "Fehler beim Laden der Benutzer",
-        err instanceof Error ? err.message : "Bitte später erneut versuchen.",
-      );
+      if (!options?.silent) {
+        notifications.error(
+          "Fehler beim Laden der Benutzer",
+          err instanceof Error ? err.message : "Bitte später erneut versuchen.",
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -236,6 +317,15 @@ export default function UserManagement() {
       setSearchQuery(userQuery);
     }
     void fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+      void fetchUsers({ silent: true });
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
   }, [fetchUsers]);
 
   const startEdit = (user: UserEntry) => {
@@ -361,9 +451,13 @@ export default function UserManagement() {
 
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return users;
-
     return users.filter((user) => {
+      if (onlineOnly && getPresenceMeta(user.lastSeenAt, now).state !== "online") {
+        return false;
+      }
+
+      if (!query) return true;
+
       const haystacks = [
         user.name || "",
         user.email,
@@ -372,7 +466,7 @@ export default function UserManagement() {
       ];
       return haystacks.some((value) => value.toLowerCase().includes(query));
     });
-  }, [searchQuery, users]);
+  }, [now, onlineOnly, searchQuery, users]);
 
   const stats = useMemo(() => {
     const summarize = (entries: UserEntry[]) => ({
@@ -380,13 +474,14 @@ export default function UserManagement() {
       admins: entries.filter((user) => user.roles.some((role) => role.role === "ADMIN")).length,
       moderators: entries.filter((user) => user.roles.some((role) => role.role === "MODERATOR")).length,
       teamManagers: entries.filter((user) => user.teamCount > 0 || user.roles.some((role) => role.role === "TEAMCHEF")).length,
+      online: entries.filter((user) => getPresenceMeta(user.lastSeenAt, now).state === "online").length,
     });
 
     return {
       total: summarize(users),
       filtered: summarize(filteredUsers),
     };
-  }, [filteredUsers, users]);
+  }, [filteredUsers, now, users]);
 
   if (loading) {
     return (
@@ -421,9 +516,22 @@ export default function UserManagement() {
             placeholder="Suche nach Name, Mail, Rolle oder Team"
           />
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={onlineOnly ? "default" : "outline"}
+              className="h-8"
+              onClick={() => setOnlineOnly((value) => !value)}
+            >
+              Online
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
             {[
               ["Benutzer", stats.filtered.users, stats.total.users],
+              ["Online", stats.filtered.online, stats.total.online],
               ["Admins", stats.filtered.admins, stats.total.admins],
               ["Moderatoren", stats.filtered.moderators, stats.total.moderators],
               ["Teamchef:innen", stats.filtered.teamManagers, stats.total.teamManagers],
@@ -443,6 +551,7 @@ export default function UserManagement() {
         const isCurrentUser = user.id === currentUserId;
         const isLastAdmin = adminCount === 1 && user.roles.some((role) => role.role === "ADMIN");
         const isDeleting = deletingUserId === user.id;
+        const presence = getPresenceMeta(user.lastSeenAt, now);
         const statusSummary = user.teamScopes.reduce((acc, team) => {
           const meta = getTeamScopeAccountMeta(user, team);
           const existing = acc.get(meta.status);
@@ -477,6 +586,10 @@ export default function UserManagement() {
                       {isCurrentUser && (
                         <Badge variant="secondary" className="shrink-0 text-xs">Du</Badge>
                       )}
+                      <Badge variant="outline" className={`shrink-0 gap-1 text-xs ${presence.className}`} title={presence.detail}>
+                        <span className={`size-2 rounded-full ${presence.dotClassName}`} />
+                        {presence.label}
+                      </Badge>
                       {user.teamCount > 0 && (
                         <Badge variant="outline" className="shrink-0 text-xs">
                           {user.teamCount} Team{user.teamCount > 1 ? "s" : ""}
@@ -489,6 +602,9 @@ export default function UserManagement() {
                     <p className="truncate text-xs text-muted-foreground" title={user.email}>{user.email}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       Registriert seit {formatCreatedAt(user.createdAt)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Zuletzt aktiv: {formatLastSeen(user.lastSeenAt, now)}
                     </p>
                     {statusSummaryItems.length > 0 && editingUser !== user.id && (
                       <div className="mt-2 flex flex-wrap gap-1">
