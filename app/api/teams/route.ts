@@ -1517,23 +1517,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT() {
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
 
     if (!userEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    
-    const validation = TeamRegistrationSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: formatTeamRegistrationValidationIssues(validation.error.issues), details: validation.error.issues },
-        { status: 400 }
-      );
     }
 
     // This would be for bulk operations - not implemented yet
@@ -1545,7 +1535,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE() {
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;

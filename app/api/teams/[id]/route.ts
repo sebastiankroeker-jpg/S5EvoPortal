@@ -1476,11 +1476,28 @@ export async function PUT(
           const birthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
           const birthDate = normalizeBirthDateForStorage(submittedParticipant.birthDate);
           if (birthYear === null || !submittedParticipant.id) return null;
+          const beforeSnapshot = toParticipantSnapshot(existingParticipant);
+          const afterSnapshot = toParticipantSnapshot({
+            firstName: normalizeSubmittedText(submittedParticipant.firstName),
+            lastName: normalizeSubmittedText(submittedParticipant.lastName),
+            birthYear,
+            birthDate,
+            gender: mapGender(submittedParticipant.gender),
+            disciplineCode: mapDiscipline(submittedParticipant.discipline),
+            shirtSize: parseShirtSize(submittedParticipant.shirtSize),
+            moderationNote: submittedParticipant.moderationNote?.trim() || null,
+            email: normalizeSubmittedText(submittedParticipant.email) || null,
+            participantPublicationPreference: submittedParticipant.participantPublicationPreference || "NAME_VERBERGEN",
+          });
+          const changedFields = diffParticipantSnapshots(beforeSnapshot, afterSnapshot);
 
           return {
             id: submittedParticipant.id,
             currentDisciplineCode: existingParticipant.disciplineCode || "TBD",
             nextDisciplineCode: mapDiscipline(submittedParticipant.discipline),
+            beforeSnapshot,
+            afterSnapshot,
+            changedFields,
             data: {
               firstName: normalizeSubmittedText(submittedParticipant.firstName),
               lastName: normalizeSubmittedText(submittedParticipant.lastName),
@@ -1529,6 +1546,72 @@ export async function PUT(
             where: { id: update.id },
             data: update.data,
           });
+
+          if (Object.keys(update.changedFields).length > 0) {
+            await tx.pendingChange.updateMany({
+              where: {
+                participantId: update.id,
+                status: "PENDING",
+              },
+              data: {
+                status: "REJECTED",
+                reviewedAt: new Date(),
+                reviewedById: user?.id ?? null,
+                reviewComment: "Durch direkte Admin-Änderung überholt",
+              },
+            });
+
+            const overriddenChangeRequests = await tx.changeRequest.findMany({
+              where: {
+                targetType: "PARTICIPANT",
+                targetId: update.id,
+                changeType: "UPDATE",
+                status: "PENDING",
+              },
+              select: { id: true, requestedSnapshot: true },
+            });
+
+            await tx.changeRequest.updateMany({
+              where: {
+                targetType: "PARTICIPANT",
+                targetId: update.id,
+                changeType: "UPDATE",
+                status: "PENDING",
+              },
+              data: {
+                status: "REJECTED",
+                reviewedAt: new Date(),
+                reviewedById: user?.id ?? null,
+                reviewComment: "Durch direkte Admin-Änderung überholt",
+              },
+            });
+
+            for (const changeRequest of overriddenChangeRequests) {
+              await tx.changeRequestAuditLog.create({
+                data: {
+                  changeRequestId: changeRequest.id,
+                  actorId: user?.id ?? null,
+                  action: "REJECTED",
+                  beforeData: changeRequest.requestedSnapshot as Prisma.InputJsonValue,
+                  afterData: update.afterSnapshot,
+                  message: "Durch direkte Admin-Änderung überholt",
+                },
+              });
+            }
+
+            await tx.participantAuditLog.create({
+              data: {
+                action: "DIRECT_CHANGE",
+                participantId: update.id,
+                actorId: user?.id ?? null,
+                beforeData: serializeSnapshot(update.beforeSnapshot),
+                afterData: serializeSnapshot(update.afterSnapshot),
+                message: summarizeParticipantChanges(update.beforeSnapshot, update.afterSnapshot)
+                  .map((change) => change.label)
+                  .join(", ") + " direkt durch Admin aktualisiert",
+              },
+            });
+          }
         }
       });
 
