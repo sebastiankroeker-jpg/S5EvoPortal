@@ -163,6 +163,7 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
     "team_updated_at",
     "teilnehmer_anzahl",
     "teilnehmer_liste",
+    "teilnehmer_liste_json",
   ];
 
   const rows: Array<Array<string | number | null | undefined>> = [];
@@ -175,9 +176,23 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
         const shirtSize = participant.shirtSize || "-";
         const email = participant.email || "-";
         const moderationNote = participant.moderationNote || "-";
-        return `${name} (${participant.birthYear}, ${gender}, ${discipline}, Shirt:${shirtSize}, Mail:${email}, Note:${moderationNote})`;
+        return `${name} [${participant.id}] (${participant.birthYear}, ${gender}, ${discipline}, Shirt:${shirtSize}, Mail:${email}, Note:${moderationNote}, Updated:${formatDateTime(participant.updatedAt)})`;
       })
       .join(" | ");
+    const participantListJson = JSON.stringify(
+      team.participants.map((participant) => ({
+        id: participant.id,
+        firstName: participant.firstName,
+        lastName: participant.lastName,
+        birthYear: participant.birthYear,
+        gender: participant.gender === "FEMALE" ? "W" : "M",
+        discipline: participant.disciplineCode || "TBD",
+        shirtSize: participant.shirtSize,
+        email: participant.email,
+        moderationNote: participant.moderationNote,
+        updatedAt: formatDateTime(participant.updatedAt),
+      })),
+    );
 
     rows.push([
       competition.year,
@@ -197,6 +212,7 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
       formatDateTime(team.updatedAt),
       team.participants.length,
       participantList,
+      participantListJson,
     ]);
   }
 
