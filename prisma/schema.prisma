@@ -506,6 +506,7 @@ model Participant {
   firstName                        String
   lastName                         String
   birthYear                        Int
+  birthDate                        String?
   gender                           Gender
   disciplineCode                   DisciplineAssignment             @default(TBD)
   marketplaceReturnTeamId          String?
