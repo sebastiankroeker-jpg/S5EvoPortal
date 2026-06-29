@@ -4,6 +4,7 @@ type CompetitionExportRecord = {
   id: string;
   name: string;
   year: number;
+  teamSize: number;
   registrationNotificationEmail: string | null;
   tenant: {
     name: string;
@@ -34,6 +35,7 @@ type CompetitionExportRecord = {
       shirtSize: string | null;
       moderationNote: string | null;
       email: string | null;
+      createdAt: Date;
       updatedAt: Date;
     }>;
   }>;
@@ -59,6 +61,20 @@ function normalizeRecipientList(value?: string | null): string[] {
 
 function formatDateTime(value?: Date | null) {
   return value ? value.toISOString() : "";
+}
+
+const DISCIPLINE_ORDER: Record<string, number> = {
+  RUN: 1,
+  BENCH: 2,
+  STOCK: 3,
+  ROAD: 4,
+  MTB: 5,
+  TBD: 99,
+};
+
+function getDisciplineSortOrder(code?: string | null) {
+  if (!code) return DISCIPLINE_ORDER.TBD;
+  return DISCIPLINE_ORDER[code] ?? DISCIPLINE_ORDER.TBD;
 }
 
 export function resolveCompetitionExportRecipients(competition: {
@@ -95,6 +111,7 @@ export async function loadCompetitionsForDailyExport({
       id: true,
       name: true,
       year: true,
+      teamSize: true,
       registrationNotificationEmail: true,
       tenant: {
         select: {
@@ -135,6 +152,7 @@ export async function loadCompetitionsForDailyExport({
               shirtSize: true,
               moderationNote: true,
               email: true,
+              createdAt: true,
               updatedAt: true,
             },
           },
@@ -145,6 +163,12 @@ export async function loadCompetitionsForDailyExport({
 }
 
 export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
+  const maxParticipantSlots = Math.max(
+    competition.teamSize || 0,
+    ...competition.teams.map((team) => team.participants.length),
+    1,
+  );
+
   const headers = [
     "wettkampf_jahr",
     "wettkampf_name",
@@ -162,39 +186,27 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
     "team_created_at",
     "team_updated_at",
     "teilnehmer_anzahl",
-    "teilnehmer_liste",
-    "teilnehmer_liste_json",
   ];
+  for (let slot = 1; slot <= maxParticipantSlots; slot += 1) {
+    const label = String(slot).padStart(2, "0");
+    headers.push(`tn_${label}_id`);
+    headers.push(`tn_${label}_vorname`);
+    headers.push(`tn_${label}_nachname`);
+    headers.push(`tn_${label}_geburtsjahr`);
+    headers.push(`tn_${label}_geschlecht`);
+    headers.push(`tn_${label}_disziplin`);
+    headers.push(`tn_${label}_startnummer`);
+  }
 
   const rows: Array<Array<string | number | null | undefined>> = [];
   for (const team of competition.teams) {
-    const participantList = team.participants
-      .map((participant) => {
-        const name = `${participant.firstName} ${participant.lastName}`.trim();
-        const gender = participant.gender === "FEMALE" ? "W" : "M";
-        const discipline = participant.disciplineCode || "TBD";
-        const shirtSize = participant.shirtSize || "-";
-        const email = participant.email || "-";
-        const moderationNote = participant.moderationNote || "-";
-        return `${name} [${participant.id}] (${participant.birthYear}, ${gender}, ${discipline}, Shirt:${shirtSize}, Mail:${email}, Note:${moderationNote}, Updated:${formatDateTime(participant.updatedAt)})`;
-      })
-      .join(" | ");
-    const participantListJson = JSON.stringify(
-      team.participants.map((participant) => ({
-        id: participant.id,
-        firstName: participant.firstName,
-        lastName: participant.lastName,
-        birthYear: participant.birthYear,
-        gender: participant.gender === "FEMALE" ? "W" : "M",
-        discipline: participant.disciplineCode || "TBD",
-        shirtSize: participant.shirtSize,
-        email: participant.email,
-        moderationNote: participant.moderationNote,
-        updatedAt: formatDateTime(participant.updatedAt),
-      })),
-    );
+    const sortedParticipants = [...team.participants].sort((a, b) => {
+      const disciplineCompare = getDisciplineSortOrder(a.disciplineCode) - getDisciplineSortOrder(b.disciplineCode);
+      if (disciplineCompare !== 0) return disciplineCompare;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
 
-    rows.push([
+    const row: Array<string | number | null | undefined> = [
       competition.year,
       competition.name,
       competition.tenant.name,
@@ -211,9 +223,27 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
       formatDateTime(team.createdAt),
       formatDateTime(team.updatedAt),
       team.participants.length,
-      participantList,
-      participantListJson,
-    ]);
+    ];
+
+    for (let slot = 0; slot < maxParticipantSlots; slot += 1) {
+      const participant = sortedParticipants[slot];
+      if (!participant) {
+        row.push(null, null, null, null, null, null, null);
+        continue;
+      }
+
+      row.push(
+        participant.id,
+        participant.firstName,
+        participant.lastName,
+        participant.birthYear,
+        participant.gender === "FEMALE" ? "W" : "M",
+        participant.disciplineCode || "TBD",
+        null, // Startnummer: aktuell Platzhalter bis Vergabe/Import vorhanden ist
+      );
+    }
+
+    rows.push(row);
   }
 
   return [headers, ...rows]
