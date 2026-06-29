@@ -242,7 +242,7 @@ export default function MtcAnonymousPage() {
                       <label className="text-xs font-medium text-muted-foreground">Geburtsdatum</label>
                       <Input
                         inputMode="numeric"
-                        placeholder="TT.MM.JJJJ"
+                        placeholder="TT.MM.JJJJ oder JJJJ"
                         value={participant.birthDate}
                         onKeyDown={(event) => {
                           const target = event.currentTarget;

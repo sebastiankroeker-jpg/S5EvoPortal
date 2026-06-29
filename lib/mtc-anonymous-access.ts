@@ -4,8 +4,9 @@ import type { ParticipantPublicationPreference } from "@prisma/client";
 import {
   DISCIPLINE_PLACEHOLDER,
   type DisciplineSelection,
-  birthYearToBirthDateInput,
   extractBirthYearFromInput,
+  normalizeBirthDateForStorage,
+  storedBirthDateToInput,
 } from "@/lib/domain/team";
 import { evaluateTeamDraft } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
@@ -91,7 +92,7 @@ function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousTok
     id: participant.id,
     firstName: participant.firstName,
     lastName: participant.lastName,
-    birthDate: birthYearToBirthDateInput(participant.birthYear),
+    birthDate: storedBirthDateToInput(participant.birthDate, participant.birthYear),
     gender: normalizeGender(participant.gender),
     discipline: normalizeDiscipline(participant.disciplineCode),
     desiredDiscipline: participant.marketplaceReturnDisciplineCode || null,
@@ -325,6 +326,7 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
             firstName: participant.firstName,
             lastName: participant.lastName,
             birthYear: birthYear as number,
+            birthDate: normalizeBirthDateForStorage(participant.birthDate),
             gender: mapGender(participant.gender),
             disciplineCode: normalizeDiscipline(participant.discipline),
             participantPublicationPreference: normalizePublicationPreference(participant.participantPublicationPreference),
@@ -342,6 +344,7 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
           firstName: participant.firstName,
           lastName: participant.lastName,
           birthYear: birthYear as number,
+          birthDate: normalizeBirthDateForStorage(participant.birthDate),
           gender: mapGender(participant.gender),
           disciplineCode: normalizeDiscipline(participant.discipline),
           participantPublicationPreference: normalizePublicationPreference(participant.participantPublicationPreference),

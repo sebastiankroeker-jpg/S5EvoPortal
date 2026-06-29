@@ -5,9 +5,10 @@ import {
   MarketplaceRegistrationSchema,
   MtcDraftRegistrationSchema,
   TeamRegistrationSchema,
-  birthYearToBirthDateInput,
   extractBirthYearFromInput,
   formatTeamRegistrationValidationIssues,
+  normalizeBirthDateForStorage,
+  storedBirthDateToInput,
 } from '@/lib/domain/team';
 import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { isShirtOrderClosed } from '@/lib/domain/shirts';
@@ -83,6 +84,7 @@ type SerializableParticipant = {
   lastName: string;
   gender: "MALE" | "FEMALE";
   birthYear: number | null;
+  birthDate?: string | null;
   userId?: string | null;
   portalAccount?: {
     id: string;
@@ -173,7 +175,9 @@ function serializeParticipant(
     firstName: splitName.firstName,
     lastName: splitName.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
-    birthDate: canSeeFullPublication || isCurrentUserParticipant ? birthYearToBirthDateInput(participant.birthYear) : "",
+    birthDate: canSeeFullPublication || isCurrentUserParticipant
+      ? storedBirthDateToInput(participant.birthDate, participant.birthYear)
+      : "",
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
     linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
@@ -759,6 +763,7 @@ export async function POST(request: NextRequest) {
             firstName: participant.firstName?.trim() || "",
             lastName: participant.lastName?.trim() || "",
             birthYear: extractBirthYearFromInput(participant.birthDate || ""),
+            birthDate: normalizeBirthDateForStorage(participant.birthDate || ""),
           }))
           .filter(({ firstName, lastName, birthYear }) => firstName.length >= 2 && lastName.length >= 2 && birthYear !== null);
         const totalAge = completeParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
@@ -800,10 +805,11 @@ export async function POST(request: NextRequest) {
             ownerId: user.id,
             teamChiefId: null,
             participants: {
-              create: completeParticipants.map(({ participant, firstName, lastName, birthYear }) => ({
+              create: completeParticipants.map(({ participant, firstName, lastName, birthYear, birthDate }) => ({
                 firstName,
                 lastName,
                 birthYear: birthYear as number,
+                birthDate,
                 gender: mapGender(participant.gender),
                 disciplineCode: mapDiscipline(participant.discipline),
                 shirtSize: participant.shirtSize || null,
@@ -1036,6 +1042,7 @@ export async function POST(request: NextRequest) {
                 firstName: marketplaceData.contactFirstName,
                 lastName: marketplaceData.contactLastName,
                 birthYear,
+                birthDate: normalizeBirthDateForStorage(marketplaceData.birthDate),
                 gender: mapGender(marketplaceData.gender),
                 disciplineCode: mapDiscipline(marketplaceData.discipline),
                 moderationNote: marketplaceData.marketplaceMessage?.trim() || null,
@@ -1286,6 +1293,7 @@ export async function POST(request: NextRequest) {
         .map((participant) => ({
           participant,
           birthYear: extractBirthYearFromInput(participant.birthDate),
+          birthDate: normalizeBirthDateForStorage(participant.birthDate),
         }))
         .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
       const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
@@ -1303,10 +1311,11 @@ export async function POST(request: NextRequest) {
           ownerId: user.id,
           teamChiefId: user.id,
           participants: {
-            create: validParticipants.map(({ participant, birthYear }) => ({
+            create: validParticipants.map(({ participant, birthYear, birthDate }) => ({
               firstName: participant.firstName,
               lastName: participant.lastName,
               birthYear: birthYear as number,
+              birthDate,
               gender: mapGender(participant.gender),
               disciplineCode: mapDiscipline(participant.discipline),
               shirtSize: canEditShirts && participant.shirtSize ? participant.shirtSize : null,

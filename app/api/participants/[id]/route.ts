@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { upsertLegacyParticipantChangeRequest } from "@/lib/change-request";
-import { birthYearToBirthDateInput } from "@/lib/domain/team";
+import { extractBirthYearFromInput, normalizeBirthDateForStorage, storedBirthDateToInput } from "@/lib/domain/team";
 import { sendParticipantChangeSubmittedEmails, sendParticipantDirectChangeEmail } from "@/lib/mail/participant-change";
 import {
   createParticipantClaimInvitation,
@@ -166,7 +166,7 @@ export async function GET(
 
   return NextResponse.json({
     ...visibleParticipant,
-    birthDate: birthYearToBirthDateInput(participant.birthYear),
+    birthDate: storedBirthDateToInput(participant.birthDate, participant.birthYear),
     emailInvitation: isModeratorGlobalView
       ? null
       : {
@@ -196,7 +196,16 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
-  const changeData = buildParticipantChangeData(body as Record<string, unknown>);
+  const normalizedBody = { ...(body as Record<string, unknown>) };
+  if (typeof normalizedBody.birthDate === "string") {
+    const extractedBirthYear = extractBirthYearFromInput(normalizedBody.birthDate);
+    if (extractedBirthYear === null) {
+      return NextResponse.json({ error: "Geburtsdatum unplausibel" }, { status: 400 });
+    }
+    normalizedBody.birthYear = extractedBirthYear;
+    normalizedBody.birthDate = normalizeBirthDateForStorage(normalizedBody.birthDate);
+  }
+  const changeData = buildParticipantChangeData(normalizedBody);
 
   const participant = await prisma.participant.findUnique({
     where: { id, deletedAt: null },

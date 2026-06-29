@@ -636,6 +636,7 @@ export default function ParticipantEditDialog({
                 firstName,
                 lastName,
                 birthYear: extractedBirthYear,
+                birthDate,
                 gender,
                 disciplineCode,
                 ...(showAdminOnlyParticipantFields ? { shirtSize: shirtSize || null, email: email || null } : {}),
@@ -792,7 +793,7 @@ export default function ParticipantEditDialog({
                 <Input
                   type="text"
                   inputMode="numeric"
-                  placeholder="TT.MM.JJJJ"
+                  placeholder="TT.MM.JJJJ oder JJJJ"
                   autoComplete="bday"
                   value={birthDate}
                   onChange={(e) => setBirthDate(formatBirthDateInput(e.target.value))}

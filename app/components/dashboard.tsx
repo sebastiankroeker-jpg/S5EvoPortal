@@ -2243,8 +2243,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const visibleColumnDefs = listOptionalColumns.filter((column) => visibleColumns.includes(column.key));
 
   const categoryMeta: Record<string, { icon: string; className: string; label?: string }> = {
-    "schueler-a": { icon: "SA", label: "Schueler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
-    "schueler-b": { icon: "SB", label: "Schueler B", className: "border-cyan-300 bg-cyan-50 text-cyan-800" },
+    "schueler-a": { icon: "SA", label: "Schüler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
+    "schueler-b": { icon: "SB", label: "Schüler B", className: "border-cyan-300 bg-cyan-50 text-cyan-800" },
     jugend: { icon: "J", label: "Jugend", className: "border-violet-300 bg-violet-50 text-violet-800" },
     jungsters: { icon: "⚡", label: "Jungsters", className: "border-yellow-300 bg-yellow-50 text-yellow-800" },
     herren: { icon: "♂", label: "Herren", className: "border-blue-300 bg-blue-50 text-blue-800" },
@@ -2267,7 +2267,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         ) : (
           <span>{meta.icon}</span>
         )}
-        {team.category}
+        {meta.label || team.category}
       </Badge>
     );
   };
@@ -5336,7 +5336,7 @@ function EditTeamModal({
                       <Input
                         type="text"
                         inputMode="numeric"
-                        placeholder="TT.MM.JJJJ"
+                        placeholder="TT.MM.JJJJ oder JJJJ"
                         autoComplete="bday"
                         value={participant.birthDate}
                         onChange={(e) => handleParticipantChange(index, 'birthDate', formatBirthDateInput(e.target.value))}

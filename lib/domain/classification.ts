@@ -77,10 +77,21 @@ export type TeamDraftEvaluation = TeamStateEvaluation & {
   canSubmit: boolean;
 };
 
+export const YOUTH_CLASS_YEAR_RANGES = {
+  "schueler-a": { minYear: 2016, maxYear: 2018 },
+  "schueler-b": { minYear: 2013, maxYear: 2015 },
+  jugend: { minYear: 2009, maxYear: 2012 },
+} as const;
+
+function youthClassDescription(code: keyof typeof YOUTH_CLASS_YEAR_RANGES) {
+  const range = YOUTH_CLASS_YEAR_RANGES[code];
+  return `Ältester Jg. ${range.minYear}–${range.maxYear}`;
+}
+
 export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; desc: string }> = {
-  "schueler-a": { label: "Schüler A", emoji: "🧒", desc: "Jg. 2016–2018" },
-  "schueler-b": { label: "Schüler B", emoji: "🧒", desc: "Jg. 2013–2015" },
-  "jugend": { label: "Jugend", emoji: "⚡", desc: "Jg. 2009–2012" },
+  "schueler-a": { label: "Schüler A", emoji: "SA", desc: youthClassDescription("schueler-a") },
+  "schueler-b": { label: "Schüler B", emoji: "SB", desc: youthClassDescription("schueler-b") },
+  "jugend": { label: "Jugend", emoji: "J", desc: youthClassDescription("jugend") },
   "jungsters": { label: "Jungsters", emoji: "🔥", desc: "Gesamtalter ≤ 125" },
   "herren": { label: "Herren", emoji: "🏆", desc: "Gesamtalter 126–225" },
   "masters": { label: "Masters", emoji: "⭐", desc: "Gesamtalter ≥ 226" },
@@ -91,6 +102,22 @@ export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; des
 
 function isFemale(gender: string): boolean {
   return gender === "W" || gender === "FEMALE";
+}
+
+function getYouthClassificationCodeByOldestBirthYear(birthYears: number[]) {
+  const youngestYouthYear = YOUTH_CLASS_YEAR_RANGES["schueler-a"].maxYear;
+  const oldestYouthYear = YOUTH_CLASS_YEAR_RANGES.jugend.minYear;
+
+  if (!birthYears.every((year) => year >= oldestYouthYear && year <= youngestYouthYear)) {
+    return null;
+  }
+
+  const oldestBirthYear = Math.min(...birthYears);
+  const matchingEntry = Object.entries(YOUTH_CLASS_YEAR_RANGES).find(([, range]) =>
+    oldestBirthYear >= range.minYear && oldestBirthYear <= range.maxYear
+  );
+
+  return matchingEntry?.[0] ?? null;
 }
 
 /**
@@ -124,16 +151,11 @@ export function classifyTeam(participants: ClassificationInput[]): Classificatio
   // Klassifikation — zuerst prüfen, dann Warnungen generieren
   let code: string;
   let isYouthClass = false;
+  const youthClassificationCode = getYouthClassificationCodeByOldestBirthYear(birthYears);
 
-  // Jahrgänge-basierte Klassen (Schüler/Jugend)
-  if (birthYears.every(y => y >= 2016 && y <= 2018)) {
-    code = "schueler-a";
-    isYouthClass = true;
-  } else if (birthYears.every(y => y >= 2013 && y <= 2015)) {
-    code = "schueler-b";
-    isYouthClass = true;
-  } else if (birthYears.every(y => y >= 2009 && y <= 2012)) {
-    code = "jugend";
+  // Jahrgänge-basierte Klassen (Schüler/Jugend): der älteste Jahrgang bestimmt die Klasse.
+  if (youthClassificationCode) {
+    code = youthClassificationCode;
     isYouthClass = true;
   }
   // Altersklassen (Gesamtalter)
@@ -152,7 +174,7 @@ export function classifyTeam(participants: ClassificationInput[]): Classificatio
   // Info-Nachrichten für Jugend-Klassen
   if (isYouthClass) {
     infoMessages.push("Eigene Ergebnisliste (nicht in der Gesamtwertung)");
-    infoMessages.push("Klassifikation nach Jahrgängen, nicht Gesamtalter");
+    infoMessages.push("Klassifikation nach ältestem Jahrgang, nicht Gesamtalter");
   }
 
   // Warnungen nur für Erwachsenen-Klassen
@@ -177,14 +199,13 @@ export function classifyTeam(participants: ClassificationInput[]): Classificatio
 
   // Jahrgangs-Validierung für Jugend
   if (isYouthClass) {
+    const youngestYouthYear = YOUTH_CLASS_YEAR_RANGES["schueler-a"].maxYear;
+    const oldestYouthYear = YOUTH_CLASS_YEAR_RANGES.jugend.minYear;
     const outOfRange = birthYears.filter(y => {
-      if (code === "schueler-a") return y < 2016 || y > 2018;
-      if (code === "schueler-b") return y < 2013 || y > 2015;
-      if (code === "jugend") return y < 2009 || y > 2012;
-      return false;
+      return y < oldestYouthYear || y > youngestYouthYear;
     });
     if (outOfRange.length > 0) {
-      warnings.push(`${outOfRange.length} Teilnehmer außerhalb des Jahrgangsbereichs`);
+      warnings.push(`${outOfRange.length} Teilnehmer außerhalb der Schüler-/Jugend-Jahrgänge`);
     }
   }
 

@@ -6,9 +6,10 @@ import { recordAppliedChangeRequest, upsertLegacyParticipantChangeRequest } from
 import {
   TeamRegistrationSchema,
   type TeamRegistrationInput,
-  birthYearToBirthDateInput,
   extractBirthYearFromInput,
   formatTeamRegistrationValidationIssues,
+  normalizeBirthDateForStorage,
+  storedBirthDateToInput,
 } from '@/lib/domain/team';
 import { evaluateTeamDraft } from '@/lib/domain/classification';
 import { sendParticipantChangeSubmittedBatchEmails } from '@/lib/mail/participant-change';
@@ -173,6 +174,7 @@ type SerializableParticipant = {
   lastName: string;
   gender: "MALE" | "FEMALE";
   birthYear: number | null;
+  birthDate?: string | null;
   userId?: string | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   moderationNote?: string | null;
@@ -249,7 +251,9 @@ function serializeParticipant(
     firstName: splitName.firstName,
     lastName: splitName.lastName,
     gender: participant.gender === "MALE" ? "M" : "W",
-    birthDate: canSeeFullPublication || isCurrentUserParticipant ? birthYearToBirthDateInput(participant.birthYear) : "",
+    birthDate: canSeeFullPublication || isCurrentUserParticipant
+      ? storedBirthDateToInput(participant.birthDate, participant.birthYear)
+      : "",
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
     linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
@@ -890,6 +894,7 @@ export async function PUT(
         .map((participant) => ({
           participant,
           birthYear: extractBirthYearFromInput(participant.birthDate),
+          birthDate: normalizeBirthDateForStorage(participant.birthDate),
         }))
         .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
       const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
@@ -929,11 +934,13 @@ export async function PUT(
 
         for (const { submittedParticipant, existingParticipant } of matchedParticipantsResult.matches) {
           const requestedBirthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
+          const requestedBirthDate = normalizeBirthDateForStorage(submittedParticipant.birthDate);
           const currentSnapshot = toParticipantSnapshot(existingParticipant);
           const requestedSnapshot = toParticipantSnapshot({
             firstName: normalizeSubmittedText(submittedParticipant.firstName),
             lastName: normalizeSubmittedText(submittedParticipant.lastName),
             birthYear: requestedBirthYear,
+            birthDate: requestedBirthDate,
             gender: mapGender(submittedParticipant.gender),
             disciplineCode: mapDiscipline(submittedParticipant.discipline),
             shirtSize: submittedParticipant.shirtSize || null,
@@ -1291,6 +1298,7 @@ export async function PUT(
       const participantUpdates = matchedParticipantsResult.matches
         .map(({ submittedParticipant, existingParticipant }) => {
           const birthYear = extractBirthYearFromInput(submittedParticipant.birthDate);
+          const birthDate = normalizeBirthDateForStorage(submittedParticipant.birthDate);
           if (birthYear === null || !submittedParticipant.id) return null;
 
           return {
@@ -1301,6 +1309,7 @@ export async function PUT(
               firstName: normalizeSubmittedText(submittedParticipant.firstName),
               lastName: normalizeSubmittedText(submittedParticipant.lastName),
               birthYear,
+              birthDate,
               gender: mapGender(submittedParticipant.gender),
               disciplineCode: mapDiscipline(submittedParticipant.discipline),
               shirtSize: parseShirtSize(submittedParticipant.shirtSize),
@@ -1481,6 +1490,7 @@ export async function DELETE(
               firstName: true,
               lastName: true,
               birthYear: true,
+              birthDate: true,
               disciplineCode: true,
               email: true,
               moderationNote: true,

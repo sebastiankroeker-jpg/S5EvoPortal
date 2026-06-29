@@ -9,6 +9,12 @@ export const MAX_BIRTHDATE = `${MAX_BIRTH_YEAR}-12-31`;
 export function formatBirthDateInput(input: string): string {
   const digits = input.replace(/\D/g, "").slice(0, 8);
   if (!digits) return "";
+  if (/^\d{4}$/.test(input.trim())) {
+    const year = Number(digits);
+    if (Number.isInteger(year) && year >= MIN_BIRTH_YEAR && year <= MAX_BIRTH_YEAR) {
+      return digits;
+    }
+  }
   if (digits.length < 2) return digits;
   if (digits.length === 2) return `${digits}.`;
   if (digits.length < 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
@@ -18,7 +24,24 @@ export function formatBirthDateInput(input: string): string {
 
 export function birthYearToBirthDateInput(birthYear?: number | null): string {
   if (!birthYear || !Number.isInteger(birthYear)) return "";
-  return formatBirthDateInput(`0101${birthYear}`);
+  return String(birthYear);
+}
+
+export function storedBirthDateToInput(birthDate?: string | null, birthYear?: number | null): string {
+  const normalized = normalizeBirthDateInput(birthDate ?? "");
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (match) {
+    const [, year, month, day] = match;
+    return `${day}.${month}.${year}`;
+  }
+
+  return birthYearToBirthDateInput(birthYear);
+}
+
+export function normalizeBirthDateForStorage(birthDate: string): string | null {
+  const normalized = normalizeBirthDateInput(birthDate);
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
 function countBirthDateDigitsBeforeCursor(value: string, cursor: number) {
@@ -128,6 +151,14 @@ export function normalizeBirthDateInput(input: string): string {
 }
 
 export function extractBirthYearFromInput(birthDate: string): number | null {
+  const yearOnlyMatch = birthDate.trim().match(/^(\d{4})$/);
+  if (yearOnlyMatch) {
+    const year = Number(yearOnlyMatch[1]);
+    if (Number.isInteger(year) && year >= MIN_BIRTH_YEAR && year <= MAX_BIRTH_YEAR) {
+      return year;
+    }
+  }
+
   const normalized = normalizeBirthDateInput(birthDate);
   const match = normalized.match(/^(\d{4})-\d{2}-\d{2}$/);
   if (!match) return null;

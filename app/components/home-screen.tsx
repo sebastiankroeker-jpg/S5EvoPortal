@@ -54,9 +54,9 @@ const FLYER_INFO_2026 = {
   ],
   classes: {
     youth: [
-      "Schüler A, Jahrgänge 2016–2018",
-      "Schüler B, Jahrgänge 2013–2015",
-      "Jugend, Jahrgänge 2009–2012",
+      "Schüler A, ältester Jahrgang 2016–2018",
+      "Schüler B, ältester Jahrgang 2013–2015",
+      "Jugend, ältester Jahrgang 2009–2012",
       "Gemischte Mannschaften bei Schüler und Jugend möglich",
     ],
     adults: [
