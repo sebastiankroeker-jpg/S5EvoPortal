@@ -31,11 +31,17 @@ import type { EditParticipantResult } from "@/lib/participant-edit-result";
 
 type TeamParticipantSnapshot = {
   id?: string;
+  firstName?: string;
+  lastName?: string;
   birthYear?: number;
   birthDate?: string;
   gender?: string;
   disciplineCode?: string;
   discipline?: string;
+  shirtSize?: string | null;
+  moderationNote?: string | null;
+  email?: string | null;
+  participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
 };
 
 interface Participant {
@@ -53,6 +59,8 @@ interface Participant {
   email?: string | null;
   linkedUserId?: string | null;
   teamName?: string;
+  teamId?: string;
+  teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH" | null;
   teamCategory?: string;
   teamRegistrationMode?: "TEAM" | "MARKETPLACE";
   teamMarketplaceStatus?: "NEW" | "REVIEWED" | "MATCHING" | "MATCHED" | "WITHDRAWN";
@@ -63,6 +71,13 @@ interface Participant {
   teamParticipants?: TeamParticipantSnapshot[];
   pendingChanges?: { id: string; status: string; updatedAt?: string | null; reviewedAt?: string | null; reviewComment?: string | null }[];
 }
+
+type DisciplineSwapDraft = {
+  participantId: string;
+  participantName: string;
+  selectedDiscipline: string;
+  swappedToDiscipline: string;
+};
 
 type EmailInvitationStatus = {
   status: "missing_email" | "none" | "active" | "claimed" | "expired" | "revoked" | "linked";
@@ -119,6 +134,17 @@ function getDisciplineLabel(value?: string | null) {
   return discipline ? `${discipline.icon} ${discipline.label}` : value;
 }
 
+function getParticipantDisplayName(participant?: Pick<TeamParticipantSnapshot, "firstName" | "lastName"> | null, fallback = "Teilnehmer:in") {
+  const name = `${participant?.firstName || ""} ${participant?.lastName || ""}`.trim();
+  return name || fallback;
+}
+
+function normalizeTeamGenderValue(value?: string | null) {
+  if (value === "W" || value === "FEMALE") return "W";
+  if (value === "D" || value === "DIVERSE") return "D";
+  return "M";
+}
+
 function getStatusMeta(status?: string | null) {
   if (status === "PENDING") {
     return {
@@ -153,8 +179,8 @@ function getEmailInvitationMeta(status?: EmailInvitationStatus["status"] | null)
   if (status === "active") return { label: "Einladung versendet", className: "border-blue-300 text-blue-700" };
   if (status === "expired") return { label: "Einladung abgelaufen", className: "border-amber-300 text-amber-700" };
   if (status === "revoked") return { label: "Einladung gesperrt", className: "border-red-300 text-red-700" };
-  if (status === "missing_email") return { label: "Keine E-Mail", className: "border-muted text-muted-foreground" };
-  return { label: "Keine Einladung", className: "border-muted text-muted-foreground" };
+  if (status === "missing_email") return { label: "Keine E-Mail hinterlegt", className: "border-muted text-muted-foreground" };
+  return { label: "Keine Einladung versendet", className: "border-muted text-muted-foreground" };
 }
 
 function isValidEmail(value: string) {
@@ -349,6 +375,11 @@ export default function ParticipantEditDialog({
   const [result, setResult] = useState<SaveResult | null>(null);
   const [error, setError] = useState("");
   const [latestChange, setLatestChange] = useState<ParticipantChangeStatus | null>(null);
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [teamName, setTeamName] = useState("");
+  const [teamPublicationLevel, setTeamPublicationLevel] = useState<"TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH">("TEAM_ANONYM");
+  const [teamParticipants, setTeamParticipants] = useState<TeamParticipantSnapshot[]>([]);
+  const [disciplineSwapDraft, setDisciplineSwapDraft] = useState<DisciplineSwapDraft | null>(null);
   const [footerIssuesExpanded, setFooterIssuesExpanded] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 
@@ -356,25 +387,46 @@ export default function ParticipantEditDialog({
   const isMarketplaceMatchingParticipant =
     participant?.teamRegistrationMode === "MARKETPLACE" &&
     participant?.teamMarketplaceStatus === "MATCHING" &&
-    (participant?.teamParticipants?.length ?? 0) > 1;
+    (teamParticipants.length || participant?.teamParticipants?.length || 0) > 1;
   const statusMeta = getStatusMeta(latestChange?.status);
+  const currentParticipantOriginalDiscipline = normalizeDisciplineValue(participant?.disciplineCode || participant?.discipline);
+  const disciplineOccupants = useMemo(() => {
+    const occupants = new Map<string, TeamParticipantSnapshot>();
+    for (const teamParticipant of teamParticipants) {
+      if (!teamParticipant.id || teamParticipant.id === participant?.id) continue;
+      const participantDiscipline = normalizeDisciplineValue(teamParticipant.disciplineCode || teamParticipant.discipline);
+      if (participantDiscipline === "TBD") continue;
+      occupants.set(participantDiscipline, teamParticipant);
+    }
+    return occupants;
+  }, [participant?.id, teamParticipants]);
   const saveFeedback = result?.applied
       ? { type: "success" as const, text: "Gespeichert!" }
       : result && result.editResult?.status !== "rejected"
         ? { type: "success" as const, text: result.message || "Änderungsantrag eingereicht!" }
         : null;
   const projectedClassificationWarnings = useMemo(() => {
-    if (moderatorNoteOnly || !participant?.id || !participant.teamParticipants?.length) {
+    if (moderatorNoteOnly || !participant?.id || !teamParticipants.length) {
       return [];
     }
 
     const warnings = evaluateTeamState(
-      participant.teamParticipants.map((teamParticipant) => {
+      teamParticipants.map((teamParticipant) => {
         if (teamParticipant.id === participant.id) {
           return {
             birthYear: extractBirthYearFromInput(birthDate),
             gender: normalizeGenderValue(gender),
             disciplineCode: normalizeDisciplineValue(disciplineCode),
+          };
+        }
+
+        if (disciplineSwapDraft && teamParticipant.id === disciplineSwapDraft.participantId) {
+          return {
+            birthYear: extractBirthYearFromInput(
+              teamParticipant.birthDate || birthYearToBirthDateInput(teamParticipant.birthYear),
+            ),
+            gender: normalizeGenderValue(teamParticipant.gender),
+            disciplineCode: normalizeDisciplineValue(disciplineSwapDraft.swappedToDiscipline),
           };
         }
 
@@ -390,7 +442,7 @@ export default function ParticipantEditDialog({
     ).classificationWarnings;
 
     return Array.from(new Set(warnings));
-  }, [birthDate, disciplineCode, gender, moderatorNoteOnly, participant]);
+  }, [birthDate, disciplineCode, disciplineSwapDraft, gender, moderatorNoteOnly, participant?.id, participant?.teamCategory, teamParticipants]);
   const visibleClassificationWarnings =
     result?.classificationWarnings && result.classificationWarnings.length > 0
       ? result.classificationWarnings
@@ -442,6 +494,11 @@ export default function ParticipantEditDialog({
       setParticipantPublicationPreference(participant.participantPublicationPreference || "NAME_VERBERGEN");
       setShirtOrderDeadline(null);
       setLatestChange(participant.pendingChanges?.[0] || null);
+      setTeamId(participant.teamId || null);
+      setTeamName(participant.teamName || "");
+      setTeamPublicationLevel(participant.teamPublicationLevel || "TEAM_ANONYM");
+      setTeamParticipants(participant.teamParticipants || []);
+      setDisciplineSwapDraft(null);
       setResult(null);
       setError("");
       setFooterIssuesExpanded(true);
@@ -470,6 +527,11 @@ export default function ParticipantEditDialog({
         setParticipantPublicationPreference(data.participantPublicationPreference || "NAME_VERBERGEN");
         setShirtOrderDeadline(data.team?.competition?.shirtOrderDeadline || null);
         setLatestChange(data.pendingChanges?.[0] || null);
+        setTeamId(data.teamId || data.team?.id || null);
+        setTeamName(data.teamName || data.team?.name || "");
+        setTeamPublicationLevel(data.teamPublicationLevel || data.team?.teamPublicationLevel || "TEAM_ANONYM");
+        setTeamParticipants(Array.isArray(data.teamParticipants) ? data.teamParticipants : data.team?.participants || []);
+        setDisciplineSwapDraft(null);
       } catch (err) {
         console.error("Failed to load participant details:", err);
       }
@@ -614,6 +676,98 @@ export default function ParticipantEditDialog({
     }
   };
 
+  const handleDisciplineChange = (value: string) => {
+    const occupiedParticipant = disciplineOccupants.get(value);
+    setDisciplineCode(value);
+    setResult(null);
+    setError("");
+
+    if (!participant?.id || value === "TBD" || !occupiedParticipant?.id) {
+      setDisciplineSwapDraft(null);
+      return;
+    }
+
+    setDisciplineSwapDraft({
+      participantId: occupiedParticipant.id,
+      participantName: getParticipantDisplayName(occupiedParticipant),
+      selectedDiscipline: value,
+      swappedToDiscipline: currentParticipantOriginalDiscipline,
+    });
+  };
+
+  const buildTeamParticipantPayload = () =>
+    teamParticipants.map((teamParticipant) => {
+      const isCurrentParticipant = teamParticipant.id === participant?.id;
+      const isSwapParticipant = disciplineSwapDraft && teamParticipant.id === disciplineSwapDraft.participantId;
+      const source = isCurrentParticipant ? {
+        ...teamParticipant,
+        firstName,
+        lastName,
+        birthDate,
+        gender,
+        disciplineCode,
+        shirtSize,
+        moderationNote,
+        email,
+        participantPublicationPreference,
+      } : teamParticipant;
+
+      return {
+        id: teamParticipant.id,
+        firstName: source.firstName || "",
+        lastName: source.lastName || "",
+        birthDate: source.birthDate || birthYearToBirthDateInput(source.birthYear),
+        gender: normalizeTeamGenderValue(source.gender),
+        discipline: isSwapParticipant
+          ? disciplineSwapDraft.swappedToDiscipline
+          : normalizeDisciplineValue(source.disciplineCode || source.discipline),
+        shirtSize: source.shirtSize || "",
+        moderationNote: source.moderationNote || "",
+        email: source.email || "",
+        participantPublicationPreference: source.participantPublicationPreference || "NAME_VERBERGEN",
+      };
+    });
+
+  const saveViaTeamWorkflow = async () => {
+    if (!teamId || !teamName || teamParticipants.length !== 5) {
+      throw new Error("Der Disziplinwechsel braucht den vollständigen Mannschaftskontext. Bitte die Mannschaft bearbeiten.");
+    }
+
+    const res = await fetch(`/api/teams/${teamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        teamName,
+        teamPublicationLevel,
+        participants: buildTeamParticipantPayload(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Speichern fehlgeschlagen");
+    }
+
+    setResult({
+      applied: Boolean(data.applied),
+      message: data.message,
+      classificationWarnings: Array.isArray(data.classificationWarnings) ? data.classificationWarnings : [],
+      editResult: null,
+    });
+    setDisciplineSwapDraft(null);
+    revealSaveFeedback();
+    onSaved();
+    if (!data.applied) {
+      setLatestChange({
+        id: "latest-team-change",
+        status: "PENDING",
+        updatedAt: new Date().toISOString(),
+        reviewedAt: null,
+        reviewComment: null,
+      });
+    }
+    return data;
+  };
+
   const handleSave = async () => {
     if (!participant) return;
     setSaving(true);
@@ -624,6 +778,16 @@ export default function ParticipantEditDialog({
       const extractedBirthYear = extractBirthYearFromInput(birthDate);
       if (extractedBirthYear === null) {
         throw new Error("Geburtsdatum unplausibel");
+      }
+
+      if (!moderatorNoteOnly && disciplineCode !== currentParticipantOriginalDiscipline) {
+        const data = await saveViaTeamWorkflow();
+        if (data.applied && (!Array.isArray(data.classificationWarnings) || data.classificationWarnings.length === 0)) {
+          setTimeout(() => {
+            onOpenChange(false);
+          }, 1200);
+        }
+        return;
       }
 
       const res = await fetch(`/api/participants/${participant.id}`, {
@@ -681,6 +845,7 @@ export default function ParticipantEditDialog({
           editResult: data.editResult || null,
         });
         revealSaveFeedback();
+        onSaved();
         if (!data.applied) {
           setLatestChange({
             id: data.pendingChange?.id || "latest",
@@ -695,7 +860,6 @@ export default function ParticipantEditDialog({
         // Direkt angewendet — Dialog nach kurzer Anzeige schließen
         setTimeout(() => {
           onOpenChange(false);
-          onSaved();
         }, 1200);
       }
     } catch (err) {
@@ -793,7 +957,7 @@ export default function ParticipantEditDialog({
                 <Input
                   type="text"
                   inputMode="numeric"
-                  placeholder="TT.MM.JJJJ oder JJJJ"
+	                  placeholder="TT.MM.JJJJ oder JJJJ"
                   autoComplete="bday"
                   value={birthDate}
                   onChange={(e) => setBirthDate(formatBirthDateInput(e.target.value))}
@@ -866,19 +1030,32 @@ export default function ParticipantEditDialog({
                 </label>
                 {!directEdit && <ApprovalFieldBadge />}
               </div>
-              <Select value={disciplineCode} onValueChange={setDisciplineCode}>
+              <Select value={disciplineCode} onValueChange={handleDisciplineChange}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="TBD">Noch offen</SelectItem>
-                  {DISCIPLINES.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.icon} {d.label}
-                    </SelectItem>
-                  ))}
+                  {DISCIPLINES.map((d) => {
+                    const occupiedParticipant = disciplineOccupants.get(d.id);
+                    const isSwapTarget = Boolean(occupiedParticipant);
+
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.icon} {d.label}
+                        {isSwapTarget && occupiedParticipant ? ` - tauschen mit ${getParticipantDisplayName(occupiedParticipant)}` : ""}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+              {disciplineSwapDraft ? (
+                <StatusMessage tone="warning" className="mt-2 text-xs">
+                  Tausch erkannt: {getParticipantDisplayName(participant)} -&gt; {getDisciplineLabel(disciplineSwapDraft.selectedDiscipline)},{" "}
+                  {disciplineSwapDraft.participantName} -&gt; {getDisciplineLabel(disciplineSwapDraft.swappedToDiscipline)}.
+                  Der Antrag wird erst beim Speichern eingereicht.
+                </StatusMessage>
+              ) : null}
             </div>
             )}
 

@@ -25,8 +25,6 @@ import { recordParticipantNotificationAuditEvents } from "@/lib/participant-noti
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
-const BUNDLE_FEATURE_FLAG = process.env.ENABLE_PENDING_CHANGE_BUNDLES === "true";
-
 type BundleDecisionBody = {
   action?: unknown;
   comment?: unknown;
@@ -37,10 +35,6 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!BUNDLE_FEATURE_FLAG) {
-    return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
-  }
-
   const session = await getServerSession(authOptions);
   const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
   if ("error" in auth) return auth.error;

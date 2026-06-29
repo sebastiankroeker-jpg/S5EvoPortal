@@ -89,6 +89,7 @@ export async function GET(
           name: true,
           contactEmail: true,
           registrationMode: true,
+          teamPublicationLevel: true,
           ownerId: true,
           teamChiefId: true,
           owner: { select: { email: true } },
@@ -102,6 +103,23 @@ export async function GET(
               status: true,
               shirtOrderDeadline: true,
               tenantId: true,
+            },
+          },
+          participants: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              birthYear: true,
+              birthDate: true,
+              gender: true,
+              disciplineCode: true,
+              shirtSize: true,
+              moderationNote: true,
+              email: true,
+              participantPublicationPreference: true,
             },
           },
         },
@@ -154,18 +172,34 @@ export async function GET(
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
-  const { phone: _ignoredPhone, ...participantWithoutPhone } = participant;
+  const participantWithoutPhone = { ...participant };
+  delete (participantWithoutPhone as { phone?: unknown }).phone;
+  const visibleTeamParticipants = participant.team.participants.map((teamParticipant) => ({
+    ...teamParticipant,
+    birthDate: storedBirthDateToInput(teamParticipant.birthDate, teamParticipant.birthYear),
+    email: isModeratorGlobalView ? null : teamParticipant.email,
+    shirtSize: isModeratorGlobalView ? null : teamParticipant.shirtSize,
+  }));
+  const visibleTeam = {
+    ...participant.team,
+    participants: visibleTeamParticipants,
+  };
   const visibleParticipant = isModeratorGlobalView
     ? {
         ...participantWithoutPhone,
+        team: visibleTeam,
         email: null,
         shirtSize: null,
         claimTokens: [],
       }
-    : participantWithoutPhone;
+    : { ...participantWithoutPhone, team: visibleTeam };
 
   return NextResponse.json({
     ...visibleParticipant,
+    teamId: participant.team.id,
+    teamName: participant.team.name,
+    teamPublicationLevel: participant.team.teamPublicationLevel,
+    teamParticipants: visibleTeamParticipants,
     birthDate: storedBirthDateToInput(participant.birthDate, participant.birthYear),
     emailInvitation: isModeratorGlobalView
       ? null

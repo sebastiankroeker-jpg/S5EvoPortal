@@ -4204,7 +4204,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         participant={editingParticipant}
         open={!!editingParticipant}
         onOpenChange={(open) => { if (!open) setEditingParticipant(null); }}
-        onSaved={() => { setEditingParticipant(null); fetchTeams(); }}
+        onSaved={() => { fetchTeams(); }}
         directEdit={canEditAll}
         isAdminEdit={canEditAll}
         showModerationNote={canEditAll || editingParticipant?.teamCanEdit === true || normalizeEmail(editingParticipant?.teamOwnerEmail) === normalizeEmail(userEmail)}
