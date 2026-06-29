@@ -161,80 +161,43 @@ export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
     "team_notizen",
     "team_created_at",
     "team_updated_at",
-    "teilnehmer_id",
-    "teilnehmer_vorname",
-    "teilnehmer_nachname",
-    "geburtsjahr",
-    "geschlecht",
-    "disziplin",
-    "shirt_groesse",
-    "teilnehmer_email",
-    "moderationshinweis",
-    "teilnehmer_updated_at",
+    "teilnehmer_anzahl",
+    "teilnehmer_liste",
   ];
 
   const rows: Array<Array<string | number | null | undefined>> = [];
   for (const team of competition.teams) {
-    if (team.participants.length === 0) {
-      rows.push([
-        competition.year,
-        competition.name,
-        competition.tenant.name,
-        team.id,
-        team.name,
-        team.classificationCode,
-        team.contactName,
-        team.contactEmail,
-        team.contactPhone,
-        team.clubName,
-        team.owner.name,
-        team.owner.email,
-        team.notes,
-        formatDateTime(team.createdAt),
-        formatDateTime(team.updatedAt),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-      ]);
-      continue;
-    }
+    const participantList = team.participants
+      .map((participant) => {
+        const name = `${participant.firstName} ${participant.lastName}`.trim();
+        const gender = participant.gender === "FEMALE" ? "W" : "M";
+        const discipline = participant.disciplineCode || "TBD";
+        const shirtSize = participant.shirtSize || "-";
+        const email = participant.email || "-";
+        const moderationNote = participant.moderationNote || "-";
+        return `${name} (${participant.birthYear}, ${gender}, ${discipline}, Shirt:${shirtSize}, Mail:${email}, Note:${moderationNote})`;
+      })
+      .join(" | ");
 
-    for (const participant of team.participants) {
-      rows.push([
-        competition.year,
-        competition.name,
-        competition.tenant.name,
-        team.id,
-        team.name,
-        team.classificationCode,
-        team.contactName,
-        team.contactEmail,
-        team.contactPhone,
-        team.clubName,
-        team.owner.name,
-        team.owner.email,
-        team.notes,
-        formatDateTime(team.createdAt),
-        formatDateTime(team.updatedAt),
-        participant.id,
-        participant.firstName,
-        participant.lastName,
-        participant.birthYear,
-        participant.gender === "FEMALE" ? "W" : "M",
-        participant.disciplineCode,
-        participant.shirtSize,
-        participant.email,
-        participant.moderationNote,
-        formatDateTime(participant.updatedAt),
-      ]);
-    }
+    rows.push([
+      competition.year,
+      competition.name,
+      competition.tenant.name,
+      team.id,
+      team.name,
+      team.classificationCode,
+      team.contactName,
+      team.contactEmail,
+      team.contactPhone,
+      team.clubName,
+      team.owner.name,
+      team.owner.email,
+      team.notes,
+      formatDateTime(team.createdAt),
+      formatDateTime(team.updatedAt),
+      team.participants.length,
+      participantList,
+    ]);
   }
 
   return [headers, ...rows]
