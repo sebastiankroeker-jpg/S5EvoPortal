@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { buildCompetitionTeamsCsvAttachment, loadCompetitionsForDailyExport } from "@/lib/team-csv-export";
+import {
+  buildCompetitionTeamsCsvAttachment,
+  loadCompetitionsForDailyExport,
+  loadParticipantStartNumbersForCompetition,
+} from "@/lib/team-csv-export";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
 export const runtime = "nodejs";
@@ -29,7 +33,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 });
     }
 
-    const attachment = buildCompetitionTeamsCsvAttachment(competition);
+    const startNumberByParticipantId = await loadParticipantStartNumbersForCompetition(competition.id);
+    const attachment = buildCompetitionTeamsCsvAttachment(competition, startNumberByParticipantId);
     const body = Buffer.from(attachment.content, "base64");
 
     return new NextResponse(body, {
