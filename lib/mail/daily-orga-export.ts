@@ -1,7 +1,7 @@
 import { sendResendMail } from "@/lib/mail/resend";
 import {
   buildCompetitionTeamsCsvAttachment,
-  loadParticipantStartNumbersForCompetition,
+  loadTeamStartNumbersForCompetition,
   resolveCompetitionExportRecipients,
 } from "@/lib/team-csv-export";
 
@@ -16,8 +16,8 @@ export async function sendDailyCompetitionExportEmail(competition: DailyExportCo
     };
   }
 
-  const startNumberByParticipantId = await loadParticipantStartNumbersForCompetition(competition.id);
-  const attachment = buildCompetitionTeamsCsvAttachment(competition, startNumberByParticipantId);
+  const startNumberByTeamId = await loadTeamStartNumbersForCompetition(competition.id);
+  const attachment = buildCompetitionTeamsCsvAttachment(competition, startNumberByTeamId);
   const subject = `S5Evo Tagesexport ${competition.year}: ${competition.name}`;
   const text =
     `Anbei der aktuelle Tagesexport fuer ${competition.name} (${competition.year}).\n\n` +

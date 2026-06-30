@@ -19,6 +19,11 @@ type ParsedCsv = {
   rows: string[][];
 };
 
+type ParsedAssignments = {
+  teamAssignments: Map<string, string | null>;
+  participantAssignments: Map<string, string | null>;
+};
+
 function parseCsv(input: string, delimiter = ";"): ParsedCsv {
   const text = input.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const rows: string[][] = [];
@@ -91,7 +96,7 @@ async function startNumberColumnExists() {
       SELECT 1
       FROM information_schema.columns
       WHERE table_schema = 'public'
-        AND table_name = 'participants'
+        AND table_name = 'teams'
         AND column_name = 'startNumber'
     ) AS "exists"
   `;
@@ -102,8 +107,17 @@ function collectAssignments(
   headers: string[],
   rows: string[][],
   clearMissing: boolean,
-) {
+): ParsedAssignments {
   const normalizedHeaders = headers.map(normalizeHeader);
+  const teamIdIndex = normalizedHeaders.findIndex((header) =>
+    ["team_id", "teamid", "mannschaft_id"].includes(header),
+  );
+  const teamStartNumberIndex = normalizedHeaders.findIndex((header) =>
+    ["team_startnummer", "team_start_number", "team_startnumber", "startnummer", "start_number", "startnumber"].includes(
+      header,
+    ),
+  );
+
   const participantIdIndex = normalizedHeaders.findIndex((header) =>
     ["participant_id", "participantid", "tn_id", "teilnehmer_id"].includes(header),
   );
@@ -111,7 +125,18 @@ function collectAssignments(
     ["startnummer", "start_number", "startnumber", "tn_startnummer"].includes(header),
   );
 
-  const assignments = new Map<string, string | null>();
+  const teamAssignments = new Map<string, string | null>();
+  const participantAssignments = new Map<string, string | null>();
+
+  if (teamIdIndex !== -1 && teamStartNumberIndex !== -1) {
+    for (const row of rows) {
+      const teamId = (row[teamIdIndex] || "").trim();
+      if (!teamId) continue;
+      const normalized = normalizeStartNumber(row[teamStartNumberIndex] || "");
+      if (normalized === null && !clearMissing) continue;
+      teamAssignments.set(teamId, normalized);
+    }
+  }
 
   if (participantIdIndex !== -1 && startNumberIndex !== -1) {
     for (const row of rows) {
@@ -119,9 +144,8 @@ function collectAssignments(
       if (!participantId) continue;
       const normalized = normalizeStartNumber(row[startNumberIndex] || "");
       if (normalized === null && !clearMissing) continue;
-      assignments.set(participantId, normalized);
+      participantAssignments.set(participantId, normalized);
     }
-    return assignments;
   }
 
   const slotIndices: Array<{ participantId: number; startNumber: number }> = [];
@@ -142,11 +166,14 @@ function collectAssignments(
       if (!participantId) continue;
       const normalized = normalizeStartNumber(row[slot.startNumber] || "");
       if (normalized === null && !clearMissing) continue;
-      assignments.set(participantId, normalized);
+      participantAssignments.set(participantId, normalized);
     }
   }
 
-  return assignments;
+  return {
+    teamAssignments,
+    participantAssignments,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -173,7 +200,7 @@ export async function POST(request: NextRequest) {
   if (!columnReady) {
     return NextResponse.json(
       {
-        error: 'DB-Migration fehlt: participants.startNumber ist noch nicht vorhanden. Bitte zuerst Migration deployen.',
+        error: 'DB-Migration fehlt: teams.startNumber ist noch nicht vorhanden. Bitte zuerst Migration deployen.',
       },
       { status: 412 },
     );
@@ -188,65 +215,152 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "CSV ist leer oder ungueltig" }, { status: 400 });
   }
 
-  const assignments = collectAssignments(parsed.headers, parsed.rows, clearMissing);
-  if (assignments.size === 0) {
+  const parsedAssignments = collectAssignments(parsed.headers, parsed.rows, clearMissing);
+  const hasAssignments = parsedAssignments.teamAssignments.size > 0 || parsedAssignments.participantAssignments.size > 0;
+  if (!hasAssignments) {
     return NextResponse.json(
       {
         error:
-          "Keine gueltigen Startnummern-Zuordnungen gefunden. Erwartet: participant_id+startnummer oder tn_XX_id+tn_XX_startnummer.",
+          "Keine gueltigen Startnummern-Zuordnungen gefunden. Erwartet: team_id+team_startnummer oder participant_id+startnummer oder tn_XX_id+tn_XX_startnummer.",
       },
       { status: 400 },
     );
   }
 
-  const participantIds = [...assignments.keys()];
-  const participants = await prisma.participant.findMany({
-    where: {
-      id: { in: participantIds },
-      deletedAt: null,
-      team: {
-        competitionId,
-        competition: { tenantId: auth.tenantId },
+  const mergedTeamAssignments = new Map(parsedAssignments.teamAssignments);
+  const participantIds = [...parsedAssignments.participantAssignments.keys()];
+  if (participantIds.length > 0) {
+    const participants = await prisma.participant.findMany({
+      where: {
+        id: { in: participantIds },
+        deletedAt: null,
+        team: {
+          competitionId,
+          competition: { tenantId: auth.tenantId },
+        },
       },
+      select: {
+        id: true,
+        teamId: true,
+      },
+    });
+
+    const participantMap = new Map(participants.map((participant) => [participant.id, participant]));
+    const missingParticipants = participantIds.filter((id) => !participantMap.has(id));
+    if (missingParticipants.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Einige Teilnehmer-IDs konnten im Wettbewerb nicht gefunden werden.",
+          missingParticipantIds: missingParticipants,
+        },
+        { status: 400 },
+      );
+    }
+
+    const participantConflicts: Array<{ teamId: string; participantId: string; value: string | null; previous: string | null }> = [];
+    const teamValueFromParticipants = new Map<string, { value: string | null; participantIds: string[] }>();
+    for (const participantId of participantIds) {
+      const participant = participantMap.get(participantId);
+      if (!participant) continue;
+      const value = parsedAssignments.participantAssignments.get(participantId) ?? null;
+      const existing = teamValueFromParticipants.get(participant.teamId);
+      if (!existing) {
+        teamValueFromParticipants.set(participant.teamId, { value, participantIds: [participantId] });
+        continue;
+      }
+      if (existing.value !== value) {
+        participantConflicts.push({
+          teamId: participant.teamId,
+          participantId,
+          value,
+          previous: existing.value,
+        });
+        continue;
+      }
+      existing.participantIds.push(participantId);
+    }
+
+    if (participantConflicts.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Konflikt in Teilnehmer-Zeilen: eine Mannschaft hat mehrere unterschiedliche Startnummern.",
+          conflicts: participantConflicts.slice(0, 20),
+        },
+        { status: 400 },
+      );
+    }
+
+    const mergeConflicts: Array<{ teamId: string; teamValue: string | null; participantValue: string | null }> = [];
+    for (const [teamId, fromParticipants] of teamValueFromParticipants) {
+      const existing = mergedTeamAssignments.get(teamId);
+      if (existing != null && existing !== fromParticipants.value) {
+        mergeConflicts.push({
+          teamId,
+          teamValue: existing,
+          participantValue: fromParticipants.value,
+        });
+        continue;
+      }
+      if (existing == null) {
+        mergedTeamAssignments.set(teamId, fromParticipants.value);
+      }
+    }
+
+    if (mergeConflicts.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Konflikt zwischen Team- und Teilnehmer-Zeilen fuer dieselbe Mannschaft.",
+          conflicts: mergeConflicts.slice(0, 20),
+        },
+        { status: 400 },
+      );
+    }
+  }
+
+  const teamIds = [...mergedTeamAssignments.keys()];
+  const teams = await prisma.team.findMany({
+    where: {
+      id: { in: teamIds },
+      deletedAt: null,
+      competitionId,
+      competition: { tenantId: auth.tenantId },
     },
     select: {
       id: true,
-      firstName: true,
-      lastName: true,
+      name: true,
       startNumber: true,
     },
   });
-
-  const participantMap = new Map(participants.map((participant) => [participant.id, participant]));
-  const missing = participantIds.filter((id) => !participantMap.has(id));
-  if (missing.length > 0) {
+  const teamMap = new Map(teams.map((team) => [team.id, team]));
+  const missingTeams = teamIds.filter((id) => !teamMap.has(id));
+  if (missingTeams.length > 0) {
     return NextResponse.json(
       {
-        error: "Einige Teilnehmer-IDs konnten im Wettbewerb nicht gefunden werden.",
-        missingParticipantIds: missing,
+        error: "Einige Team-IDs konnten im Wettbewerb nicht gefunden werden.",
+        missingTeamIds: missingTeams,
       },
       { status: 400 },
     );
   }
 
-  const changed = participants
-    .map((participant) => ({
-      participant,
-      nextStartNumber: assignments.get(participant.id) ?? null,
+  const changed = teams
+    .map((team) => ({
+      team,
+      nextStartNumber: mergedTeamAssignments.get(team.id) ?? null,
     }))
-    .filter(({ participant, nextStartNumber }) => (participant.startNumber || null) !== (nextStartNumber || null));
+    .filter(({ team, nextStartNumber }) => (team.startNumber || null) !== (nextStartNumber || null));
 
   if (dryRun) {
     return NextResponse.json({
       ok: true,
       dryRun: true,
       parsedRows: parsed.rows.length,
-      assignments: assignments.size,
+      assignments: mergedTeamAssignments.size,
       changed: changed.length,
-      preview: changed.slice(0, 20).map(({ participant, nextStartNumber }) => ({
-        participantId: participant.id,
-        participantName: `${participant.firstName} ${participant.lastName}`.trim(),
-        previousStartNumber: participant.startNumber,
+      preview: changed.slice(0, 20).map(({ team, nextStartNumber }) => ({
+        teamId: team.id,
+        teamName: team.name,
+        previousStartNumber: team.startNumber,
         nextStartNumber,
       })),
     });
@@ -257,19 +371,28 @@ export async function POST(request: NextRequest) {
 
   await prisma.$transaction(async (tx) => {
     for (const entry of changed) {
-      await tx.participant.update({
-        where: { id: entry.participant.id },
+      await tx.team.update({
+        where: { id: entry.team.id },
         data: { startNumber: entry.nextStartNumber },
       });
 
-      await tx.participantAuditLog.create({
+      await tx.auditEvent.create({
         data: {
-          action: "DIRECT_CHANGE",
-          participantId: entry.participant.id,
-          actorId,
-          beforeData: JSON.stringify({ startNumber: entry.participant.startNumber || null }),
-          afterData: JSON.stringify({ startNumber: entry.nextStartNumber || null }),
-          message: "Startnummer per CSV-Import aktualisiert",
+          action: "TEAM_START_NUMBER_IMPORTED",
+          scopeType: "TEAM",
+          scopeId: entry.team.id,
+          entityType: "TEAM",
+          entityId: entry.team.id,
+          reason: "csv_import",
+          beforeData: { startNumber: entry.team.startNumber || null },
+          afterData: { startNumber: entry.nextStartNumber || null },
+          meta: {
+            source: "admin_start_numbers_import",
+            competitionId,
+          },
+          tenantId: auth.tenantId,
+          competitionId,
+          actorId: actorId ?? auth.user.id,
         },
       });
     }
@@ -279,7 +402,7 @@ export async function POST(request: NextRequest) {
     ok: true,
     dryRun: false,
     parsedRows: parsed.rows.length,
-    assignments: assignments.size,
+    assignments: mergedTeamAssignments.size,
     changed: changed.length,
   });
 }

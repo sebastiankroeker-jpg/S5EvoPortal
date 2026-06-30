@@ -348,6 +348,7 @@ model Competition {
 model Team {
   id                   String               @id @default(cuid())
   name                 String
+  startNumber          String?
   contactName          String?
   contactEmail         String?
   contactPhone         String?
@@ -382,6 +383,7 @@ model Team {
   @@index([teamChiefId, deletedAt])
   @@index([registrationMode, marketplaceStatus])
   @@index([marketplaceVisibility])
+  @@index([startNumber])
   @@index([contactEmail])
   @@index([updatedAt])
   @@map("teams")
@@ -514,7 +516,6 @@ model Participant {
   participantPublicationPreference ParticipantPublicationPreference @default(NAME_VERBERGEN)
   shirtSize                        ShirtSize?
   moderationNote                   String?
-  startNumber                      String?
   consentGiven                     Boolean                          @default(false)
   email                            String?
   phone                            String?
@@ -538,7 +539,6 @@ model Participant {
   @@index([userId, deletedAt])
   @@index([teamId, deletedAt])
   @@index([marketplaceReturnTeamId])
-  @@index([startNumber])
   @@index([lastName, firstName])
   @@map("participants")
 }
