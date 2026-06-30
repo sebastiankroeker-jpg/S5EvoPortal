@@ -514,6 +514,7 @@ model Participant {
   participantPublicationPreference ParticipantPublicationPreference @default(NAME_VERBERGEN)
   shirtSize                        ShirtSize?
   moderationNote                   String?
+  startNumber                      String?
   consentGiven                     Boolean                          @default(false)
   email                            String?
   phone                            String?
@@ -537,6 +538,7 @@ model Participant {
   @@index([userId, deletedAt])
   @@index([teamId, deletedAt])
   @@index([marketplaceReturnTeamId])
+  @@index([startNumber])
   @@index([lastName, firstName])
   @@map("participants")
 }
