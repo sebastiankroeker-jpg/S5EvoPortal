@@ -63,35 +63,6 @@ function formatDateTime(value?: Date | null) {
   return value ? value.toISOString() : "";
 }
 
-async function startNumberColumnExists() {
-  const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'participants'
-        AND column_name = 'startNumber'
-    ) AS "exists"
-  `;
-  return Boolean(result[0]?.exists);
-}
-
-export async function loadParticipantStartNumbersForCompetition(competitionId: string) {
-  if (!(await startNumberColumnExists())) {
-    return new Map<string, string | null>();
-  }
-
-  const rows = await prisma.$queryRaw<Array<{ id: string; startNumber: string | null }>>`
-    SELECT p.id, p."startNumber"
-    FROM participants p
-    INNER JOIN teams t ON t.id = p."teamId"
-    WHERE t."competitionId" = ${competitionId}
-      AND p."deletedAt" IS NULL
-  `;
-
-  return new Map(rows.map((row) => [row.id, row.startNumber]));
-}
-
 const DISCIPLINE_ORDER: Record<string, number> = {
   RUN: 1,
   BENCH: 2,
@@ -191,10 +162,7 @@ export async function loadCompetitionsForDailyExport({
   }) satisfies Promise<CompetitionExportRecord[]>;
 }
 
-export function buildCompetitionTeamsCsv(
-  competition: CompetitionExportRecord,
-  startNumberByParticipantId?: Map<string, string | null>,
-) {
+export function buildCompetitionTeamsCsv(competition: CompetitionExportRecord) {
   const maxParticipantSlots = Math.max(
     competition.teamSize || 0,
     ...competition.teams.map((team) => team.participants.length),
@@ -271,7 +239,7 @@ export function buildCompetitionTeamsCsv(
         participant.birthYear,
         participant.gender === "FEMALE" ? "W" : "M",
         participant.disciplineCode || "TBD",
-        startNumberByParticipantId?.get(participant.id) ?? null,
+        null, // Startnummer: aktuell Platzhalter bis Vergabe/Import vorhanden ist
       );
     }
 
@@ -283,17 +251,14 @@ export function buildCompetitionTeamsCsv(
     .join("\n");
 }
 
-export function buildCompetitionTeamsCsvAttachment(
-  competition: CompetitionExportRecord,
-  startNumberByParticipantId?: Map<string, string | null>,
-) {
+export function buildCompetitionTeamsCsvAttachment(competition: CompetitionExportRecord) {
   const timestamp = new Date().toISOString().slice(0, 10);
   const safeName = competition.name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   const filename = `teams-export-${competition.year}-${safeName || "competition"}-${timestamp}.csv`;
-  const csv = buildCompetitionTeamsCsv(competition, startNumberByParticipantId);
+  const csv = buildCompetitionTeamsCsv(competition);
 
   return {
     filename,
