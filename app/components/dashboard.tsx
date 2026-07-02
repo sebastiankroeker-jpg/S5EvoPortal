@@ -31,7 +31,7 @@ import {
   formatBirthDateInput,
   resolveBirthDateInputKey,
 } from "@/lib/domain/team";
-import { evaluateTeamDraft, validateDisciplineAssignment } from "@/lib/domain/classification";
+import { compareClassificationCodes, evaluateTeamDraft, validateDisciplineAssignment } from "@/lib/domain/classification";
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -2206,7 +2206,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     });
   }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceKindFilter, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, openMtcSlotsOnly, quickFilterExcludes, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin, canEditAll]);
 
-  const categories = [...new Set(teams.map(t => t.category))];
+  const categories = [...new Set(teams.map(t => t.category))].sort(compareClassificationCodes);
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
   const categoryStats = categories.map(cat => ({
     category: cat,
