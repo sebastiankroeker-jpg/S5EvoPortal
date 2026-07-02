@@ -7,10 +7,9 @@ import { canRoleViewAllTeams } from "@/lib/team-access-config";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DISCIPLINES } from "@/lib/domain/team";
+import { compareClassificationCodes } from "@/lib/domain/classification";
 import ResultsView from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 
@@ -72,8 +71,6 @@ export default function LiveScreen() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [disciplineFilter, setDisciplineFilter] = useState("all");
-  const [classFilter, setClassFilter] = useState("all");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
@@ -120,10 +117,6 @@ export default function LiveScreen() {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Get unique categories and classes
-  const categories = [...new Set(teams.map(t => t.category))];
-  const allClasses = [...new Set(teams.map(t => t.category))].sort();
-
   // Segment content rendering
   const renderTeamsSegment = () => {
     // Group teams by category
@@ -163,10 +156,8 @@ export default function LiveScreen() {
         />
 
         {/* Team Groups */}
-        {Object.entries(filteredGroupedTeams).map(([category, categoryTeams]) => {
+        {Object.entries(filteredGroupedTeams).sort(([a], [b]) => compareClassificationCodes(a, b)).map(([category, categoryTeams]) => {
           const isExpanded = expandedSections[`teams-${category}`];
-          const completeTeams = categoryTeams.filter(t => t.participants?.length === 5);
-          const incompleteTeams = categoryTeams.filter(t => !t.participants || t.participants.length < 5);
           
           return (
             <Card key={category}>
@@ -313,7 +304,7 @@ export default function LiveScreen() {
                     transition={{ duration: 0.2 }}
                   >
                     <CardContent className="space-y-4">
-                      {Object.entries(disciplineData).map(([category, participants]) => {
+                      {Object.entries(disciplineData).sort(([a], [b]) => compareClassificationCodes(a, b)).map(([category, participants]) => {
                         if (participants.length === 0) return null;
 
                         const isClassExpanded = expandedSections[`start-${discipline.id}-${category}`];
@@ -371,80 +362,6 @@ export default function LiveScreen() {
             </Card>
           );
         })}
-      </div>
-    );
-  };
-
-  const renderErgebnisSegment = () => {
-    return (
-      <div className="space-y-6">
-        {/* Hero Cards für Gesamtwertung */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="text-center">
-            <CardContent className="p-4">
-              <div className="text-3xl mb-2">🏆</div>
-              <div className="font-semibold">Herren Gesamt</div>
-              <div className="text-sm text-muted-foreground">noch offen</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="p-4">
-              <div className="text-3xl mb-2">🏆</div>
-              <div className="font-semibold">Damen Gesamt</div>
-              <div className="text-sm text-muted-foreground">noch offen</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Select value={disciplineFilter} onValueChange={setDisciplineFilter}>
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Disziplin" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Disziplinen</SelectItem>
-              {DISCIPLINES.map(discipline => (
-                <SelectItem key={discipline.id} value={discipline.id}>
-                  {discipline.icon} {discipline.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={classFilter} onValueChange={setClassFilter}>
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Klasse" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Klassen</SelectItem>
-              {allClasses.map(category => (
-                <SelectItem key={category} value={category}>
-                  {categoryEmojis[category] || "🏆"} {categoryLabels[category] || category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Ergebnisse Placeholder */}
-        <Card>
-          <CardContent className="p-8 text-center space-y-4">
-            <div className="text-6xl">📊</div>
-            <h3 className="text-xl font-semibold">Noch keine Ergebnisse erfasst</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Ergebnisse werden hier angezeigt sobald der Wettkampf läuft.
-              Die Filter-Optionen stehen bereits zur Verfügung.
-            </p>
-            {(disciplineFilter !== "all" || classFilter !== "all") && (
-              <div className="text-sm text-muted-foreground">
-                Filter aktiv: 
-                {disciplineFilter !== "all" && ` ${DISCIPLINES.find(d => d.id === disciplineFilter)?.label}`}
-                {classFilter !== "all" && ` ${categoryEmojis[classFilter] || ""} ${categoryLabels[classFilter] || classFilter}`}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     );
   };

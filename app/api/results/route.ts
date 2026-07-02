@@ -14,6 +14,7 @@ import {
   type DisciplineCode,
   type DisciplineEntry,
 } from "@/lib/domain/scoring";
+import { compareClassificationCodes } from "@/lib/domain/classification";
 
 /**
  * GET /api/results?competitionId=xxx
@@ -159,13 +160,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Sort results: individual classes first, then team classes
-    results.sort((a, b) => {
-      const order = { AGE_INDIVIDUAL: 0, AGE_TEAM: 1, UNKNOWN: 2 };
-      const aOrder = order[a.classType as keyof typeof order] ?? 2;
-      const bOrder = order[b.classType as keyof typeof order] ?? 2;
-      return aOrder - bOrder;
-    });
+    // Sort results in the official class order: SA, SB, J, DA, DB, HA, HB, HC.
+    results.sort((a, b) => compareClassificationCodes(a.classCode, b.classCode));
 
     return NextResponse.json({
       competition: {

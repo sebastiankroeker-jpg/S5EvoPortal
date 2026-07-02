@@ -100,6 +100,29 @@ export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; des
   "unclassified": { label: "Unklassifiziert", emoji: "❓", desc: "Unvollständig" },
 };
 
+export const CLASSIFICATION_DISPLAY_ORDER = [
+  "schueler-a",
+  "schueler-b",
+  "jugend",
+  "damen-a",
+  "damen-b",
+  "jungsters",
+  "herren",
+  "masters",
+] as const;
+
+const CLASSIFICATION_ORDER_INDEX: ReadonlyMap<string, number> = new Map(
+  CLASSIFICATION_DISPLAY_ORDER.map((code, index) => [code, index]),
+);
+
+export function compareClassificationCodes(a: string, b: string): number {
+  const aOrder = CLASSIFICATION_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER;
+  const bOrder = CLASSIFICATION_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER;
+
+  if (aOrder !== bOrder) return aOrder - bOrder;
+  return a.localeCompare(b, "de");
+}
+
 function isFemale(gender: string): boolean {
   return gender === "W" || gender === "FEMALE";
 }
