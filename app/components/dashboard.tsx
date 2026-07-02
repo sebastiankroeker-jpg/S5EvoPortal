@@ -2265,11 +2265,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     "schueler-a": { icon: "SA", label: "Schüler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
     "schueler-b": { icon: "SB", label: "Schüler B", className: "border-cyan-300 bg-cyan-50 text-cyan-800" },
     jugend: { icon: "J", label: "Jugend", className: "border-violet-300 bg-violet-50 text-violet-800" },
-    jungsters: { icon: "⚡", label: "Jungsters", className: "border-yellow-300 bg-yellow-50 text-yellow-800" },
-    herren: { icon: "♂", label: "Herren", className: "border-blue-300 bg-blue-50 text-blue-800" },
-    masters: { icon: "M", label: "Masters", className: "border-amber-300 bg-amber-50 text-amber-800" },
-    "damen-a": { icon: "♀A", label: "Damen A", className: "border-pink-300 bg-pink-50 text-pink-800" },
-    "damen-b": { icon: "♀B", label: "Damen B", className: "border-rose-300 bg-rose-50 text-rose-800" },
+    "damen-a": { icon: "DA", label: "Damen A", className: "border-pink-300 bg-pink-50 text-pink-800" },
+    "damen-b": { icon: "DB", label: "Damen B", className: "border-rose-300 bg-rose-50 text-rose-800" },
+    jungsters: { icon: "HA", label: "Jungsters", className: "border-yellow-300 bg-yellow-50 text-yellow-800" },
+    herren: { icon: "HB", label: "Herren", className: "border-blue-300 bg-blue-50 text-blue-800" },
+    masters: { icon: "HC", label: "Masters", className: "border-amber-300 bg-amber-50 text-amber-800" },
     sportlerboerse: { icon: "", label: "Sportlerbörse", className: "border-emerald-300 bg-emerald-50 text-emerald-800" },
   };
 

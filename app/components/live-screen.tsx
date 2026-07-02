@@ -39,11 +39,11 @@ const categoryEmojis: Record<string, string> = {
   "schueler-a": "SA",
   "schueler-b": "SB",
   "jugend": "J",
-  "jungsters": "⚡",
-  "herren": "🏋️",
-  "masters": "🎖️",
-  "damen-a": "🏋️‍♀️",
-  "damen-b": "👩‍🦳",
+  "damen-a": "DA",
+  "damen-b": "DB",
+  "jungsters": "HA",
+  "herren": "HB",
+  "masters": "HC",
 };
 
 const categoryLabels: Record<string, string> = {

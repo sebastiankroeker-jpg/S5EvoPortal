@@ -92,11 +92,11 @@ export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; des
   "schueler-a": { label: "Schüler A", emoji: "SA", desc: youthClassDescription("schueler-a") },
   "schueler-b": { label: "Schüler B", emoji: "SB", desc: youthClassDescription("schueler-b") },
   "jugend": { label: "Jugend", emoji: "J", desc: youthClassDescription("jugend") },
-  "jungsters": { label: "Jungsters", emoji: "🔥", desc: "Gesamtalter ≤ 125" },
-  "herren": { label: "Herren", emoji: "🏆", desc: "Gesamtalter 126–225" },
-  "masters": { label: "Masters", emoji: "⭐", desc: "Gesamtalter ≥ 226" },
-  "damen-a": { label: "Damen A", emoji: "👑", desc: "Nur Frauen, ≤ 150" },
-  "damen-b": { label: "Damen B", emoji: "💎", desc: "Nur Frauen, > 150" },
+  "jungsters": { label: "Jungsters", emoji: "HA", desc: "Gesamtalter ≤ 125" },
+  "herren": { label: "Herren", emoji: "HB", desc: "Gesamtalter 126–225" },
+  "masters": { label: "Masters", emoji: "HC", desc: "Gesamtalter ≥ 226" },
+  "damen-a": { label: "Damen A", emoji: "DA", desc: "Nur Frauen, ≤ 150" },
+  "damen-b": { label: "Damen B", emoji: "DB", desc: "Nur Frauen, > 150" },
   "unclassified": { label: "Unklassifiziert", emoji: "❓", desc: "Unvollständig" },
 };
 
