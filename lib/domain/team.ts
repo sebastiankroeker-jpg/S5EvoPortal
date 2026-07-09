@@ -256,6 +256,7 @@ export const TeamRegistrationSchema = z.object({
   contactLastName: z.string().min(2, "Name zu kurz").optional().or(z.literal("")),
   contactName: z.string().min(2, "Kontaktname zu kurz").optional().or(z.literal("")),
   contactEmail: z.string().email("Ungültige Kontakt-E-Mail").optional().or(z.literal("")),
+  contactPhone: z.string().max(64, "Telefonnummer zu lang").optional().or(z.literal("")),
   teamPublicationLevel: teamPublicationLevelEnum.default("TEAM_ANONYM"),
   participants: z
     .array(ParticipantSchema)
@@ -268,6 +269,7 @@ export const MarketplaceRegistrationSchema = z.object({
   contactLastName: z.string().min(2, "Nachname zu kurz"),
   contactName: z.string().min(2, "Kontaktname zu kurz").optional().or(z.literal("")),
   contactEmail: z.string().email("Ungültige Kontakt-E-Mail"),
+  contactPhone: z.string().trim().min(1, "Telefonnummer ist fuer Sportlerboerse-Meldungen erforderlich.").max(64, "Telefonnummer zu lang"),
   birthDate: z
     .string()
     .min(1, "Geburtsdatum fehlt")
@@ -303,6 +305,7 @@ export const MtcDraftRegistrationSchema = z.object({
   contactLastName: z.string().min(2, "Nachname zu kurz").optional().or(z.literal("")),
   contactName: z.string().min(2, "Kontaktname zu kurz").optional().or(z.literal("")),
   contactEmail: z.string().email("Ungültige Kontakt-E-Mail"),
+  contactPhone: z.string().trim().min(1, "Telefonnummer ist fuer MTC-Entwuerfe erforderlich.").max(64, "Telefonnummer zu lang"),
   teamPublicationLevel: teamPublicationLevelEnum.default("TEAM_ANONYM"),
   participants: z
     .array(MtcDraftParticipantSchema)
@@ -326,6 +329,7 @@ export function formatTeamRegistrationValidationIssues(issues: z.ZodIssue[]) {
     contactLastName: "Kontakt-Nachname",
     contactName: "Kontaktname",
     contactEmail: "Kontakt-E-Mail",
+    contactPhone: "Telefonnummer",
     participants: "Teilnehmer",
     firstName: "Vorname",
     lastName: "Nachname",
@@ -382,6 +386,7 @@ export function createDefaultTeamForm(): TeamRegistrationInput {
     contactLastName: "",
     contactName: "",
     contactEmail: "",
+    contactPhone: "",
     teamPublicationLevel: "TEAM_ANONYM",
     participants: baseParticipants,
   };

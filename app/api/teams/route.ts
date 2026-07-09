@@ -677,14 +677,15 @@ export async function POST(request: NextRequest) {
 
       const draftData = validation.data;
       const userEmail = normalizeEmail(sessionUserEmail || draftData.contactEmail.trim());
+      const contactPhone = draftData.contactPhone.trim();
       const userName =
         sessionUserName ||
         draftData.contactName?.trim() ||
         [draftData.contactFirstName, draftData.contactLastName].filter(Boolean).join(" ").trim();
       const userImage = sessionUserImage;
 
-      if (!userEmail || !userName) {
-        return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
+      if (!userEmail || !userName || !contactPhone) {
+        return NextResponse.json({ error: 'Kontaktname, Kontakt-E-Mail und Telefonnummer sind erforderlich.' }, { status: 400 });
       }
 
       try {
@@ -793,6 +794,7 @@ export async function POST(request: NextRequest) {
             name: finalTeamName,
             contactName: userName || "",
             contactEmail: userEmail,
+            contactPhone,
             notes: marketplaceMessage || null,
             teamPublicationLevel: draftData.teamPublicationLevel,
             registrationMode: "MARKETPLACE",
@@ -917,14 +919,15 @@ export async function POST(request: NextRequest) {
 
       const marketplaceData = validation.data;
       const userEmail = normalizeEmail(sessionUserEmail || marketplaceData.contactEmail.trim());
+      const contactPhone = marketplaceData.contactPhone.trim();
       const userName =
         sessionUserName ||
         marketplaceData.contactName?.trim() ||
         [marketplaceData.contactFirstName, marketplaceData.contactLastName].filter(Boolean).join(" ").trim();
       const userImage = sessionUserImage;
 
-      if (!userEmail || !userName) {
-        return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
+      if (!userEmail || !userName || !contactPhone) {
+        return NextResponse.json({ error: 'Kontaktname, Kontakt-E-Mail und Telefonnummer sind erforderlich.' }, { status: 400 });
       }
 
       try {
@@ -1025,6 +1028,7 @@ export async function POST(request: NextRequest) {
             name: finalTeamName,
             contactName: userName || participantName,
             contactEmail: userEmail,
+            contactPhone,
             clubName: marketplaceData.clubName?.trim() || null,
             notes: marketplaceData.marketplaceMessage?.trim() || null,
             teamPublicationLevel: "TEAM_ANONYM",

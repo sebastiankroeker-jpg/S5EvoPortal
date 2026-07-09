@@ -39,6 +39,7 @@ type MtcAnonymousState = {
     name: string;
     contactName: string;
     contactEmail: string;
+    contactPhone: string;
     marketplaceMessage: string;
     participants: MtcAnonymousParticipant[];
     evaluation: {
@@ -69,6 +70,7 @@ export default function MtcAnonymousPage() {
   const [teamName, setTeamName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [participants, setParticipants] = useState<MtcAnonymousParticipant[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -93,6 +95,7 @@ export default function MtcAnonymousPage() {
         setTeamName(payload.team.name || "");
         setContactName(payload.team.contactName || "");
         setContactEmail(payload.team.contactEmail || "");
+        setContactPhone(payload.team.contactPhone || "");
         setParticipants(payload.team.participants || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "MTC-Link konnte nicht geladen werden");
@@ -118,7 +121,7 @@ export default function MtcAnonymousPage() {
       const response = await fetch(`/api/mtc-anonym/${token}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamName, contactName, contactEmail, participants }),
+        body: JSON.stringify({ teamName, contactName, contactEmail, contactPhone, participants }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "MTC konnte nicht gespeichert werden");
@@ -127,6 +130,7 @@ export default function MtcAnonymousPage() {
       setTeamName(payload.team.name || "");
       setContactName(payload.team.contactName || "");
       setContactEmail(payload.team.contactEmail || "");
+      setContactPhone(payload.team.contactPhone || "");
       setParticipants(payload.team.participants || []);
       setSavedAt(new Date().toISOString());
     } catch (err) {
@@ -181,7 +185,7 @@ export default function MtcAnonymousPage() {
 
         {data ? (
           <>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground" htmlFor="team-name">MTC-Name</label>
                 <Input id="team-name" value={teamName} onChange={(event) => setTeamName(event.target.value)} />
@@ -193,6 +197,11 @@ export default function MtcAnonymousPage() {
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground" htmlFor="contact-email">Kontakt-E-Mail</label>
                 <Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="contact-phone">Telefonnummer</label>
+                <Input id="contact-phone" type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} />
+                <p className="text-xs text-muted-foreground">Fuer kurzfristige Abstimmung falls es schnell gehen muss.</p>
               </div>
             </div>
 

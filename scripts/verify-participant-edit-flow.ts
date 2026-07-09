@@ -15,6 +15,7 @@ const baseMarketplaceRegistration = {
   contactFirstName: "Mara",
   contactLastName: "Boerse",
   contactEmail: "mara.boerse@example.test",
+  contactPhone: "+49 170 1234567",
   birthDate: "01.02.1990",
   gender: "W",
   discipline: "RUN",

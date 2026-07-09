@@ -148,6 +148,7 @@ function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousTok
       name: team.name,
       contactName: team.contactName || "",
       contactEmail: team.contactEmail || "",
+      contactPhone: team.contactPhone || "",
       marketplaceMessage: team.marketplaceMessage || "",
       participants: draftParticipants,
       evaluation: {
@@ -273,6 +274,11 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
   const teamName = normalizeText(payload.teamName) || token.team.name;
   const contactName = normalizeText(payload.contactName) || token.team.contactName || "";
   const contactEmail = normalizeText(payload.contactEmail) || token.team.contactEmail || "";
+  const contactPhone = normalizeText(payload.contactPhone) || token.team.contactPhone || "";
+
+  if (!contactPhone) {
+    return { error: "Telefonnummer ist fuer MTC-Entwuerfe erforderlich.", status: 400 };
+  }
   const completeDraftParticipants = draftParticipants.filter((participant) =>
     hasParticipantIdentity(participant),
   );
@@ -306,6 +312,7 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
         name: teamName,
         contactName,
         contactEmail,
+        contactPhone,
         classificationCode: completeDraftParticipants.length === 5 && evaluation.canSubmit
           ? evaluation.classification.code
           : token.team.classificationCode || "sportlerboerse",
