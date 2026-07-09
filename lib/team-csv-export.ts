@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { TeamExportColumnKey } from "@/lib/dashboard-layout-config";
 
 type CompetitionExportRecord = {
   id: string;
@@ -61,6 +62,20 @@ function normalizeRecipientList(value?: string | null): string[] {
 
 function formatDateTime(value?: Date | null) {
   return value ? value.toISOString() : "";
+}
+
+function formatParticipantList(team: CompetitionExportRecord["teams"][number]) {
+  return [...team.participants]
+    .sort((a, b) => {
+      const disciplineCompare = getDisciplineSortOrder(a.disciplineCode) - getDisciplineSortOrder(b.disciplineCode);
+      if (disciplineCompare !== 0) return disciplineCompare;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    })
+    .map((participant) => {
+      const gender = participant.gender === "FEMALE" ? "W" : "M";
+      return `${participant.firstName} ${participant.lastName} (${participant.birthYear}, ${gender}, ${participant.disciplineCode || "TBD"})`;
+    })
+    .join(" | ");
 }
 
 async function startNumberColumnExists() {
@@ -293,6 +308,121 @@ export function buildCompetitionTeamsCsvAttachment(
     .replace(/^-+|-+$/g, "");
   const filename = `teams-export-${competition.year}-${safeName || "competition"}-${timestamp}.csv`;
   const csv = buildCompetitionTeamsCsv(competition, startNumberByTeamId);
+
+  return {
+    filename,
+    content: Buffer.from("\uFEFF" + csv, "utf8").toString("base64"),
+    contentType: "text/csv; charset=utf-8",
+  };
+}
+
+type TeamExportColumnDefinition = {
+  header: string;
+  render: (
+    input: {
+      competition: CompetitionExportRecord;
+      team: CompetitionExportRecord["teams"][number];
+      startNumberByTeamId?: Map<string, string | null>;
+    },
+  ) => string | number | null | undefined;
+};
+
+export const TEAM_EXPORT_COLUMN_DEFINITIONS: Record<TeamExportColumnKey, TeamExportColumnDefinition> = {
+  teamName: {
+    header: "team_name",
+    render: ({ team }) => team.name,
+  },
+  category: {
+    header: "klasse",
+    render: ({ team }) => team.classificationCode,
+  },
+  contactName: {
+    header: "team_kontakt_name",
+    render: ({ team }) => team.contactName,
+  },
+  contactEmail: {
+    header: "team_kontakt_email",
+    render: ({ team }) => team.contactEmail,
+  },
+  ownerEmail: {
+    header: "team_owner_email",
+    render: ({ team }) => team.owner.email,
+  },
+  participantCount: {
+    header: "teilnehmer_anzahl",
+    render: ({ team }) => team.participants.length,
+  },
+  participants: {
+    header: "teilnehmer",
+    render: ({ team }) => formatParticipantList(team),
+  },
+  createdAt: {
+    header: "team_created_at",
+    render: ({ team }) => formatDateTime(team.createdAt),
+  },
+  updatedAt: {
+    header: "team_updated_at",
+    render: ({ team }) => formatDateTime(team.updatedAt),
+  },
+};
+
+export function buildCompetitionTeamsLayoutCsv(
+  competition: CompetitionExportRecord,
+  columnKeys: TeamExportColumnKey[],
+  options: {
+    startNumberByTeamId?: Map<string, string | null>;
+    teamIds?: string[];
+  } = {},
+) {
+  const allowedColumns = columnKeys
+    .map((key) => [key, TEAM_EXPORT_COLUMN_DEFINITIONS[key]] as const)
+    .filter((entry): entry is readonly [TeamExportColumnKey, TeamExportColumnDefinition] => Boolean(entry[1]));
+  const columns = allowedColumns.length > 0
+    ? allowedColumns
+    : (Object.entries(TEAM_EXPORT_COLUMN_DEFINITIONS) as Array<[TeamExportColumnKey, TeamExportColumnDefinition]>);
+  const teamOrder = new Map((options.teamIds || []).map((id, index) => [id, index]));
+  const teams = options.teamIds
+    ? competition.teams
+        .filter((team) => teamOrder.has(team.id))
+        .sort((left, right) => (teamOrder.get(left.id) ?? 0) - (teamOrder.get(right.id) ?? 0))
+    : competition.teams;
+
+  const headers = columns.map(([, definition]) => definition.header);
+  const rows = teams.map((team) =>
+    columns.map(([, definition]) =>
+      definition.render({
+        competition,
+        team,
+        startNumberByTeamId: options.startNumberByTeamId,
+      }),
+    ),
+  );
+
+  return [headers, ...rows]
+    .map((row) => row.map((value) => escapeCsvValue(value)).join(";"))
+    .join("\n");
+}
+
+export function buildCompetitionTeamsLayoutCsvAttachment(
+  competition: CompetitionExportRecord,
+  columnKeys: TeamExportColumnKey[],
+  options: {
+    startNumberByTeamId?: Map<string, string | null>;
+    teamIds?: string[];
+    layoutName?: string | null;
+  } = {},
+) {
+  const timestamp = new Date().toISOString().slice(0, 10);
+  const safeCompetitionName = competition.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const safeLayoutName = (options.layoutName || "layout")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const filename = `teams-export-${competition.year}-${safeCompetitionName || "competition"}-${safeLayoutName || "layout"}-${timestamp}.csv`;
+  const csv = buildCompetitionTeamsLayoutCsv(competition, columnKeys, options);
 
   return {
     filename,

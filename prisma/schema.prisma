@@ -20,6 +20,15 @@ enum Role {
   TEILNEHMER
 }
 
+enum DashboardLayoutScope {
+  PERSONAL
+  GLOBAL
+}
+
+enum DashboardKey {
+  TEAM_DASHBOARD
+}
+
 enum CompetitionStatus {
   DRAFT
   OPEN
@@ -237,6 +246,7 @@ model Tenant {
   changeRequests ChangeRequest[]
   resetSnapshots CompetitionResetSnapshot[]
   auditEvents    AuditEvent[]
+  dashboardLayouts DashboardLayout[]
 
   @@map("tenants")
 }
@@ -275,6 +285,9 @@ model User {
   claimedParticipantTokens  ParticipantClaimToken[]    @relation("ClaimedParticipantTokens")
   resetSnapshotsCreated     CompetitionResetSnapshot[] @relation("CompetitionResetSnapshotCreator")
   auditEventsCreated        AuditEvent[]               @relation("AuditEventActor")
+  dashboardLayoutsOwned     DashboardLayout[]          @relation("DashboardLayoutOwner")
+  dashboardLayoutsCreated   DashboardLayout[]          @relation("DashboardLayoutCreator")
+  dashboardLayoutsUpdated   DashboardLayout[]          @relation("DashboardLayoutUpdater")
 
   @@index([lastSeenAt])
   @@map("users")
@@ -337,10 +350,41 @@ model Competition {
   changeRequests ChangeRequest[]
   resetSnapshots  CompetitionResetSnapshot[]
   auditEvents     AuditEvent[]
+  dashboardLayouts DashboardLayout[]
 
   @@index([tenantId, status, year, createdAt])
   @@index([status, year, createdAt])
   @@map("competitions")
+}
+
+model DashboardLayout {
+  id            String               @id @default(cuid())
+  dashboardKey  DashboardKey
+  scope         DashboardLayoutScope
+  name          String
+  configVersion Int                  @default(1)
+  config        Json
+  isDefault     Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  deletedAt     DateTime?
+
+  tenantId      String
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String?
+  competition   Competition?         @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  ownerId       String?
+  owner         User?                @relation("DashboardLayoutOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdById   String
+  createdBy     User                 @relation("DashboardLayoutCreator", fields: [createdById], references: [id])
+  updatedById   String?
+  updatedBy     User?                @relation("DashboardLayoutUpdater", fields: [updatedById], references: [id])
+
+  @@index([tenantId, dashboardKey, scope, deletedAt])
+  @@index([ownerId, dashboardKey, deletedAt])
+  @@index([competitionId])
+  @@index([isDefault])
+  @@map("dashboard_layouts")
 }
 
 // ==================== TEAM ====================

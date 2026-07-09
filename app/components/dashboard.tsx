@@ -79,6 +79,11 @@ import {
 import AccountLinkStatusDialog from "./account-link-status-dialog";
 import ParticipantEditDialog from "./participant-edit-dialog";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
+import type {
+  DashboardLayoutScope,
+  TeamDashboardLayoutConfig,
+  TeamExportColumnKey,
+} from "@/lib/dashboard-layout-config";
 
 interface Team {
   id: string;
@@ -231,6 +236,7 @@ type TeamOptionalColumnKey =
 
 const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
 const TEAM_DASHBOARD_PREFERENCES_STORAGE_PREFIX = "s5evo.dashboard.preferences.v1";
+const TEAM_DASHBOARD_SELECTED_LAYOUT_STORAGE_PREFIX = "s5evo.dashboard.selectedLayout.v1";
 const QUICK_FILTER_KEYS: QuickFilterKey[] = ["mine", "needsReview", "marketplace", "mtc", "openSlots"];
 const EMPTY_QUICK_EXCLUDES: Record<QuickFilterKey, boolean> = {
   mine: false,
@@ -253,6 +259,7 @@ const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string; 
   { key: "category", label: "Klasse" },
   { key: "contactName", label: "Team Manager:in" },
   { key: "contactEmail", label: "Kontakt E-Mail" },
+  { key: "ownerEmail", label: "Anleger:in" },
   { key: "participantCount", label: "Teilnehmer" },
   { key: "participants", label: "Mitglieder" },
   { key: "createdAt", label: "Anmeldedatum", adminOnly: true },
@@ -284,6 +291,29 @@ type DashboardFilterPreferences = {
   viewMode?: DashboardViewMode;
   sortField?: TeamSortField;
   sortDirection?: SortDirection;
+};
+
+type SavedDashboardLayout = {
+  id: string;
+  name: string;
+  scope: DashboardLayoutScope;
+  competitionId: string | null;
+  ownerId: string | null;
+  isDefault: boolean;
+  config: TeamDashboardLayoutConfig;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const VISIBLE_COLUMN_EXPORT_MAP: Partial<Record<TeamOptionalColumnKey, TeamExportColumnKey>> = {
+  category: "category",
+  contactName: "contactName",
+  contactEmail: "contactEmail",
+  ownerEmail: "ownerEmail",
+  participantCount: "participantCount",
+  participants: "participants",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
 };
 
 function formatDatePart(value?: string) {
@@ -1525,6 +1555,34 @@ function getStoredVisibleColumns() {
   }
 }
 
+function buildTeamDashboardLayoutConfig(input: {
+  viewMode: DashboardViewMode;
+  visibleColumns: TeamOptionalColumnKey[];
+  sortField: TeamSortField;
+  sortDirection: SortDirection;
+}): TeamDashboardLayoutConfig {
+  const exportColumns: TeamExportColumnKey[] = ["teamName"];
+  for (const column of input.visibleColumns) {
+    const exportColumn = VISIBLE_COLUMN_EXPORT_MAP[column];
+    if (exportColumn && !exportColumns.includes(exportColumn)) {
+      exportColumns.push(exportColumn);
+    }
+  }
+
+  return {
+    version: 1,
+    viewMode: input.viewMode,
+    visibleColumns: input.visibleColumns,
+    sortField: input.sortField,
+    sortDirection: input.sortDirection,
+    exportColumns,
+  };
+}
+
+function areLayoutConfigsEqual(left: TeamDashboardLayoutConfig, right: TeamDashboardLayoutConfig) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplaceFocus = false }: DashboardProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
   const { can, activeRole } = usePermissions();
@@ -1563,6 +1621,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
   const [quickFilterExcludes, setQuickFilterExcludes] = useState<Record<QuickFilterKey, boolean>>(EMPTY_QUICK_EXCLUDES);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
+  const [layoutManagerOpen, setLayoutManagerOpen] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -1573,6 +1632,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     "participants",
     "createdAt",
   ]);
+  const [dashboardLayouts, setDashboardLayouts] = useState<SavedDashboardLayout[]>([]);
+  const [layoutsLoading, setLayoutsLoading] = useState(false);
+  const [layoutsLoaded, setLayoutsLoaded] = useState(false);
+  const [selectedLayoutId, setSelectedLayoutId] = useState("");
+  const [layoutName, setLayoutName] = useState("");
+  const [layoutScope, setLayoutScope] = useState<DashboardLayoutScope>("PERSONAL");
+  const [savingLayout, setSavingLayout] = useState(false);
+  const [deletingLayout, setDeletingLayout] = useState(false);
 
   const canEditAll = can("team.edit.all");
   const canViewAll = can("team.view.all");
@@ -1588,6 +1655,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     return `${TEAM_DASHBOARD_PREFERENCES_STORAGE_PREFIX}.${userPart}.${activeRole}.${focusPart}`;
   }, [activeRole, marketplaceFocus, userEmail]);
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
+  const selectedLayoutStorageKey = useMemo(() => {
+    const userPart = userEmail ? normalizeEmail(userEmail) : "anonymous";
+    const focusPart = marketplaceFocus ? "marketplace" : "teams";
+    const competitionPart = activeCompetition?.id || "none";
+    return `${TEAM_DASHBOARD_SELECTED_LAYOUT_STORAGE_PREFIX}.${userPart}.${activeRole}.${focusPart}.${competitionPart}`;
+  }, [activeCompetition?.id, activeRole, marketplaceFocus, userEmail]);
   const marketplaceGlobalVisibility = activeCompetition?.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE";
   const notifications = useNotifications();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
@@ -1597,6 +1670,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     () => LIST_OPTIONAL_COLUMNS.filter((column) => !column.adminOnly || isAdmin),
     [isAdmin],
   );
+  const currentLayoutConfig = useMemo(
+    () => buildTeamDashboardLayoutConfig({ viewMode, visibleColumns, sortField, sortDirection }),
+    [sortDirection, sortField, viewMode, visibleColumns],
+  );
+  const selectedLayout = useMemo(
+    () => dashboardLayouts.find((layout) => layout.id === selectedLayoutId) || null,
+    [dashboardLayouts, selectedLayoutId],
+  );
+  const selectedLayoutDirty = Boolean(selectedLayout && !areLayoutConfigsEqual(currentLayoutConfig, selectedLayout.config));
+  const canManageSelectedLayout = Boolean(selectedLayout && (selectedLayout.scope === "PERSONAL" || isAdmin));
 
   useEffect(() => {
     if (sessionStatus === "loading") {
@@ -1700,6 +1783,97 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
   }, [activeCompetition?.id, activeRole, canBrowseAllTeams, notifications]);
 
+  const fetchDashboardLayouts = useCallback(async () => {
+    if (sessionStatus === "loading") {
+      return;
+    }
+
+    setLayoutsLoading(true);
+    setLayoutsLoaded(false);
+    try {
+      const params = new URLSearchParams();
+      if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
+      const response = await fetch(`/api/dashboard-layouts?${params.toString()}`);
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Layouts konnten nicht geladen werden.");
+      }
+
+      setDashboardLayouts(data.layouts || []);
+    } catch (error) {
+      console.error("Failed to fetch dashboard layouts:", error);
+      notifications.error(
+        "Layouts konnten nicht geladen werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    } finally {
+      setLayoutsLoading(false);
+      setLayoutsLoaded(true);
+    }
+  }, [activeCompetition?.id, notifications, sessionStatus]);
+
+  useEffect(() => {
+    if (sessionStatus === "loading") {
+      return;
+    }
+
+    fetchDashboardLayouts();
+  }, [fetchDashboardLayouts, sessionStatus]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setSelectedLayoutId(window.localStorage.getItem(selectedLayoutStorageKey) || "");
+  }, [selectedLayoutStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (selectedLayoutId) {
+      window.localStorage.setItem(selectedLayoutStorageKey, selectedLayoutId);
+    } else {
+      window.localStorage.removeItem(selectedLayoutStorageKey);
+    }
+  }, [selectedLayoutId, selectedLayoutStorageKey]);
+
+  useEffect(() => {
+    if (!layoutsLoaded) {
+      return;
+    }
+
+    if (dashboardLayouts.length === 0) {
+      setSelectedLayoutId("");
+      setLayoutName("");
+      return;
+    }
+
+    if (selectedLayoutId && dashboardLayouts.some((layout) => layout.id === selectedLayoutId)) {
+      return;
+    }
+
+    const defaultLayout = dashboardLayouts.find((layout) => layout.isDefault) || null;
+    if (defaultLayout) {
+      setSelectedLayoutId(defaultLayout.id);
+    }
+  }, [dashboardLayouts, layoutsLoaded, selectedLayoutId]);
+
+  useEffect(() => {
+    if (!selectedLayout) {
+      return;
+    }
+
+    setLayoutName(selectedLayout.name);
+    setLayoutScope(selectedLayout.scope);
+    setViewMode(selectedLayout.config.viewMode);
+    setVisibleColumns(selectedLayout.config.visibleColumns as TeamOptionalColumnKey[]);
+    setSortField(selectedLayout.config.sortField as TeamSortField);
+    setSortDirection(selectedLayout.config.sortDirection as SortDirection);
+  }, [selectedLayout]);
+
   const handleDeleteTeam = async (teamId: string) => {
     setDeleting(teamId);
     try {
@@ -1729,6 +1903,114 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
   };
 
+  const handleCreateLayout = async () => {
+    const name = layoutName.trim();
+    if (!name) {
+      notifications.error("Layoutname fehlt", "Bitte gib einen Namen fuer das Layout ein.");
+      return;
+    }
+
+    setSavingLayout(true);
+    try {
+      const response = await fetch("/api/dashboard-layouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          scope: isAdmin ? layoutScope : "PERSONAL",
+          competitionId: null,
+          config: currentLayoutConfig,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Layout konnte nicht gespeichert werden.");
+      }
+
+      await fetchDashboardLayouts();
+      setSelectedLayoutId(data.layout?.id || "");
+      notifications.success("Layout gespeichert", `"${name}" ist jetzt verfuegbar.`);
+    } catch (error) {
+      console.error("Failed to create dashboard layout:", error);
+      notifications.error(
+        "Layout konnte nicht gespeichert werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    } finally {
+      setSavingLayout(false);
+    }
+  };
+
+  const handleUpdateLayout = async () => {
+    if (!selectedLayout || !canManageSelectedLayout) {
+      return;
+    }
+
+    const name = layoutName.trim();
+    if (!name) {
+      notifications.error("Layoutname fehlt", "Bitte gib einen Namen fuer das Layout ein.");
+      return;
+    }
+
+    setSavingLayout(true);
+    try {
+      const response = await fetch(`/api/dashboard-layouts/${selectedLayout.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          config: currentLayoutConfig,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Layout konnte nicht aktualisiert werden.");
+      }
+
+      await fetchDashboardLayouts();
+      setSelectedLayoutId(data.layout?.id || selectedLayout.id);
+      notifications.success("Layout aktualisiert", `"${name}" wurde gespeichert.`);
+    } catch (error) {
+      console.error("Failed to update dashboard layout:", error);
+      notifications.error(
+        "Layout konnte nicht aktualisiert werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    } finally {
+      setSavingLayout(false);
+    }
+  };
+
+  const handleDeleteLayout = async () => {
+    if (!selectedLayout || !canManageSelectedLayout) {
+      return;
+    }
+
+    setDeletingLayout(true);
+    try {
+      const response = await fetch(`/api/dashboard-layouts/${selectedLayout.id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Layout konnte nicht geloescht werden.");
+      }
+
+      setSelectedLayoutId("");
+      setLayoutName("");
+      await fetchDashboardLayouts();
+      notifications.success("Layout geloescht", "Das Dashboard nutzt wieder deine lokalen Einstellungen.");
+    } catch (error) {
+      console.error("Failed to delete dashboard layout:", error);
+      notifications.error(
+        "Layout konnte nicht geloescht werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    } finally {
+      setDeletingLayout(false);
+    }
+  };
+
   const handleDownloadCompetitionCsv = async () => {
     if (!activeCompetition?.id) {
       notifications.error("CSV-Export nicht möglich", "Es ist kein aktiver Wettkampf ausgewählt.");
@@ -1737,8 +2019,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
     setExportingCsv(true);
     try {
-      const params = new URLSearchParams({ competitionId: activeCompetition.id });
-      const response = await fetch(`/api/admin/teams-export?${params.toString()}`);
+      const response = selectedLayout
+        ? await fetch("/api/admin/teams-export", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              competitionId: activeCompetition.id,
+              layoutId: selectedLayout.id,
+              teamIds: sortedTeams.map((team) => team.id),
+            }),
+          })
+        : await fetch(`/api/admin/teams-export?${new URLSearchParams({ competitionId: activeCompetition.id }).toString()}`);
       if (!response.ok) {
         const data = await response.json().catch(() => null);
         throw new Error(data?.error || "CSV-Export fehlgeschlagen.");
@@ -1756,7 +2047,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      notifications.success("CSV exportiert", "Der Mannschaftsexport wurde heruntergeladen.");
+      notifications.success(
+        "CSV exportiert",
+        selectedLayout
+          ? "Der Layout-Export mit den aktuell gefilterten Mannschaften wurde heruntergeladen."
+          : "Der Mannschaftsexport wurde heruntergeladen.",
+      );
     } catch (error) {
       console.error("Failed to download team CSV export:", error);
       notifications.error(
@@ -2760,6 +3056,122 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             />
           </div>
 
+          <div className="rounded-md border border-border/60 bg-muted/10 p-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="shrink-0 text-xs font-medium text-muted-foreground">Layout</span>
+                <Select
+                  value={selectedLayoutId || "none"}
+                  onValueChange={(value) => {
+                    if (value === "none") {
+                      setSelectedLayoutId("");
+                      setLayoutName("");
+                      return;
+                    }
+                    setSelectedLayoutId(value);
+                  }}
+                >
+                  <SelectTrigger className="h-8 min-w-0 flex-1 text-xs sm:max-w-xs">
+                    <SelectValue placeholder="Layout wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Lokale Ansicht</SelectItem>
+                    {dashboardLayouts.map((layout) => (
+                      <SelectItem key={layout.id} value={layout.id}>
+                        {layout.scope === "GLOBAL" ? "Global" : "Persönlich"} · {layout.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedLayoutDirty && (
+                  <Badge variant="secondary" className="shrink-0">
+                    Geändert
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="hidden text-xs text-muted-foreground lg:inline">
+                  {selectedLayout ? "CSV nutzt gefilterte Zeilen" : "CSV exportiert alles"}
+                </span>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={layoutManagerOpen ? "default" : "outline"}
+                  onClick={() => setLayoutManagerOpen((open) => !open)}
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                  Verwalten
+                </Button>
+              </div>
+            </div>
+
+            {layoutManagerOpen && (
+              <div className="mt-2 grid gap-2 border-t border-border/60 pt-2 lg:grid-cols-[minmax(0,1fr)_150px_auto] lg:items-end">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Layoutname</label>
+                  <Input
+                    className="h-8 text-xs sm:h-9"
+                    value={layoutName}
+                    onChange={(event) => setLayoutName(event.target.value)}
+                    placeholder="Neues Layout"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Typ</label>
+                  <Select
+                    value={isAdmin ? layoutScope : "PERSONAL"}
+                    onValueChange={(value) => setLayoutScope(value as DashboardLayoutScope)}
+                    disabled={!isAdmin || Boolean(selectedLayout)}
+                  >
+                    <SelectTrigger className="h-8 text-xs sm:h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PERSONAL">Persönlich</SelectItem>
+                      {isAdmin && <SelectItem value="GLOBAL">Global</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    onClick={handleCreateLayout}
+                    disabled={savingLayout || layoutsLoading || !layoutName.trim()}
+                  >
+                    <ClipboardList className="size-3.5" />
+                    Als neues speichern
+                  </Button>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant={selectedLayoutDirty ? "default" : "outline"}
+                    onClick={handleUpdateLayout}
+                    disabled={savingLayout || !selectedLayout || !canManageSelectedLayout || !layoutName.trim()}
+                    title={selectedLayoutDirty ? "Änderungen im gewählten Layout speichern" : "Gewähltes Layout aktualisieren"}
+                  >
+                    <Pencil className="size-3.5" />
+                    Layout aktualisieren
+                  </Button>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    onClick={handleDeleteLayout}
+                    disabled={deletingLayout || !selectedLayout || !canManageSelectedLayout}
+                    title="Gewähltes Layout löschen"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Löschen
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
@@ -2781,10 +3193,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   variant="outline"
                   onClick={handleDownloadCompetitionCsv}
                   disabled={exportingCsv || !activeCompetition?.id}
-                  title="Mannschaften als CSV herunterladen"
+                  title={selectedLayout ? "CSV im gewählten Layout mit gefilterten Zeilen herunterladen" : "Vollständigen Mannschaftsexport als CSV herunterladen"}
                 >
                   <Download className="size-3.5" />
-                  {exportingCsv ? "CSV..." : "CSV"}
+                  {exportingCsv ? "CSV..." : selectedLayout ? "CSV (Layout)" : "CSV"}
                 </Button>
               )}
               {viewMode === "list" && (
