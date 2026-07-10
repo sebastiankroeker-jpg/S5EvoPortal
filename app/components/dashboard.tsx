@@ -2586,7 +2586,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           result = collator.compare(left.startNumber || "", right.startNumber || "");
           break;
         case "category":
-          result = collator.compare(left.category, right.category);
+          result = compareClassificationCodes(left.category, right.category);
           break;
         case "contactName":
           result = collator.compare(left.contactName || "", right.contactName || "");
@@ -2853,6 +2853,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     },
   ].filter(Boolean) as Array<{ key: QuickFilterKey; icon: ReactNode; label: string; count: number }>;
   const quickActiveCount = quickFilterRows.filter((row) => getQuickFilterMode(row.key) !== "neutral").length;
+  const layoutBadgeLabel = selectedLayoutDirty ? "!" : selectedLayout ? "1" : layoutManagerOpen ? "•" : null;
   const toolbarCounterBadgeClass = (open: boolean) =>
     `pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center border-2 px-1 text-[10px] shadow-sm ${
       open
@@ -3158,7 +3159,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   type="button"
                   size="icon-xs"
                   className="h-7 w-full lg:size-6"
-                  variant={layoutManagerOpen || selectedLayoutDirty ? "default" : "outline"}
+                  variant={layoutManagerOpen || selectedLayout || selectedLayoutDirty ? "default" : "outline"}
                   onClick={() => {
                     setLayoutManagerOpen((open) => !open);
                     setQuickFilterMenuOpen(false);
@@ -3171,9 +3172,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 >
                   <ClipboardList className="size-3.5" />
                 </Button>
-                {selectedLayoutDirty && (
+                {layoutBadgeLabel && (
                   <Badge className={toolbarCounterBadgeClass(layoutManagerOpen)} variant="default">
-                    !
+                    {layoutBadgeLabel}
                   </Badge>
                 )}
               </div>

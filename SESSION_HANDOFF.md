@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 14:47 UTC
+Stand: 2026-07-10 15:21 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -23,6 +23,7 @@ Stand: 2026-07-10 14:47 UTC
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
 - App-Commit `06e204e Refine MD toolbar toggle colors` wurde nach `origin/main` gepusht und produktiv deployed.
 - MD-Follow-up ist produktiv: redundante Statuspillen unter den Trefferstatistik-Pillen sind entfernt, normale Teams zeigen in der Listenansicht unter dem Namen keine `x / 5 Teilnehmer:innen`-Stats mehr, Toolbar-Button-/Counter-Farben sind panel-spezifisch nachgezogen.
+- Lokaler Follow-up ist umgesetzt, geprueft und noch nicht deployed: Listensortierung nach Klasse nutzt jetzt die Standard-Reihenfolge SA, SB, J, DA, DB, HA, HB, HC; Layout-Toolbar-Button und Badge sind fuer offen/ausgewaehltes/geaendertes Layout konsistent.
 
 ## Aktueller Git-Stand
 
@@ -66,6 +67,11 @@ Stand: 2026-07-10 14:47 UTC
   - `npx tsc --noEmit` gruen
   - `npm run lint` gruen, nur bestehende Warnungen
   - `npm run build` gruen
+- Nachkorrektur 15:21 UTC:
+  - `sortField === "category"` nutzt `compareClassificationCodes` statt alphabetischem Collator.
+  - Layout-Button ist primary bei offenem Panel, ausgewaehltem Layout oder Dirty-State.
+  - Layout-Badge zeigt `1` fuer ausgewaehltes Layout, `!` fuer ungespeicherte Layout-Aenderungen und `•` wenn das Layout-Panel ohne ausgewaehltes Layout offen ist; Badge-Farbe wechselt wie bei den anderen Toolbar-Panels nach offen/geschlossen.
+  - Checks: `eslint app/components/dashboard.tsx` gruen, `npx tsc --noEmit` gruen, `npm run lint` gruen mit bestehenden Warnungen, `npm run build` gruen.
 - Nachkorrektur 14:41 UTC:
   - Filter-Button nutzt wieder die direkte Regel `filtersOpen || activeFilterCount > 0`.
   - `activeFilterCount` zaehlt keine reinen Schnellfilter-Excludes mehr.

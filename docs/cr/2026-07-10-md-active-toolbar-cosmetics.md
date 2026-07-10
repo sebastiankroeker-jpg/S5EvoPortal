@@ -159,3 +159,15 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
   - `npm run build` passed.
   - `/sportlerboerse-dashboard` returned 200 on `https://portal.s5evo.de`.
   - `npm run smoke:public` passed against `https://portal.s5evo.de`.
+- 2026-07-10 15:20 UTC: Sebastian reported two additional list/toolbar polish issues:
+  - Sorting the list by class must use the canonical class order instead of alphabetical ordering.
+  - The layout toolbar button counter circle must be displayed consistently across open, selected-layout, and dirty-layout scenarios.
+- Local implementation:
+  - List sorting for `category` now uses `compareClassificationCodes`, matching the standard order SA, SB, J, DA, DB, HA, HB, HC.
+  - Layout toolbar state now mirrors the other toolbar panel controls: button turns primary when open or layout-related state is active; badge changes color when the panel is open and shows `1` for selected layout, `!` for unsaved layout changes, or `•` while the layout panel is open without a selected layout.
+- Local verification:
+  - `eslint app/components/dashboard.tsx` passed.
+  - `npx tsc --noEmit` passed.
+  - `npm run lint` passed with existing warnings only.
+  - `npm run build` passed.
+- Deploy status: pending Sebastian approval.
