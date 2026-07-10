@@ -923,6 +923,17 @@ export async function PUT(
         return NextResponse.json({ error: matchedParticipantsResult.error }, { status: 409 });
       }
 
+      const replacementMatches = matchedParticipantsResult.matches.filter(
+        ({ submittedParticipant }) => submittedParticipant.replaceParticipant === true,
+      );
+
+      if (!canDirectEdit && replacementMatches.length > 0) {
+        return NextResponse.json(
+          { error: 'Teilnehmer ersetzen ist nur fuer Orga/Admin-Direktbearbeitung freigegeben.' },
+          { status: 403 },
+        );
+      }
+
       if (!canDirectEdit) {
         let createdRequests = 0;
         let updatedRequests = 0;
@@ -1421,6 +1432,7 @@ export async function PUT(
 
       const participantInviteCandidates = matchedParticipantsResult.matches
         .filter(({ submittedParticipant, existingParticipant }) =>
+          submittedParticipant.replaceParticipant !== true &&
           shouldInviteParticipantClaim({
             previousEmail: existingParticipant.email,
             nextEmail: submittedParticipant.email,
@@ -1493,6 +1505,8 @@ export async function PUT(
 
           return {
             id: submittedParticipant.id,
+            replaceParticipant: submittedParticipant.replaceParticipant === true,
+            existingParticipant,
             currentDisciplineCode: existingParticipant.disciplineCode || "TBD",
             nextDisciplineCode: mapDiscipline(submittedParticipant.discipline),
             beforeSnapshot,
@@ -1517,6 +1531,15 @@ export async function PUT(
         .filter((update): update is NonNullable<typeof update> => update !== null);
 
       await prisma.$transaction(async (tx) => {
+        const now = new Date();
+        const replacedUserIds = [
+          ...new Set(
+            participantUpdates
+              .filter((update) => update.replaceParticipant && update.existingParticipant.userId)
+              .map((update) => update.existingParticipant.userId as string),
+          ),
+        ];
+
         await tx.team.update({
           where: { id },
           data: {
@@ -1526,11 +1549,14 @@ export async function PUT(
             contactEmail: body.contactEmail || existingTeam.contactEmail,
             classificationCode: autoCategory,
             totalAge: totalAge || null,
+            ...(existingTeam.teamChiefId && replacedUserIds.includes(existingTeam.teamChiefId)
+              ? { teamChiefId: null }
+              : {}),
           },
         });
 
         const disciplineSwaps = participantUpdates.filter(
-          (update) => update.currentDisciplineCode !== update.nextDisciplineCode,
+          (update) => !update.replaceParticipant && update.currentDisciplineCode !== update.nextDisciplineCode,
         );
 
         // Prevent transient discipline collisions during swaps by clearing changed slots first.
@@ -1542,6 +1568,128 @@ export async function PUT(
         }
 
         for (const update of participantUpdates) {
+          if (update.replaceParticipant) {
+            const createdParticipant = await tx.participant.create({
+              data: {
+                teamId: existingTeam.id,
+                firstName: update.data.firstName,
+                lastName: update.data.lastName,
+                birthYear: update.data.birthYear,
+                birthDate: update.data.birthDate,
+                gender: update.data.gender,
+                disciplineCode: update.data.disciplineCode,
+                shirtSize: update.data.shirtSize,
+                moderationNote: update.data.moderationNote,
+                consentGiven: update.data.consentGiven,
+                email: update.data.email,
+                participantPublicationPreference: update.data.participantPublicationPreference,
+              },
+            });
+
+            await tx.participant.update({
+              where: { id: update.id },
+              data: {
+                deletedAt: now,
+              },
+            });
+
+            await tx.participantClaimToken.updateMany({
+              where: { participantId: update.id, revokedAt: null },
+              data: { revokedAt: now },
+            });
+
+            if (update.existingParticipant.userId) {
+              await tx.teamMemberRole.updateMany({
+                where: {
+                  teamId: existingTeam.id,
+                  userId: update.existingParticipant.userId,
+                  role: "TEAM_MANAGER",
+                  revokedAt: null,
+                },
+                data: {
+                  revokedAt: now,
+                  revokedByUserId: user?.id ?? null,
+                  reason: "participant_replaced",
+                },
+              });
+            }
+
+            await tx.pendingChange.updateMany({
+              where: {
+                participantId: update.id,
+                status: "PENDING",
+              },
+              data: {
+                status: "REJECTED",
+                reviewedAt: now,
+                reviewedById: user?.id ?? null,
+                reviewComment: "Durch Teilnehmer-Ersetzung ueberholt",
+              },
+            });
+
+            const overriddenChangeRequests = await tx.changeRequest.findMany({
+              where: {
+                targetType: "PARTICIPANT",
+                targetId: update.id,
+                changeType: "UPDATE",
+                status: "PENDING",
+              },
+              select: { id: true, requestedSnapshot: true },
+            });
+
+            await tx.changeRequest.updateMany({
+              where: {
+                targetType: "PARTICIPANT",
+                targetId: update.id,
+                changeType: "UPDATE",
+                status: "PENDING",
+              },
+              data: {
+                status: "REJECTED",
+                reviewedAt: now,
+                reviewedById: user?.id ?? null,
+                reviewComment: "Durch Teilnehmer-Ersetzung ueberholt",
+              },
+            });
+
+            for (const changeRequest of overriddenChangeRequests) {
+              await tx.changeRequestAuditLog.create({
+                data: {
+                  changeRequestId: changeRequest.id,
+                  actorId: user?.id ?? null,
+                  action: "REJECTED",
+                  beforeData: changeRequest.requestedSnapshot as Prisma.InputJsonValue,
+                  afterData: update.beforeSnapshot,
+                  message: "Durch Teilnehmer-Ersetzung ueberholt",
+                },
+              });
+            }
+
+            await tx.participantAuditLog.create({
+              data: {
+                action: "DIRECT_CHANGE",
+                participantId: update.id,
+                actorId: user?.id ?? null,
+                beforeData: serializeSnapshot(update.beforeSnapshot),
+                afterData: serializeSnapshot(update.beforeSnapshot),
+                message: `Teilnehmer durch neue Person ersetzt; neue Teilnehmer-ID ${createdParticipant.id}`,
+              },
+            });
+
+            await tx.participantAuditLog.create({
+              data: {
+                action: "DIRECT_CHANGE",
+                participantId: createdParticipant.id,
+                actorId: user?.id ?? null,
+                beforeData: null,
+                afterData: serializeSnapshot(update.afterSnapshot),
+                message: `Als Ersatz fuer Teilnehmer-ID ${update.id} angelegt`,
+              },
+            });
+
+            continue;
+          }
+
           await tx.participant.update({
             where: { id: update.id },
             data: update.data,
@@ -1613,6 +1761,15 @@ export async function PUT(
             });
           }
         }
+
+        await Promise.all(
+          replacedUserIds.map((replacedUserId) =>
+            syncDerivedTeamchefRole(tx, {
+              userId: replacedUserId,
+              tenantId: existingTeam.competition.tenantId,
+            }),
+          ),
+        );
       });
 
       const participantClaimMailResults: Array<unknown> = [];

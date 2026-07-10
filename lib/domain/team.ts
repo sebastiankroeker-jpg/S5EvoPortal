@@ -236,6 +236,7 @@ export const MARKETPLACE_STATUS_OPTIONS = [
 
 export const ParticipantSchema = z.object({
   id: z.string().optional(),
+  replaceParticipant: z.boolean().optional(),
   firstName: z.string().min(2, "Vorname zu kurz"),
   lastName: z.string().min(2, "Nachname zu kurz"),
   birthDate: z

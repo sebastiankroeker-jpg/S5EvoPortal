@@ -1,6 +1,27 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 17:32 UTC
+Stand: 2026-07-10 18:20 UTC
+
+## Aktueller Nachtrag: Participant Replacement Flow
+
+- Lokale Implementierung fuer echten Ersetzen-Flow ist fertig, noch nicht deployed.
+- Neuer CR: `docs/cr/2026-07-10-participant-replacement-flow.md`
+- Geaendert:
+  - Orga/Admin-Team-Edit hat pro verankertem Teilnehmer die Aktion `Andere Person einsetzen`.
+  - Markierte Zeilen werden beim Speichern nicht als Korrektur behandelt, sondern ersetzen die Teilnehmer-Identitaet.
+  - API `PUT /api/teams/:id` akzeptiert im Admin-Direktpfad `replaceParticipant: true` pro Teilnehmer.
+  - Alte Teilnehmer-ID wird archiviert (`deletedAt`), neue Teilnehmer-ID wird im selben Team/Disziplin-Slot angelegt.
+  - Portal-Konto, Historie, Ergebnisse und Audit bleiben bei der alten ID; aktive Team-Manager-Rechte fuer dieses Team werden entzogen.
+  - Offene PendingChanges/legacy ChangeRequests der alten ID werden als ueberholt abgelehnt.
+  - Team-Manager/Self-Service kann `replaceParticipant` nicht nutzen (403).
+- Checks lokal gruen:
+  - `npx tsc --noEmit`
+  - `npm run verify:participant-edit-flow`
+  - `npm run verify:team-draft`
+  - `npm run lint` mit bestehenden 11 Warnungen
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen, pushen, Vercel READY abwarten, `npm run smoke:public`, `/sportlerboerse-dashboard` pruefen, CR Deploy-Sektion aktualisieren.
 
 ## Aktueller Nachtrag: Participant Identity Guardrails
 

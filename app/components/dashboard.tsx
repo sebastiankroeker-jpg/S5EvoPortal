@@ -123,6 +123,7 @@ type OwnerClaimInfo = {
 
 interface Participant {
   id?: string;
+  replaceParticipant?: boolean;
   firstName: string;
   lastName: string;
   gender: string;
@@ -5722,6 +5723,10 @@ function EditTeamModal({
       }),
     [formData.participants, formData.teamName, formData.teamPublicationLevel, team.name, team.participants, team.teamPublicationLevel],
   );
+  const replacementCount = useMemo(
+    () => formData.participants.filter((participant) => participant.replaceParticipant === true).length,
+    [formData.participants],
+  );
   const saveButtonLabel = getTeamSaveButtonLabel({
     isAdminEdit: showAdminInfo,
     hasApprovalChanges: approvalRelevantChanges,
@@ -5740,7 +5745,9 @@ function EditTeamModal({
     if (field === "discipline" && currentParticipant) {
       const previousDiscipline = currentParticipant.discipline || currentParticipant.disciplineCode || "TBD";
       const occupiedIndex = newParticipants.findIndex((participant, participantIndex) =>
-        participantIndex !== index && (participant.discipline || participant.disciplineCode || "TBD") === value,
+        participantIndex !== index &&
+        participant.replaceParticipant !== true &&
+        (participant.discipline || participant.disciplineCode || "TBD") === value,
       );
 
       if (occupiedIndex !== -1) {
@@ -5780,6 +5787,12 @@ function EditTeamModal({
     }
   };
 
+  const handleParticipantReplacementToggle = (index: number, replaceParticipant: boolean) => {
+    const newParticipants = [...formData.participants];
+    newParticipants[index] = { ...newParticipants[index], replaceParticipant };
+    setFormData({ ...formData, participants: newParticipants });
+  };
+
   const handleSubmit = async () => {
     if (!teamDraftEvaluation.canSubmit || saving) return;
 
@@ -5788,7 +5801,7 @@ function EditTeamModal({
         participant,
         original: team.participants?.[index],
       }))
-      .filter(({ participant, original }) => hasSuspiciousParticipantIdentityChange(participant, original));
+      .filter(({ participant, original }) => participant.replaceParticipant !== true && hasSuspiciousParticipantIdentityChange(participant, original));
 
     if (suspiciousIdentityChanges.length > 0) {
       const changedParticipants = suspiciousIdentityChanges
@@ -5803,6 +5816,30 @@ function EditTeamModal({
         suspiciousIdentityChanges.length > 3 ? `\n... und ${suspiciousIdentityChanges.length - 3} weitere` : "";
       const confirmed = window.confirm(
         `Du änderst Identitätsfelder verankerter Teilnehmer:\n\n${changedParticipants}${additionalChanges}\n\nBeim Speichern bleiben dieselben Teilnehmer-IDs erhalten. Bitte nur fortfahren, wenn das Korrekturen sind und keine anderen Personen in die Slots sollen.`,
+      );
+      if (!confirmed) return;
+    }
+
+    const replacementParticipants = formData.participants
+      .map((participant, index) => ({
+        participant,
+        original: team.participants?.[index],
+      }))
+      .filter(({ participant, original }) => participant.replaceParticipant === true && original?.id);
+
+    if (replacementParticipants.length > 0) {
+      const changedParticipants = replacementParticipants
+        .slice(0, 3)
+        .map(({ participant, original }) => {
+          const beforeName = original ? getParticipantDisplayName(original) : "Teilnehmer";
+          const afterName = getParticipantDisplayName(participant);
+          return `#${formatParticipantIdentityId(original?.id)} ${beforeName} -> ${afterName}`;
+        })
+        .join("\n");
+      const additionalChanges =
+        replacementParticipants.length > 3 ? `\n... und ${replacementParticipants.length - 3} weitere` : "";
+      const confirmed = window.confirm(
+        `Du ersetzt Teilnehmer-Identitäten:\n\n${changedParticipants}${additionalChanges}\n\nDie alten Teilnehmer-IDs werden archiviert. Portal-Konto, Historie und Ergebnisse bleiben bei den alten IDs. Aktive Team-Manager-Rechte fuer dieses Team werden entzogen. Für die neuen Personen werden neue Teilnehmer-IDs angelegt.`,
       );
       if (!confirmed) return;
     }
@@ -6041,25 +6078,55 @@ function EditTeamModal({
                 const originalParticipant = team.participants?.[index];
                 const identityAnchored = isParticipantIdentityAnchored(originalParticipant);
                 const linkedAccount = hasParticipantLinkedAccount(originalParticipant);
-                const suspiciousIdentityChange = hasSuspiciousParticipantIdentityChange(participant, originalParticipant);
+                const replacingParticipant = participant.replaceParticipant === true;
+                const suspiciousIdentityChange =
+                  !replacingParticipant && hasSuspiciousParticipantIdentityChange(participant, originalParticipant);
 
                 return (
                 <div key={index} className="space-y-2 rounded-md border border-border/50 p-2 shadow-sm">
                   {identityAnchored && originalParticipant ? (
-                    <StatusMessage tone={suspiciousIdentityChange ? "warning" : "info"} className="px-2.5 py-2 text-xs">
+                    <StatusMessage tone={suspiciousIdentityChange || replacingParticipant ? "warning" : "info"} className="px-2.5 py-2 text-xs">
                       <div className="font-medium">
-                        Teilnehmer-ID #{formatParticipantIdentityId(originalParticipant.id)} bleibt beim Speichern erhalten
+                        {replacingParticipant
+                          ? `Teilnehmer-ID #${formatParticipantIdentityId(originalParticipant.id)} wird archiviert`
+                          : `Teilnehmer-ID #${formatParticipantIdentityId(originalParticipant.id)} bleibt beim Speichern erhalten`}
                       </div>
-                      <div>
-                        <span className="font-medium">Korrektur:</span> hier speichern, gleiche Teilnehmer-ID bleibt.
-                        {linkedAccount ? " Das verknüpfte Portal-Konto bleibt zugeordnet." : ""}
-                      </div>
-                      <div>
-                        <span className="font-medium">Andere Person:</span> diesen Datensatz nicht überschreiben, sondern den Ersetzen-Flow nutzen.
-                      </div>
+                      {replacingParticipant ? (
+                        <>
+                          <div>
+                            <span className="font-medium">Andere Person:</span> Beim Speichern entsteht eine neue Teilnehmer-ID fuer diese Zeile.
+                          </div>
+                          <div>
+                            Portal-Konto, Historie und Ergebnisse bleiben bei der alten ID. Aktive Team-Manager-Rechte fuer dieses Team werden entzogen.
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <span className="font-medium">Korrektur:</span> hier speichern, gleiche Teilnehmer-ID bleibt.
+                            {linkedAccount ? " Das verknüpfte Portal-Konto bleibt zugeordnet." : ""}
+                          </div>
+                          <div>
+                            <span className="font-medium">Andere Person:</span> unten &quot;Andere Person einsetzen&quot; aktivieren.
+                          </div>
+                        </>
+                      )}
                       {suspiciousIdentityChange ? (
                         <div className="mt-1 opacity-90">
                           Die Änderung sieht nach Personenwechsel aus. Speichere nur, wenn es eine Korrektur ist.
+                        </div>
+                      ) : null}
+                      {showAdminInfo ? (
+                        <div className="mt-2 flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={replacingParticipant ? "secondary" : "outline"}
+                            onClick={() => handleParticipantReplacementToggle(index, !replacingParticipant)}
+                            className="h-7 text-[11px]"
+                          >
+                            {replacingParticipant ? "Als Korrektur speichern" : "Andere Person einsetzen"}
+                          </Button>
                         </div>
                       ) : null}
                     </StatusMessage>
@@ -6376,7 +6443,11 @@ function EditTeamModal({
                 aria-busy={saving}
                 className="min-h-9 whitespace-normal text-center leading-tight sm:w-auto"
               >
-                {saving ? "Speichert..." : saveButtonLabel}
+                {saving
+                  ? "Speichert..."
+                  : replacementCount > 0
+                    ? `${replacementCount} ersetzen & speichern`
+                    : saveButtonLabel}
               </Button>
             </div>
           </div>
