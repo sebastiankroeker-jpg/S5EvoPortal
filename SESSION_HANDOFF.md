@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 14:41 UTC
+Stand: 2026-07-10 14:47 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -21,13 +21,13 @@ Stand: 2026-07-10 14:41 UTC
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
-- App-Commit `13f1953 Polish MD toolbar active states` wurde nach `origin/main` gepusht und produktiv deployed.
-- Lokaler Follow-up auf `app/components/dashboard.tsx` ist umgesetzt, geprueft und noch nicht deployed: redundante Statuspillen unter den Trefferstatistik-Pillen sind entfernt, normale Teams zeigen in der Listenansicht unter dem Namen keine `x / 5 Teilnehmer:innen`-Stats mehr, Toolbar-Button-/Counter-Farben sind panel-spezifisch nachgezogen.
+- App-Commit `06e204e Refine MD toolbar toggle colors` wurde nach `origin/main` gepusht und produktiv deployed.
+- MD-Follow-up ist produktiv: redundante Statuspillen unter den Trefferstatistik-Pillen sind entfernt, normale Teams zeigen in der Listenansicht unter dem Namen keine `x / 5 Teilnehmer:innen`-Stats mehr, Toolbar-Button-/Counter-Farben sind panel-spezifisch nachgezogen.
 
 ## Aktueller Git-Stand
 
 - Aktiver Branch: `main`
-- App-Deploy-Commit: `13f1953 Polish MD toolbar active states`
+- App-Deploy-Commit: `06e204e Refine MD toolbar toggle colors`
 - Hotfix-Commits:
   - `ec94981` Fix MD mobile quick filters
   - `a822beb` Add MD hit statistics
@@ -35,6 +35,7 @@ Stand: 2026-07-10 14:41 UTC
   - `9939763` Keep MD hit stats above panels
   - `f4c450b` Fix MD filter reset and stat toggles
   - `13f1953` Polish MD toolbar active states
+  - `06e204e` Refine MD toolbar toggle colors
 - Relevante Dateien:
   - `app/components/dashboard.tsx`
   - `docs/cr/2026-07-10-md-mobile-toolbar-width.md`
@@ -44,6 +45,7 @@ Stand: 2026-07-10 14:41 UTC
   - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; Stat-Pillen sind Filter-Toggles; Filter-Reset setzt Filter und Sortierung zurueck; Kachel/Liste und Toolbar-Counter zeigen aktive Zustaende farbig an.
   - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `npm run smoke:public` gruen.
 - Letzte relevante Commits:
+  - `06e204e` Refine MD toolbar toggle colors
   - `13f1953` Polish MD toolbar active states
   - `f4c450b` Fix MD filter reset and stat toggles
   - `9939763` Keep MD hit stats above panels
@@ -68,18 +70,19 @@ Stand: 2026-07-10 14:41 UTC
   - Filter-Button nutzt wieder die direkte Regel `filtersOpen || activeFilterCount > 0`.
   - `activeFilterCount` zaehlt keine reinen Schnellfilter-Excludes mehr.
   - Toolbar-Counter wechseln zwischen geschlossenem hellen Badge und geoeffnetem Primary-Badge.
-  - Checks: `eslint app/components/dashboard.tsx` gruen, `npx tsc --noEmit` gruen.
+  - Checks: `eslint app/components/dashboard.tsx` gruen, `npx tsc --noEmit` gruen, `npm run lint` gruen mit bestehenden Warnungen, `npm run build` gruen.
+  - Deploy: `dpl_E7aJRq6hMD9HzvbtFvVjEXMNAKXW`, Alias `https://portal.s5evo.de`, Smoke gruen.
 
 ## Produktivstand / Deployments
 
 - Aktueller Production Deploy:
-  - Deployment: `dpl_4MF9zbz5bsDmBahkigz8SgFtoyH6`
-  - URL: `https://s5-evo-portal-cl2mpb4zf-sebastiankroeker-2781s-projects.vercel.app`
+  - Deployment: `dpl_E7aJRq6hMD9HzvbtFvVjEXMNAKXW`
+  - URL: `https://s5-evo-portal-i2xtn26fo-sebastiankroeker-2781s-projects.vercel.app`
   - Alias: `https://portal.s5evo.de`
   - Status: `READY`
 - Post-Deploy Smoke:
   - `npm run smoke:public` gruen
-  - `/`, `/login`, `/anmeldung`, `/aenderungen`: 200
+  - `/`, `/login`, `/anmeldung`, `/aenderungen`, `/sportlerboerse-dashboard`: 200
   - `/api/competition`: 200
   - `/api/results?competitionId=cmn3a1piz0002l104372yx9yt`: 200
   - `/api/teams` ohne Session: 401 (erwartet)

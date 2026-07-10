@@ -109,6 +109,10 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
 - Deployment URL: `https://s5-evo-portal-cl2mpb4zf-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
 - Deployed at: 2026-07-10 14:16 UTC
+- Follow-up deployment ID: `dpl_E7aJRq6hMD9HzvbtFvVjEXMNAKXW`
+- Follow-up deployment URL: `https://s5-evo-portal-i2xtn26fo-sebastiankroeker-2781s-projects.vercel.app`
+- Follow-up app commit: `06e204e Refine MD toolbar toggle colors`
+- Follow-up deployed at: 2026-07-10 14:47 UTC
 
 ## Post-Deploy Smoke
 
@@ -124,6 +128,7 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
   - `/api/teams` without session -> 401 expected
   - `/api/admin/pending-changes` without session -> 401 expected
 - Result: `npm run smoke:public` passed against `https://portal.s5evo.de`.
+- Follow-up result: `npm run smoke:public` passed against `https://portal.s5evo.de` after `06e204e`.
 
 ## Follow-Ups
 
@@ -139,7 +144,7 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
   - `npx tsc --noEmit` passed.
   - `npm run lint` passed with existing warnings only.
   - `npm run build` passed.
-- Deploy status: pending Sebastian approval.
+- Deploy status: deployed with app commit `06e204e`.
 - 2026-07-10 14:39 UTC: Sebastian clarified that the toolbar buttons already stayed blue while collapsed; the open/closed toggle and color concept needed review.
 - Local correction:
   - Removed the redundant explicit toolbar button-active booleans and kept the original direct button rule: blue when the panel is open or its relevant state is active.
@@ -148,3 +153,9 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
 - Local verification:
   - `eslint app/components/dashboard.tsx` passed.
   - `npx tsc --noEmit` passed.
+- Deploy verification:
+  - `npx tsc --noEmit` passed.
+  - `npm run lint` passed with existing warnings only.
+  - `npm run build` passed.
+  - `/sportlerboerse-dashboard` returned 200 on `https://portal.s5evo.de`.
+  - `npm run smoke:public` passed against `https://portal.s5evo.de`.
