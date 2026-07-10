@@ -3017,92 +3017,35 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
               <div className="relative flex min-w-0 items-center">
-              <Button
-                type="button"
-                size="icon-xs"
-                variant={quickActiveCount > 0 ? "default" : "outline"}
-                onClick={() => {
-                  setQuickFilterMenuOpen((open) => !open);
-                }}
-                aria-expanded={quickFilterMenuOpen}
-                title="Schnellfilter"
-                aria-label="Schnellfilter"
-              >
-                <SlidersHorizontal className="size-3.5" />
-              </Button>
-              {quickActiveCount > 0 && (
-                <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant="secondary">
-                  {quickActiveCount}
-                </Badge>
-              )}
-              {quickFilterMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setQuickFilterMenuOpen(false)} />
-                  <div className="absolute right-0 top-full z-50 mt-1 w-[min(92vw,32rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
-                    <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
-                      Schnellfilter kombinieren
-                    </div>
-                    <div className="space-y-1">
-                      {quickFilterRows.map((row) => {
-                        const mode = getQuickFilterMode(row.key);
-                        const modeOptions: Array<{ value: QuickFilterMode; label: string; icon: ReactNode; title: string }> = [
-                          { value: "exclude", label: "Ohne", icon: <XCircle className="size-3" />, title: `${row.label} ausschließen` },
-                          { value: "neutral", label: "Neutral", icon: <RotateCcw className="size-3" />, title: `${row.label} neutral behandeln` },
-                          { value: "include", label: "Nur", icon: <CheckCircle2 className="size-3" />, title: `${row.label} einschließen` },
-                        ];
-
-                        return (
-                          <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent/50">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span className="text-muted-foreground">{row.icon}</span>
-                              <span className="min-w-0 truncate text-xs font-medium">{row.label}</span>
-                              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{row.count}</Badge>
-                            </div>
-                            <div className="flex shrink-0 rounded-md border border-border/60 bg-background/80 p-0.5">
-                              {modeOptions.map((option) => (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  onClick={() => setQuickFilterMode(row.key, option.value)}
-                                  className={`inline-flex h-6 items-center gap-1 rounded px-1.5 text-[10px] transition-colors ${
-                                    mode === option.value
-                                      ? "bg-primary text-primary-foreground"
-                                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                                  }`}
-                                  title={option.title}
-                                  aria-pressed={mode === option.value}
-                                >
-                                  {option.icon}
-                                  <span className={option.value === "neutral" ? "hidden sm:inline" : ""}>{option.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-1 flex justify-end border-t border-border/40 pt-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setQuickFilterMenuOpen(false)}
-                        className="inline-flex h-7 items-center gap-1 rounded px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                        title="Schnellzugriff zuklappen"
-                        aria-label="Schnellzugriff zuklappen"
-                      >
-                        <ChevronUp className="size-3.5" />
-                        Zuklappen
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant={quickActiveCount > 0 || quickFilterMenuOpen ? "default" : "outline"}
+                  onClick={() => {
+                    setQuickFilterMenuOpen((open) => !open);
+                    setFiltersOpen(false);
+                    setListOptionsOpen(false);
+                    setLayoutManagerOpen(false);
+                  }}
+                  aria-expanded={quickFilterMenuOpen}
+                  title="Schnellfilter"
+                  aria-label="Schnellfilter"
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                </Button>
+                {quickActiveCount > 0 && (
+                  <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant="secondary">
+                    {quickActiveCount}
+                  </Badge>
+                )}
+              </div>
               <Button
                 type="button"
                 size="icon-xs"
                 variant={filtersOpen || hasActiveFilters ? "default" : "outline"}
                 onClick={() => {
                   setFiltersOpen((open) => !open);
+                  setQuickFilterMenuOpen(false);
                   setListOptionsOpen(false);
                   setLayoutManagerOpen(false);
                 }}
@@ -3124,6 +3067,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   variant={listOptionsOpen ? "default" : "outline"}
                   onClick={() => {
                     setListOptionsOpen((open) => !open);
+                    setQuickFilterMenuOpen(false);
                     setFiltersOpen(false);
                     setLayoutManagerOpen(false);
                   }}
@@ -3140,6 +3084,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 variant={layoutManagerOpen || selectedLayoutDirty ? "default" : "outline"}
                 onClick={() => {
                   setLayoutManagerOpen((open) => !open);
+                  setQuickFilterMenuOpen(false);
                   setFiltersOpen(false);
                   setListOptionsOpen(false);
                 }}
@@ -3179,6 +3124,65 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               </Button>
             </div>
           </div>
+
+          {quickFilterMenuOpen && (
+            <div className="rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-sm">
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                <div className="text-[10px] font-medium uppercase text-muted-foreground">
+                  Schnellfilter kombinieren
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuickFilterMenuOpen(false)}
+                  className="inline-flex h-7 items-center gap-1 rounded px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  title="Schnellzugriff zuklappen"
+                  aria-label="Schnellzugriff zuklappen"
+                >
+                  <ChevronUp className="size-3.5" />
+                  Zuklappen
+                </button>
+              </div>
+              <div className="grid gap-1 md:grid-cols-2">
+                {quickFilterRows.map((row) => {
+                  const mode = getQuickFilterMode(row.key);
+                  const modeOptions: Array<{ value: QuickFilterMode; label: string; icon: ReactNode; title: string }> = [
+                    { value: "exclude", label: "Ohne", icon: <XCircle className="size-3" />, title: `${row.label} ausschließen` },
+                    { value: "neutral", label: "Neutral", icon: <RotateCcw className="size-3" />, title: `${row.label} neutral behandeln` },
+                    { value: "include", label: "Nur", icon: <CheckCircle2 className="size-3" />, title: `${row.label} einschließen` },
+                  ];
+
+                  return (
+                    <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent/50">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="text-muted-foreground">{row.icon}</span>
+                        <span className="min-w-0 truncate text-xs font-medium">{row.label}</span>
+                        <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{row.count}</Badge>
+                      </div>
+                      <div className="flex shrink-0 rounded-md border border-border/60 bg-background/80 p-0.5">
+                        {modeOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setQuickFilterMode(row.key, option.value)}
+                            className={`inline-flex h-7 items-center gap-1 rounded px-2 text-[10px] transition-colors ${
+                              mode === option.value
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            }`}
+                            title={option.title}
+                            aria-pressed={mode === option.value}
+                          >
+                            {option.icon}
+                            <span className={option.value === "neutral" ? "hidden sm:inline" : ""}>{option.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {(hasActiveFilters || selectedLayout || selectedLayoutDirty || quickActiveCount > 0) && (
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">

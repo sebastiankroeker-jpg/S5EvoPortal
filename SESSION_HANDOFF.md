@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 12:45 UTC
+Stand: 2026-07-10 12:50 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -17,6 +17,7 @@ Stand: 2026-07-10 12:45 UTC
 
 - `portal.s5evo.de` ist stabil und produktiv auf dem aktuellen Stand.
 - MD-Listen-Spalten und MD Control Strip Cleanup sind deployed.
+- MD-Mobile-Screenshot zeigte Schnellfilter-Popover-Clipping; lokaler Hotfix ist umgesetzt, TypeScript/Build sind gruen und Deploy-Freigabe ist offen.
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
@@ -26,6 +27,11 @@ Stand: 2026-07-10 12:45 UTC
 
 - Aktiver Branch: `main`
 - App-Deploy-Commit: `82f23fc Improve MD list controls`
+- Lokaler uncommitted Hotfix:
+  - `app/components/dashboard.tsx`
+  - `docs/cr/2026-07-10-md-mobile-quickfilter-hotfix.md`
+  - `SESSION_HANDOFF.md`
+  - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `git diff --check` gruen.
 - Letzte relevante Commits:
   - `82f23fc` Improve MD list controls
   - `36efa09` Add saved dashboard layouts
