@@ -16,27 +16,28 @@ Stand: 2026-07-10 12:45 UTC
 ## Kurzfazit
 
 - `portal.s5evo.de` ist stabil und produktiv auf dem aktuellen Stand.
+- MD-Listen-Spalten und MD Control Strip Cleanup sind deployed.
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
-- `main` und `origin/main` sind synchron.
+- App-Commit `82f23fc Improve MD list controls` wurde nach `origin/main` gepusht und produktiv deployed.
 
 ## Aktueller Git-Stand
 
 - Aktiver Branch: `main`
-- `main` / `origin/main`: `01d7418 Sort live classes consistently`
+- App-Deploy-Commit: `82f23fc Improve MD list controls`
 - Letzte relevante Commits:
+  - `82f23fc` Improve MD list controls
+  - `36efa09` Add saved dashboard layouts
+  - `9343a54` Require contact phone for marketplace registrations
   - `01d7418` Sort live classes consistently
   - `8f546e8` Move start numbers from participants to teams
-  - `3df0aef` Phase B: enable start number import API and export fill
-  - `62323cd` Phase A: add participant startNumber column
-  - `10fec24` Revert unsafe combined rollout (Stabilisierung)
 
 ## Produktivstand / Deployments
 
 - Aktueller Production Deploy:
-  - Deployment: `dpl_96R91JMx1XuxydoY7qz4WsdhAsLA`
-  - URL: `https://s5-evo-portal-9snaairwa-sebastiankroeker-2781s-projects.vercel.app`
+  - Deployment: `dpl_CK4L1aEchd3iDCN6WFeprXNkNgBW`
+  - URL: `https://s5-evo-portal-cecs2zc88-sebastiankroeker-2781s-projects.vercel.app`
   - Alias: `https://portal.s5evo.de`
   - Status: `READY`
 - Post-Deploy Smoke:
@@ -48,6 +49,8 @@ Stand: 2026-07-10 12:45 UTC
   - `/api/admin/pending-changes` ohne Session: 401 (erwartet)
   - `/sportlerboerse`: 200
   - `/sportlerboerse/mtc`: 200
+  - `/api/dashboard-layouts` ohne Session: 401 (erwartet)
+  - `/api/admin/teams-export` ohne Session: 401 (erwartet)
 - Startnummern-Import-Route:
   - `GET /api/admin/start-numbers/import`: 405 (erwartet)
   - `POST /api/admin/start-numbers/import` ohne Session: 401 (erwartet)
@@ -137,7 +140,7 @@ Stand: 2026-07-10 12:45 UTC
    - Spalten-Reihenfolge anpassbar machen.
    - Klasse aus der Spalte Mannschaftsname entfernen; Klasse separat als Spalte/Filter fuehren.
    - Filter und Listenoptionen kompakt halten: Suche sichtbar, Filter/Spalten/Export als Icon-Buttons oder Dropdowns.
-   - Status 2026-07-10: lokal umgesetzt inkl. MD Control Strip Cleanup; TypeScript/Build gruen, noch nicht deployed.
+   - Status 2026-07-10: deployed mit `82f23fc`; TypeScript/Build und Post-Deploy-Smoke gruen.
 
 ## Was umgesetzt wurde (Kontakttelefonnummer)
 
