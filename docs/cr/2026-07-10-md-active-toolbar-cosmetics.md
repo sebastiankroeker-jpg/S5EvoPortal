@@ -127,4 +127,24 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
 
 ## Follow-Ups
 
-- None
+- 2026-07-10 14:32 UTC: Sebastian reported three additional cosmetic follow-ups from mobile:
+  - Filter/Schnellfilter toolbar buttons should stay primary-colored when their closed panel has an active criterion.
+  - The active-state summary pills below the hit-stat pills are redundant and should be removed.
+  - In list view, the participant-count stats under the team name should be removed for regular teams.
+- Local implementation:
+  - The redundant summary row below the hit-stat pills was removed.
+  - The list-view team-name subline now only appears for `MARKETPLACE` rows via marketplace badges; regular teams no longer show `x / 5 Teilnehmer:innen` there.
+- Local verification:
+  - `eslint app/components/dashboard.tsx` passed.
+  - `npx tsc --noEmit` passed.
+  - `npm run lint` passed with existing warnings only.
+  - `npm run build` passed.
+- Deploy status: pending Sebastian approval.
+- 2026-07-10 14:39 UTC: Sebastian clarified that the toolbar buttons already stayed blue while collapsed; the open/closed toggle and color concept needed review.
+- Local correction:
+  - Removed the redundant explicit toolbar button-active booleans and kept the original direct button rule: blue when the panel is open or its relevant state is active.
+  - Split the filter toolbar count so quick-filter-only excludes no longer inflate the filter-panel counter.
+  - Counter bubbles now have a distinct closed/open color treatment: closed counters sit as a light badge on active buttons, while open panels switch the counter to the primary filled treatment.
+- Local verification:
+  - `eslint app/components/dashboard.tsx` passed.
+  - `npx tsc --noEmit` passed.

@@ -2735,7 +2735,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     marketplaceVisibilityFilter !== "all",
     marketplacePublicationFilter !== "all",
     openMtcSlotsOnly,
-    ...QUICK_FILTER_KEYS.map((key) => quickFilterExcludes[key]),
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
@@ -2854,7 +2853,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     },
   ].filter(Boolean) as Array<{ key: QuickFilterKey; icon: ReactNode; label: string; count: number }>;
   const quickActiveCount = quickFilterRows.filter((row) => getQuickFilterMode(row.key) !== "neutral").length;
-  const toolbarCounterBadgeClass = "pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center border-2 border-background px-1 text-[10px] shadow-sm";
+  const toolbarCounterBadgeClass = (open: boolean) =>
+    `pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center border-2 px-1 text-[10px] shadow-sm ${
+      open
+        ? "border-background bg-primary text-primary-foreground ring-1 ring-primary-foreground/60"
+        : "border-primary/50 bg-background text-primary"
+    }`;
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -3101,7 +3105,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <SlidersHorizontal className="size-3.5" />
                 </Button>
                 {quickActiveCount > 0 && (
-                  <Badge className={toolbarCounterBadgeClass} variant="default">
+                  <Badge className={toolbarCounterBadgeClass(quickFilterMenuOpen)} variant="default">
                     {quickActiveCount}
                   </Badge>
                 )}
@@ -3111,7 +3115,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   type="button"
                   size="icon-xs"
                   className="h-7 w-full lg:size-6"
-                  variant={filtersOpen || hasActiveFilters ? "default" : "outline"}
+                  variant={filtersOpen || activeFilterCount > 0 ? "default" : "outline"}
                   onClick={() => {
                     setFiltersOpen((open) => !open);
                     setQuickFilterMenuOpen(false);
@@ -3125,7 +3129,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <SlidersHorizontal className="size-3.5" />
                 </Button>
                 {activeFilterCount > 0 && (
-                  <Badge className={toolbarCounterBadgeClass} variant="default">
+                  <Badge className={toolbarCounterBadgeClass(filtersOpen)} variant="default">
                     {activeFilterCount}
                   </Badge>
                 )}
@@ -3168,7 +3172,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <ClipboardList className="size-3.5" />
                 </Button>
                 {selectedLayoutDirty && (
-                  <Badge className={toolbarCounterBadgeClass} variant="default">
+                  <Badge className={toolbarCounterBadgeClass(layoutManagerOpen)} variant="default">
                     !
                   </Badge>
                 )}
@@ -3299,46 +3303,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             </div>
           )}
 
-          {(hasActiveFilters || hasCustomSort || selectedLayout || selectedLayoutDirty || quickActiveCount > 0) && (
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
-              {(hasActiveFilters || hasCustomSort) && (
-                <>
-                  {hasActiveFilters && (
-                    <Badge className="whitespace-nowrap" variant="default">
-                      {activeFilterCount} Filter
-                    </Badge>
-                  )}
-                  {hasCustomSort && (
-                    <Badge className="whitespace-nowrap" variant="outline">
-                      Sortierung
-                    </Badge>
-                  )}
-                  <Button className="h-6 whitespace-nowrap px-2 text-[10px]" size="xs" variant="outline" onClick={resetFilters}>
-                    <X className="size-3" />
-                    Zurücksetzen
-                  </Button>
-                </>
-              )}
-              {quickActiveCount > 0 && (
-                <Badge className="whitespace-nowrap" variant="outline">
-                  {quickActiveCount} Schnellfilter
-                </Badge>
-              )}
-              {selectedLayout && (
-                <Badge className="max-w-[16rem] truncate whitespace-nowrap" variant="outline">
-                  Layout: {selectedLayout.name}
-                </Badge>
-              )}
-              {selectedLayoutDirty && (
-                <Badge className="whitespace-nowrap" variant="secondary">
-                  Layout geändert
-                </Badge>
-              )}
-              <span className="ml-auto hidden text-[11px] text-muted-foreground lg:inline">
-                {selectedLayout ? "CSV nutzt Layout + gefilterte Zeilen" : "CSV exportiert alle Mannschaften"}
-              </span>
-            </div>
-          )}
         </div>
         {(filtersOpen || listOptionsOpen || layoutManagerOpen) && (
           <div className="mt-3 space-y-4 border-t border-border/60 pt-3">
@@ -3920,10 +3884,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                       <td className="px-4 py-3">
                         <div className="space-y-1">
                           <div className="font-medium">{team.name}</div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <MarketplaceTeamBadges team={team} />
-                            <span>{getParticipantCount(team)} / 5 Teilnehmer:innen</span>
-                          </div>
+                          {team.registrationMode === "MARKETPLACE" && (
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <MarketplaceTeamBadges team={team} />
+                            </div>
+                          )}
                         </div>
                       </td>
 

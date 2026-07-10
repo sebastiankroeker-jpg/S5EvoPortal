@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 14:18 UTC
+Stand: 2026-07-10 14:41 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -22,6 +22,7 @@ Stand: 2026-07-10 14:18 UTC
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
 - App-Commit `13f1953 Polish MD toolbar active states` wurde nach `origin/main` gepusht und produktiv deployed.
+- Lokaler Follow-up auf `app/components/dashboard.tsx` ist umgesetzt, geprueft und noch nicht deployed: redundante Statuspillen unter den Trefferstatistik-Pillen sind entfernt, normale Teams zeigen in der Listenansicht unter dem Namen keine `x / 5 Teilnehmer:innen`-Stats mehr, Toolbar-Button-/Counter-Farben sind panel-spezifisch nachgezogen.
 
 ## Aktueller Git-Stand
 
@@ -38,6 +39,7 @@ Stand: 2026-07-10 14:18 UTC
   - `app/components/dashboard.tsx`
   - `docs/cr/2026-07-10-md-mobile-toolbar-width.md`
   - `docs/cr/2026-07-10-md-mobile-quickfilter-hotfix.md`
+  - `docs/cr/2026-07-10-md-active-toolbar-cosmetics.md`
   - `SESSION_HANDOFF.md`
   - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; Stat-Pillen sind Filter-Toggles; Filter-Reset setzt Filter und Sortierung zurueck; Kachel/Liste und Toolbar-Counter zeigen aktive Zustaende farbig an.
   - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `npm run smoke:public` gruen.
@@ -53,6 +55,20 @@ Stand: 2026-07-10 14:18 UTC
   - `9343a54` Require contact phone for marketplace registrations
   - `01d7418` Sort live classes consistently
   - `8f546e8` Move start numbers from participants to teams
+- Lokale uncommitted App-/Doku-Aenderungen:
+  - `app/components/dashboard.tsx`
+  - `docs/cr/2026-07-10-md-active-toolbar-cosmetics.md`
+  - `SESSION_HANDOFF.md`
+- Lokale Checks fuer diese uncommitted Aenderungen:
+  - `eslint app/components/dashboard.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `npm run lint` gruen, nur bestehende Warnungen
+  - `npm run build` gruen
+- Nachkorrektur 14:41 UTC:
+  - Filter-Button nutzt wieder die direkte Regel `filtersOpen || activeFilterCount > 0`.
+  - `activeFilterCount` zaehlt keine reinen Schnellfilter-Excludes mehr.
+  - Toolbar-Counter wechseln zwischen geschlossenem hellen Badge und geoeffnetem Primary-Badge.
+  - Checks: `eslint app/components/dashboard.tsx` gruen, `npx tsc --noEmit` gruen.
 
 ## Produktivstand / Deployments
 
