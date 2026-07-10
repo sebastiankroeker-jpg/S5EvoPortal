@@ -1631,7 +1631,10 @@ function getStoredVisibleColumns() {
 
     const allowedKeys = new Set(LIST_OPTIONAL_COLUMNS.map((column) => column.key));
     const sanitized = parsed.filter(
-      (value): value is TeamOptionalColumnKey => typeof value === "string" && allowedKeys.has(value as TeamOptionalColumnKey),
+      (value): value is TeamOptionalColumnKey =>
+        typeof value === "string" &&
+        allowedKeys.has(value as TeamOptionalColumnKey) &&
+        value !== "participants",
     );
 
     return sanitized.length > 0 ? sanitized : null;
@@ -1726,7 +1729,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const canUseAdminLinks = activeRole === "ADMIN";
   const showAdminDashboardInfo = activeRole === "ADMIN";
   const canExportCompetitionCsv = activeRole === "ADMIN" || activeRole === "MODERATOR";
-  const shouldAutoShowMembersColumn = activeRole !== "TEILNEHMER";
   const userEmail = session?.user?.email;
   const preferenceStorageKey = useMemo(() => {
     const userPart = userEmail ? normalizeEmail(userEmail) : "anonymous";
@@ -2370,12 +2372,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       ];
     }
 
-    if (shouldAutoShowMembersColumn && !nextColumns.includes("participants")) {
-      nextColumns = [...nextColumns, "participants"];
-    }
-
     setVisibleColumns(nextColumns);
-  }, [shouldAutoShowMembersColumn]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -3088,6 +3086,45 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
         <div className="space-y-2">
+          {!filtersOpen && (
+            <div
+              className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap"
+              aria-label="Trefferstatistik"
+            >
+              {teamHitStats.map((stat) => {
+                const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
+                const title = hasActiveFilters
+                  ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
+                  : `${stat.label}: ${stat.total} Treffer`;
+                const active = categoryFilter === stat.filterValue;
+                const inactiveClassName =
+                  stat.variant === "secondary"
+                    ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    : stat.variant === "default"
+                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+                      : "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
+
+                return (
+                  <button
+                    key={stat.key}
+                    type="button"
+                    className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                      active ? "border-primary bg-primary text-primary-foreground shadow-sm" : inactiveClassName
+                    }`}
+                    title={`${title} · Tippen zum Filtern`}
+                    aria-label={`${stat.label} filtern`}
+                    aria-pressed={active}
+                    onClick={() => toggleStatFilter(stat.filterValue)}
+                  >
+                    <span className="hidden sm:inline">{stat.label}</span>
+                    <span className="sm:hidden">{stat.shortLabel}</span>
+                    <span className="font-semibold tabular-nums">{valueLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div className="grid gap-2 lg:grid-cols-[auto_minmax(16rem,1fr)_auto] lg:items-center">
             <div className="inline-flex w-fit rounded-md border border-border/60 bg-muted/20 p-0.5">
               {[
@@ -3239,45 +3276,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               </Button>
             </div>
           </div>
-
-          {!filtersOpen && (
-            <div
-              className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap border-t border-border/50 pt-2"
-              aria-label="Trefferstatistik"
-            >
-              {teamHitStats.map((stat) => {
-                const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
-                const title = hasActiveFilters
-                  ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
-                  : `${stat.label}: ${stat.total} Treffer`;
-                const active = categoryFilter === stat.filterValue;
-                const inactiveClassName =
-                  stat.variant === "secondary"
-                    ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                    : stat.variant === "default"
-                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
-                      : "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
-
-                return (
-                  <button
-                    key={stat.key}
-                    type="button"
-                    className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
-                      active ? "border-primary bg-primary text-primary-foreground shadow-sm" : inactiveClassName
-                    }`}
-                    title={`${title} · Tippen zum Filtern`}
-                    aria-label={`${stat.label} filtern`}
-                    aria-pressed={active}
-                    onClick={() => toggleStatFilter(stat.filterValue)}
-                  >
-                    <span className="hidden sm:inline">{stat.label}</span>
-                    <span className="sm:hidden">{stat.shortLabel}</span>
-                    <span className="font-semibold tabular-nums">{valueLabel}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
 
           {quickFilterMenuOpen && (
             <div className="rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-sm">
