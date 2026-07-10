@@ -25,6 +25,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 
 - User/API/admin flows touched:
   - Admin/team participant edit dialog.
+  - Team edit modal with all participant rows.
   - Linked participant account reset action text.
 - Data model impact:
   - None.
@@ -61,6 +62,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 ## Implementation Handoff
 
 - Relevant files:
+  - `app/components/dashboard.tsx`
   - `app/components/participant-edit-dialog.tsx`
   - `docs/cr/2026-07-10-participant-identity-guardrails.md`
 - Current decisions:
@@ -102,6 +104,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/dashboard.tsx`
   - `app/components/participant-edit-dialog.tsx`
   - `docs/cr/2026-07-10-participant-identity-guardrails.md`
 - Important decisions during implementation:
@@ -109,12 +112,14 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
   - Added inline identity context for anchored participants instead of adding a modal-only warning.
   - The inline copy presents the operator decision explicitly: correction in this dialog, other person through the replacement flow.
   - Suspicious identity-field edits stay possible after explicit confirmation so real typo corrections are not blocked.
+  - Follow-up hotfix after live check: the same guardrails now also run in the full team edit modal, not only in the participant single-edit dialog.
 
 ## Verification
 
 - Local checks:
   - `npx tsc --noEmit` passed.
   - `npm run verify:participant-edit-flow` passed.
+  - `npm run verify:team-draft` passed.
   - `npm run lint` passed with the existing 11 warnings.
 - Build:
   - `npm run build` passed.

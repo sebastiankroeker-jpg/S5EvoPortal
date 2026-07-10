@@ -28,6 +28,7 @@ import {
   MARKETPLACE_VISIBILITY_OPTIONS,
   PARTICIPANT_PUBLICATION_OPTIONS,
   TEAM_PUBLICATION_OPTIONS,
+  extractBirthYearFromInput,
   formatBirthDateInput,
   resolveBirthDateInputKey,
 } from "@/lib/domain/team";
@@ -399,6 +400,38 @@ function normalizeEmail(value?: string | null) {
 
 function normalizeComparableText(value?: string | null) {
   return value?.normalize("NFC").trim() ?? "";
+}
+
+function formatParticipantIdentityId(id?: string | null) {
+  return id ? id.slice(0, 8) : "neu";
+}
+
+function hasParticipantLinkedAccount(participant?: Pick<Participant, "linkedUserId" | "emailInvitation"> | null) {
+  return Boolean(participant?.linkedUserId || participant?.emailInvitation?.status === "linked");
+}
+
+function isParticipantIdentityAnchored(
+  participant?: Pick<Participant, "linkedUserId" | "emailInvitation" | "isTeamManager" | "pendingChanges" | "latestChange"> | null,
+) {
+  return Boolean(
+    hasParticipantLinkedAccount(participant) ||
+      participant?.isTeamManager ||
+      participant?.latestChange ||
+      participant?.pendingChanges?.length ||
+      participant?.emailInvitation?.sentAt ||
+      participant?.emailInvitation?.claimedAt ||
+      participant?.emailInvitation?.revokedAt,
+  );
+}
+
+function hasSuspiciousParticipantIdentityChange(current?: Participant | null, original?: Participant | null) {
+  if (!current || !original || !isParticipantIdentityAnchored(original)) return false;
+
+  const firstNameChanged = normalizeComparableText(current.firstName) !== normalizeComparableText(original.firstName);
+  const lastNameChanged = normalizeComparableText(current.lastName) !== normalizeComparableText(original.lastName);
+  const birthYearChanged = extractBirthYearFromInput(current.birthDate) !== extractBirthYearFromInput(original.birthDate);
+
+  return (firstNameChanged && lastNameChanged) || ((firstNameChanged || lastNameChanged) && birthYearChanged);
 }
 
 function getMarketplaceStatusOption(status?: Team["marketplaceStatus"] | null) {
@@ -5750,6 +5783,30 @@ function EditTeamModal({
   const handleSubmit = async () => {
     if (!teamDraftEvaluation.canSubmit || saving) return;
 
+    const suspiciousIdentityChanges = formData.participants
+      .map((participant, index) => ({
+        participant,
+        original: team.participants?.[index],
+      }))
+      .filter(({ participant, original }) => hasSuspiciousParticipantIdentityChange(participant, original));
+
+    if (suspiciousIdentityChanges.length > 0) {
+      const changedParticipants = suspiciousIdentityChanges
+        .slice(0, 3)
+        .map(({ participant, original }) => {
+          const beforeName = original ? getParticipantDisplayName(original) : "Teilnehmer";
+          const afterName = getParticipantDisplayName(participant);
+          return `#${formatParticipantIdentityId(original?.id)} ${beforeName} -> ${afterName}`;
+        })
+        .join("\n");
+      const additionalChanges =
+        suspiciousIdentityChanges.length > 3 ? `\n... und ${suspiciousIdentityChanges.length - 3} weitere` : "";
+      const confirmed = window.confirm(
+        `Du änderst Identitätsfelder verankerter Teilnehmer:\n\n${changedParticipants}${additionalChanges}\n\nBeim Speichern bleiben dieselben Teilnehmer-IDs erhalten. Bitte nur fortfahren, wenn das Korrekturen sind und keine anderen Personen in die Slots sollen.`,
+      );
+      if (!confirmed) return;
+    }
+
     setSaving(true);
     try {
       await onSave(formData);
@@ -5981,9 +6038,32 @@ function EditTeamModal({
                   (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(participant.emailInvitation?.status || "none"));
                 const inviteMessage = inviteMessages[index];
                 const managerMessage = managerMessages[index];
+                const originalParticipant = team.participants?.[index];
+                const identityAnchored = isParticipantIdentityAnchored(originalParticipant);
+                const linkedAccount = hasParticipantLinkedAccount(originalParticipant);
+                const suspiciousIdentityChange = hasSuspiciousParticipantIdentityChange(participant, originalParticipant);
 
                 return (
                 <div key={index} className="space-y-2 rounded-md border border-border/50 p-2 shadow-sm">
+                  {identityAnchored && originalParticipant ? (
+                    <StatusMessage tone={suspiciousIdentityChange ? "warning" : "info"} className="px-2.5 py-2 text-xs">
+                      <div className="font-medium">
+                        Teilnehmer-ID #{formatParticipantIdentityId(originalParticipant.id)} bleibt beim Speichern erhalten
+                      </div>
+                      <div>
+                        <span className="font-medium">Korrektur:</span> hier speichern, gleiche Teilnehmer-ID bleibt.
+                        {linkedAccount ? " Das verknüpfte Portal-Konto bleibt zugeordnet." : ""}
+                      </div>
+                      <div>
+                        <span className="font-medium">Andere Person:</span> diesen Datensatz nicht überschreiben, sondern den Ersetzen-Flow nutzen.
+                      </div>
+                      {suspiciousIdentityChange ? (
+                        <div className="mt-1 opacity-90">
+                          Die Änderung sieht nach Personenwechsel aus. Speichere nur, wenn es eine Korrektur ist.
+                        </div>
+                      ) : null}
+                    </StatusMessage>
+                  ) : null}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <div className="flex items-center gap-2">
