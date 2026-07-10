@@ -187,6 +187,17 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function formatParticipantIdentityId(id?: string | null) {
+  return id ? id.slice(0, 8) : "neu";
+}
+
+function hasLinkedAccount(
+  participant?: Pick<Participant, "linkedUserId"> | null,
+  emailInvitation?: EmailInvitationStatus | null,
+) {
+  return Boolean(participant?.linkedUserId || emailInvitation?.status === "linked");
+}
+
 function getParticipantSaveButtonLabel({
   isSaving,
   isDirectEdit,
@@ -556,10 +567,28 @@ export default function ParticipantEditDialog({
     Boolean(participant?.id) &&
     isAdminEdit &&
     emailInvitation?.status === "linked";
-  const replaceActionLabel =
+  const unlinkAccountActionLabel =
     participant?.isTeamManager
-      ? "Teilnehmer ersetzen & Rechte entziehen"
-      : "Teilnehmer ersetzen";
+      ? "Konto-Verknüpfung lösen & Rechte entziehen"
+      : "Konto-Verknüpfung lösen";
+  const linkedAccount = hasLinkedAccount(participant, emailInvitation);
+  const identityAnchored =
+    linkedAccount ||
+    hasPendingChange ||
+    Boolean(emailInvitation?.sentAt || emailInvitation?.claimedAt || emailInvitation?.revokedAt);
+  const firstNameChanged = participant
+    ? normalizeComparableText(firstName) !== normalizeComparableText(participant.firstName)
+    : false;
+  const lastNameChanged = participant
+    ? normalizeComparableText(lastName) !== normalizeComparableText(participant.lastName)
+    : false;
+  const birthYearChanged = participant
+    ? extractBirthYearFromInput(birthDate) !== extractBirthYearFromInput(participant.birthDate || birthYearToBirthDateInput(participant.birthYear))
+    : false;
+  const suspiciousIdentityChange =
+    identityAnchored &&
+    !moderatorNoteOnly &&
+    ((firstNameChanged && lastNameChanged) || ((firstNameChanged || lastNameChanged) && birthYearChanged));
   const sendsInvitationOnSave =
     Boolean(participant?.id) &&
     emailDiffersFromSaved &&
@@ -628,7 +657,7 @@ export default function ParticipantEditDialog({
     }
 
     const confirmed = window.confirm(
-      `Teilnehmer wirklich ersetzen? Die bestehende Portal-Verknüpfung wird gelöst${participant?.isTeamManager ? " und aktive Team-Manager-Rechte werden entzogen" : ""}. Danach geht eine neue Einladung an ${email.trim()}.`,
+      `Konto-Verknüpfung wirklich lösen? Die Teilnehmer-ID #${formatParticipantIdentityId(participant.id)} bleibt bestehen, aber das bisherige Portal-Konto wird gelöst${participant?.isTeamManager ? " und aktive Team-Manager-Rechte werden entzogen" : ""}. Danach geht eine neue Einladung an ${email.trim()}.`,
     );
     if (!confirmed) return;
 
@@ -662,8 +691,8 @@ export default function ParticipantEditDialog({
         type: "success",
         text:
           data.participantClaimMail?.status === "sent" || data.participantClaimMail?.status === "queued"
-            ? `Teilnehmer ersetzt, alte Verknüpfung gelöst${data.revokedTeamManagerAccess ? " und Team-Manager-Rechte entzogen" : ""}, neue Einladung versendet.`
-            : `Teilnehmer ersetzt, alte Verknüpfung gelöst${data.revokedTeamManagerAccess ? " und Team-Manager-Rechte entzogen" : ""}, neue Einladung erzeugt.`,
+            ? `Konto-Verknüpfung gelöst${data.revokedTeamManagerAccess ? " und Team-Manager-Rechte entzogen" : ""}, neue Einladung versendet.`
+            : `Konto-Verknüpfung gelöst${data.revokedTeamManagerAccess ? " und Team-Manager-Rechte entzogen" : ""}, neue Einladung erzeugt.`,
       });
       onSaved();
     } catch (err) {
@@ -778,6 +807,16 @@ export default function ParticipantEditDialog({
       const extractedBirthYear = extractBirthYearFromInput(birthDate);
       if (extractedBirthYear === null) {
         throw new Error("Geburtsdatum unplausibel");
+      }
+
+      if (suspiciousIdentityChange) {
+        const confirmed = window.confirm(
+          `Du änderst Identitätsfelder von Teilnehmer #${formatParticipantIdentityId(participant.id)}. Beim Speichern bleibt dieselbe Teilnehmer-ID erhalten. Bitte nur fortfahren, wenn das eine Korrektur ist und keine andere Person in den Slot soll.`,
+        );
+        if (!confirmed) {
+          setSaving(false);
+          return;
+        }
       }
 
       if (!moderatorNoteOnly && disciplineCode !== currentParticipantOriginalDiscipline) {
@@ -904,6 +943,26 @@ export default function ParticipantEditDialog({
 
           {result?.editResult && (
             <EditResultDetails editResult={result.editResult} />
+          )}
+
+          {!moderatorNoteOnly && participant && identityAnchored && (
+            <StatusMessage tone={suspiciousIdentityChange ? "warning" : "info"} className="mb-3">
+              <div className="font-medium">
+                Teilnehmer-ID #{formatParticipantIdentityId(participant.id)} bleibt beim Speichern erhalten
+              </div>
+              <div>
+                <span className="font-medium">Korrektur:</span> hier speichern, gleiche Teilnehmer-ID bleibt.
+                {linkedAccount ? " Das verknüpfte Portal-Konto bleibt zugeordnet." : ""}
+              </div>
+              <div>
+                <span className="font-medium">Andere Person:</span> diesen Datensatz nicht überschreiben, sondern den Ersetzen-Flow nutzen.
+              </div>
+              {suspiciousIdentityChange ? (
+                <div className="mt-1 text-xs opacity-90">
+                  Die Änderung sieht nach Personenwechsel aus. Speichere nur, wenn es eine Korrektur ist.
+                </div>
+              ) : null}
+            </StatusMessage>
           )}
 
           {!directEdit && statusMeta && (
@@ -1131,7 +1190,7 @@ export default function ParticipantEditDialog({
                     disabled={resettingLinkedAccount}
                     aria-busy={resettingLinkedAccount}
                   >
-                    {resettingLinkedAccount ? "Ersetzt..." : replaceActionLabel}
+                    {resettingLinkedAccount ? "Löst..." : unlinkAccountActionLabel}
                   </Button>
                 ) : canSendInvitation ? (
                   <Button
@@ -1154,7 +1213,8 @@ export default function ParticipantEditDialog({
                 {email && !isValidEmail(email) ? <p className="text-red-600">Bitte eine gültige E-Mail-Adresse eintragen.</p> : null}
                 {canResetLinkedAccount ? (
                   <p>
-                    Dieser Datensatz ist noch mit einem bestehenden Portal-Konto verknüpft. Nutze diese Aktion nur für einen echten Personenwechsel im Team.
+                    Diese Aktion löst nur das bestehende Portal-Konto von Teilnehmer #{formatParticipantIdentityId(participant?.id)}.
+                    Sie erzeugt keine neue Teilnehmer-ID.
                   </p>
                 ) : null}
                 {canResetLinkedAccount && participant?.isTeamManager ? (
