@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 14:02 UTC
+Stand: 2026-07-10 14:18 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -16,31 +16,33 @@ Stand: 2026-07-10 14:02 UTC
 ## Kurzfazit
 
 - `portal.s5evo.de` ist stabil und produktiv auf dem aktuellen Stand.
-- MD-Listen-Spalten, MD Control Strip Cleanup, Trefferstatistik, mobile volle Icon-Breite und Filter/Sortier-Reset sind deployed.
+- MD-Listen-Spalten, MD Control Strip Cleanup, Trefferstatistik, mobile volle Icon-Breite, Filter/Sortier-Reset und aktive Toolbar-Kosmetik sind deployed.
 - MD-Mobile-Folgefix ist produktiv: Statistik bleibt oberhalb aller Panels, wird nicht mehr im Filter-Panel dupliziert; mobile Tool-Icons nutzen die volle Breite als gleichmaessiges Grid; Stat-Pillen toggeln Klassen-/Gruppenfilter.
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
-- App-Commit `f4c450b Fix MD filter reset and stat toggles` wurde nach `origin/main` gepusht und produktiv deployed.
+- App-Commit `13f1953 Polish MD toolbar active states` wurde nach `origin/main` gepusht und produktiv deployed.
 
 ## Aktueller Git-Stand
 
 - Aktiver Branch: `main`
-- App-Deploy-Commit: `f4c450b Fix MD filter reset and stat toggles`
+- App-Deploy-Commit: `13f1953 Polish MD toolbar active states`
 - Hotfix-Commits:
   - `ec94981` Fix MD mobile quick filters
   - `a822beb` Add MD hit statistics
   - `529602a` Fix MD mobile toolbar width
   - `9939763` Keep MD hit stats above panels
   - `f4c450b` Fix MD filter reset and stat toggles
+  - `13f1953` Polish MD toolbar active states
 - Relevante Dateien:
   - `app/components/dashboard.tsx`
   - `docs/cr/2026-07-10-md-mobile-toolbar-width.md`
   - `docs/cr/2026-07-10-md-mobile-quickfilter-hotfix.md`
   - `SESSION_HANDOFF.md`
-  - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; Stat-Pillen sind Filter-Toggles; Filter-Reset setzt Filter und Sortierung zurueck.
+  - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; Stat-Pillen sind Filter-Toggles; Filter-Reset setzt Filter und Sortierung zurueck; Kachel/Liste und Toolbar-Counter zeigen aktive Zustaende farbig an.
   - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `npm run smoke:public` gruen.
 - Letzte relevante Commits:
+  - `13f1953` Polish MD toolbar active states
   - `f4c450b` Fix MD filter reset and stat toggles
   - `9939763` Keep MD hit stats above panels
   - `529602a` Fix MD mobile toolbar width
@@ -55,8 +57,8 @@ Stand: 2026-07-10 14:02 UTC
 ## Produktivstand / Deployments
 
 - Aktueller Production Deploy:
-  - Deployment: `dpl_HHNMPv8mnGKWNy4wMy3waRNU6g1x`
-  - URL: `https://s5-evo-portal-8mx1h9stp-sebastiankroeker-2781s-projects.vercel.app`
+  - Deployment: `dpl_4MF9zbz5bsDmBahkigz8SgFtoyH6`
+  - URL: `https://s5-evo-portal-cl2mpb4zf-sebastiankroeker-2781s-projects.vercel.app`
   - Alias: `https://portal.s5evo.de`
   - Status: `READY`
 - Post-Deploy Smoke:
