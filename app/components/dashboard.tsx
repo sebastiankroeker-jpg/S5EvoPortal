@@ -247,6 +247,8 @@ const TEAM_DASHBOARD_SELECTED_LAYOUT_STORAGE_PREFIX = "s5evo.dashboard.selectedL
 const QUICK_FILTER_KEYS: QuickFilterKey[] = ["mine", "needsReview", "marketplace", "mtc", "openSlots"];
 const DAMEN_CATEGORY_KEYS = new Set(["damen-a", "damen-b"]);
 const HERREN_CATEGORY_KEYS = new Set(["jungsters", "herren", "masters"]);
+const DAMEN_CATEGORY_FILTER_VALUE = "group:damen";
+const HERREN_CATEGORY_FILTER_VALUE = "group:herren";
 const EMPTY_QUICK_EXCLUDES: Record<QuickFilterKey, boolean> = {
   mine: false,
   needsReview: false,
@@ -254,6 +256,8 @@ const EMPTY_QUICK_EXCLUDES: Record<QuickFilterKey, boolean> = {
   mtc: false,
   openSlots: false,
 };
+const DEFAULT_TEAM_SORT_FIELD: TeamSortField = "updatedAt";
+const DEFAULT_TEAM_SORT_DIRECTION: SortDirection = "desc";
 const SORT_OPTIONS: Array<{ value: TeamSortField; label: string; adminOnly?: boolean }> = [
   { value: "updatedAt", label: "Zuletzt geändert" },
   { value: "createdAt", label: "Anmeldedatum", adminOnly: true },
@@ -907,6 +911,12 @@ function getDateTimeFilterTimestamp(value: string) {
 
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function getCategoryFilterKeys(value: string) {
+  if (value === DAMEN_CATEGORY_FILTER_VALUE) return [...DAMEN_CATEGORY_KEYS];
+  if (value === HERREN_CATEGORY_FILTER_VALUE) return [...HERREN_CATEGORY_KEYS];
+  return value === "all" ? [] : [value];
 }
 
 function InfoHint({ text }: { text: string }) {
@@ -1663,8 +1673,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [layoutManagerOpen, setLayoutManagerOpen] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
-  const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [sortField, setSortField] = useState<TeamSortField>(DEFAULT_TEAM_SORT_FIELD);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(DEFAULT_TEAM_SORT_DIRECTION);
   const [preferencesLoadedForKey, setPreferencesLoadedForKey] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>(DEFAULT_TEAM_LIST_VISIBLE_COLUMNS);
   const [dashboardLayouts, setDashboardLayouts] = useState<SavedDashboardLayout[]>([]);
@@ -2357,8 +2367,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   useEffect(() => {
     const selectedOption = sortOptions.some((option) => option.value === sortField);
     if (!selectedOption) {
-      setSortField("updatedAt");
-      setSortDirection("desc");
+      setSortField(DEFAULT_TEAM_SORT_FIELD);
+      setSortDirection(DEFAULT_TEAM_SORT_DIRECTION);
     }
   }, [sortField, sortOptions]);
 
@@ -2490,10 +2500,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   // Filter and search logic
   const filteredTeams = useMemo(() => {
+    const selectedCategoryKeys = getCategoryFilterKeys(categoryFilter);
+
     return teams.filter(team => {
       const capabilities = getTeamCapabilities(team, { canEditAll, canEditOwnTeam: team.canCurrentUserEdit });
       // Category filter
-      const matchesCategory = categoryFilter === "all" || team.category === categoryFilter;
+      const matchesCategory = categoryFilter === "all" || selectedCategoryKeys.includes(team.category);
       const matchesOwner =
         !showOwnerFilter ||
         ownerFilter === "all" ||
@@ -2710,6 +2722,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     quickExcludeCount > 0 ||
     (isAdmin && createdFrom !== "") ||
     (isAdmin && createdTo !== "");
+  const hasCustomSort = sortField !== DEFAULT_TEAM_SORT_FIELD || sortDirection !== DEFAULT_TEAM_SORT_DIRECTION;
+  const hasResettableDashboardState = hasActiveFilters || hasCustomSort;
   const activeFilterCount = [
     searchQuery !== "",
     categoryFilter !== "all",
@@ -2730,6 +2744,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       key: "total",
       label: "Gesamt",
       shortLabel: "Ges.",
+      filterValue: "all",
       current: filteredTeams.length,
       total: statisticBaseTeams.length,
       variant: "default" as const,
@@ -2738,6 +2753,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       key: "damen",
       label: "Damen",
       shortLabel: "D",
+      filterValue: DAMEN_CATEGORY_FILTER_VALUE,
       current: filteredTeams.filter((team) => DAMEN_CATEGORY_KEYS.has(team.category)).length,
       total: statisticBaseTeams.filter((team) => DAMEN_CATEGORY_KEYS.has(team.category)).length,
       variant: "secondary" as const,
@@ -2746,6 +2762,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       key: "herren",
       label: "Herren",
       shortLabel: "H",
+      filterValue: HERREN_CATEGORY_FILTER_VALUE,
       current: filteredTeams.filter((team) => HERREN_CATEGORY_KEYS.has(team.category)).length,
       total: statisticBaseTeams.filter((team) => HERREN_CATEGORY_KEYS.has(team.category)).length,
       variant: "secondary" as const,
@@ -2757,6 +2774,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         key: `category-${cat.category}`,
         label: meta.label || cat.category,
         shortLabel: cat.category === "sportlerboerse" ? "Börse" : meta.icon,
+        filterValue: cat.category,
         current: filteredTeams.filter((team) => team.category === cat.category).length,
         total: cat.count,
         variant: "outline" as const,
@@ -2851,6 +2869,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     setQuickFilterExcludes(EMPTY_QUICK_EXCLUDES);
     setCreatedFrom("");
     setCreatedTo("");
+    setSortField(DEFAULT_TEAM_SORT_FIELD);
+    setSortDirection(DEFAULT_TEAM_SORT_DIRECTION);
+  };
+
+  const toggleStatFilter = (filterValue: string) => {
+    setCategoryFilter((current) => (current === filterValue ? "all" : filterValue));
   };
 
   const handleHeaderSort = (field: TeamSortField) => {
@@ -3166,12 +3190,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 type="button"
                 size="icon-xs"
                 className="h-7 w-full lg:size-6"
-                variant="outline"
-                onClick={fetchTeams}
-                title="Aktualisieren"
-                aria-label="Aktualisieren"
+                variant={hasResettableDashboardState ? "default" : "outline"}
+                onClick={resetFilters}
+                title={hasCustomSort ? "Filter und Sortierung zurücksetzen" : "Filter zurücksetzen"}
+                aria-label={hasCustomSort ? "Filter und Sortierung zurücksetzen" : "Filter zurücksetzen"}
               >
-                <RotateCcw className="size-3.5" />
+                <XCircle className="size-3.5" />
               </Button>
             </div>
           </div>
@@ -3186,18 +3210,30 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 const title = hasActiveFilters
                   ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
                   : `${stat.label}: ${stat.total} Treffer`;
+                const active = categoryFilter === stat.filterValue;
+                const inactiveClassName =
+                  stat.variant === "secondary"
+                    ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    : stat.variant === "default"
+                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+                      : "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
 
                 return (
-                  <Badge
+                  <button
                     key={stat.key}
-                    variant={stat.variant}
-                    className="h-6 shrink-0 gap-1 px-2 text-[10px] leading-none"
-                    title={title}
+                    type="button"
+                    className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                      active ? "border-primary bg-primary text-primary-foreground shadow-sm" : inactiveClassName
+                    }`}
+                    title={`${title} · Tippen zum Filtern`}
+                    aria-label={`${stat.label} filtern`}
+                    aria-pressed={active}
+                    onClick={() => toggleStatFilter(stat.filterValue)}
                   >
                     <span className="hidden sm:inline">{stat.label}</span>
                     <span className="sm:hidden">{stat.shortLabel}</span>
                     <span className="font-semibold tabular-nums">{valueLabel}</span>
-                  </Badge>
+                  </button>
                 );
               })}
             </div>
@@ -3262,13 +3298,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             </div>
           )}
 
-          {(hasActiveFilters || selectedLayout || selectedLayoutDirty || quickActiveCount > 0) && (
+          {(hasActiveFilters || hasCustomSort || selectedLayout || selectedLayoutDirty || quickActiveCount > 0) && (
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
-              {hasActiveFilters && (
+              {(hasActiveFilters || hasCustomSort) && (
                 <>
-                  <Badge className="whitespace-nowrap" variant="default">
-                    {activeFilterCount} Filter
-                  </Badge>
+                  {hasActiveFilters && (
+                    <Badge className="whitespace-nowrap" variant="default">
+                      {activeFilterCount} Filter
+                    </Badge>
+                  )}
+                  {hasCustomSort && (
+                    <Badge className="whitespace-nowrap" variant="outline">
+                      Sortierung
+                    </Badge>
+                  )}
                   <Button className="h-6 whitespace-nowrap px-2 text-[10px]" size="xs" variant="outline" onClick={resetFilters}>
                     <X className="size-3" />
                     Zurücksetzen
@@ -3468,6 +3511,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Alle Klassen</SelectItem>
+                    {statisticBaseTeams.some((team) => DAMEN_CATEGORY_KEYS.has(team.category)) && (
+                      <SelectItem value={DAMEN_CATEGORY_FILTER_VALUE}>Damen gesamt</SelectItem>
+                    )}
+                    {statisticBaseTeams.some((team) => HERREN_CATEGORY_KEYS.has(team.category)) && (
+                      <SelectItem value={HERREN_CATEGORY_FILTER_VALUE}>Herren gesamt</SelectItem>
+                    )}
                     {categories.map((cat) => (
                       <SelectItem key={cat} value={cat}>
                         {cat === "sportlerboerse" ? "👥" : getCategoryMeta(cat).icon} {cat}
@@ -3635,16 +3684,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
             <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted-foreground">
-                {hasActiveFilters ? "Aktive Filter können hier gesammelt zurückgesetzt werden." : "Noch keine zusätzlichen Filter aktiv."}
+                {hasResettableDashboardState
+                  ? "Aktive Filter und Sortierung können hier gesammelt zurückgesetzt werden."
+                  : "Noch keine zusätzlichen Filter oder Sortierung aktiv."}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={resetFilters}
-                  disabled={!hasActiveFilters}
+                  disabled={!hasResettableDashboardState}
                 >
-                  Filter zurücksetzen
+                  Filter & Sortierung zurücksetzen
                 </Button>
                 {!(viewMode === "list" && listOptionsOpen) && (
                   <Button type="button" onClick={() => setFiltersOpen(false)} variant="outline">
