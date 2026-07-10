@@ -1,6 +1,6 @@
 # CR: MD Mobile Quickfilter Hotfix
 
-Status: Ready for Deploy
+Status: Deployed
 Date: 2026-07-10
 Type: hotfix
 Risk: low
@@ -83,8 +83,8 @@ Sebastian sent a mobile production screenshot showing the MD Schnellfilter popov
 
 - Gate needed: yes
 - Reason: production deploy.
-- Approved by: pending
-- Approval timestamp: pending
+- Approved by: Sebastian via Telegram "Go"
+- Approval timestamp: 2026-07-10 13:04 UTC
 
 ## Implementation Notes
 
@@ -104,22 +104,22 @@ Sebastian sent a mobile production screenshot showing the MD Schnellfilter popov
 - Local checks: `npx tsc --noEmit` green; `git diff --check` green.
 - Build: `npm run build` green.
 - Targeted verification: dashboard control-strip and Trefferstatistik TypeScript/build coverage; reviewed mobile clipping cause and compact stats placement in `app/components/dashboard.tsx`.
-- Manual smoke: pending production deploy.
+- Manual smoke: production smoke green after deploy.
 
 ## Deploy
 
-- Deployment needed: yes, after approval
-- Deployment ID: pending
-- Deployment URL: pending
+- Deployment needed: done
+- Deployment ID: `dpl_2QMrawhtsHnoDETA83ctE3gBiATZ`
+- Deployment URL: `https://s5-evo-portal-o0w113fdg-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: pending
+- Deployed at: 2026-07-10 13:08 UTC
 
 ## Post-Deploy Smoke
 
-- Routes checked: pending
-- API checks: pending
-- Result: pending
+- Routes checked: `/`, `/login`, `/anmeldung`, `/aenderungen`, `/sportlerboerse`, `/sportlerboerse/mtc`
+- API checks: `/api/competition` 200; `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200; `/api/teams` without session 401; `/api/admin/pending-changes` without session 401; `/api/admin/teams-export` without session 401.
+- Result: `npm run smoke:public` green against `https://portal.s5evo.de`; targeted curl checks green/expected.
 
 ## Follow-Ups
 
-- Production deploy after Sebastian approval.
+- Ask Sebastian for visual mobile confirmation of the new compact Trefferstatistik and inline Schnellfilter.

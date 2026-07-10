@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 12:58 UTC
+Stand: 2026-07-10 13:10 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -17,25 +17,28 @@ Stand: 2026-07-10 12:58 UTC
 
 - `portal.s5evo.de` ist stabil und produktiv auf dem aktuellen Stand.
 - MD-Listen-Spalten und MD Control Strip Cleanup sind deployed.
-- MD-Mobile-Screenshot zeigte Schnellfilter-Popover-Clipping; lokaler Hotfix ist umgesetzt und um eine kompakte Trefferstatistik erweitert. TypeScript/Build sind gruen; Deploy-Freigabe ist offen.
+- MD-Mobile-Screenshot zeigte Schnellfilter-Popover-Clipping; Hotfix ist umgesetzt, um eine kompakte Trefferstatistik erweitert und produktiv deployed. TypeScript/Build/Smoke sind gruen.
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
-- App-Commit `82f23fc Improve MD list controls` wurde nach `origin/main` gepusht und produktiv deployed.
+- App-Commit `a822beb Add MD hit statistics` wurde nach `origin/main` gepusht und produktiv deployed.
 
 ## Aktueller Git-Stand
 
 - Aktiver Branch: `main`
-- App-Deploy-Commit: `82f23fc Improve MD list controls`
-- Lokaler Hotfix-Commit:
+- App-Deploy-Commit: `a822beb Add MD hit statistics`
+- Hotfix-Commits:
   - `ec94981` Fix MD mobile quick filters
-- Aktuelle lokale Erweiterung auf demselben CR:
+  - `a822beb` Add MD hit statistics
+- Relevante Dateien:
   - `app/components/dashboard.tsx`
   - `docs/cr/2026-07-10-md-mobile-quickfilter-hotfix.md`
   - `SESSION_HANDOFF.md`
   - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; bei aktiven Filtern als `Treffer/Gesamt ohne Filter`.
   - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `git diff --check` gruen.
 - Letzte relevante Commits:
+  - `a822beb` Add MD hit statistics
+  - `ec94981` Fix MD mobile quick filters
   - `82f23fc` Improve MD list controls
   - `36efa09` Add saved dashboard layouts
   - `9343a54` Require contact phone for marketplace registrations
@@ -45,15 +48,15 @@ Stand: 2026-07-10 12:58 UTC
 ## Produktivstand / Deployments
 
 - Aktueller Production Deploy:
-  - Deployment: `dpl_CK4L1aEchd3iDCN6WFeprXNkNgBW`
-  - URL: `https://s5-evo-portal-cecs2zc88-sebastiankroeker-2781s-projects.vercel.app`
+  - Deployment: `dpl_2QMrawhtsHnoDETA83ctE3gBiATZ`
+  - URL: `https://s5-evo-portal-o0w113fdg-sebastiankroeker-2781s-projects.vercel.app`
   - Alias: `https://portal.s5evo.de`
   - Status: `READY`
 - Post-Deploy Smoke:
   - `npm run smoke:public` gruen
   - `/`, `/login`, `/anmeldung`, `/aenderungen`: 200
   - `/api/competition`: 200
-  - `/api/results`: 200
+  - `/api/results?competitionId=cmn3a1piz0002l104372yx9yt`: 200
   - `/api/teams` ohne Session: 401 (erwartet)
   - `/api/admin/pending-changes` ohne Session: 401 (erwartet)
   - `/sportlerboerse`: 200
