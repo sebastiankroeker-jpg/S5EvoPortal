@@ -4,7 +4,11 @@ Stand: 2026-07-10 18:20 UTC
 
 ## Aktueller Nachtrag: Participant Replacement Flow
 
-- Lokale Implementierung fuer echten Ersetzen-Flow ist fertig, noch nicht deployed.
+- Ersetzen-Flow ist produktiv deployed.
+- App-Commit `1902498 Add participant replacement flow`
+- Production Deploy: `dpl_2QT5BaiacdLvmpy7z5ydJrRnKjaV`
+- Deployment URL: `https://s5-evo-portal-h8lwpzklz-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
 - Neuer CR: `docs/cr/2026-07-10-participant-replacement-flow.md`
 - Geaendert:
   - Orga/Admin-Team-Edit hat pro verankertem Teilnehmer die Aktion `Andere Person einsetzen`.
@@ -20,8 +24,11 @@ Stand: 2026-07-10 18:20 UTC
   - `npm run verify:team-draft`
   - `npm run lint` mit bestehenden 11 Warnungen
   - `npm run build`
+- Post-Deploy:
+  - `npm run smoke:public` gruen gegen Production-Alias
+  - `/sportlerboerse-dashboard`: 200
 - Naechster Schritt:
-  - Commit erstellen, pushen, Vercel READY abwarten, `npm run smoke:public`, `/sportlerboerse-dashboard` pruefen, CR Deploy-Sektion aktualisieren.
+  - UI fachlich mit echtem Team pruefen; spaeter optional Existing-Participant-Picker statt nur neue ID.
 
 ## Aktueller Nachtrag: Participant Identity Guardrails
 

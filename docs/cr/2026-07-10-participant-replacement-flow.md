@@ -148,16 +148,23 @@ Participant edits keep `participants.id` stable. That is correct for typo/data c
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_2QT5BaiacdLvmpy7z5ydJrRnKjaV`
+- Deployment URL: `https://s5-evo-portal-h8lwpzklz-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-10 18:14 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public`
+  - `GET /sportlerboerse-dashboard`
 - API checks:
+  - `/api/competition`: 200
+  - `/api/results`: 200
+  - `/api/teams`: 401 without session, expected
+  - `/api/admin/pending-changes`: 401 without session, expected
 - Result:
+  - Passed. `/sportlerboerse-dashboard` returned 200 on production alias.
 
 ## Follow-Ups
 
