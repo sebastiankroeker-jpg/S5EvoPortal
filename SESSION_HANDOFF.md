@@ -1,6 +1,27 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 15:41 UTC
+Stand: 2026-07-10 17:32 UTC
+
+## Aktueller Nachtrag: Participant Identity Guardrails
+
+- App-Commit `52709c1 Add participant identity guardrails` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_5YhrsDou4qFUrTE2jR9BXhBGzxTa`
+- Deployment URL: `https://s5-evo-portal-2conslhbt-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- Geaendert:
+  - Teilnehmer-Edit zeigt bei verankerten Datensaetzen, dass die Teilnehmer-ID beim Speichern erhalten bleibt.
+  - Hinweis formuliert die Entscheidung klar: Korrektur hier speichern; andere Person nicht ueberschreiben, sondern Ersetzen-Flow nutzen.
+  - Bestehende Aktion heisst nun korrekt `Konto-Verknuepfung loesen` statt `Teilnehmer ersetzen`.
+  - Identitaetsfeld-Aenderungen an verankerten Teilnehmern zeigen vor dem Speichern eine Bestaetigung.
+- Checks:
+  - `npx tsc --noEmit` gruen
+  - `npm run verify:participant-edit-flow` gruen
+  - `npm run lint` gruen, nur bestehende 11 Warnungen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/sportlerboerse-dashboard`: 200
+- CR: `docs/cr/2026-07-10-participant-identity-guardrails.md`
+- Follow-up: echter Ersetzen-Flow mit neuer/anderer Teilnehmer-ID bleibt separate CR.
 
 ## Read First: Scope-Guard / Domaenenkanon
 
