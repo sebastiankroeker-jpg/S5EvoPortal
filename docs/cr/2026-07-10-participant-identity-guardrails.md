@@ -131,10 +131,10 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID: `dpl_5YhrsDou4qFUrTE2jR9BXhBGzxTa`
-- Deployment URL: `https://s5-evo-portal-2conslhbt-sebastiankroeker-2781s-projects.vercel.app`
+- Deployment ID: `dpl_EFnHKkxmnwqDoheBMP3rNfHoAhrT`
+- Deployment URL: `https://s5-evo-portal-7m3s4q9mq-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: 2026-07-10 17:32 UTC
+- Deployed at: 2026-07-10 17:53 UTC
 
 ## Post-Deploy Smoke
 
@@ -147,7 +147,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
   - `/api/teams`: 401 without session, expected
   - `/api/admin/pending-changes`: 401 without session, expected
 - Result:
-  - Passed. `/sportlerboerse-dashboard` returned 200 on production alias.
+  - Passed after the team-edit hotfix. `/sportlerboerse-dashboard` returned 200 on production alias.
 
 ## Follow-Ups
 

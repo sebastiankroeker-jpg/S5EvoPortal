@@ -4,12 +4,14 @@ Stand: 2026-07-10 17:32 UTC
 
 ## Aktueller Nachtrag: Participant Identity Guardrails
 
-- App-Commit `52709c1 Add participant identity guardrails` ist auf `origin/main` gepusht und produktiv deployed.
-- Production Deploy: `dpl_5YhrsDou4qFUrTE2jR9BXhBGzxTa`
-- Deployment URL: `https://s5-evo-portal-2conslhbt-sebastiankroeker-2781s-projects.vercel.app`
+- App-Commit `47015c8 Guard team edit participant identity changes` ist auf `origin/main` gepusht und produktiv deployed.
+- Vorheriger App-Commit: `52709c1 Add participant identity guardrails`
+- Production Deploy: `dpl_EFnHKkxmnwqDoheBMP3rNfHoAhrT`
+- Deployment URL: `https://s5-evo-portal-7m3s4q9mq-sebastiankroeker-2781s-projects.vercel.app`
 - Alias: `https://portal.s5evo.de`
 - Geaendert:
   - Teilnehmer-Edit zeigt bei verankerten Datensaetzen, dass die Teilnehmer-ID beim Speichern erhalten bleibt.
+  - Team-bearbeiten-Dialog zeigt dieselbe Guardrail pro verankertem Teilnehmer und fragt vor dem Speichern bei verdächtigem Personenwechsel nach.
   - Hinweis formuliert die Entscheidung klar: Korrektur hier speichern; andere Person nicht ueberschreiben, sondern Ersetzen-Flow nutzen.
   - Bestehende Aktion heisst nun korrekt `Konto-Verknuepfung loesen` statt `Teilnehmer ersetzen`.
   - Identitaetsfeld-Aenderungen an verankerten Teilnehmern zeigen vor dem Speichern eine Bestaetigung.
