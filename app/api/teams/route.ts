@@ -118,6 +118,7 @@ type SerializableTeam = {
   marketplaceVisibility?: "PUBLIC" | "MARKETPLACE_USERS" | "PORTAL_USERS" | "ADMIN_MANAGEMENT_ONLY" | null;
   marketplaceStatus?: "NEW" | "REVIEWED" | "MATCHING" | "MATCHED" | "WITHDRAWN" | null;
   marketplaceMessage?: string | null;
+  startNumber?: string | null;
   classificationCode?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
@@ -278,6 +279,7 @@ function serializeTeam(
   return {
     id: team.id,
     name: visibleTeamName,
+    startNumber: team.startNumber ?? "",
     teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
     registrationMode: team.registrationMode ?? "TEAM",
     marketplaceVisibility: team.marketplaceVisibility ?? "ADMIN_MANAGEMENT_ONLY",

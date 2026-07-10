@@ -78,6 +78,13 @@ function formatParticipantList(team: CompetitionExportRecord["teams"][number]) {
     .join(" | ");
 }
 
+function formatParticipantByDiscipline(team: CompetitionExportRecord["teams"][number], disciplineCode: string) {
+  const participant = team.participants.find((entry) => entry.disciplineCode === disciplineCode);
+  if (!participant) return "";
+
+  return `${participant.firstName} ${participant.lastName}`.trim();
+}
+
 async function startNumberColumnExists() {
   const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
     SELECT EXISTS (
@@ -332,6 +339,10 @@ export const TEAM_EXPORT_COLUMN_DEFINITIONS: Record<TeamExportColumnKey, TeamExp
     header: "team_name",
     render: ({ team }) => team.name,
   },
+  startNumber: {
+    header: "team_startnummer",
+    render: ({ team, startNumberByTeamId }) => startNumberByTeamId?.get(team.id) ?? "",
+  },
   category: {
     header: "klasse",
     render: ({ team }) => team.classificationCode,
@@ -355,6 +366,26 @@ export const TEAM_EXPORT_COLUMN_DEFINITIONS: Record<TeamExportColumnKey, TeamExp
   participants: {
     header: "teilnehmer",
     render: ({ team }) => formatParticipantList(team),
+  },
+  participantRUN: {
+    header: "teilnehmer_laufen",
+    render: ({ team }) => formatParticipantByDiscipline(team, "RUN"),
+  },
+  participantBENCH: {
+    header: "teilnehmer_bankdruecken",
+    render: ({ team }) => formatParticipantByDiscipline(team, "BENCH"),
+  },
+  participantSTOCK: {
+    header: "teilnehmer_stockschiessen",
+    render: ({ team }) => formatParticipantByDiscipline(team, "STOCK"),
+  },
+  participantROAD: {
+    header: "teilnehmer_rennrad",
+    render: ({ team }) => formatParticipantByDiscipline(team, "ROAD"),
+  },
+  participantMTB: {
+    header: "teilnehmer_mtb",
+    render: ({ team }) => formatParticipantByDiscipline(team, "MTB"),
   },
   createdAt: {
     header: "team_created_at",

@@ -88,6 +88,7 @@ import type {
 interface Team {
   id: string;
   name: string;
+  startNumber?: string | null;
   teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH";
   registrationMode?: "TEAM" | "MARKETPLACE";
   marketplaceVisibility?: "PUBLIC" | "MARKETPLACE_USERS" | "PORTAL_USERS" | "ADMIN_MANAGEMENT_ONLY";
@@ -216,7 +217,7 @@ interface DashboardProps {
 }
 
 type DashboardViewMode = "cards" | "list";
-type TeamSortField = "name" | "category" | "contactName" | "contactEmail" | "ownerEmail" | "participantCount" | "createdAt" | "updatedAt";
+type TeamSortField = "name" | "startNumber" | "category" | "contactName" | "contactEmail" | "ownerEmail" | "participantCount" | "createdAt" | "updatedAt";
 type SortDirection = "asc" | "desc";
 type MarketplaceStatusFilter = "all" | NonNullable<Team["marketplaceStatus"]>;
 type MarketplaceVisibilityFilter = "all" | NonNullable<Team["marketplaceVisibility"]>;
@@ -225,12 +226,18 @@ type MarketplaceKindFilter = "all" | "marketplace" | "mtc" | "single";
 type QuickFilterMode = "exclude" | "neutral" | "include";
 type QuickFilterKey = "mine" | "needsReview" | "marketplace" | "mtc" | "openSlots";
 type TeamOptionalColumnKey =
+  | "startNumber"
   | "category"
   | "contactName"
   | "contactEmail"
   | "ownerEmail"
   | "participantCount"
   | "participants"
+  | "participantRUN"
+  | "participantBENCH"
+  | "participantSTOCK"
+  | "participantROAD"
+  | "participantMTB"
   | "createdAt"
   | "updatedAt";
 
@@ -249,6 +256,7 @@ const SORT_OPTIONS: Array<{ value: TeamSortField; label: string; adminOnly?: boo
   { value: "updatedAt", label: "Zuletzt geändert" },
   { value: "createdAt", label: "Anmeldedatum", adminOnly: true },
   { value: "name", label: "Mannschaftsname" },
+  { value: "startNumber", label: "Startnummer" },
   { value: "category", label: "Klasse" },
   { value: "contactName", label: "Team Manager:in" },
   { value: "contactEmail", label: "Kontakt E-Mail" },
@@ -256,23 +264,42 @@ const SORT_OPTIONS: Array<{ value: TeamSortField; label: string; adminOnly?: boo
 ];
 
 const LIST_OPTIONAL_COLUMNS: Array<{ key: TeamOptionalColumnKey; label: string; adminOnly?: boolean }> = [
+  { key: "startNumber", label: "Startnummer" },
   { key: "category", label: "Klasse" },
   { key: "contactName", label: "Team Manager:in" },
   { key: "contactEmail", label: "Kontakt E-Mail" },
   { key: "ownerEmail", label: "Anleger:in" },
   { key: "participantCount", label: "Teilnehmer" },
   { key: "participants", label: "Mitglieder" },
+  { key: "participantRUN", label: "Laufen" },
+  { key: "participantBENCH", label: "Bankdrücken" },
+  { key: "participantSTOCK", label: "Stockschießen" },
+  { key: "participantROAD", label: "Rennrad" },
+  { key: "participantMTB", label: "Mountainbike" },
   { key: "createdAt", label: "Anmeldedatum", adminOnly: true },
   { key: "updatedAt", label: "Geändert" },
 ];
 
 const DASHBOARD_VIEW_MODES = ["cards", "list"] as const;
-const TEAM_SORT_FIELDS = ["name", "category", "contactName", "contactEmail", "ownerEmail", "participantCount", "createdAt", "updatedAt"] as const;
+const TEAM_SORT_FIELDS = ["name", "startNumber", "category", "contactName", "contactEmail", "ownerEmail", "participantCount", "createdAt", "updatedAt"] as const;
 const SORT_DIRECTIONS = ["asc", "desc"] as const;
 const MARKETPLACE_KIND_FILTERS = ["all", "marketplace", "mtc", "single"] as const;
 const MARKETPLACE_STATUS_FILTERS = ["all", "NEW", "REVIEWED", "MATCHING", "MATCHED", "WITHDRAWN"] as const;
 const MARKETPLACE_VISIBILITY_FILTERS = ["all", "PUBLIC", "MARKETPLACE_USERS", "PORTAL_USERS", "ADMIN_MANAGEMENT_ONLY"] as const;
 const MARKETPLACE_PUBLICATION_FILTERS = ["all", "TEAM_ANONYM", "TEAMNAME_OEFFENTLICH", "ALLES_OEFFENTLICH"] as const;
+const DISCIPLINE_PARTICIPANT_COLUMN_KEYS: TeamOptionalColumnKey[] = [
+  "participantRUN",
+  "participantBENCH",
+  "participantSTOCK",
+  "participantROAD",
+  "participantMTB",
+];
+const DEFAULT_TEAM_LIST_VISIBLE_COLUMNS: TeamOptionalColumnKey[] = [
+  "startNumber",
+  "category",
+  ...DISCIPLINE_PARTICIPANT_COLUMN_KEYS,
+  "createdAt",
+];
 
 type DashboardFilterPreferences = {
   searchQuery?: string;
@@ -306,12 +333,18 @@ type SavedDashboardLayout = {
 };
 
 const VISIBLE_COLUMN_EXPORT_MAP: Partial<Record<TeamOptionalColumnKey, TeamExportColumnKey>> = {
+  startNumber: "startNumber",
   category: "category",
   contactName: "contactName",
   contactEmail: "contactEmail",
   ownerEmail: "ownerEmail",
   participantCount: "participantCount",
   participants: "participants",
+  participantRUN: "participantRUN",
+  participantBENCH: "participantBENCH",
+  participantSTOCK: "participantSTOCK",
+  participantROAD: "participantROAD",
+  participantMTB: "participantMTB",
   createdAt: "createdAt",
   updatedAt: "updatedAt",
 };
@@ -732,6 +765,12 @@ function getTeamDisciplineSlots(team: Team) {
       participant,
     };
   });
+}
+
+function getParticipantForDiscipline(team: Team, disciplineCode: string) {
+  return (team.participants ?? []).find(
+    (participant) => (participant.discipline || participant.disciplineCode) === disciplineCode,
+  ) ?? null;
 }
 
 function isValidEmail(value: string) {
@@ -1617,7 +1656,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [teamVisibilityInfoTeamId, setTeamVisibilityInfoTeamId] = useState<string | null>(null);
   const [teamAdminInfoTeamId, setTeamAdminInfoTeamId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [viewModeMenuOpen, setViewModeMenuOpen] = useState(false);
   const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
   const [quickFilterExcludes, setQuickFilterExcludes] = useState<Record<QuickFilterKey, boolean>>(EMPTY_QUICK_EXCLUDES);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
@@ -1626,12 +1664,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [sortField, setSortField] = useState<TeamSortField>("updatedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [preferencesLoadedForKey, setPreferencesLoadedForKey] = useState("");
-  const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>([
-    "category",
-    "participantCount",
-    "participants",
-    "createdAt",
-  ]);
+  const [visibleColumns, setVisibleColumns] = useState<TeamOptionalColumnKey[]>(DEFAULT_TEAM_LIST_VISIBLE_COLUMNS);
   const [dashboardLayouts, setDashboardLayouts] = useState<SavedDashboardLayout[]>([]);
   const [layoutsLoading, setLayoutsLoading] = useState(false);
   const [layoutsLoaded, setLayoutsLoaded] = useState(false);
@@ -2274,10 +2307,26 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     const storedColumns = getStoredVisibleColumns();
     if (!storedColumns) return;
 
-    const nextColumns: TeamOptionalColumnKey[] =
-      shouldAutoShowMembersColumn && !storedColumns.includes("participants")
-        ? [...storedColumns, "participants"]
-        : storedColumns;
+    let nextColumns: TeamOptionalColumnKey[] = [...storedColumns];
+
+    if (!nextColumns.includes("startNumber")) {
+      nextColumns = ["startNumber", ...nextColumns];
+    }
+
+    const missingDisciplineColumns = DISCIPLINE_PARTICIPANT_COLUMN_KEYS.filter((key) => !nextColumns.includes(key));
+    if (missingDisciplineColumns.length > 0) {
+      const categoryIndex = nextColumns.indexOf("category");
+      const insertAt = categoryIndex >= 0 ? categoryIndex + 1 : Math.min(1, nextColumns.length);
+      nextColumns = [
+        ...nextColumns.slice(0, insertAt),
+        ...missingDisciplineColumns,
+        ...nextColumns.slice(insertAt),
+      ];
+    }
+
+    if (shouldAutoShowMembersColumn && !nextColumns.includes("participants")) {
+      nextColumns = [...nextColumns, "participants"];
+    }
 
     setVisibleColumns(nextColumns);
   }, [shouldAutoShowMembersColumn]);
@@ -2518,6 +2567,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         case "name":
           result = collator.compare(left.name, right.name);
           break;
+        case "startNumber":
+          result = collator.compare(left.startNumber || "", right.startNumber || "");
+          break;
         case "category":
           result = collator.compare(left.category, right.category);
           break;
@@ -2555,7 +2607,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     });
   }, [filteredTeams, ownTeamsOnly, sortField, sortDirection]);
 
-  const visibleColumnDefs = listOptionalColumns.filter((column) => visibleColumns.includes(column.key));
+  const visibleColumnDefs = visibleColumns
+    .map((key) => listOptionalColumns.find((column) => column.key === key))
+    .filter((column): column is (typeof listOptionalColumns)[number] => Boolean(column));
 
   const categoryMeta: Record<string, { icon: string; className: string; label?: string }> = {
     "schueler-a": { icon: "SA", label: "Schüler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
@@ -2768,6 +2822,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     setSortDirection(field === "updatedAt" || field === "createdAt" ? "desc" : "asc");
   };
 
+  const moveVisibleColumn = (key: TeamOptionalColumnKey, direction: "up" | "down") => {
+    setVisibleColumns((current) => {
+      const index = current.indexOf(key);
+      if (index < 0) return current;
+
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+
+      const nextColumns = [...current];
+      [nextColumns[index], nextColumns[targetIndex]] = [nextColumns[targetIndex], nextColumns[index]];
+      return nextColumns;
+    });
+  };
+
   const getHeaderSortState = (field: TeamSortField) => {
     if (sortField !== field) {
       return "inactive";
@@ -2778,6 +2846,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   const sortableHeaderFields: Partial<Record<"name" | TeamOptionalColumnKey, TeamSortField>> = {
     name: "name",
+    startNumber: "startNumber",
     category: "category",
     contactName: "contactName",
     contactEmail: "contactEmail",
@@ -2913,81 +2982,65 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       )}
 
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
-        <div className="space-y-1.5">
-          <div className="relative flex min-w-0 flex-wrap items-center gap-1.5">
-            <div className="relative flex min-w-0 items-center">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setViewModeMenuOpen((open) => !open);
-                  setQuickFilterMenuOpen(false);
-                }}
-                aria-expanded={viewModeMenuOpen}
-                title="Ansicht auswählen"
-              >
-                {viewMode === "cards" ? "Kacheln" : "Liste"}
-                <ChevronDown className="size-3.5" />
-              </Button>
-              {viewModeMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setViewModeMenuOpen(false)} />
-                  <div className="absolute left-0 top-full z-50 mt-1 w-[min(72vw,13rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
-                    <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
-                      Ansicht auswählen
-                    </div>
-                    <div className="space-y-1">
-                      {[
-                        { value: "cards" as const, label: "Kacheln", description: "Kartenansicht" },
-                        { value: "list" as const, label: "Liste", description: "Tabellenansicht" },
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => {
-                            setViewMode(option.value);
-                            setViewModeMenuOpen(false);
-                          }}
-                          className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors ${
-                            viewMode === option.value ? "bg-primary/10 text-primary" : "hover:bg-accent/50"
-                          }`}
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-xs font-medium">{option.label}</span>
-                            <span className="block truncate text-[10px] text-muted-foreground">{option.description}</span>
-                          </span>
-                          {viewMode === option.value && <CheckCircle2 className="size-3.5" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+        <div className="space-y-2">
+          <div className="grid gap-2 lg:grid-cols-[auto_minmax(16rem,1fr)_auto] lg:items-center">
+            <div className="inline-flex w-fit rounded-md border border-border/60 bg-muted/20 p-0.5">
+              {[
+                { value: "cards" as const, label: "Kacheln" },
+                { value: "list" as const, label: "Liste" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setViewMode(option.value)}
+                  className={`h-8 rounded px-3 text-xs font-medium transition-colors ${
+                    viewMode === option.value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                  }`}
+                  aria-pressed={viewMode === option.value}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
 
-            <div className="flex min-w-0 items-center">
+            <div className="relative min-w-0">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-9 pl-8 text-sm"
+                placeholder={marketplaceFocus ? "Sportlerbörse, Kontakt oder Teilnehmer:in" : "Teamname, Team Manager:in oder Teilnehmer:in"}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+              <div className="relative flex min-w-0 items-center">
               <Button
                 type="button"
-                size="sm"
+                size="icon-xs"
                 variant={quickActiveCount > 0 ? "default" : "outline"}
                 onClick={() => {
                   setQuickFilterMenuOpen((open) => !open);
-                  setViewModeMenuOpen(false);
                 }}
                 aria-expanded={quickFilterMenuOpen}
-                title="Schnellzugriff öffnen"
+                title="Schnellfilter"
+                aria-label="Schnellfilter"
               >
                 <SlidersHorizontal className="size-3.5" />
-                Schnellzugriff
-                <Badge variant={quickActiveCount > 0 ? "secondary" : "outline"}>{quickActiveCount}</Badge>
               </Button>
+              {quickActiveCount > 0 && (
+                <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant="secondary">
+                  {quickActiveCount}
+                </Badge>
+              )}
               {quickFilterMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setQuickFilterMenuOpen(false)} />
-                  <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
+                  <div className="absolute right-0 top-full z-50 mt-1 w-[min(92vw,32rem)] rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-lg">
                     <div className="px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
-                      Betrachtungen kombinieren
+                      Schnellfilter kombinieren
                     </div>
                     <div className="space-y-1">
                       {quickFilterRows.map((row) => {
@@ -3044,97 +3097,194 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 </>
               )}
             </div>
-          </div>
-
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
-              placeholder={marketplaceFocus ? "Sportlerbörse, Kontakt oder Teilnehmer:in" : "Teamname, Team Manager:in oder Teilnehmer:in"}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="rounded-md border border-border/60 bg-muted/10 p-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span className="shrink-0 text-xs font-medium text-muted-foreground">Layout</span>
-                <Select
-                  value={selectedLayoutId || "none"}
-                  onValueChange={(value) => {
-                    if (value === "none") {
-                      setSelectedLayoutId("");
-                      setLayoutName("");
-                      return;
-                    }
-                    setSelectedLayoutId(value);
-                  }}
-                >
-                  <SelectTrigger className="h-8 min-w-0 flex-1 text-xs sm:max-w-xs">
-                    <SelectValue placeholder="Layout wählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Lokale Ansicht</SelectItem>
-                    {dashboardLayouts.map((layout) => (
-                      <SelectItem key={layout.id} value={layout.id}>
-                        {layout.scope === "GLOBAL" ? "Global" : "Persönlich"} · {layout.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedLayoutDirty && (
-                  <Badge variant="secondary" className="shrink-0">
-                    Geändert
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-1.5">
-                <span className="hidden text-xs text-muted-foreground lg:inline">
-                  {selectedLayout ? "CSV nutzt gefilterte Zeilen" : "CSV exportiert alles"}
-                </span>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant={filtersOpen || hasActiveFilters ? "default" : "outline"}
+                onClick={() => {
+                  setFiltersOpen((open) => !open);
+                  setListOptionsOpen(false);
+                  setLayoutManagerOpen(false);
+                }}
+                title="Filter"
+                aria-label="Filter"
+                aria-expanded={filtersOpen}
+              >
+                <SlidersHorizontal className="size-3.5" />
+              </Button>
+              {activeFilterCount > 0 && (
+                <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant={filtersOpen ? "secondary" : "default"}>
+                  {activeFilterCount}
+                </Badge>
+              )}
+              {viewMode === "list" && (
                 <Button
                   type="button"
-                  size="xs"
-                  variant={layoutManagerOpen ? "default" : "outline"}
-                  onClick={() => setLayoutManagerOpen((open) => !open)}
+                  size="icon-xs"
+                  variant={listOptionsOpen ? "default" : "outline"}
+                  onClick={() => {
+                    setListOptionsOpen((open) => !open);
+                    setFiltersOpen(false);
+                    setLayoutManagerOpen(false);
+                  }}
+                  title="Spalten & Sortierung"
+                  aria-label="Spalten & Sortierung"
+                  aria-expanded={listOptionsOpen}
                 >
-                  <SlidersHorizontal className="size-3.5" />
-                  Verwalten
+                  <ArrowDownUp className="size-3.5" />
                 </Button>
-              </div>
+              )}
+              <Button
+                type="button"
+                size="icon-xs"
+                variant={layoutManagerOpen || selectedLayoutDirty ? "default" : "outline"}
+                onClick={() => {
+                  setLayoutManagerOpen((open) => !open);
+                  setFiltersOpen(false);
+                  setListOptionsOpen(false);
+                }}
+                title="Layout"
+                aria-label="Layout"
+                aria-expanded={layoutManagerOpen}
+              >
+                <ClipboardList className="size-3.5" />
+              </Button>
+              {selectedLayoutDirty && (
+                <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant="secondary">
+                  !
+                </Badge>
+              )}
+              {canExportCompetitionCsv && (
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="outline"
+                  onClick={handleDownloadCompetitionCsv}
+                  disabled={exportingCsv || !activeCompetition?.id}
+                  title={selectedLayout ? "CSV im gewählten Layout mit gefilterten Zeilen herunterladen" : "Vollständigen Mannschaftsexport als CSV herunterladen"}
+                  aria-label="CSV exportieren"
+                >
+                  <Download className="size-3.5" />
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="outline"
+                onClick={fetchTeams}
+                title="Aktualisieren"
+                aria-label="Aktualisieren"
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
             </div>
+          </div>
 
+          {(hasActiveFilters || selectedLayout || selectedLayoutDirty || quickActiveCount > 0) && (
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
+              {hasActiveFilters && (
+                <>
+                  <Badge className="whitespace-nowrap" variant="default">
+                    {activeFilterCount} Filter
+                  </Badge>
+                  <Button className="h-6 whitespace-nowrap px-2 text-[10px]" size="xs" variant="outline" onClick={resetFilters}>
+                    <X className="size-3" />
+                    Zurücksetzen
+                  </Button>
+                </>
+              )}
+              {quickActiveCount > 0 && (
+                <Badge className="whitespace-nowrap" variant="outline">
+                  {quickActiveCount} Schnellfilter
+                </Badge>
+              )}
+              {selectedLayout && (
+                <Badge className="max-w-[16rem] truncate whitespace-nowrap" variant="outline">
+                  Layout: {selectedLayout.name}
+                </Badge>
+              )}
+              {selectedLayoutDirty && (
+                <Badge className="whitespace-nowrap" variant="secondary">
+                  Layout geändert
+                </Badge>
+              )}
+              <span className="ml-auto hidden text-[11px] text-muted-foreground lg:inline">
+                {selectedLayout ? "CSV nutzt Layout + gefilterte Zeilen" : "CSV exportiert alle Mannschaften"}
+              </span>
+            </div>
+          )}
+        </div>
+        {(filtersOpen || listOptionsOpen || layoutManagerOpen) && (
+          <div className="mt-3 space-y-4 border-t border-border/60 pt-3">
             {layoutManagerOpen && (
-              <div className="mt-2 grid gap-2 border-t border-border/60 pt-2 lg:grid-cols-[minmax(0,1fr)_150px_auto] lg:items-end">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Layoutname</label>
-                  <Input
-                    className="h-8 text-xs sm:h-9"
-                    value={layoutName}
-                    onChange={(event) => setLayoutName(event.target.value)}
-                    placeholder="Neues Layout"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Typ</label>
-                  <Select
-                    value={isAdmin ? layoutScope : "PERSONAL"}
-                    onValueChange={(value) => setLayoutScope(value as DashboardLayoutScope)}
-                    disabled={!isAdmin || Boolean(selectedLayout)}
-                  >
-                    <SelectTrigger className="h-8 text-xs sm:h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PERSONAL">Persönlich</SelectItem>
-                      {isAdmin && <SelectItem value="GLOBAL">Global</SelectItem>}
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-3">
+                <div className="space-y-0.5">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <ClipboardList className="size-4" />
+                    Layout
+                  </CardTitle>
+                  <p className="hidden text-xs text-muted-foreground sm:block">
+                    Ansicht auswählen, speichern oder bestehendes Layout aktualisieren
+                  </p>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_150px] lg:items-end">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Aktives Layout</label>
+                    <Select
+                      value={selectedLayoutId || "none"}
+                      onValueChange={(value) => {
+                        if (value === "none") {
+                          setSelectedLayoutId("");
+                          setLayoutName("");
+                          return;
+                        }
+                        setSelectedLayoutId(value);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Layout wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Lokale Ansicht</SelectItem>
+                        {dashboardLayouts.map((layout) => (
+                          <SelectItem key={layout.id} value={layout.id}>
+                            {layout.scope === "GLOBAL" ? "Global" : "Persönlich"} · {layout.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Layoutname</label>
+                    <Input
+                      className="h-9 text-xs"
+                      value={layoutName}
+                      onChange={(event) => setLayoutName(event.target.value)}
+                      placeholder="Neues Layout"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Typ</label>
+                    <Select
+                      value={isAdmin ? layoutScope : "PERSONAL"}
+                      onValueChange={(value) => setLayoutScope(value as DashboardLayoutScope)}
+                      disabled={!isAdmin || Boolean(selectedLayout)}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PERSONAL">Persönlich</SelectItem>
+                        {isAdmin && <SelectItem value="GLOBAL">Global</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-1.5 border-t border-border/60 pt-3">
                   <Button
                     type="button"
                     size="xs"
@@ -3143,7 +3293,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                     disabled={savingLayout || layoutsLoading || !layoutName.trim()}
                   >
                     <ClipboardList className="size-3.5" />
-                    Als neues speichern
+                    Neu speichern
                   </Button>
                   <Button
                     type="button"
@@ -3154,7 +3304,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                     title={selectedLayoutDirty ? "Änderungen im gewählten Layout speichern" : "Gewähltes Layout aktualisieren"}
                   >
                     <Pencil className="size-3.5" />
-                    Layout aktualisieren
+                    Aktualisieren
                   </Button>
                   <Button
                     type="button"
@@ -3167,66 +3317,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                     <Trash2 className="size-3.5" />
                     Löschen
                   </Button>
+                  <Button type="button" size="xs" variant="outline" onClick={() => setLayoutManagerOpen(false)}>
+                    <ChevronUp className="size-3.5" />
+                    Schließen
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
 
-          <div className="flex items-center justify-between gap-1.5">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
-                {activeFilterCount} aktiv
-              </Badge>
-              {hasActiveFilters && (
-                <Button className="whitespace-nowrap" size="xs" variant="outline" onClick={resetFilters}>
-                  <X className="size-3" />
-                  Filter löschen
-                </Button>
-              )}
-            </div>
-
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {canExportCompetitionCsv && (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={handleDownloadCompetitionCsv}
-                  disabled={exportingCsv || !activeCompetition?.id}
-                  title={selectedLayout ? "CSV im gewählten Layout mit gefilterten Zeilen herunterladen" : "Vollständigen Mannschaftsexport als CSV herunterladen"}
-                >
-                  <Download className="size-3.5" />
-                  {exportingCsv ? "CSV..." : selectedLayout ? "CSV (Layout)" : "CSV"}
-                </Button>
-              )}
-              {viewMode === "list" && (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant={listOptionsOpen ? "default" : "outline"}
-                  onClick={() => setListOptionsOpen((open) => !open)}
-                >
-                  Listenoptionen
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => setFiltersOpen((open) => !open)}
-                aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
-              >
-                {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-        {filtersOpen && (
-          <div className="mt-3 space-y-4 border-t border-border/60 pt-3">
+            {filtersOpen && (
+              <>
             <div className="space-y-0.5">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <SlidersHorizontal className="size-4" />
-                Filter & Suche
+                Filter
               </CardTitle>
               <p className="hidden text-xs text-muted-foreground sm:block">
                 {showOwnerFilter
@@ -3460,10 +3564,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 >
                   Filter zurücksetzen
                 </Button>
-                <Button type="button" onClick={fetchTeams} variant="outline">
-                  <RotateCcw className="size-4" />
-                  Aktualisieren
-                </Button>
                 {!(viewMode === "list" && listOptionsOpen) && (
                   <Button type="button" onClick={() => setFiltersOpen(false)} variant="outline">
                     <ChevronUp className="size-4" />
@@ -3472,6 +3572,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 )}
               </div>
             </div>
+              </>
+            )}
 
             {viewMode === "list" && listOptionsOpen && (
               <div className="space-y-4 border-t border-border/60 pt-4">
@@ -3516,37 +3618,68 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten</p>
-                  <div className="flex flex-wrap gap-2">
-                    {listOptionalColumns.map((column) => {
-                      const selected = visibleColumns.includes(column.key);
-                      const disableRemoval = selected && visibleColumns.length === 1;
+                  <p className="text-xs font-medium text-muted-foreground">Sichtbare Spalten & Reihenfolge</p>
+                  <div className="space-y-1.5">
+                    {visibleColumnDefs.map((column, index) => {
+                      const disableRemoval = visibleColumnDefs.length === 1;
 
                       return (
-                        <label
+                        <div
                           key={column.key}
-                          className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${selected ? "border-primary bg-primary/5" : "border-border/60 bg-background"} ${disableRemoval ? "opacity-70" : "cursor-pointer hover:bg-muted/40"}`}
+                          className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-sm"
                         >
                           <input
                             type="checkbox"
                             className="h-4 w-4"
-                            checked={selected}
+                            checked
                             disabled={disableRemoval}
+                            aria-label={`${column.label} ausblenden`}
                             onChange={() => {
-                              setVisibleColumns((current) => {
-                                if (current.includes(column.key)) {
-                                  if (current.length === 1) return current;
-                                  return current.filter((entry) => entry !== column.key);
-                                }
-
-                                return [...current, column.key];
-                              });
+                              if (disableRemoval) return;
+                              setVisibleColumns((current) => current.filter((entry) => entry !== column.key));
                             }}
                           />
-                          <span>{column.label}</span>
-                        </label>
+                          <span className="min-w-0 truncate">{column.label}</span>
+                          <span className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+                              title={`${column.label} nach links schieben`}
+                              aria-label={`${column.label} nach links schieben`}
+                              disabled={index === 0}
+                              onClick={() => moveVisibleColumn(column.key, "up")}
+                            >
+                              <ChevronUp className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+                              title={`${column.label} nach rechts schieben`}
+                              aria-label={`${column.label} nach rechts schieben`}
+                              disabled={index === visibleColumnDefs.length - 1}
+                              onClick={() => moveVisibleColumn(column.key, "down")}
+                            >
+                              <ChevronDown className="size-3.5" />
+                            </button>
+                          </span>
+                        </div>
                       );
                     })}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {listOptionalColumns
+                      .filter((column) => !visibleColumns.includes(column.key))
+                      .map((column) => (
+                        <button
+                          key={column.key}
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                          onClick={() => setVisibleColumns((current) => [...current, column.key])}
+                        >
+                          <span className="inline-flex size-4 items-center justify-center rounded border border-border/70 text-[10px]">+</span>
+                          <span>{column.label}</span>
+                        </button>
+                      ))}
                   </div>
                   <p className="text-xs text-muted-foreground">Die Teamspalte bleibt immer sichtbar.</p>
                 </div>
@@ -3590,7 +3723,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       ) : viewMode === "list" ? (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full text-sm">
+            <table className="min-w-[1280px] w-full text-sm">
               <thead className="bg-muted/40 text-left">
                 <tr className="border-b border-border/60">
                   <th className="px-4 py-3 font-medium">
@@ -3646,6 +3779,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
                   const canEditMarketplaceMatching = capabilities.canManageSlots;
                   const canDeleteTeam = team.canManageTeamManagers === true;
+                  const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
 
                   return (
                     <tr key={team.id} className="border-b border-border/50 align-top transition-colors hover:bg-muted/20">
@@ -3654,7 +3788,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="font-medium">{team.name}</div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <MarketplaceTeamBadges team={team} />
-                            {renderCategoryBadge(team)}
                             <span>{getParticipantCount(team)} / 5 Teilnehmer:innen</span>
                           </div>
                         </div>
@@ -3664,6 +3797,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                         let content: React.ReactNode = null;
 
                         switch (column.key) {
+                          case "startNumber":
+                            content = team.startNumber || "—";
+                            break;
                           case "category":
                             content = renderCategoryBadge(team);
                             break;
@@ -3686,6 +3822,25 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                               </div>
                             );
                             break;
+                          case "participantRUN":
+                          case "participantBENCH":
+                          case "participantSTOCK":
+                          case "participantROAD":
+                          case "participantMTB": {
+                            const disciplineId = column.key.replace("participant", "");
+                            const participant = getParticipantForDiscipline(team, disciplineId);
+                            const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
+                            const participantLabel = participant
+                              ? getDashboardParticipantLabel(team, participant, participantIndex, { revealPrivateName: revealPrivateDashboardNames })
+                              : "—";
+
+                            content = (
+                              <span className="inline-block max-w-[12rem] truncate" title={participantLabel}>
+                                {participantLabel}
+                              </span>
+                            );
+                            break;
+                          }
                           case "createdAt":
                             content = team.createdAt ? new Date(team.createdAt).toLocaleString("de-DE") : "—";
                             break;

@@ -6,17 +6,24 @@ export const DASHBOARD_LAYOUT_CONFIG_VERSION = 1;
 export const DASHBOARD_LAYOUT_SCOPES = ["PERSONAL", "GLOBAL"] as const;
 export const DASHBOARD_VIEW_MODES = ["cards", "list"] as const;
 export const TEAM_LAYOUT_VISIBLE_COLUMNS = [
+  "startNumber",
   "category",
   "contactName",
   "contactEmail",
   "ownerEmail",
   "participantCount",
   "participants",
+  "participantRUN",
+  "participantBENCH",
+  "participantSTOCK",
+  "participantROAD",
+  "participantMTB",
   "createdAt",
   "updatedAt",
 ] as const;
 export const TEAM_LAYOUT_SORT_FIELDS = [
   "name",
+  "startNumber",
   "category",
   "contactName",
   "contactEmail",
@@ -28,12 +35,18 @@ export const TEAM_LAYOUT_SORT_FIELDS = [
 export const SORT_DIRECTIONS = ["asc", "desc"] as const;
 export const TEAM_EXPORT_COLUMN_KEYS = [
   "teamName",
+  "startNumber",
   "category",
   "contactName",
   "contactEmail",
   "ownerEmail",
   "participantCount",
   "participants",
+  "participantRUN",
+  "participantBENCH",
+  "participantSTOCK",
+  "participantROAD",
+  "participantMTB",
   "createdAt",
   "updatedAt",
 ] as const;
@@ -61,10 +74,10 @@ const adminOnlyExportColumns = new Set<TeamExportColumnKey>(["createdAt"]);
 export const DEFAULT_TEAM_DASHBOARD_LAYOUT_CONFIG: TeamDashboardLayoutConfig = {
   version: DASHBOARD_LAYOUT_CONFIG_VERSION,
   viewMode: "list",
-  visibleColumns: ["category", "participantCount", "participants", "updatedAt"],
+  visibleColumns: ["startNumber", "category", "participantRUN", "participantBENCH", "participantSTOCK", "participantROAD", "participantMTB", "updatedAt"],
   sortField: "updatedAt",
   sortDirection: "desc",
-  exportColumns: ["teamName", "category", "participantCount", "participants", "updatedAt"],
+  exportColumns: ["teamName", "startNumber", "category", "participantRUN", "participantBENCH", "participantSTOCK", "participantROAD", "participantMTB", "updatedAt"],
 };
 
 export const TeamDashboardLayoutConfigSchema = z.object({
