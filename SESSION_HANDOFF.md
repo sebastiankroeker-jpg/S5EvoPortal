@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 13:10 UTC
+Stand: 2026-07-10 13:20 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -18,6 +18,7 @@ Stand: 2026-07-10 13:10 UTC
 - `portal.s5evo.de` ist stabil und produktiv auf dem aktuellen Stand.
 - MD-Listen-Spalten und MD Control Strip Cleanup sind deployed.
 - MD-Mobile-Screenshot zeigte Schnellfilter-Popover-Clipping; Hotfix ist umgesetzt, um eine kompakte Trefferstatistik erweitert und produktiv deployed. TypeScript/Build/Smoke sind gruen.
+- Neuer lokaler MD-Mobile-Folgefix ist umgesetzt und noch nicht deployed: Trefferstatistik wird bei offenem Filter ausgeblendet; mobile Tool-Icons nutzen die volle Breite als gleichmaessiges Grid.
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
@@ -32,11 +33,13 @@ Stand: 2026-07-10 13:10 UTC
   - `a822beb` Add MD hit statistics
 - Relevante Dateien:
   - `app/components/dashboard.tsx`
+  - `docs/cr/2026-07-10-md-mobile-toolbar-width.md`
   - `docs/cr/2026-07-10-md-mobile-quickfilter-hotfix.md`
   - `SESSION_HANDOFF.md`
   - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; bei aktiven Filtern als `Treffer/Gesamt ohne Filter`.
   - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `git diff --check` gruen.
 - Letzte relevante Commits:
+  - lokal ausstehend: MD mobile toolbar width follow-up
   - `a822beb` Add MD hit statistics
   - `ec94981` Fix MD mobile quick filters
   - `82f23fc` Improve MD list controls

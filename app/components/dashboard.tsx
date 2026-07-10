@@ -3056,11 +3056,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               />
             </div>
 
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-              <div className="relative flex min-w-0 items-center">
+            <div className="grid w-full min-w-0 grid-cols-[repeat(auto-fit,minmax(2.25rem,1fr))] items-center gap-1.5 lg:flex lg:w-auto lg:flex-wrap lg:justify-end">
+              <div className="relative flex min-w-0 items-center lg:size-6">
                 <Button
                   type="button"
                   size="icon-xs"
+                  className="h-7 w-full lg:size-6"
                   variant={quickActiveCount > 0 || quickFilterMenuOpen ? "default" : "outline"}
                   onClick={() => {
                     setQuickFilterMenuOpen((open) => !open);
@@ -3075,36 +3076,40 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <SlidersHorizontal className="size-3.5" />
                 </Button>
                 {quickActiveCount > 0 && (
-                  <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant="secondary">
+                  <Badge className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[10px]" variant="secondary">
                     {quickActiveCount}
                   </Badge>
                 )}
               </div>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant={filtersOpen || hasActiveFilters ? "default" : "outline"}
-                onClick={() => {
-                  setFiltersOpen((open) => !open);
-                  setQuickFilterMenuOpen(false);
-                  setListOptionsOpen(false);
-                  setLayoutManagerOpen(false);
-                }}
-                title="Filter"
-                aria-label="Filter"
-                aria-expanded={filtersOpen}
-              >
-                <SlidersHorizontal className="size-3.5" />
-              </Button>
-              {activeFilterCount > 0 && (
-                <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant={filtersOpen ? "secondary" : "default"}>
-                  {activeFilterCount}
-                </Badge>
-              )}
+              <div className="relative flex min-w-0 items-center lg:size-6">
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  className="h-7 w-full lg:size-6"
+                  variant={filtersOpen || hasActiveFilters ? "default" : "outline"}
+                  onClick={() => {
+                    setFiltersOpen((open) => !open);
+                    setQuickFilterMenuOpen(false);
+                    setListOptionsOpen(false);
+                    setLayoutManagerOpen(false);
+                  }}
+                  title="Filter"
+                  aria-label="Filter"
+                  aria-expanded={filtersOpen}
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                </Button>
+                {activeFilterCount > 0 && (
+                  <Badge className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[10px]" variant={filtersOpen ? "secondary" : "default"}>
+                    {activeFilterCount}
+                  </Badge>
+                )}
+              </div>
               {viewMode === "list" && (
                 <Button
                   type="button"
                   size="icon-xs"
+                  className="h-7 w-full lg:size-6"
                   variant={listOptionsOpen ? "default" : "outline"}
                   onClick={() => {
                     setListOptionsOpen((open) => !open);
@@ -3119,31 +3124,35 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <ArrowDownUp className="size-3.5" />
                 </Button>
               )}
-              <Button
-                type="button"
-                size="icon-xs"
-                variant={layoutManagerOpen || selectedLayoutDirty ? "default" : "outline"}
-                onClick={() => {
-                  setLayoutManagerOpen((open) => !open);
-                  setQuickFilterMenuOpen(false);
-                  setFiltersOpen(false);
-                  setListOptionsOpen(false);
-                }}
-                title="Layout"
-                aria-label="Layout"
-                aria-expanded={layoutManagerOpen}
-              >
-                <ClipboardList className="size-3.5" />
-              </Button>
-              {selectedLayoutDirty && (
-                <Badge className="-ml-2 h-5 min-w-5 justify-center px-1 text-[10px]" variant="secondary">
-                  !
-                </Badge>
-              )}
+              <div className="relative flex min-w-0 items-center lg:size-6">
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  className="h-7 w-full lg:size-6"
+                  variant={layoutManagerOpen || selectedLayoutDirty ? "default" : "outline"}
+                  onClick={() => {
+                    setLayoutManagerOpen((open) => !open);
+                    setQuickFilterMenuOpen(false);
+                    setFiltersOpen(false);
+                    setListOptionsOpen(false);
+                  }}
+                  title="Layout"
+                  aria-label="Layout"
+                  aria-expanded={layoutManagerOpen}
+                >
+                  <ClipboardList className="size-3.5" />
+                </Button>
+                {selectedLayoutDirty && (
+                  <Badge className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[10px]" variant="secondary">
+                    !
+                  </Badge>
+                )}
+              </div>
               {canExportCompetitionCsv && (
                 <Button
                   type="button"
                   size="icon-xs"
+                  className="h-7 w-full lg:size-6"
                   variant="outline"
                   onClick={handleDownloadCompetitionCsv}
                   disabled={exportingCsv || !activeCompetition?.id}
@@ -3156,6 +3165,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               <Button
                 type="button"
                 size="icon-xs"
+                className="h-7 w-full lg:size-6"
                 variant="outline"
                 onClick={fetchTeams}
                 title="Aktualisieren"
@@ -3225,30 +3235,32 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             </div>
           )}
 
-          <div
-            className="flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/50 pt-2 whitespace-nowrap"
-            aria-label="Trefferstatistik"
-          >
-            {teamHitStats.map((stat) => {
-              const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
-              const title = hasActiveFilters
-                ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
-                : `${stat.label}: ${stat.total} Treffer`;
+          {!filtersOpen && (
+            <div
+              className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap border-t border-border/50 pt-2"
+              aria-label="Trefferstatistik"
+            >
+              {teamHitStats.map((stat) => {
+                const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
+                const title = hasActiveFilters
+                  ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
+                  : `${stat.label}: ${stat.total} Treffer`;
 
-              return (
-                <Badge
-                  key={stat.key}
-                  variant={stat.variant}
-                  className="h-6 shrink-0 gap-1 px-2 text-[10px] leading-none"
-                  title={title}
-                >
-                  <span className="hidden sm:inline">{stat.label}</span>
-                  <span className="sm:hidden">{stat.shortLabel}</span>
-                  <span className="font-semibold tabular-nums">{valueLabel}</span>
-                </Badge>
-              );
-            })}
-          </div>
+                return (
+                  <Badge
+                    key={stat.key}
+                    variant={stat.variant}
+                    className="h-6 shrink-0 gap-1 px-2 text-[10px] leading-none"
+                    title={title}
+                  >
+                    <span className="hidden sm:inline">{stat.label}</span>
+                    <span className="sm:hidden">{stat.shortLabel}</span>
+                    <span className="font-semibold tabular-nums">{valueLabel}</span>
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
 
           {(hasActiveFilters || selectedLayout || selectedLayoutDirty || quickActiveCount > 0) && (
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
