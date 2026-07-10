@@ -109,7 +109,7 @@ Sebastian reported follow-up issues in the mobile Mannschaften dashboard after t
 - Local checks:
   - `npx tsc --noEmit` passed.
 - Build:
-  - Not run.
+  - `npm run build` passed before deploy.
 - Targeted verification:
   - Diff review for dashboard filter state and stat pill toggles.
 - Manual smoke:
@@ -117,17 +117,23 @@ Sebastian reported follow-up issues in the mobile Mannschaften dashboard after t
 
 ## Deploy
 
-- Deployment needed: no
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes, approved by Sebastian via "Bitte deployen :)" / "Bitte deployen".
+- Deployment ID: `dpl_HHNMPv8mnGKWNy4wMy3waRNU6g1x`
+- Deployment URL: `https://s5-evo-portal-8mx1h9stp-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-10 14:01 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` against `https://portal.s5evo.de`
+  - `HEAD /sportlerboerse-dashboard` -> 200
 - API checks:
-- Result:
+  - `/api/competition` -> 200
+  - `/api/results` -> 200
+  - `/api/teams` without session -> 401 expected
+  - `/api/admin/pending-changes` without session -> 401 expected
+- Result: passed.
 
 ## Follow-Ups
 

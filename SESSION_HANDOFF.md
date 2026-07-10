@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 13:20 UTC
+Stand: 2026-07-10 14:02 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -16,30 +16,34 @@ Stand: 2026-07-10 13:20 UTC
 ## Kurzfazit
 
 - `portal.s5evo.de` ist stabil und produktiv auf dem aktuellen Stand.
-- MD-Listen-Spalten und MD Control Strip Cleanup sind deployed.
-- MD-Mobile-Screenshot zeigte Schnellfilter-Popover-Clipping; Hotfix ist umgesetzt, um eine kompakte Trefferstatistik erweitert und produktiv deployed. TypeScript/Build/Smoke sind gruen.
-- Neuer lokaler MD-Mobile-Folgefix ist umgesetzt und noch nicht deployed: Trefferstatistik wird bei offenem Filter ausgeblendet; mobile Tool-Icons nutzen die volle Breite als gleichmaessiges Grid.
+- MD-Listen-Spalten, MD Control Strip Cleanup, Trefferstatistik, mobile volle Icon-Breite und Filter/Sortier-Reset sind deployed.
+- MD-Mobile-Folgefix ist produktiv: Statistik bleibt oberhalb aller Panels, wird nicht mehr im Filter-Panel dupliziert; mobile Tool-Icons nutzen die volle Breite als gleichmaessiges Grid; Stat-Pillen toggeln Klassen-/Gruppenfilter.
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
-- App-Commit `a822beb Add MD hit statistics` wurde nach `origin/main` gepusht und produktiv deployed.
+- App-Commit `f4c450b Fix MD filter reset and stat toggles` wurde nach `origin/main` gepusht und produktiv deployed.
 
 ## Aktueller Git-Stand
 
 - Aktiver Branch: `main`
-- App-Deploy-Commit: `a822beb Add MD hit statistics`
+- App-Deploy-Commit: `f4c450b Fix MD filter reset and stat toggles`
 - Hotfix-Commits:
   - `ec94981` Fix MD mobile quick filters
   - `a822beb` Add MD hit statistics
+  - `529602a` Fix MD mobile toolbar width
+  - `9939763` Keep MD hit stats above panels
+  - `f4c450b` Fix MD filter reset and stat toggles
 - Relevante Dateien:
   - `app/components/dashboard.tsx`
   - `docs/cr/2026-07-10-md-mobile-toolbar-width.md`
   - `docs/cr/2026-07-10-md-mobile-quickfilter-hotfix.md`
   - `SESSION_HANDOFF.md`
-  - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; bei aktiven Filtern als `Treffer/Gesamt ohne Filter`.
-  - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `git diff --check` gruen.
+  - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; Stat-Pillen sind Filter-Toggles; Filter-Reset setzt Filter und Sortierung zurueck.
+  - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `npm run smoke:public` gruen.
 - Letzte relevante Commits:
-  - lokal ausstehend: MD mobile toolbar width follow-up
+  - `f4c450b` Fix MD filter reset and stat toggles
+  - `9939763` Keep MD hit stats above panels
+  - `529602a` Fix MD mobile toolbar width
   - `a822beb` Add MD hit statistics
   - `ec94981` Fix MD mobile quick filters
   - `82f23fc` Improve MD list controls
@@ -51,8 +55,8 @@ Stand: 2026-07-10 13:20 UTC
 ## Produktivstand / Deployments
 
 - Aktueller Production Deploy:
-  - Deployment: `dpl_2QMrawhtsHnoDETA83ctE3gBiATZ`
-  - URL: `https://s5-evo-portal-o0w113fdg-sebastiankroeker-2781s-projects.vercel.app`
+  - Deployment: `dpl_HHNMPv8mnGKWNy4wMy3waRNU6g1x`
+  - URL: `https://s5-evo-portal-8mx1h9stp-sebastiankroeker-2781s-projects.vercel.app`
   - Alias: `https://portal.s5evo.de`
   - Status: `READY`
 - Post-Deploy Smoke:
