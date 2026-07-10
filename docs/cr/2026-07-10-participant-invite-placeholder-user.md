@@ -146,16 +146,16 @@ After replacing a participant through the Orga replacement flow and sending a pa
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
+- Deployment ID: `s5-evo-portal-95qui8pv1`
+- Deployment URL: `https://s5-evo-portal-95qui8pv1-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at:
+- Deployed at: 2026-07-10 19:03 UTC
 
 ## Post-Deploy Smoke
 
-- Routes checked:
-- API checks:
-- Result:
+- Routes checked: `/`, `/login`, `/anmeldung`, `/aenderungen`
+- API checks: `/api/competition`, `/api/results`, `/api/teams`, `/api/admin/pending-changes`
+- Result: `npm run smoke:public` passed against `https://portal.s5evo.de`.
 
 ## Follow-Ups
 
