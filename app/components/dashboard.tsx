@@ -2854,6 +2854,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     },
   ].filter(Boolean) as Array<{ key: QuickFilterKey; icon: ReactNode; label: string; count: number }>;
   const quickActiveCount = quickFilterRows.filter((row) => getQuickFilterMode(row.key) !== "neutral").length;
+  const toolbarCounterBadgeClass = "pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center border-2 border-background px-1 text-[10px] shadow-sm";
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -3060,7 +3061,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   onClick={() => setViewMode(option.value)}
                   className={`h-8 rounded px-3 text-xs font-medium transition-colors ${
                     viewMode === option.value
-                      ? "bg-background text-foreground shadow-sm"
+                      ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
                   }`}
                   aria-pressed={viewMode === option.value}
@@ -3100,7 +3101,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <SlidersHorizontal className="size-3.5" />
                 </Button>
                 {quickActiveCount > 0 && (
-                  <Badge className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[10px]" variant="secondary">
+                  <Badge className={toolbarCounterBadgeClass} variant="default">
                     {quickActiveCount}
                   </Badge>
                 )}
@@ -3124,7 +3125,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <SlidersHorizontal className="size-3.5" />
                 </Button>
                 {activeFilterCount > 0 && (
-                  <Badge className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[10px]" variant={filtersOpen ? "secondary" : "default"}>
+                  <Badge className={toolbarCounterBadgeClass} variant="default">
                     {activeFilterCount}
                   </Badge>
                 )}
@@ -3167,7 +3168,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   <ClipboardList className="size-3.5" />
                 </Button>
                 {selectedLayoutDirty && (
-                  <Badge className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[10px]" variant="secondary">
+                  <Badge className={toolbarCounterBadgeClass} variant="default">
                     !
                   </Badge>
                 )}
