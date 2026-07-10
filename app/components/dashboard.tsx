@@ -3176,6 +3176,33 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             </div>
           </div>
 
+          {!filtersOpen && (
+            <div
+              className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap border-t border-border/50 pt-2"
+              aria-label="Trefferstatistik"
+            >
+              {teamHitStats.map((stat) => {
+                const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
+                const title = hasActiveFilters
+                  ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
+                  : `${stat.label}: ${stat.total} Treffer`;
+
+                return (
+                  <Badge
+                    key={stat.key}
+                    variant={stat.variant}
+                    className="h-6 shrink-0 gap-1 px-2 text-[10px] leading-none"
+                    title={title}
+                  >
+                    <span className="hidden sm:inline">{stat.label}</span>
+                    <span className="sm:hidden">{stat.shortLabel}</span>
+                    <span className="font-semibold tabular-nums">{valueLabel}</span>
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+
           {quickFilterMenuOpen && (
             <div className="rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-sm">
               <div className="flex items-center justify-between gap-2 px-2 py-1">
@@ -3232,33 +3259,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {!filtersOpen && (
-            <div
-              className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap border-t border-border/50 pt-2"
-              aria-label="Trefferstatistik"
-            >
-              {teamHitStats.map((stat) => {
-                const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
-                const title = hasActiveFilters
-                  ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
-                  : `${stat.label}: ${stat.total} Treffer`;
-
-                return (
-                  <Badge
-                    key={stat.key}
-                    variant={stat.variant}
-                    className="h-6 shrink-0 gap-1 px-2 text-[10px] leading-none"
-                    title={title}
-                  >
-                    <span className="hidden sm:inline">{stat.label}</span>
-                    <span className="sm:hidden">{stat.shortLabel}</span>
-                    <span className="font-semibold tabular-nums">{valueLabel}</span>
-                  </Badge>
-                );
-              })}
             </div>
           )}
 
