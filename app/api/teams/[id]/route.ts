@@ -27,7 +27,12 @@ import {
   toParticipantSnapshot,
 } from '@/lib/participant-change';
 import { validatePendingChangeBundle } from '@/lib/participant-change-bundle';
-import { createParticipantClaimInvitation, shouldInviteParticipantClaim } from '@/lib/participant-claim-invitation';
+import {
+  createParticipantClaimInvitation,
+  getParticipantClaimTokenStatus,
+  getParticipantEmailInvitationStatus,
+  shouldInviteParticipantClaim,
+} from '@/lib/participant-claim-invitation';
 import {
   canViewerSeeFullPublication,
   resolveVisibleParticipantName,
@@ -195,6 +200,13 @@ type SerializableParticipant = {
   birthYear: number | null;
   birthDate?: string | null;
   userId?: string | null;
+  portalAccount?: {
+    id: string;
+    email: string;
+    name?: string | null;
+    authentikSub?: string | null;
+  } | null;
+  hasPlaceholderUser?: boolean;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   moderationNote?: string | null;
   email?: string | null;
@@ -204,6 +216,13 @@ type SerializableParticipant = {
   isTeamManager?: boolean;
   canBeTeamManager?: boolean;
   pendingChanges?: SerializedPendingChange[];
+  claimTokens?: Array<{
+    id: string;
+    createdAt: Date;
+    expiresAt: Date;
+    claimedAt?: Date | null;
+    revokedAt?: Date | null;
+  }>;
 };
 
 type SerializableTeam = {
@@ -238,6 +257,19 @@ type SerializableTeam = {
   } | null;
 };
 
+const teamParticipantInclude = {
+  pendingChanges: {
+    orderBy: { updatedAt: 'desc' as const },
+    take: 1,
+    select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true },
+  },
+  claimTokens: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+    select: { id: true, createdAt: true, expiresAt: true, claimedAt: true, revokedAt: true },
+  },
+} satisfies Prisma.ParticipantInclude;
+
 function serializeParticipant(
   participant: SerializableParticipant | null | undefined,
   options?: {
@@ -252,6 +284,7 @@ function serializeParticipant(
   if (!participant) return null;
   const canSeeFullPublication = options?.canSeeFullPublication !== false;
   const latestChange = Array.isArray(participant.pendingChanges) ? participant.pendingChanges[0] : null;
+  const latestClaimToken = Array.isArray(participant.claimTokens) ? participant.claimTokens[0] : null;
   const canSeeSensitiveParticipantFields = options?.canSeeSensitiveParticipantFields === true;
   const normalizedParticipantEmail = participant.email ? normalizeEmail(participant.email) : null;
   const normalizedCurrentUserEmail = options?.currentUserEmail ? normalizeEmail(options.currentUserEmail) : null;
@@ -276,6 +309,30 @@ function serializeParticipant(
     moderationNote: canSeeFullPublication ? participant.moderationNote ?? "" : "",
     email: canSeeSensitiveParticipantFields ? participant.email ?? "" : "",
     linkedUserId: canSeeSensitiveParticipantFields ? participant.userId ?? null : null,
+    portalAccount: canSeeSensitiveParticipantFields && participant.portalAccount?.authentikSub
+      ? {
+          id: participant.portalAccount.id,
+          email: participant.portalAccount.email,
+          name: participant.portalAccount.name ?? null,
+        }
+      : null,
+    hasPlaceholderUser: canSeeSensitiveParticipantFields
+      ? Boolean(participant.portalAccount && !participant.portalAccount.authentikSub)
+      : false,
+    emailInvitation: canSeeSensitiveParticipantFields
+      ? {
+          status: getParticipantEmailInvitationStatus({
+            email: participant.email,
+            participantUserId: participant.userId,
+            token: latestClaimToken,
+          }),
+          tokenStatus: getParticipantClaimTokenStatus(latestClaimToken),
+          sentAt: latestClaimToken?.createdAt?.toISOString?.() ?? null,
+          expiresAt: latestClaimToken?.expiresAt?.toISOString?.() ?? null,
+          claimedAt: latestClaimToken?.claimedAt?.toISOString?.() ?? null,
+          revokedAt: latestClaimToken?.revokedAt?.toISOString?.() ?? null,
+        }
+      : null,
     participantPublicationPreference: participant.participantPublicationPreference ?? "NAME_VERBERGEN",
     discipline: participant.disciplineCode ?? "TBD",
     marketplaceReturnDisciplineCode: participant.marketplaceReturnDisciplineCode ?? null,
@@ -397,6 +454,41 @@ function serializeTeam(
   };
 }
 
+async function attachParticipantPortalAccounts(team: SerializableTeam | null): Promise<SerializableTeam | null> {
+  if (!team?.participants?.length) {
+    return team;
+  }
+
+  const participantEmails = Array.from(
+    new Set(
+      team.participants
+        .map((participant) => normalizeEmail(participant.email))
+        .filter((email): email is string => Boolean(email)),
+    ),
+  );
+
+  if (participantEmails.length === 0) {
+    return team;
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      email: { in: participantEmails, mode: "insensitive" },
+    },
+    select: { id: true, email: true, name: true, authentikSub: true },
+  });
+  const usersByEmail = new Map(users.map((user) => [normalizeEmail(user.email), user]));
+
+  return {
+    ...team,
+    participants: team.participants.map((participant) => ({
+      ...participant,
+      portalAccount: usersByEmail.get(normalizeEmail(participant.email)) ?? null,
+    })),
+  };
+}
+
 // GET einzelnes Team
 export async function GET(
   request: NextRequest,
@@ -423,13 +515,7 @@ export async function GET(
           participants: {
             where: { deletedAt: null },
             orderBy: { createdAt: 'asc' },
-            include: {
-              pendingChanges: {
-                orderBy: { updatedAt: 'desc' },
-                take: 1,
-                select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
-              }
-            }
+            include: teamParticipantInclude,
           },
           owner: { select: { email: true, name: true, authentikSub: true } },
           registrationClaimTokens: {
@@ -535,8 +621,10 @@ export async function GET(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
+      const teamWithParticipantAccounts = await attachParticipantPortalAccounts(team);
+
       return NextResponse.json({
-        team: serializeTeam(team, {
+        team: serializeTeam(teamWithParticipantAccounts, {
           currentUserId: user?.id ?? null,
           currentUserEmail: normalizedUserEmail,
           canSeeFullPublication,
@@ -577,13 +665,7 @@ export async function PATCH(
         participants: {
           where: { deletedAt: null },
           orderBy: { createdAt: 'asc' },
-          include: {
-            pendingChanges: {
-              orderBy: { updatedAt: 'desc' },
-              take: 1,
-              select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
-            }
-          },
+          include: teamParticipantInclude,
         },
         owner: { select: { email: true, name: true, authentikSub: true } },
         registrationClaimTokens: {
@@ -689,13 +771,7 @@ export async function PATCH(
           participants: {
             where: { deletedAt: null },
             orderBy: { createdAt: 'asc' },
-            include: {
-              pendingChanges: {
-                orderBy: { updatedAt: 'desc' },
-                take: 1,
-                select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
-              }
-            },
+            include: teamParticipantInclude,
           },
           owner: { select: { email: true, name: true, authentikSub: true } },
           registrationClaimTokens: {
@@ -742,8 +818,10 @@ export async function PATCH(
       return updated;
     });
 
+    const updatedTeamWithParticipantAccounts = await attachParticipantPortalAccounts(updatedTeam);
+
     return NextResponse.json({
-      team: serializeTeam(updatedTeam, {
+      team: serializeTeam(updatedTeamWithParticipantAccounts, {
         currentUserId: user?.id ?? null,
         currentUserEmail: normalizeEmail(userEmail),
         canSeeFullPublication: true,
@@ -795,13 +873,7 @@ export async function PUT(
           participants: {
             where: { deletedAt: null },
             orderBy: { createdAt: 'asc' },
-            include: {
-              pendingChanges: {
-                orderBy: { updatedAt: 'desc' },
-                take: 1,
-                select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true }
-              }
-            }
+            include: teamParticipantInclude,
           },
           owner: { select: { email: true, name: true, authentikSub: true } },
           registrationClaimTokens: {
@@ -1357,13 +1429,7 @@ export async function PUT(
           participants: {
               where: { deletedAt: null },
               orderBy: { createdAt: 'asc' },
-              include: {
-                pendingChanges: {
-                  orderBy: { updatedAt: 'desc' },
-                  take: 1,
-                  select: { id: true, status: true, updatedAt: true, reviewedAt: true, reviewComment: true },
-                },
-              },
+              include: teamParticipantInclude,
             },
             owner: { select: { email: true, name: true, authentikSub: true } },
             registrationClaimTokens: {
@@ -1389,6 +1455,7 @@ export async function PUT(
         if (!refreshedTeam) {
           return NextResponse.json({ error: 'Team not found' }, { status: 404 });
         }
+        const refreshedTeamWithParticipantAccounts = await attachParticipantPortalAccounts(refreshedTeam);
 
         if (createdRequests === 0 && updatedRequests === 0) {
           return NextResponse.json({
@@ -1400,7 +1467,7 @@ export async function PUT(
                 : 'Keine Aenderungen erkannt',
             classificationWarnings: requestedTeamState.classificationWarnings,
             participantClaimMails: participantClaimMailResults,
-            team: serializeTeam(refreshedTeam, {
+            team: serializeTeam(refreshedTeamWithParticipantAccounts, {
               currentUserId: user?.id ?? null,
               currentUserEmail: normalizedUserEmail,
               canEditAllTeams: access.canEditAllTeams,
@@ -1421,7 +1488,7 @@ export async function PUT(
           classificationWarnings: requestedTeamState.classificationWarnings,
           pendingCount: createdRequests + updatedRequests,
           participantClaimMails: participantClaimMailResults,
-          team: serializeTeam(refreshedTeam, {
+          team: serializeTeam(refreshedTeamWithParticipantAccounts, {
             currentUserId: user?.id ?? null,
             currentUserEmail: normalizedUserEmail,
             canEditAllTeams: access.canEditAllTeams,
@@ -1810,7 +1877,7 @@ export async function PUT(
       const updatedTeam = await prisma.team.findFirst({
         where: { id, deletedAt: null },
         include: {
-          participants: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+          participants: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' }, include: teamParticipantInclude },
           owner: { select: { email: true, name: true, authentikSub: true } },
           registrationClaimTokens: {
             orderBy: { createdAt: 'desc' },
@@ -1835,6 +1902,7 @@ export async function PUT(
       if (!updatedTeam) {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
+      const updatedTeamWithParticipantAccounts = await attachParticipantPortalAccounts(updatedTeam);
 
       const invitationStatuses = participantClaimMailResults.map((result) =>
         result && typeof result === "object" && "status" in result ? result.status : null,
@@ -1853,7 +1921,7 @@ export async function PUT(
         message: `Team "${finalTeamName}" erfolgreich aktualisiert!${invitationMessage} Klasse: ${autoCategory}`,
         classificationWarnings: requestedTeamState.classificationWarnings,
         participantClaimMails: participantClaimMailResults,
-        team: serializeTeam(updatedTeam, {
+        team: serializeTeam(updatedTeamWithParticipantAccounts, {
           currentUserId: user?.id ?? null,
           currentUserEmail: normalizedUserEmail,
           canEditAllTeams: access.canEditAllTeams,

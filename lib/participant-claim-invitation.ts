@@ -89,6 +89,57 @@ export function shouldInviteParticipantClaim(input: {
   return normalizeEmail(input.previousEmail) !== nextEmail;
 }
 
+async function ensureParticipantInvitationPlaceholderUser(
+  prismaClient: Prisma.TransactionClient | typeof prisma,
+  input: { email: string; name?: string | null },
+) {
+  const existingUser = await prismaClient.user.findFirst({
+    where: {
+      email: {
+        equals: input.email,
+        mode: "insensitive",
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (existingUser) {
+    return { status: "existing" as const, userId: existingUser.id, authentikSub: existingUser.authentikSub };
+  }
+
+  try {
+    const createdUser = await prismaClient.user.create({
+      data: {
+        email: input.email,
+        name: input.name || null,
+        authentikSub: null,
+      },
+    });
+
+    return { status: "created" as const, userId: createdUser.id, authentikSub: createdUser.authentikSub };
+  } catch (error) {
+    const racedUser = await prismaClient.user.findFirst({
+      where: {
+        email: {
+          equals: input.email,
+          mode: "insensitive",
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (racedUser) {
+      return { status: "existing" as const, userId: racedUser.id, authentikSub: racedUser.authentikSub };
+    }
+
+    console.warn("Participant invitation placeholder user could not be created", {
+      email: input.email,
+      error,
+    });
+    return { status: "skipped" as const, userId: null, authentikSub: null };
+  }
+}
+
 export async function createParticipantClaimInvitation({
   request,
   participant,
@@ -103,6 +154,11 @@ export async function createParticipantClaimInvitation({
   if (!participantEmail || participant.userId) {
     return { status: "skipped" as const, reason: !participantEmail ? "missing_email" : "participant_already_linked" };
   }
+  const participantName = `${participant.firstName} ${participant.lastName}`.trim();
+  const placeholderUser = await ensureParticipantInvitationPlaceholderUser(prismaClient, {
+    email: participantEmail,
+    name: participantName || null,
+  });
 
   const claimToken = createRegistrationClaimToken({
     mode: competition.claimTokenExpiryMode || "COMPETITION_END",
@@ -155,7 +211,7 @@ export async function createParticipantClaimInvitation({
       participantId: participant.id,
       tokenHash: claimToken.tokenHash,
       suggestedEmail: participantEmail,
-      suggestedName: `${participant.firstName} ${participant.lastName}`.trim() || null,
+      suggestedName: participantName || null,
       expiresAt: claimToken.expiresAt,
     },
   });
@@ -174,7 +230,7 @@ export async function createParticipantClaimInvitation({
 
   const orgReplyTo = resolveRegistrationNotificationEmail(competition)[0] || competition.tenant?.contactEmail || null;
   const mailResult = await sendParticipantClaimEmail({
-    participantName: `${participant.firstName} ${participant.lastName}`.trim(),
+    participantName,
     participantEmail,
     teamName: team.name,
     competitionName: competition.name,
@@ -183,5 +239,11 @@ export async function createParticipantClaimInvitation({
     orgReplyTo,
   });
 
-  return { status: mailResult.status, tokenId: createdToken.id, email: participantEmail, expiresAt: createdToken.expiresAt };
+  return {
+    status: mailResult.status,
+    tokenId: createdToken.id,
+    email: participantEmail,
+    expiresAt: createdToken.expiresAt,
+    placeholderUser,
+  };
 }

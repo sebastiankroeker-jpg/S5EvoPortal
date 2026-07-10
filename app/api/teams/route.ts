@@ -92,6 +92,7 @@ type SerializableParticipant = {
     name?: string | null;
     authentikSub?: string | null;
   } | null;
+  hasPlaceholderUser?: boolean;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
   moderationNote?: string | null;
   email?: string | null;
@@ -189,6 +190,9 @@ function serializeParticipant(
           name: participant.portalAccount.name ?? null,
         }
       : null,
+    hasPlaceholderUser: canSeeSensitiveParticipantFields
+      ? Boolean(participant.portalAccount && !participant.portalAccount.authentikSub)
+      : false,
     emailInvitation: canSeeSensitiveParticipantFields
       ? {
           status: getParticipantEmailInvitationStatus({
@@ -590,7 +594,6 @@ export async function GET(request: NextRequest) {
             ? await prisma.user.findMany({
                 where: {
                   deletedAt: null,
-                  authentikSub: { not: null },
                   email: { in: participantEmails, mode: "insensitive" },
                 },
                 select: { id: true, email: true, name: true, authentikSub: true },

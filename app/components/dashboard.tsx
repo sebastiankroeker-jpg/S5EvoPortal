@@ -137,6 +137,7 @@ interface Participant {
   email?: string | null;
   linkedUserId?: string | null;
   portalAccount?: { id: string; email?: string | null; name?: string | null } | null;
+  hasPlaceholderUser?: boolean;
   emailInvitation?: EmailInvitationStatus | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN";
   isCurrentUserParticipant?: boolean;
@@ -641,7 +642,7 @@ function getParticipantLinkMeta(team: Team, participant: Participant) {
     hasEmail: Boolean(participant.email),
     hasEntityLink: Boolean(participant.linkedUserId || participant.emailInvitation?.status === "linked"),
     hasPortalAccount: Boolean(participant.portalAccount || emailMatchesPortalOwner),
-    hasPlaceholderUser: emailMatchesPlaceholderOwner,
+    hasPlaceholderUser: Boolean(participant.hasPlaceholderUser || emailMatchesPlaceholderOwner),
     claimStatus: participant.emailInvitation?.status || (participant.email ? "none" : "missing_email"),
   });
 }
@@ -5887,6 +5888,7 @@ function EditTeamModal({
 
       updateParticipantInviteState(index, {
         email: participant.email,
+        hasPlaceholderUser: data.participantClaimMail?.placeholderUser?.authentikSub === null,
         emailInvitation: {
           status: "active",
           sentAt: new Date().toISOString(),
@@ -6067,10 +6069,17 @@ function EditTeamModal({
                 const emailInvitationMeta = getEmailInvitationMeta(
                   effectiveEmailInvitationStatus || (participant.email ? "none" : "missing_email"),
                 );
+                const canResendInvitationForMissingPlaceholder =
+                  participant.emailInvitation?.status === "active" &&
+                  !participant.linkedUserId &&
+                  !participant.portalAccount &&
+                  !participant.hasPlaceholderUser;
                 const canSendInvitation =
                   Boolean(participant.id) &&
                   isValidEmail(participant.email || "") &&
-                  (emailDiffersFromSaved || !["active", "claimed", "linked"].includes(participant.emailInvitation?.status || "none"));
+                  (emailDiffersFromSaved ||
+                    canResendInvitationForMissingPlaceholder ||
+                    !["active", "claimed", "linked"].includes(participant.emailInvitation?.status || "none"));
                 const inviteMessage = inviteMessages[index];
                 const managerMessage = managerMessages[index];
                 const originalParticipant = team.participants?.[index];
@@ -6340,7 +6349,11 @@ function EditTeamModal({
                           className="h-8"
                         >
                           <Send className="size-4" />
-                          {sendingInvitationIndex === index ? "Sendet..." : "Einladung senden"}
+                          {sendingInvitationIndex === index
+                            ? "Sendet..."
+                            : canResendInvitationForMissingPlaceholder
+                              ? "Einladung erneut senden"
+                              : "Einladung senden"}
                         </Button>
                       ) : null}
                     </div>
