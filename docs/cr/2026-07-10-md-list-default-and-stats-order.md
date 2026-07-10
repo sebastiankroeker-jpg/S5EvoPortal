@@ -74,16 +74,23 @@ Sebastian requested two final cosmetic changes after the participant replacement
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_GrR8AGcTBx5eLXUMHN44cgU4WyPV`
+- Deployment URL: `https://s5-evo-portal-ihc1jsrnt-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-10 18:40 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public`
+  - `GET /sportlerboerse-dashboard`
 - API checks:
+  - `/api/competition`: 200
+  - `/api/results`: 200
+  - `/api/teams`: 401 without session, expected
+  - `/api/admin/pending-changes`: 401 without session, expected
 - Result:
+  - Passed. `/sportlerboerse-dashboard` returned 200 on production alias.
 
 ## Follow-Ups
 

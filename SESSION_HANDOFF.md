@@ -1,6 +1,24 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 18:20 UTC
+Stand: 2026-07-10 18:41 UTC
+
+## Aktueller Nachtrag: MD List Default And Stats Order
+
+- App-Commit `d524352 Tweak MD list defaults and stats order` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_GrR8AGcTBx5eLXUMHN44cgU4WyPV`
+- Deployment URL: `https://s5-evo-portal-ihc1jsrnt-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-10-md-list-default-and-stats-order.md`
+- Geaendert:
+  - Default-/Legacy-LocalStorage-Listenlayout entfernt die Sammelspalte `participants`/`Mitglieder`; Zeilen bleiben dadurch niedriger.
+  - Die Spalte bleibt manuell ueber das Spaltenpanel waehlbar und gespeicherte Layouts bleiben unveraendert.
+  - Trefferstatistik steht jetzt oberhalb der Zeile mit Ansicht/Suche/Filter/Layout-Buttons.
+- Checks:
+  - `npx tsc --noEmit` gruen
+  - `npm run lint` gruen, nur bestehende 11 Warnungen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/sportlerboerse-dashboard`: 200
 
 ## Aktueller Nachtrag: Participant Replacement Flow
 
