@@ -16,6 +16,7 @@ Sebastian sent a mobile production screenshot showing the MD Schnellfilter popov
   - Keep the quick-filter control compact in the MD control strip.
   - Render the opened quick-filter controls as a full-width inline tool area on mobile and desktop.
   - Close other tool panels when quick filters open, and close quick filters when other tool panels open.
+  - Add a compact hit-statistics row with current/total counts for overall, Damen, Herren, and each class.
 - Out of scope:
   - Changing quick-filter semantics.
   - DB/API changes.
@@ -44,6 +45,8 @@ Sebastian sent a mobile production screenshot showing the MD Schnellfilter popov
 - Schnellfilter no longer clips outside the mobile viewport.
 - Schnellfilter rows remain readable and tappable on narrow screens.
 - Opening Schnellfilter does not leave Filter, Spalten, or Layout panels open at the same time.
+- MD shows compact hit statistics for current filters versus the unfiltered dashboard base.
+- Damen/Herren totals are grouped from the existing class keys without new data model fields.
 - Existing filter behavior remains unchanged.
 
 ## Implementation Handoff
@@ -60,6 +63,7 @@ Sebastian sent a mobile production screenshot showing the MD Schnellfilter popov
 - Expected implementation steps:
   - Move Schnellfilter panel rendering out of the icon container.
   - Keep mode buttons compact and tappable.
+  - Add a narrow, horizontally scrollable hit-statistics row under the control strip.
   - Run TypeScript and build.
 - Required checks:
   - `npx tsc --noEmit`
@@ -92,12 +96,14 @@ Sebastian sent a mobile production screenshot showing the MD Schnellfilter popov
   - Removed the icon-anchored absolute quick-filter popover that could overflow narrow screens.
   - Added an inline quick-filter panel under the MD control strip.
   - Made tool panels mutually exclusive.
+  - Added a compact Trefferstatistik row: `Gesamt`, `Damen`, `Herren`, and class chips show current hits; when filters are active they show `current/without-filter`.
+  - Damen totals use `damen-a` + `damen-b`; Herren totals use `jungsters` + `herren` + `masters`.
 
 ## Verification
 
 - Local checks: `npx tsc --noEmit` green; `git diff --check` green.
 - Build: `npm run build` green.
-- Targeted verification: dashboard control-strip TypeScript/build coverage; reviewed mobile clipping cause in `app/components/dashboard.tsx`.
+- Targeted verification: dashboard control-strip and Trefferstatistik TypeScript/build coverage; reviewed mobile clipping cause and compact stats placement in `app/components/dashboard.tsx`.
 - Manual smoke: pending production deploy.
 
 ## Deploy

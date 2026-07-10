@@ -245,6 +245,8 @@ const TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY = "s5evo.dashboard.visibleColumns";
 const TEAM_DASHBOARD_PREFERENCES_STORAGE_PREFIX = "s5evo.dashboard.preferences.v1";
 const TEAM_DASHBOARD_SELECTED_LAYOUT_STORAGE_PREFIX = "s5evo.dashboard.selectedLayout.v1";
 const QUICK_FILTER_KEYS: QuickFilterKey[] = ["mine", "needsReview", "marketplace", "mtc", "openSlots"];
+const DAMEN_CATEGORY_KEYS = new Set(["damen-a", "damen-b"]);
+const HERREN_CATEGORY_KEYS = new Set(["jungsters", "herren", "masters"]);
 const EMPTY_QUICK_EXCLUDES: Record<QuickFilterKey, boolean> = {
   mine: false,
   needsReview: false,
@@ -2551,11 +2553,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     });
   }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceKindFilter, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, openMtcSlotsOnly, quickFilterExcludes, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin, canEditAll]);
 
-  const categories = [...new Set(teams.map(t => t.category))].sort(compareClassificationCodes);
+  const statisticBaseTeams = marketplaceFocus ? teams.filter((team) => team.registrationMode === "MARKETPLACE") : teams;
+  const categories = [...new Set(statisticBaseTeams.map(t => t.category))].sort(compareClassificationCodes);
   const ownerOptions = [...new Set(teams.map((t) => t.ownerEmail || t.contactEmail).filter(Boolean))] as string[];
   const categoryStats = categories.map(cat => ({
     category: cat,
-    count: teams.filter(t => t.category === cat).length
+    count: statisticBaseTeams.filter(t => t.category === cat).length
   }));
   const sortedTeams = useMemo(() => {
     const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
@@ -2722,6 +2725,44 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     isAdmin && createdFrom !== "",
     isAdmin && createdTo !== "",
   ].filter(Boolean).length;
+  const teamHitStats = [
+    {
+      key: "total",
+      label: "Gesamt",
+      shortLabel: "Ges.",
+      current: filteredTeams.length,
+      total: statisticBaseTeams.length,
+      variant: "default" as const,
+    },
+    {
+      key: "damen",
+      label: "Damen",
+      shortLabel: "D",
+      current: filteredTeams.filter((team) => DAMEN_CATEGORY_KEYS.has(team.category)).length,
+      total: statisticBaseTeams.filter((team) => DAMEN_CATEGORY_KEYS.has(team.category)).length,
+      variant: "secondary" as const,
+    },
+    {
+      key: "herren",
+      label: "Herren",
+      shortLabel: "H",
+      current: filteredTeams.filter((team) => HERREN_CATEGORY_KEYS.has(team.category)).length,
+      total: statisticBaseTeams.filter((team) => HERREN_CATEGORY_KEYS.has(team.category)).length,
+      variant: "secondary" as const,
+    },
+    ...categoryStats.map((cat) => {
+      const meta = getCategoryMeta(cat.category);
+
+      return {
+        key: `category-${cat.category}`,
+        label: meta.label || cat.category,
+        shortLabel: cat.category === "sportlerboerse" ? "Börse" : meta.icon,
+        current: filteredTeams.filter((team) => team.category === cat.category).length,
+        total: cat.count,
+        variant: "outline" as const,
+      };
+    }),
+  ].filter((entry) => entry.total > 0 || entry.current > 0);
   const canEditOwn = can("team.edit.own");
   const maxCreatedDateTime = formatDateTimeLocalInput(new Date());
 
@@ -3183,6 +3224,31 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               </div>
             </div>
           )}
+
+          <div
+            className="flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/50 pt-2 whitespace-nowrap"
+            aria-label="Trefferstatistik"
+          >
+            {teamHitStats.map((stat) => {
+              const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
+              const title = hasActiveFilters
+                ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
+                : `${stat.label}: ${stat.total} Treffer`;
+
+              return (
+                <Badge
+                  key={stat.key}
+                  variant={stat.variant}
+                  className="h-6 shrink-0 gap-1 px-2 text-[10px] leading-none"
+                  title={title}
+                >
+                  <span className="hidden sm:inline">{stat.label}</span>
+                  <span className="sm:hidden">{stat.shortLabel}</span>
+                  <span className="font-semibold tabular-nums">{valueLabel}</span>
+                </Badge>
+              );
+            })}
+          </div>
 
           {(hasActiveFilters || selectedLayout || selectedLayoutDirty || quickActiveCount > 0) && (
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
