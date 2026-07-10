@@ -36,6 +36,7 @@ export async function PATCH(
     const responseBody: Record<string, unknown> = { error: result.error };
     if ("blockingErrors" in result) responseBody.blockingErrors = result.blockingErrors;
     if ("disciplineWarnings" in result) responseBody.disciplineWarnings = result.disciplineWarnings;
+    if ("identityChanges" in result) responseBody.identityChanges = result.identityChanges;
     return jsonNoStore(responseBody, { status: result.status });
   }
 

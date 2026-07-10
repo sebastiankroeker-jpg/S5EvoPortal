@@ -46,6 +46,10 @@ function normalizeText(value: unknown) {
   return typeof value === "string" ? value.normalize("NFC").trim() : "";
 }
 
+function normalizeComparableText(value: unknown) {
+  return normalizeText(value).toLocaleLowerCase("de-DE");
+}
+
 function mapGender(value: unknown): "MALE" | "FEMALE" {
   return value === "W" || value === "FEMALE" ? "FEMALE" : "MALE";
 }
@@ -76,6 +80,24 @@ function hasParticipantIdentity(input: Pick<MtcParticipantInput, "firstName" | "
     normalizeText(input.lastName).length >= 2 &&
     extractBirthYearFromInput(normalizeText(input.birthDate)) !== null,
   );
+}
+
+function getParticipantDisplayName(input: Pick<MtcParticipantInput, "firstName" | "lastName">) {
+  const name = `${normalizeText(input.firstName)} ${normalizeText(input.lastName)}`.trim();
+  return name || "Offener Slot";
+}
+
+function hasSuspiciousParticipantIdentityChange(
+  current: Pick<MtcParticipantInput, "firstName" | "lastName" | "birthDate">,
+  original: Pick<MtcParticipantInput, "firstName" | "lastName" | "birthDate">,
+) {
+  const firstNameChanged = normalizeComparableText(current.firstName) !== normalizeComparableText(original.firstName);
+  const lastNameChanged = normalizeComparableText(current.lastName) !== normalizeComparableText(original.lastName);
+  const currentBirthYear = extractBirthYearFromInput(normalizeText(current.birthDate));
+  const originalBirthYear = extractBirthYearFromInput(normalizeText(original.birthDate));
+  const birthYearChanged = currentBirthYear !== originalBirthYear;
+
+  return (firstNameChanged && lastNameChanged) || ((firstNameChanged || lastNameChanged) && birthYearChanged);
 }
 
 function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousToken>>["token"]) {
@@ -242,6 +264,7 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
   const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const participants = Array.isArray(payload.participants) ? (payload.participants as MtcParticipantInput[]) : [];
   const existingParticipants = new Map(token.team.participants.map((participant) => [participant.id, participant]));
+  const confirmIdentityChange = payload.confirmIdentityChange === true;
 
   if (participants.length !== 5) {
     return { error: "Es muessen genau die 5 MTC-Slots bearbeitet werden.", status: 400 };
@@ -275,6 +298,32 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
   const contactName = normalizeText(payload.contactName) || token.team.contactName || "";
   const contactEmail = normalizeText(payload.contactEmail) || token.team.contactEmail || "";
   const contactPhone = normalizeText(payload.contactPhone) || token.team.contactPhone || "";
+
+  const suspiciousIdentityChanges = draftParticipants
+    .map((participant) => ({
+      participant,
+      original: isNewSlotId(participant.id) ? null : existingParticipants.get(participant.id),
+    }))
+    .filter(({ participant, original }) => {
+      if (!original) return false;
+      return hasSuspiciousParticipantIdentityChange(participant, {
+        firstName: original.firstName,
+        lastName: original.lastName,
+        birthDate: storedBirthDateToInput(original.birthDate, original.birthYear),
+      });
+    });
+
+  if (suspiciousIdentityChanges.length > 0 && !confirmIdentityChange) {
+    return {
+      error: "MTC-Teilnehmerdaten sehen nach Personenwechsel aus. Bitte bestaetige explizit, dass es Korrekturen sind.",
+      status: 409,
+      identityChanges: suspiciousIdentityChanges.slice(0, 5).map(({ participant, original }) => ({
+        participantId: original?.id,
+        beforeName: original ? getParticipantDisplayName(original) : "Teilnehmer",
+        afterName: getParticipantDisplayName(participant),
+      })),
+    };
+  }
 
   if (!contactPhone) {
     return { error: "Telefonnummer ist fuer MTC-Entwuerfe erforderlich.", status: 400 };

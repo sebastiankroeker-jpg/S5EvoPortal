@@ -14,6 +14,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 
 - In scope:
   - Make the participant edit dialog clearer when a participant has identity anchors such as a linked portal account or pending changes.
+  - Apply the same correction-vs-replacement guardrail to team edit and anonymous MTC edit paths.
   - Rename the existing linked-account action so it no longer claims to create a true participant replacement.
   - Warn before saving suspicious identity-field changes on anchored participants.
 - Out of scope:
@@ -26,6 +27,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 - User/API/admin flows touched:
   - Admin/team participant edit dialog.
   - Team edit modal with all participant rows.
+  - Anonymous MTC edit link (`/mtc-anonym/[token]`).
   - Linked participant account reset action text.
 - Data model impact:
   - None.
@@ -39,9 +41,10 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 - Proposed data model:
   - No schema changes.
 - Proposed API shape:
-  - No API changes.
+  - `/api/mtc-anonym/[token]` PATCH accepts `confirmIdentityChange: true` for explicitly confirmed suspicious existing-slot identity edits.
 - Backward compatibility:
   - Existing `/api/participants/:id`, `/api/teams/:id`, and `/api/admin/claim-links` behavior remains unchanged.
+  - Anonymous MTC PATCH accepts `confirmIdentityChange: true` when a suspicious existing-slot identity edit was explicitly confirmed.
 - Migration/data backfill:
   - None.
 
@@ -57,13 +60,17 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 - Linked participants clearly show that saving keeps the same participant ID.
 - The existing linked-account action no longer says "Teilnehmer ersetzen".
 - If name and birth-year changes look like a person swap, the user sees a warning and must confirm that it is a correction.
-- No API or database behavior changes.
+- No database behavior changes.
+- Anonymous MTC edits cannot silently overwrite existing MTC participant identity fields without explicit confirmation.
 
 ## Implementation Handoff
 
 - Relevant files:
   - `app/components/dashboard.tsx`
+  - `app/mtc-anonym/[token]/page.tsx`
+  - `app/api/mtc-anonym/[token]/route.ts`
   - `app/components/participant-edit-dialog.tsx`
+  - `lib/mtc-anonymous-access.ts`
   - `docs/cr/2026-07-10-participant-identity-guardrails.md`
 - Current decisions:
   - UI guardrails only for MVP.
@@ -79,6 +86,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
   - Add stable ID warning panel.
   - Rename linked-account reset button and messages.
   - Add suspicious identity-change confirmation before save.
+  - Add anonymous MTC confirmation and server-side guard for suspicious existing-slot identity changes.
 - Required checks:
   - `npx tsc --noEmit`
   - `npm run verify:participant-edit-flow`
@@ -105,7 +113,10 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
 
 - Files changed:
   - `app/components/dashboard.tsx`
+  - `app/mtc-anonym/[token]/page.tsx`
+  - `app/api/mtc-anonym/[token]/route.ts`
   - `app/components/participant-edit-dialog.tsx`
+  - `lib/mtc-anonymous-access.ts`
   - `docs/cr/2026-07-10-participant-identity-guardrails.md`
 - Important decisions during implementation:
   - Existing account reset behavior remains unchanged: it only clears/reissues portal linkage for the same participant ID.
@@ -113,6 +124,7 @@ Participant data can be corrected, but `participants.id` remains stable on edit.
   - The inline copy presents the operator decision explicitly: correction in this dialog, other person through the replacement flow.
   - Suspicious identity-field edits stay possible after explicit confirmation so real typo corrections are not blocked.
   - Follow-up hotfix after live check: the same guardrails now also run in the full team edit modal, not only in the participant single-edit dialog.
+  - Follow-up MTC extension: anonymous MTC editing now shows the same stable-ID hint for existing slots and the API rejects suspicious identity changes unless the client sends explicit confirmation.
 
 ## Verification
 

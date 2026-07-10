@@ -10,7 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DISCIPLINES, DISCIPLINE_PLACEHOLDER, formatBirthDateInput, resolveBirthDateInputKey } from "@/lib/domain/team";
+import {
+  DISCIPLINES,
+  DISCIPLINE_PLACEHOLDER,
+  extractBirthYearFromInput,
+  formatBirthDateInput,
+  resolveBirthDateInputKey,
+} from "@/lib/domain/team";
 
 type MtcAnonymousParticipant = {
   id: string;
@@ -63,6 +69,35 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString("de-DE");
 }
 
+function normalizeComparableText(value?: string | null) {
+  return (value || "").normalize("NFC").trim().toLocaleLowerCase("de-DE");
+}
+
+function formatParticipantIdentityId(id?: string | null) {
+  if (!id || id.startsWith("new:")) return "neu";
+  return id.slice(0, 8);
+}
+
+function getParticipantDisplayName(participant?: Pick<MtcAnonymousParticipant, "firstName" | "lastName"> | null) {
+  const name = `${participant?.firstName || ""} ${participant?.lastName || ""}`.trim();
+  return name || "Offener Slot";
+}
+
+function hasSuspiciousParticipantIdentityChange(
+  current?: MtcAnonymousParticipant | null,
+  original?: MtcAnonymousParticipant | null,
+) {
+  if (!current || !original || original.id.startsWith("new:")) return false;
+
+  const firstNameChanged = normalizeComparableText(current.firstName) !== normalizeComparableText(original.firstName);
+  const lastNameChanged = normalizeComparableText(current.lastName) !== normalizeComparableText(original.lastName);
+  const currentBirthYear = extractBirthYearFromInput(current.birthDate || "");
+  const originalBirthYear = extractBirthYearFromInput(original.birthDate || "");
+  const birthYearChanged = currentBirthYear !== originalBirthYear;
+
+  return (firstNameChanged && lastNameChanged) || ((firstNameChanged || lastNameChanged) && birthYearChanged);
+}
+
 export default function MtcAnonymousPage() {
   const params = useParams<{ token: string }>();
   const token = Array.isArray(params?.token) ? params.token[0] : params?.token;
@@ -113,6 +148,31 @@ export default function MtcAnonymousPage() {
 
   const saveDraft = async () => {
     if (!token) return;
+    const suspiciousIdentityChanges = participants
+      .map((participant) => ({
+        participant,
+        original: data?.team.participants.find((originalParticipant) => originalParticipant.id === participant.id),
+      }))
+      .filter(({ participant, original }) => hasSuspiciousParticipantIdentityChange(participant, original));
+
+    let confirmIdentityChange = false;
+    if (suspiciousIdentityChanges.length > 0) {
+      const changedParticipants = suspiciousIdentityChanges
+        .slice(0, 3)
+        .map(({ participant, original }) => {
+          const beforeName = getParticipantDisplayName(original);
+          const afterName = getParticipantDisplayName(participant);
+          return `#${formatParticipantIdentityId(original?.id)} ${beforeName} -> ${afterName}`;
+        })
+        .join("\n");
+      const additionalChanges =
+        suspiciousIdentityChanges.length > 3 ? `\n... und ${suspiciousIdentityChanges.length - 3} weitere` : "";
+      confirmIdentityChange = window.confirm(
+        `Du änderst Identitätsfelder bestehender MTC-Teilnehmer:\n\n${changedParticipants}${additionalChanges}\n\nBeim Speichern bleiben dieselben Teilnehmer-IDs erhalten. Bitte nur fortfahren, wenn das Korrekturen sind und keine anderen Personen in die Slots sollen.`,
+      );
+      if (!confirmIdentityChange) return;
+    }
+
     setSaving(true);
     setError("");
     setSavedAt(null);
@@ -121,7 +181,7 @@ export default function MtcAnonymousPage() {
       const response = await fetch(`/api/mtc-anonym/${token}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamName, contactName, contactEmail, contactPhone, participants }),
+        body: JSON.stringify({ teamName, contactName, contactEmail, contactPhone, participants, confirmIdentityChange }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "MTC konnte nicht gespeichert werden");
@@ -220,7 +280,12 @@ export default function MtcAnonymousPage() {
             ) : null}
 
             <div className="grid gap-3">
-              {participants.map((participant, index) => (
+              {participants.map((participant, index) => {
+                const originalParticipant = data.team.participants.find((entry) => entry.id === participant.id);
+                const isExistingParticipant = Boolean(originalParticipant && !participant.id.startsWith("new:"));
+                const suspiciousIdentityChange = hasSuspiciousParticipantIdentityChange(participant, originalParticipant);
+
+                return (
                 <Card key={participant.id} size="sm">
                   <CardHeader>
                     <CardTitle className="flex flex-wrap items-center gap-2">
@@ -323,6 +388,30 @@ export default function MtcAnonymousPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {isExistingParticipant ? (
+                      <div
+                        className={`rounded-md border px-3 py-2 text-xs md:col-span-6 ${
+                          suspiciousIdentityChange
+                            ? "border-amber-200 bg-amber-50 text-amber-800"
+                            : "border-sky-200 bg-sky-50 text-sky-800"
+                        }`}
+                      >
+                        <p className="font-medium">
+                          Teilnehmer-ID #{formatParticipantIdentityId(participant.id)} bleibt beim Speichern erhalten
+                        </p>
+                        <p>
+                          <span className="font-medium">Korrektur:</span> hier speichern, gleiche Teilnehmer-ID bleibt.
+                        </p>
+                        <p>
+                          <span className="font-medium">Andere Person:</span> diesen Slot nicht überschreiben, sondern durch die Orga ersetzen lassen.
+                        </p>
+                        {suspiciousIdentityChange ? (
+                          <p className="mt-1 font-medium">
+                            Die Änderung sieht nach Personenwechsel aus. Speichere nur, wenn es eine Korrektur ist.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="space-y-1.5 md:col-span-6">
                       <label className="text-xs font-medium text-muted-foreground">Hinweis</label>
                       <Textarea
@@ -333,7 +422,8 @@ export default function MtcAnonymousPage() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex justify-end border-t border-border/60 pt-4">
