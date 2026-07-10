@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 15:21 UTC
+Stand: 2026-07-10 15:41 UTC
 
 ## Read First: Scope-Guard / Domaenenkanon
 
@@ -21,14 +21,13 @@ Stand: 2026-07-10 15:21 UTC
 - Live-Route sortiert Klassen in Teams, Startlisten und Ergebnissen einheitlich: SA, SB, J, DA, DB, HA, HB, HC.
 - Startnummern wurden erfolgreich von Teilnehmer-Ebene auf Mannschaft-Ebene umgestellt.
 - Umstellung wurde kontrolliert in sicherer Reihenfolge durchgezogen: Code -> Deploy -> DB-Migration -> Smoke.
-- App-Commit `06e204e Refine MD toolbar toggle colors` wurde nach `origin/main` gepusht und produktiv deployed.
-- MD-Follow-up ist produktiv: redundante Statuspillen unter den Trefferstatistik-Pillen sind entfernt, normale Teams zeigen in der Listenansicht unter dem Namen keine `x / 5 Teilnehmer:innen`-Stats mehr, Toolbar-Button-/Counter-Farben sind panel-spezifisch nachgezogen.
-- Lokaler Follow-up ist umgesetzt, geprueft und noch nicht deployed: Listensortierung nach Klasse nutzt jetzt die Standard-Reihenfolge SA, SB, J, DA, DB, HA, HB, HC; Layout-Toolbar-Button und Badge sind fuer offen/ausgewaehltes/geaendertes Layout konsistent.
+- App-Commit `eb1cbff Polish MD class sort and layout badge` wurde nach `origin/main` gepusht und produktiv deployed.
+- MD-Follow-up ist produktiv: redundante Statuspillen unter den Trefferstatistik-Pillen sind entfernt, normale Teams zeigen in der Listenansicht unter dem Namen keine `x / 5 Teilnehmer:innen`-Stats mehr, Toolbar-Button-/Counter-Farben sind panel-spezifisch nachgezogen, Listensortierung nach Klasse nutzt die Standard-Reihenfolge SA, SB, J, DA, DB, HA, HB, HC, Layout-Toolbar-Button/Badge sind konsistent.
 
 ## Aktueller Git-Stand
 
 - Aktiver Branch: `main`
-- App-Deploy-Commit: `06e204e Refine MD toolbar toggle colors`
+- App-Deploy-Commit: `eb1cbff Polish MD class sort and layout badge`
 - Hotfix-Commits:
   - `ec94981` Fix MD mobile quick filters
   - `a822beb` Add MD hit statistics
@@ -37,6 +36,7 @@ Stand: 2026-07-10 15:21 UTC
   - `f4c450b` Fix MD filter reset and stat toggles
   - `13f1953` Polish MD toolbar active states
   - `06e204e` Refine MD toolbar toggle colors
+  - `eb1cbff` Polish MD class sort and layout badge
 - Relevante Dateien:
   - `app/components/dashboard.tsx`
   - `docs/cr/2026-07-10-md-mobile-toolbar-width.md`
@@ -46,6 +46,7 @@ Stand: 2026-07-10 15:21 UTC
   - Inhalt: kompakte Trefferstatistik unter dem MD-Control-Strip mit Gesamt, Damen, Herren und Klassen; Stat-Pillen sind Filter-Toggles; Filter-Reset setzt Filter und Sortierung zurueck; Kachel/Liste und Toolbar-Counter zeigen aktive Zustaende farbig an.
   - Checks: `npx tsc --noEmit` gruen, `npm run build` gruen, `npm run smoke:public` gruen.
 - Letzte relevante Commits:
+  - `eb1cbff` Polish MD class sort and layout badge
   - `06e204e` Refine MD toolbar toggle colors
   - `13f1953` Polish MD toolbar active states
   - `f4c450b` Fix MD filter reset and stat toggles
@@ -72,6 +73,7 @@ Stand: 2026-07-10 15:21 UTC
   - Layout-Button ist primary bei offenem Panel, ausgewaehltem Layout oder Dirty-State.
   - Layout-Badge zeigt `1` fuer ausgewaehltes Layout, `!` fuer ungespeicherte Layout-Aenderungen und `•` wenn das Layout-Panel ohne ausgewaehltes Layout offen ist; Badge-Farbe wechselt wie bei den anderen Toolbar-Panels nach offen/geschlossen.
   - Checks: `eslint app/components/dashboard.tsx` gruen, `npx tsc --noEmit` gruen, `npm run lint` gruen mit bestehenden Warnungen, `npm run build` gruen.
+  - Deploy: `dpl_J1U8rthSjLQ8tG2P4Jddsjgithkv`, Alias `https://portal.s5evo.de`, Smoke gruen.
 - Nachkorrektur 14:41 UTC:
   - Filter-Button nutzt wieder die direkte Regel `filtersOpen || activeFilterCount > 0`.
   - `activeFilterCount` zaehlt keine reinen Schnellfilter-Excludes mehr.
@@ -82,8 +84,8 @@ Stand: 2026-07-10 15:21 UTC
 ## Produktivstand / Deployments
 
 - Aktueller Production Deploy:
-  - Deployment: `dpl_E7aJRq6hMD9HzvbtFvVjEXMNAKXW`
-  - URL: `https://s5-evo-portal-i2xtn26fo-sebastiankroeker-2781s-projects.vercel.app`
+  - Deployment: `dpl_J1U8rthSjLQ8tG2P4Jddsjgithkv`
+  - URL: `https://s5-evo-portal-7sh5rcngt-sebastiankroeker-2781s-projects.vercel.app`
   - Alias: `https://portal.s5evo.de`
   - Status: `READY`
 - Post-Deploy Smoke:

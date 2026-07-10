@@ -113,6 +113,10 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
 - Follow-up deployment URL: `https://s5-evo-portal-i2xtn26fo-sebastiankroeker-2781s-projects.vercel.app`
 - Follow-up app commit: `06e204e Refine MD toolbar toggle colors`
 - Follow-up deployed at: 2026-07-10 14:47 UTC
+- Class/layout polish deployment ID: `dpl_J1U8rthSjLQ8tG2P4Jddsjgithkv`
+- Class/layout polish deployment URL: `https://s5-evo-portal-7sh5rcngt-sebastiankroeker-2781s-projects.vercel.app`
+- Class/layout polish app commit: `eb1cbff Polish MD class sort and layout badge`
+- Class/layout polish deployed at: 2026-07-10 15:41 UTC
 
 ## Post-Deploy Smoke
 
@@ -129,6 +133,7 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
   - `/api/admin/pending-changes` without session -> 401 expected
 - Result: `npm run smoke:public` passed against `https://portal.s5evo.de`.
 - Follow-up result: `npm run smoke:public` passed against `https://portal.s5evo.de` after `06e204e`.
+- Class/layout polish result: `npm run smoke:public` passed against `https://portal.s5evo.de` after `eb1cbff`.
 
 ## Follow-Ups
 
@@ -170,4 +175,8 @@ Sebastian reported two cosmetic issues in the mobile Mannschaften dashboard:
   - `npx tsc --noEmit` passed.
   - `npm run lint` passed with existing warnings only.
   - `npm run build` passed.
-- Deploy status: pending Sebastian approval.
+- Deploy verification:
+  - Deployment `dpl_J1U8rthSjLQ8tG2P4Jddsjgithkv` reached `READY`.
+  - `https://portal.s5evo.de/sportlerboerse-dashboard` returned 200.
+  - `npm run smoke:public` passed against `https://portal.s5evo.de`.
+- Deploy status: deployed with app commit `eb1cbff`.
