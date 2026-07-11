@@ -1,6 +1,29 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 09:08 UTC
+Stand: 2026-07-11 11:57 UTC
+
+## Aktueller Nachtrag: Reusable Dashboard Control Strip
+
+- App-Commit `851fb59 Add reusable dashboard control strip` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_AQ213NzUxueW2wd7tUbW6FWaiftf`
+- Deployment URL: `https://s5-evo-portal-ero9di4ob-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-reusable-dashboard-control-strip.md`
+- Geaendert:
+  - neue Shared-UI-Bausteine fuer Suche, Stats, Toolbar, Toolbar-Buttons und aufklappbare Panels
+  - Teilnehmer-Dashboard nutzt jetzt dasselbe `Suche -> Stats -> Toolbar -> Panels`-Muster wie das Mannschafts-Dashboard
+  - Aenderungs-Dashboard nutzt jetzt denselben Control-Strip mit klickbaren Status-/Update-Pillen
+  - Benutzer-Dashboard ist strukturell auf denselben Strip gehoben und hat jetzt konsistente Suche, Stats, Toolbar und Filterpanel
+  - Panel-Icons sind nur im offenen Zustand aktiv eingefaerbt; geschlossene Panels zeigen Aktivitaet ueber Badge/Count
+- Checks:
+  - `pnpm exec eslint app/components/dashboard-controls.tsx app/components/participant-list.tsx app/components/approval-queue.tsx app/components/user-management.tsx` mit 2 bestehenden Hook-Warnungen, keine neuen Errors
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/admin`: 200
+  - `/teilnehmer`: 200
+  - `/aenderungen`: 200
 
 ## Aktueller Nachtrag: MD Stats Row And Filter Icon State
 

@@ -101,29 +101,66 @@ Use before model switch or subagent delegation.
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/dashboard-controls.tsx`
+  - `app/components/participant-list.tsx`
+  - `app/components/approval-queue.tsx`
+  - `app/components/user-management.tsx`
+  - `docs/cr/2026-07-11-reusable-dashboard-control-strip.md`
 - Important decisions during implementation:
+  - Shared UI wurde bewusst klein gehalten: SearchField, StatsRow, Toolbar, ToolbarButton, Panel, Card-Shell.
+  - Fachliche Filter-States und Backend-Fetching bleiben in den einzelnen Dashboards lokal.
+  - Teilnehmer- und Aenderungs-Dashboard nutzen klickbare Stats-Pillen fuer relevante Status-/Quickfilter.
+  - Benutzer-Dashboard wurde strukturell auf denselben Strip gehoben, bleibt fachlich aber einfacher mit einem einzelnen Filterpanel.
 
 ## Verification
 
 - Local checks:
+- `pnpm exec eslint app/components/dashboard-controls.tsx app/components/participant-list.tsx app/components/approval-queue.tsx app/components/user-management.tsx` mit 2 bestehenden Hook-Warnungen, keine neuen Errors
+- `npx tsc --noEmit` gruen
+- `git diff --check` gruen
 - Build:
+- `npm run build` gruen
 - Targeted verification:
+- `/admin`: 200
+- `/teilnehmer`: 200
+- `/aenderungen`: 200
 - Manual smoke:
+- `npm run smoke:public` gruen gegen `https://portal.s5evo.de`
+- `/`: 200
+- `/login`: 200
+- `/anmeldung`: 200
+- `/aenderungen`: 200
+- `/api/competition`: 200
+- `/api/results`: 200
+- `/api/teams` ohne Session: 401 (erwartet)
+- `/api/admin/pending-changes` ohne Session: 401 (erwartet)
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_AQ213NzUxueW2wd7tUbW6FWaiftf`
+- Deployment URL: `https://s5-evo-portal-ero9di4ob-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-11 11:57 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/`
+  - `/login`
+  - `/anmeldung`
+  - `/aenderungen`
+  - `/admin`
+  - `/teilnehmer`
 - API checks:
+  - `/api/competition`
+  - `/api/results`
+  - `/api/teams` ohne Session
+  - `/api/admin/pending-changes` ohne Session
 - Result:
+  - gruen
 
 ## Follow-Ups
 
 - optional spaeter: Saved-Layout-/Quickfilter-Module weiter generalisieren
+- optional spaeter: die beiden bestehenden Hook-Warnungen in `participant-list.tsx` und `approval-queue.tsx` gezielt bereinigen
