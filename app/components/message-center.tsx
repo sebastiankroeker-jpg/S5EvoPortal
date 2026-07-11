@@ -427,7 +427,7 @@ export default function MessageCenter() {
       )}
 
       <div className={cn("grid gap-4", sidebarOpen ? "lg:grid-cols-[minmax(280px,360px)_1fr]" : "lg:grid-cols-[72px_1fr]")}>
-        <Card className={cn("overflow-hidden transition-all", !sidebarOpen && "min-h-[520px]")}>
+        <Card className={cn("overflow-hidden transition-all", !sidebarOpen && "lg:min-h-[520px]")}>
           {sidebarOpen ? (
             <>
               <CardHeader className="space-y-3 p-3">
@@ -514,14 +514,14 @@ export default function MessageCenter() {
               </CardContent>
             </>
           ) : (
-            <CardContent className="flex min-h-[520px] flex-col items-center gap-3 p-3">
+            <CardContent className="flex min-h-0 items-center justify-between gap-3 p-3 lg:min-h-[520px] lg:flex-col lg:justify-start">
               <Button type="button" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)} aria-label="Threadliste aufklappen">
                 <PanelLeftOpen className="h-4 w-4" />
               </Button>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
                 <Inbox className="h-4 w-4" />
               </div>
-              <div className="text-center text-xs font-medium text-muted-foreground [writing-mode:vertical-rl]">
+              <div className="min-w-0 flex-1 text-right text-xs font-medium text-muted-foreground lg:flex-none lg:text-center lg:[writing-mode:vertical-rl]">
                 {filteredConversations.length} Threads
               </div>
             </CardContent>
