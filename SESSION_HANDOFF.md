@@ -1,6 +1,38 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 17:44 UTC
+Stand: 2026-07-11 19:15 UTC
+
+## Aktueller Nachtrag: Message Center Sidebar And Sender Mode
+
+- App-/Schema-Commit `35beb6f Add message center sidebar and sender modes` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_9aBg7wpVUKNdaDn33uK9cXSsWptF`
+- Deployment URL: `https://s5-evo-portal-68ko3rr7l-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- Migration: `20260711190500_add_message_sender_display_mode` wurde per `npx prisma migrate deploy` erfolgreich angewendet.
+- CR: `docs/cr/2026-07-11-message-center-sidebar-and-sender-mode.md`
+- Geaendert:
+  - Nachrichtencenter nutzt jetzt links ein einklappbares Thread-Panel mit chronologisch nach letzter Aktivitaet sortierten Betreffen.
+  - Admins schalten im Nachrichtencenter zwischen `Mein Postfach` und `Admin-Postfach` um.
+  - Admins koennen beim Admin-Compose und bei Antworten zwischen `Orga-Postfach` und `Persoenlich` waehlen.
+  - Neuer Message-Feldwert `senderDisplayMode` speichert die Anzeige als `PERSONAL` oder `ORG`.
+  - `ORG` wird im Verlauf und Mail-Hinweis als `Admin-Team` angezeigt; die echte `senderId` bleibt fuer Audit/Technik erhalten.
+- Checks:
+  - `npx prisma generate` gruen
+  - `npx prisma validate` gruen
+  - targeted `pnpm exec eslint ...` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npx prisma migrate status` gruen / schema up to date
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `/admin`: 200
+  - `/api/messages/conversations` ohne Session: 401
+  - `/api/messages/unread-count` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+- Follow-up:
+  - Authenticated Real-Smoke: als Admin Postfach wechseln, als `Orga-Postfach` und `Persoenlich` senden, als Zielkonto Senderlabel und Unread-Badge pruefen.
+  - Spaeter separater Performance-CR fuer Pagination, schlanke Threadlisten, Lazy-Loading und DB-seitige Unread-Counts.
 
 ## Aktueller Nachtrag: Owner Status Consistency Follow-Up
 
