@@ -1,6 +1,32 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 16:54 UTC
+Stand: 2026-07-11 17:31 UTC
+
+## Aktueller Nachtrag: Status Dialog Admin Message Hotfix
+
+- App-Commit `86fcaeb Add admin message action to status dialog` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_AGj5R1cCRYrJcVD6yp6Zy5UX134w`
+- Deployment URL: `https://s5-evo-portal-ces016epu-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-status-dialog-admin-message-hotfix.md`
+- Geaendert:
+  - Statusdialog-Zielzeilen fuer `User` und `Claim` nutzen jetzt theme-faehige Kontrastklassen und bleiben im dunklen Theme lesbar.
+  - Owner- und Teilnehmer-Statusdialoge zeigen fuer Admin-Kontexte bei vorhandener Portal-User-ID die Aktion `Nachricht schreiben`.
+  - Das Nachrichtencenter kann per `/nachrichten?mode=admin&targetUserId=...` eine Admin-Nachricht an eine Zielperson vorbereiten.
+  - Neuer geschuetzter Endpoint `POST /api/messages/admin-conversations` erstellt Admin-started Support-Threads an konkrete Portal-User.
+  - Admin-started Threads bleiben im generischen `SUPPORT`-Modell, starten mit Status `WAITING_FOR_USER` und senden Mail-Hinweise ohne Nachrichtentext.
+- Checks:
+  - `pnpm exec eslint app/components/account-link-status-dialog.tsx app/components/dashboard.tsx app/components/message-center.tsx app/api/messages/admin-conversations/route.ts lib/admin-routing.ts` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `/admin`: 200
+  - `/sportlerboerse-dashboard`: 200
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+- Follow-up:
+  - Authenticated Real-Smoke: als Admin im Teilnehmer-/Owner-Statusdialog `Nachricht schreiben` oeffnen, Nachricht senden, als Zielperson Unread-Badge und Thread pruefen.
 
 ## Aktueller Nachtrag: Messaging Navigation And Unread Badge
 

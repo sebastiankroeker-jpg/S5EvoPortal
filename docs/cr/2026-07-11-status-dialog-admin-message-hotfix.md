@@ -1,6 +1,6 @@
 # CR: Status Dialog Admin Message Hotfix
 
-Status: Draft
+Status: Deployed
 Date: 2026-07-11
 Type: hotfix
 Risk: low
@@ -104,28 +104,59 @@ Im Statusdialog fuer Teilnehmer oder Owner ist der Kontrast einzelner Ziel-Kache
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/account-link-status-dialog.tsx`
+  - `app/components/dashboard.tsx`
+  - `app/components/message-center.tsx`
+  - `app/api/messages/admin-conversations/route.ts`
+  - `lib/admin-routing.ts`
 - Important decisions during implementation:
+  - Die hellen Zielkacheln wurden durch semantische, dark-mode-faehige Farbklassen ersetzt.
+  - `Nachricht schreiben` erscheint nur fuer Admin-UI-Kontexte und nur bei vorhandener Portal-User-ID.
+  - Admin-started Threads verwenden weiterhin `SUPPORT`, setzen initial `WAITING_FOR_USER` und benachrichtigen die Zielperson ohne Nachrichtentext per Mail.
+  - Der neue Endpoint validiert Admin/Moderator, Tenant und optionalen Team-/Teilnehmerkontext vor Conversation-Erstellung.
 
 ## Verification
 
 - Local checks:
+  - `pnpm exec eslint app/components/account-link-status-dialog.tsx app/components/dashboard.tsx app/components/message-center.tsx app/api/messages/admin-conversations/route.ts lib/admin-routing.ts` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
 - Build:
+  - `npm run build` gruen
 - Targeted verification:
+  - Vercel build listet `/api/messages/admin-conversations` und `/nachrichten`.
 - Manual smoke:
+  - `/nachrichten`: 200
+  - `/api/messages/admin-conversations` ohne Session: 401
+  - `/admin`: 200
+  - `/sportlerboerse-dashboard`: 200
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_AGj5R1cCRYrJcVD6yp6Zy5UX134w`
+- Deployment URL: `https://s5-evo-portal-ces016epu-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-11 17:30 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/`
+  - `/login`
+  - `/anmeldung`
+  - `/aenderungen`
+  - `/nachrichten`
+  - `/admin`
+  - `/sportlerboerse-dashboard`
 - API checks:
+  - `/api/competition`: 200
+  - `/api/results`: 200
+  - `/api/teams` ohne Session: 401
+  - `/api/admin/pending-changes` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
 - Result:
+  - Gruen.
 
 ## Follow-Ups
 
