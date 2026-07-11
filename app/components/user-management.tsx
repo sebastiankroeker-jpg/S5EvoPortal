@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AccountLinkStatusDialog, { AccountLinkStatusIcon } from "./account-link-status-dialog";
 import {
   DashboardControlsCard,
@@ -90,6 +91,11 @@ interface UsersResponse {
   users: UserEntry[];
 }
 
+type UserRoleFilter = "all" | "admin" | "moderator" | "teamManager";
+type UserMailFilter = "all" | "hasEmail" | "missingEmail";
+type UserLinkFilter = "all" | "linked" | "portal_account" | "invitation_open" | "placeholder_user" | "needs_attention";
+type UserSortField = "nameAsc" | "lastSeenDesc" | "createdDesc" | "teamCountDesc";
+
 const ALL_ROLES = ["ADMIN", "MODERATOR", "TEILNEHMER"] as const;
 const ONLINE_WINDOW_MS = 3 * 60 * 1000;
 const RECENT_ACTIVITY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -99,6 +105,7 @@ const ROLE_INFO: Record<string, { icon: string; label: string; color: string; de
   TEAMCHEF: { icon: "📋", label: "Teamchef:in", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", desc: "Eigene Teams" },
   TEILNEHMER: { icon: "🏃", label: "Teilnehmer:in", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300", desc: "Eigene Daten" },
 };
+const USER_LINK_ATTENTION_STATUSES = new Set<AccountLinkStatusMeta["status"]>(["missing_email", "no_invitation", "expired", "revoked"]);
 
 function formatCreatedAt(value: string) {
   const date = new Date(value);
@@ -241,6 +248,10 @@ function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][
   });
 }
 
+function getUserLinkStatusSet(user: UserEntry) {
+  return new Set(user.teamScopes.map((team) => getTeamScopeAccountMeta(user, team).status));
+}
+
 function UserTeamScopeStatusDialog({ user, team }: { user: UserEntry; team: UserEntry["teamScopes"][number] }) {
   const meta = getTeamScopeAccountMeta(user, team);
   const isMtc = isMtcScope(team);
@@ -283,6 +294,10 @@ export default function UserManagement() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [onlineOnly, setOnlineOnly] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<UserRoleFilter>("all");
+  const [mailFilter, setMailFilter] = useState<UserMailFilter>("all");
+  const [linkFilter, setLinkFilter] = useState<UserLinkFilter>("all");
+  const [sortField, setSortField] = useState<UserSortField>("nameAsc");
   const [now, setNow] = useState(() => Date.now());
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -465,6 +480,40 @@ export default function UserManagement() {
         return false;
       }
 
+      if (roleFilter === "admin" && !user.roles.some((role) => role.role === "ADMIN")) {
+        return false;
+      }
+      if (roleFilter === "moderator" && !user.roles.some((role) => role.role === "MODERATOR")) {
+        return false;
+      }
+      if (roleFilter === "teamManager" && !(user.teamCount > 0 || user.roles.some((role) => role.role === "TEAMCHEF"))) {
+        return false;
+      }
+
+      if (mailFilter === "hasEmail" && !user.email.trim()) {
+        return false;
+      }
+      if (mailFilter === "missingEmail" && user.email.trim()) {
+        return false;
+      }
+
+      const linkStatuses = getUserLinkStatusSet(user);
+      if (linkFilter === "linked" && !linkStatuses.has("linked")) {
+        return false;
+      }
+      if (linkFilter === "portal_account" && !linkStatuses.has("portal_account")) {
+        return false;
+      }
+      if (linkFilter === "invitation_open" && !linkStatuses.has("invitation_open")) {
+        return false;
+      }
+      if (linkFilter === "placeholder_user" && !linkStatuses.has("placeholder_user")) {
+        return false;
+      }
+      if (linkFilter === "needs_attention" && !Array.from(linkStatuses).some((status) => USER_LINK_ATTENTION_STATUSES.has(status))) {
+        return false;
+      }
+
       if (!query) return true;
 
       const haystacks = [
@@ -475,7 +524,29 @@ export default function UserManagement() {
       ];
       return haystacks.some((value) => value.toLowerCase().includes(query));
     });
-  }, [now, onlineOnly, searchQuery, users]);
+  }, [linkFilter, mailFilter, now, onlineOnly, roleFilter, searchQuery, users]);
+
+  const visibleUsers = useMemo(() => {
+    const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+
+    return [...filteredUsers].sort((left, right) => {
+      if (sortField === "lastSeenDesc") {
+        const leftTime = left.lastSeenAt ? new Date(left.lastSeenAt).getTime() : Number.NEGATIVE_INFINITY;
+        const rightTime = right.lastSeenAt ? new Date(right.lastSeenAt).getTime() : Number.NEGATIVE_INFINITY;
+        return rightTime - leftTime || collator.compare(left.name || left.email, right.name || right.email);
+      }
+      if (sortField === "createdDesc") {
+        const leftTime = new Date(left.createdAt).getTime();
+        const rightTime = new Date(right.createdAt).getTime();
+        return rightTime - leftTime || collator.compare(left.name || left.email, right.name || right.email);
+      }
+      if (sortField === "teamCountDesc") {
+        return right.teamCount - left.teamCount || collator.compare(left.name || left.email, right.name || right.email);
+      }
+
+      return collator.compare(left.name || left.email, right.name || right.email);
+    });
+  }, [filteredUsers, sortField]);
 
   const stats = useMemo(() => {
     const summarize = (entries: UserEntry[]) => ({
@@ -492,12 +563,28 @@ export default function UserManagement() {
     };
   }, [filteredUsers, now, users]);
 
-  const hasActiveFilters = Boolean(searchQuery.trim() || onlineOnly);
-  const activeFilterCount = [searchQuery.trim() !== "", onlineOnly].filter(Boolean).length;
+  const hasActiveFilters = Boolean(searchQuery.trim() || onlineOnly || roleFilter !== "all" || mailFilter !== "all" || linkFilter !== "all" || sortField !== "nameAsc");
+  const activeFilterCount = [searchQuery.trim() !== "", onlineOnly, roleFilter !== "all", mailFilter !== "all", linkFilter !== "all", sortField !== "nameAsc"].filter(Boolean).length;
   const resetFilters = () => {
     setSearchQuery("");
     setOnlineOnly(false);
+    setRoleFilter("all");
+    setMailFilter("all");
+    setLinkFilter("all");
+    setSortField("nameAsc");
   };
+  const filterCounts = useMemo(() => ({
+    admins: users.filter((user) => user.roles.some((role) => role.role === "ADMIN")).length,
+    moderators: users.filter((user) => user.roles.some((role) => role.role === "MODERATOR")).length,
+    teamManagers: users.filter((user) => user.teamCount > 0 || user.roles.some((role) => role.role === "TEAMCHEF")).length,
+    hasEmail: users.filter((user) => user.email.trim()).length,
+    missingEmail: users.filter((user) => !user.email.trim()).length,
+    linked: users.filter((user) => getUserLinkStatusSet(user).has("linked")).length,
+    portalAccount: users.filter((user) => getUserLinkStatusSet(user).has("portal_account")).length,
+    invitationOpen: users.filter((user) => getUserLinkStatusSet(user).has("invitation_open")).length,
+    placeholderUser: users.filter((user) => getUserLinkStatusSet(user).has("placeholder_user")).length,
+    needsAttention: users.filter((user) => Array.from(getUserLinkStatusSet(user)).some((status) => USER_LINK_ATTENTION_STATUSES.has(status))).length,
+  }), [users]);
   const statsItems = [
     {
       key: "users",
@@ -524,6 +611,8 @@ export default function UserManagement() {
       value: stats.filtered.admins,
       total: stats.total.admins,
       tone: "outline" as const,
+      active: roleFilter === "admin",
+      onClick: () => setRoleFilter((current) => (current === "admin" ? "all" : "admin")),
     },
     {
       key: "moderators",
@@ -532,6 +621,8 @@ export default function UserManagement() {
       value: stats.filtered.moderators,
       total: stats.total.moderators,
       tone: "outline" as const,
+      active: roleFilter === "moderator",
+      onClick: () => setRoleFilter((current) => (current === "moderator" ? "all" : "moderator")),
     },
     {
       key: "teamManagers",
@@ -540,6 +631,8 @@ export default function UserManagement() {
       value: stats.filtered.teamManagers,
       total: stats.total.teamManagers,
       tone: "outline" as const,
+      active: roleFilter === "teamManager",
+      onClick: () => setRoleFilter((current) => (current === "teamManager" ? "all" : "teamManager")),
     },
   ];
 
@@ -604,16 +697,92 @@ export default function UserManagement() {
 
               {filtersOpen && (
                 <DashboardPanel className="mt-1">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={onlineOnly ? "default" : "outline"}
-                      className="h-8"
-                      onClick={() => setOnlineOnly((value) => !value)}
-                    >
-                      Online
-                    </Button>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Rolle</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant={roleFilter === "all" ? "default" : "outline"} onClick={() => setRoleFilter("all")}>
+                          Alle Rollen
+                        </Button>
+                        <Button type="button" size="sm" variant={roleFilter === "admin" ? "default" : "outline"} onClick={() => setRoleFilter("admin")}>
+                          Admins <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.admins}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={roleFilter === "moderator" ? "default" : "outline"} onClick={() => setRoleFilter("moderator")}>
+                          Moderatoren <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.moderators}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={roleFilter === "teamManager" ? "default" : "outline"} onClick={() => setRoleFilter("teamManager")}>
+                          Teamchef:innen <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.teamManagers}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Mail-Status</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant={mailFilter === "all" ? "default" : "outline"} onClick={() => setMailFilter("all")}>
+                          Alle
+                        </Button>
+                        <Button type="button" size="sm" variant={mailFilter === "hasEmail" ? "default" : "outline"} onClick={() => setMailFilter("hasEmail")}>
+                          mit E-Mail <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.hasEmail}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={mailFilter === "missingEmail" ? "default" : "outline"} onClick={() => setMailFilter("missingEmail")}>
+                          ohne E-Mail <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.missingEmail}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Portal-Verknüpfung</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant={linkFilter === "all" ? "default" : "outline"} onClick={() => setLinkFilter("all")}>
+                          Alle
+                        </Button>
+                        <Button type="button" size="sm" variant={linkFilter === "linked" ? "default" : "outline"} onClick={() => setLinkFilter("linked")}>
+                          Verknüpft <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.linked}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={linkFilter === "portal_account" ? "default" : "outline"} onClick={() => setLinkFilter("portal_account")}>
+                          Konto ohne Link <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.portalAccount}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={linkFilter === "invitation_open" ? "default" : "outline"} onClick={() => setLinkFilter("invitation_open")}>
+                          Einladung offen <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.invitationOpen}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={linkFilter === "placeholder_user" ? "default" : "outline"} onClick={() => setLinkFilter("placeholder_user")}>
+                          Placeholder <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.placeholderUser}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={linkFilter === "needs_attention" ? "default" : "outline"} onClick={() => setLinkFilter("needs_attention")}>
+                          Klärfall <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.needsAttention}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Sichtbarkeit</label>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={onlineOnly ? "default" : "outline"}
+                          className="h-8 w-full justify-start"
+                          onClick={() => setOnlineOnly((value) => !value)}
+                        >
+                          Nur online
+                        </Button>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Sortierung</label>
+                        <Select value={sortField} onValueChange={(value) => setSortField(value as UserSortField)}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="nameAsc">Name A-Z</SelectItem>
+                            <SelectItem value="lastSeenDesc">Zuletzt aktiv zuerst</SelectItem>
+                            <SelectItem value="createdDesc">Neueste Registrierung</SelectItem>
+                            <SelectItem value="teamCountDesc">Meiste Teams zuerst</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                 </DashboardPanel>
               )}
@@ -622,7 +791,7 @@ export default function UserManagement() {
         </CardHeader>
       </Card>
 
-      {filteredUsers.map((user) => {
+      {visibleUsers.map((user) => {
         const isCurrentUser = user.id === currentUserId;
         const isLastAdmin = adminCount === 1 && user.roles.some((role) => role.role === "ADMIN");
         const isDeleting = deletingUserId === user.id;
@@ -885,7 +1054,7 @@ export default function UserManagement() {
         );
       })}
 
-      {filteredUsers.length === 0 && (
+      {visibleUsers.length === 0 && (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             Keine Benutzer passend zur aktuellen Suche gefunden.
