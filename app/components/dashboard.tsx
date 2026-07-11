@@ -313,6 +313,7 @@ const DEFAULT_TEAM_LIST_VISIBLE_COLUMNS: TeamOptionalColumnKey[] = [
 type DashboardFilterPreferences = {
   searchQuery?: string;
   categoryFilter?: string;
+  categoryFilters?: string[];
   ownerFilter?: string;
   ownTeamsOnly?: boolean;
   incompleteOnly?: boolean;
@@ -895,6 +896,18 @@ function sanitizeStoredQuickFilterExcludes(value: unknown) {
   }, { ...EMPTY_QUICK_EXCLUDES });
 }
 
+function sanitizeStoredCategoryFilters(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const filters = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .filter((entry) => entry !== "all");
+
+  return [...new Set(filters)];
+}
+
 function sanitizeDashboardFilterPreferences(value: unknown): DashboardFilterPreferences | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -902,10 +915,12 @@ function sanitizeDashboardFilterPreferences(value: unknown): DashboardFilterPref
 
   const source = value as Record<string, unknown>;
   const quickFilterExcludes = sanitizeStoredQuickFilterExcludes(source.quickFilterExcludes);
+  const categoryFilters = sanitizeStoredCategoryFilters(source.categoryFilters);
   const preferences: DashboardFilterPreferences = {};
 
   if (typeof source.searchQuery === "string") preferences.searchQuery = source.searchQuery;
   if (typeof source.categoryFilter === "string") preferences.categoryFilter = source.categoryFilter;
+  if (categoryFilters) preferences.categoryFilters = categoryFilters;
   if (typeof source.ownerFilter === "string") preferences.ownerFilter = source.ownerFilter;
   if (typeof source.ownTeamsOnly === "boolean") preferences.ownTeamsOnly = source.ownTeamsOnly;
   if (typeof source.incompleteOnly === "boolean") preferences.incompleteOnly = source.incompleteOnly;
@@ -952,6 +967,10 @@ function getCategoryFilterKeys(value: string) {
   if (value === DAMEN_CATEGORY_FILTER_VALUE) return [...DAMEN_CATEGORY_KEYS];
   if (value === HERREN_CATEGORY_FILTER_VALUE) return [...HERREN_CATEGORY_KEYS];
   return value === "all" ? [] : [value];
+}
+
+function getCategoryFilterKeySet(values: string[]) {
+  return new Set(values.flatMap(getCategoryFilterKeys));
 }
 
 function InfoHint({ text }: { text: string }) {
@@ -1678,7 +1697,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
   const [ownTeamsOnly, setOwnTeamsOnly] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -1771,7 +1790,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     const preferences = getStoredDashboardFilterPreferences(preferenceStorageKey);
     if (preferences) {
       if (typeof preferences.searchQuery === "string") setSearchQuery(preferences.searchQuery);
-      if (typeof preferences.categoryFilter === "string") setCategoryFilter(preferences.categoryFilter);
+      if (preferences.categoryFilters) {
+        setCategoryFilters(preferences.categoryFilters);
+      } else if (typeof preferences.categoryFilter === "string") {
+        setCategoryFilters(preferences.categoryFilter === "all" ? [] : [preferences.categoryFilter]);
+      }
       if (showOwnerFilter && !initialOwnerFilter && typeof preferences.ownerFilter === "string") {
         setOwnerFilter(preferences.ownerFilter);
       }
@@ -1802,7 +1825,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
     const preferences: DashboardFilterPreferences = {
       searchQuery,
-      categoryFilter,
+      categoryFilter: categoryFilters[0] ?? "all",
+      categoryFilters,
       ownerFilter: showOwnerFilter ? ownerFilter : "all",
       ownTeamsOnly,
       incompleteOnly,
@@ -1821,7 +1845,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
     window.localStorage.setItem(preferenceStorageKey, JSON.stringify(preferences));
   }, [
-    categoryFilter,
+    categoryFilters,
     createdFrom,
     createdTo,
     incompleteOnly,
@@ -2533,12 +2557,12 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   // Filter and search logic
   const filteredTeams = useMemo(() => {
-    const selectedCategoryKeys = getCategoryFilterKeys(categoryFilter);
+    const selectedCategoryKeys = getCategoryFilterKeySet(categoryFilters);
 
     return teams.filter(team => {
       const capabilities = getTeamCapabilities(team, { canEditAll, canEditOwnTeam: team.canCurrentUserEdit });
       // Category filter
-      const matchesCategory = categoryFilter === "all" || selectedCategoryKeys.includes(team.category);
+      const matchesCategory = selectedCategoryKeys.size === 0 || selectedCategoryKeys.has(team.category);
       const matchesOwner =
         !showOwnerFilter ||
         ownerFilter === "all" ||
@@ -2596,7 +2620,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         matchesCreatedAt &&
         matchesSearch;
     });
-  }, [teams, categoryFilter, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceKindFilter, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, openMtcSlotsOnly, quickFilterExcludes, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin, canEditAll]);
+  }, [teams, categoryFilters, searchQuery, ownerFilter, ownTeamsOnly, incompleteOnly, marketplaceKindFilter, marketplaceStatusFilter, marketplaceVisibilityFilter, marketplacePublicationFilter, openMtcSlotsOnly, quickFilterExcludes, createdFrom, createdTo, showOwnerFilter, showAdminDashboardInfo, isAdmin, canEditAll]);
 
   const statisticBaseTeams = marketplaceFocus ? teams.filter((team) => team.registrationMode === "MARKETPLACE") : teams;
   const categories = [...new Set(statisticBaseTeams.map(t => t.category))].sort(compareClassificationCodes);
@@ -2743,7 +2767,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const quickExcludeCount = QUICK_FILTER_KEYS.filter((key) => quickFilterExcludes[key]).length;
   const hasActiveFilters =
     searchQuery !== "" ||
-    categoryFilter !== "all" ||
+    categoryFilters.length > 0 ||
     (showOwnerFilter && ownerFilter !== "all") ||
     ownTeamsOnly ||
     incompleteOnly ||
@@ -2759,7 +2783,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const hasResettableDashboardState = hasActiveFilters || hasCustomSort;
   const activeFilterCount = [
     searchQuery !== "",
-    categoryFilter !== "all",
+    categoryFilters.length > 0,
     showOwnerFilter && ownerFilter !== "all",
     ownTeamsOnly,
     incompleteOnly,
@@ -2896,7 +2920,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   const resetFilters = () => {
     setSearchQuery("");
-    setCategoryFilter("all");
+    setCategoryFilters([]);
     setOwnerFilter(showOwnerFilter ? (initialOwnerFilter || "all") : "all");
     setOwnTeamsOnly(false);
     setIncompleteOnly(false);
@@ -2913,7 +2937,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   };
 
   const toggleStatFilter = (filterValue: string) => {
-    setCategoryFilter((current) => (current === filterValue ? "all" : filterValue));
+    if (filterValue === "all") {
+      setCategoryFilters([]);
+      return;
+    }
+
+    setCategoryFilters((current) =>
+      current.includes(filterValue)
+        ? current.filter((entry) => entry !== filterValue)
+        : [...current, filterValue],
+    );
   };
 
   const handleHeaderSort = (field: TeamSortField) => {
@@ -3087,45 +3120,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
         <div className="space-y-2">
-          {!filtersOpen && (
-            <div
-              className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap"
-              aria-label="Trefferstatistik"
-            >
-              {teamHitStats.map((stat) => {
-                const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
-                const title = hasActiveFilters
-                  ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
-                  : `${stat.label}: ${stat.total} Treffer`;
-                const active = categoryFilter === stat.filterValue;
-                const inactiveClassName =
-                  stat.variant === "secondary"
-                    ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                    : stat.variant === "default"
-                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
-                      : "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
-
-                return (
-                  <button
-                    key={stat.key}
-                    type="button"
-                    className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
-                      active ? "border-primary bg-primary text-primary-foreground shadow-sm" : inactiveClassName
-                    }`}
-                    title={`${title} · Tippen zum Filtern`}
-                    aria-label={`${stat.label} filtern`}
-                    aria-pressed={active}
-                    onClick={() => toggleStatFilter(stat.filterValue)}
-                  >
-                    <span className="hidden sm:inline">{stat.label}</span>
-                    <span className="sm:hidden">{stat.shortLabel}</span>
-                    <span className="font-semibold tabular-nums">{valueLabel}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           <div className="grid gap-2 lg:grid-cols-[auto_minmax(16rem,1fr)_auto] lg:items-center">
             <div className="inline-flex w-fit rounded-md border border-border/60 bg-muted/20 p-0.5">
               {[
@@ -3276,6 +3270,43 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 <XCircle className="size-3.5" />
               </Button>
             </div>
+          </div>
+
+          <div
+            className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap"
+            aria-label="Trefferstatistik"
+          >
+            {teamHitStats.map((stat) => {
+              const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
+              const title = hasActiveFilters
+                ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
+                : `${stat.label}: ${stat.total} Treffer`;
+              const active = stat.filterValue === "all" ? categoryFilters.length === 0 : categoryFilters.includes(stat.filterValue);
+              const inactiveClassName =
+                stat.variant === "secondary"
+                  ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  : stat.variant === "default"
+                    ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+                    : "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
+
+              return (
+                <button
+                  key={stat.key}
+                  type="button"
+                  className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                    active ? "border-primary bg-primary text-primary-foreground shadow-sm" : inactiveClassName
+                  }`}
+                  title={`${title} · Tippen zum Filtern`}
+                  aria-label={`${stat.label} filtern`}
+                  aria-pressed={active}
+                  onClick={() => toggleStatFilter(stat.filterValue)}
+                >
+                  <span className="hidden sm:inline">{stat.label}</span>
+                  <span className="sm:hidden">{stat.shortLabel}</span>
+                  <span className="font-semibold tabular-nums">{valueLabel}</span>
+                </button>
+              );
+            })}
           </div>
 
           {quickFilterMenuOpen && (
@@ -3470,8 +3501,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
             {categories.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">Klassen-Pillen (setzt direkt den Filter)</p>
-                  <Button size="xs" variant={categoryFilter === "all" ? "default" : "outline"} onClick={() => setCategoryFilter("all")}>
+                  <p className="text-xs font-medium text-muted-foreground">Klassen</p>
+                  <Button size="xs" variant={categoryFilters.length === 0 ? "default" : "outline"} onClick={() => setCategoryFilters([])}>
                     Alle Klassen
                   </Button>
                 </div>
@@ -3480,8 +3511,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                     <Button
                       key={cat.category}
                       size="xs"
-                      variant={categoryFilter === cat.category ? "default" : "outline"}
-                      onClick={() => setCategoryFilter(cat.category)}
+                      variant={categoryFilters.includes(cat.category) ? "default" : "outline"}
+                      onClick={() => toggleStatFilter(cat.category)}
                     >
                       <span>{cat.category === "sportlerboerse" ? "👥" : getCategoryMeta(cat.category).icon}</span>
                       {cat.category} ({cat.count})
@@ -3491,40 +3522,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               </div>
             )}
 
-            <div
-              className={`grid gap-4 md:grid-cols-2 ${
-                showOwnerFilter
-                  ? isAdmin
-                    ? "xl:grid-cols-5"
-                    : "xl:grid-cols-4"
-                  : isAdmin
-                    ? "xl:grid-cols-4"
-                    : "xl:grid-cols-3"
-              }`}
-            >
-              <div className="min-w-0 space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Klasse</label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Alle Klassen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Klassen</SelectItem>
-                    {statisticBaseTeams.some((team) => DAMEN_CATEGORY_KEYS.has(team.category)) && (
-                      <SelectItem value={DAMEN_CATEGORY_FILTER_VALUE}>Damen gesamt</SelectItem>
-                    )}
-                    {statisticBaseTeams.some((team) => HERREN_CATEGORY_KEYS.has(team.category)) && (
-                      <SelectItem value={HERREN_CATEGORY_FILTER_VALUE}>Herren gesamt</SelectItem>
-                    )}
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat === "sportlerboerse" ? "👥" : getCategoryMeta(cat).icon} {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+            <div className={`grid gap-4 md:grid-cols-2 ${showOwnerFilter ? "xl:grid-cols-4" : isAdmin ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               {showOwnerFilter && (
                 <div className="min-w-0 space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Anleger:in</label>
