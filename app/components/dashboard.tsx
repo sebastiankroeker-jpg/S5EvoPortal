@@ -623,7 +623,7 @@ function getOwnerClaimMeta(team: Team) {
   return deriveAccountLinkStatus({
     entityLabel: "Team-Owner",
     hasEmail: Boolean(team.ownerEmail || team.contactEmail || team.ownerClaim?.suggestedEmail),
-    hasEntityLink: Boolean(team.ownerClaim?.claimedAt),
+    hasEntityLink: Boolean((team.ownerId && team.ownerHasPortalAccount) || team.ownerClaim?.claimedAt),
     hasPortalAccount: Boolean(team.ownerHasPortalAccount),
     hasPlaceholderUser: Boolean(team.ownerId && !team.ownerHasPortalAccount),
     claimStatus: team.ownerClaim ? getClaimStatus(team.ownerClaim) : "none",

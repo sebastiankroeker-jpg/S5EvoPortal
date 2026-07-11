@@ -294,7 +294,7 @@ function serializeTeam(
     contactEmail: canSeeFullTeamPublication ? team.contactEmail ?? team.owner?.email ?? "" : "",
     contactPhone: canSeeFullTeamPublication ? team.contactPhone ?? "" : "",
     ownerId: canSeeSensitiveParticipantFields ? team.ownerId ?? null : null,
-    ownerHasPortalAccount: canSeeOwnerClaimFields ? Boolean(team.owner?.authentikSub) : false,
+    ownerHasPortalAccount: canSeeSensitiveParticipantFields ? Boolean(team.owner?.authentikSub) : false,
     ownerEmail: canSeeFullTeamPublication ? team.owner?.email ?? team.contactEmail ?? "" : "",
     ownerName: canSeeFullTeamPublication ? team.owner?.name ?? team.contactName ?? "" : "",
     teamChiefId: canSeeSensitiveParticipantFields ? team.teamChiefId ?? null : null,
