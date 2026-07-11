@@ -2,17 +2,24 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { Download, RefreshCw, SlidersHorizontal, XCircle } from "lucide-react";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { openChangesDashboard, openTeamDashboard } from "@/lib/admin-routing";
 import ParticipantEditDialog from "./participant-edit-dialog";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
+import {
+  DashboardControlsCard,
+  DashboardPanel,
+  DashboardSearchField,
+  DashboardStatsRow,
+  DashboardToolbar,
+  DashboardToolbarButton,
+} from "./dashboard-controls";
 
 interface ParticipantEntry {
   id: string;
@@ -165,6 +172,63 @@ export default function ParticipantList() {
     Boolean(teamFilterId),
   ].filter(Boolean).length;
 
+  const statsItems = [
+    {
+      key: "all",
+      label: "Teilnehmer",
+      shortLabel: "Alle",
+      value: filtered.length,
+      total: participants.length,
+      tone: "default" as const,
+      active: quickFilter === "all",
+      onClick: () => setQuickFilter("all"),
+    },
+    {
+      key: "openDiscipline",
+      label: "Offen",
+      shortLabel: "Offen",
+      value: filtered.filter((p) => p.disciplineCode === "TBD").length,
+      total: quickFilterCounts.openDiscipline,
+      tone: "secondary" as const,
+      active: quickFilter === "openDiscipline",
+      onClick: () => setQuickFilter((current) => (current === "openDiscipline" ? "all" : "openDiscipline")),
+    },
+    {
+      key: "pendingChange",
+      label: "Anträge",
+      shortLabel: "Antr.",
+      value: filtered.filter((p) => p.hasPendingChange).length,
+      total: quickFilterCounts.pendingChange,
+      tone: "outline" as const,
+      active: quickFilter === "pendingChange",
+      onClick: () => setQuickFilter((current) => (current === "pendingChange" ? "all" : "pendingChange")),
+    },
+    {
+      key: "moderationNote",
+      label: "Hinweise",
+      shortLabel: "Hinw.",
+      value: filtered.filter((p) => Boolean(p.moderationNote?.trim())).length,
+      total: quickFilterCounts.moderationNote,
+      tone: "outline" as const,
+      active: quickFilter === "moderationNote",
+      onClick: () => setQuickFilter((current) => (current === "moderationNote" ? "all" : "moderationNote")),
+    },
+    ...(canSeeAdminOnlyFields
+      ? [
+          {
+            key: "missingEmail",
+            label: "Ohne E-Mail",
+            shortLabel: "E-Mail",
+            value: filtered.filter((p) => !p.email?.trim()).length,
+            total: quickFilterCounts.missingEmail,
+            tone: "outline" as const,
+            active: quickFilter === "missingEmail",
+            onClick: () => setQuickFilter((current) => (current === "missingEmail" ? "all" : "missingEmail")),
+          },
+        ]
+      : []),
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -189,88 +253,96 @@ export default function ParticipantList() {
         </div>
       </div>
 
-      <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
-              {activeFilterCount} aktiv
-            </Badge>
-            {hasActiveFilters && (
-              <Button className="whitespace-nowrap" size="xs" variant="outline" onClick={resetFilters}>
-                Filter löschen
-              </Button>
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setFiltersOpen((open) => !open)}
-            aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
-          >
-            {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-          </Button>
-        </div>
-
-        <div className="relative mt-2">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
-            placeholder={canSeeAdminOnlyFields ? "Suche Name, Team, E-Mail..." : "Suche Name oder Team..."}
+      <DashboardControlsCard>
+        <div className="space-y-2">
+          <DashboardSearchField
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
+            placeholder={canSeeAdminOnlyFields ? "Suche Name, Team, E-Mail..." : "Suche Name oder Team..."}
           />
+
+          <DashboardStatsRow items={statsItems} />
+
+          <DashboardToolbar>
+            <DashboardToolbarButton
+              icon={<Download className="size-3.5" />}
+              label="Drucken"
+              onClick={() => window.print()}
+              variant="outline"
+            />
+            <DashboardToolbarButton
+              icon={<RefreshCw className="size-3.5" />}
+              label="Aktualisieren"
+              onClick={fetchParticipants}
+              variant="outline"
+            />
+            <DashboardToolbarButton
+              icon={<SlidersHorizontal className="size-3.5" />}
+              label="Filter"
+              open={filtersOpen}
+              badge={activeFilterCount > 0 ? activeFilterCount : null}
+              onClick={() => setFiltersOpen((open) => !open)}
+            />
+            <DashboardToolbarButton
+              icon={<XCircle className="size-3.5" />}
+              label="Filter zurücksetzen"
+              onClick={resetFilters}
+              variant={hasActiveFilters ? "default" : "outline"}
+            />
+          </DashboardToolbar>
+
+          {filtersOpen && (
+            <DashboardPanel className="mt-1">
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(QUICK_FILTER_LABELS) as QuickFilter[])
+                    .filter((filter) => filter !== "missingEmail" || canSeeAdminOnlyFields)
+                    .map((filter) => (
+                      <Button
+                        key={filter}
+                        type="button"
+                        size="sm"
+                        variant={quickFilter === filter ? "default" : "outline"}
+                        onClick={() => setQuickFilter(filter)}
+                        className="justify-between gap-2"
+                      >
+                        <span>{QUICK_FILTER_LABELS[filter]}</span>
+                        <span className="rounded bg-background/30 px-1 text-[10px]">
+                          {quickFilterCounts[filter]}
+                        </span>
+                      </Button>
+                    ))}
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Klasse" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Klassen</SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={disciplineFilter} onValueChange={setDisciplineFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Disziplin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Disziplinen</SelectItem>
+                      {Object.entries(DISCIPLINE_LABELS).map(([code, d]) => (
+                        <SelectItem key={code} value={code}>{d.icon} {d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </DashboardPanel>
+          )}
         </div>
-
-        {filtersOpen && (
-          <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(QUICK_FILTER_LABELS) as QuickFilter[])
-                .filter((filter) => filter !== "missingEmail" || canSeeAdminOnlyFields)
-                .map((filter) => (
-                  <Button
-                    key={filter}
-                    type="button"
-                    size="sm"
-                    variant={quickFilter === filter ? "default" : "outline"}
-                    onClick={() => setQuickFilter(filter)}
-                    className="justify-between gap-2"
-                  >
-                    <span>{QUICK_FILTER_LABELS[filter]}</span>
-                    <span className="rounded bg-background/30 px-1 text-[10px]">
-                      {quickFilterCounts[filter]}
-                    </span>
-                  </Button>
-                ))}
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Klasse" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Klassen</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={disciplineFilter} onValueChange={setDisciplineFilter}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Disziplin" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Disziplinen</SelectItem>
-                  {Object.entries(DISCIPLINE_LABELS).map(([code, d]) => (
-                    <SelectItem key={code} value={code}>{d.icon} {d.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-      </div>
+      </DashboardControlsCard>
 
       {/* Participant Cards */}
       {filtered.length === 0 ? (
@@ -311,7 +383,7 @@ export default function ParticipantList() {
                             <Badge
                               variant="outline"
                               className={`text-amber-600 text-[10px] px-1 py-0 ${canSeeAdminOnlyFields ? "cursor-pointer" : ""}`}
-                              onClick={(event) => {
+                              onClick={(event: React.MouseEvent<HTMLSpanElement>) => {
                                 event.stopPropagation();
                                 if (canSeeAdminOnlyFields) {
                                   openChangesDashboard({ participantId: p.id, teamId: p.teamId, status: "PENDING" });

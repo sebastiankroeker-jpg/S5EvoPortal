@@ -3,13 +3,20 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, RefreshCw, Search } from "lucide-react";
+import { RefreshCw, SlidersHorizontal, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DashboardControlsCard,
+  DashboardPanel,
+  DashboardSearchField,
+  DashboardStatsRow,
+  DashboardToolbar,
+  DashboardToolbarButton,
+} from "./dashboard-controls";
 import { openTeamDashboard, openUserDashboard } from "@/lib/admin-routing";
 import { usePermissions } from "@/lib/permissions-context";
 
@@ -438,6 +445,59 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     statusFilter !== "PENDING",
     updatedOnly,
   ].filter(Boolean).length;
+
+  const statsItems = [
+    {
+      key: "pending",
+      label: "Offen",
+      shortLabel: "Offen",
+      value: filteredChanges.filter((change) => change.status === "PENDING").length,
+      total: stats.openCount,
+      tone: "default" as const,
+      active: statusFilter === "PENDING",
+      onClick: () => setStatusFilter("PENDING"),
+    },
+    {
+      key: "approved",
+      label: "Genehmigt",
+      shortLabel: "OK",
+      value: filteredChanges.filter((change) => change.status === "APPROVED").length,
+      total: stats.approvedCount,
+      tone: "secondary" as const,
+      active: statusFilter === "APPROVED",
+      onClick: () => setStatusFilter("APPROVED"),
+    },
+    {
+      key: "rejected",
+      label: "Abgelehnt",
+      shortLabel: "Nein",
+      value: filteredChanges.filter((change) => change.status === "REJECTED").length,
+      total: stats.rejectedCount,
+      tone: "outline" as const,
+      active: statusFilter === "REJECTED",
+      onClick: () => setStatusFilter("REJECTED"),
+    },
+    {
+      key: "all",
+      label: "Alle",
+      shortLabel: "Alle",
+      value: filteredChanges.length,
+      total: decoratedChanges.length,
+      tone: "outline" as const,
+      active: statusFilter === "ALL",
+      onClick: () => setStatusFilter("ALL"),
+    },
+    {
+      key: "updated",
+      label: "Aktualisiert",
+      shortLabel: "Upd.",
+      value: filteredChanges.filter((change) => change.wasUpdated).length,
+      total: stats.updatedCount,
+      tone: "outline" as const,
+      active: updatedOnly,
+      onClick: () => setUpdatedOnly((current) => !current),
+    },
+  ];
   const activeFilterLabel = useMemo(() => {
     const labels: string[] = [];
     const participantName = participantFilterId
@@ -531,101 +591,104 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
           </div>
         </div>
 
-        <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
-          <div className="relative mt-2">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-8 pl-8 text-xs sm:h-9 sm:text-sm"
+        <DashboardControlsCard>
+          <div className="space-y-2">
+            <DashboardSearchField
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={setSearchQuery}
               placeholder="Suche Teilnehmer, Team, Antragsteller oder Änderung"
             />
-          </div>
 
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <Badge className="whitespace-nowrap" variant={hasActiveFilters ? "default" : "outline"}>
-                {activeFilterCount} aktiv
-              </Badge>
-              {hasActiveFilters && (
-                <Button className="whitespace-nowrap" size="xs" variant="outline" onClick={resetDashboardFilters}>
-                  Filter löschen
-                </Button>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setFiltersOpen((open) => !open)}
-              aria-label={filtersOpen ? "Filter einklappen" : "Filter ausklappen"}
-            >
-              {filtersOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-            </Button>
-          </div>
+            <DashboardStatsRow items={statsItems} />
 
-          {filtersOpen && (
-            <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
-              {hasActiveFilters && (
-                <div className="rounded-md border border-border/60 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-                  Aktiver Filter: <span className="text-foreground">{activeFilterLabel}</span>
+            <DashboardToolbar>
+              <DashboardToolbarButton
+                icon={<RefreshCw className={"size-3.5" + (refreshing ? " animate-spin" : "")} />}
+                label="Aktualisieren"
+                onClick={() => void fetchChanges("refresh")}
+                disabled={refreshing}
+                variant="outline"
+              />
+              <DashboardToolbarButton
+                icon={<SlidersHorizontal className="size-3.5" />}
+                label="Filter"
+                open={filtersOpen}
+                badge={activeFilterCount > 0 ? activeFilterCount : null}
+                onClick={() => setFiltersOpen((open) => !open)}
+              />
+              <DashboardToolbarButton
+                icon={<XCircle className="size-3.5" />}
+                label="Filter zurücksetzen"
+                onClick={resetDashboardFilters}
+                variant={hasActiveFilters ? "default" : "outline"}
+              />
+            </DashboardToolbar>
+
+            {filtersOpen && (
+              <DashboardPanel className="mt-1">
+                <div className="space-y-3">
+                  {hasActiveFilters && (
+                    <div className="rounded-md border border-border/60 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+                      Aktiver Filter: <span className="text-foreground">{activeFilterLabel}</span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={statusFilter === "PENDING" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setStatusFilter("PENDING")}
+                      className="justify-between gap-2"
+                    >
+                      <span>Offen</span>
+                      <span className="rounded bg-background/30 px-1 text-[10px]">{stats.openCount}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={statusFilter === "APPROVED" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setStatusFilter("APPROVED")}
+                      className="justify-between gap-2"
+                    >
+                      <span>Genehmigt</span>
+                      <span className="rounded bg-background/30 px-1 text-[10px]">{stats.approvedCount}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={statusFilter === "REJECTED" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setStatusFilter("REJECTED")}
+                      className="justify-between gap-2"
+                    >
+                      <span>Abgelehnt</span>
+                      <span className="rounded bg-background/30 px-1 text-[10px]">{stats.rejectedCount}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={statusFilter === "ALL" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setStatusFilter("ALL")}
+                      className="justify-between gap-2"
+                    >
+                      <span>Alle</span>
+                      <span className="rounded bg-background/30 px-1 text-[10px]">{decoratedChanges.length}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={updatedOnly ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setUpdatedOnly((current) => !current)}
+                      className="whitespace-nowrap"
+                    >
+                      Aktualisierte
+                    </Button>
+                  </div>
                 </div>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant={statusFilter === "PENDING" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("PENDING")}
-                  className="justify-between gap-2"
-                >
-                  <span>Offen</span>
-                  <span className="rounded bg-background/30 px-1 text-[10px]">{stats.openCount}</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={statusFilter === "APPROVED" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("APPROVED")}
-                  className="justify-between gap-2"
-                >
-                  <span>Genehmigt</span>
-                  <span className="rounded bg-background/30 px-1 text-[10px]">{stats.approvedCount}</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={statusFilter === "REJECTED" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("REJECTED")}
-                  className="justify-between gap-2"
-                >
-                  <span>Abgelehnt</span>
-                  <span className="rounded bg-background/30 px-1 text-[10px]">{stats.rejectedCount}</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={statusFilter === "ALL" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setStatusFilter("ALL")}
-                  className="justify-between gap-2"
-                >
-                  <span>Alle</span>
-                  <span className="rounded bg-background/30 px-1 text-[10px]">{decoratedChanges.length}</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={updatedOnly ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setUpdatedOnly((current) => !current)}
-                  className="whitespace-nowrap"
-                >
-                  Aktualisierte
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+              </DashboardPanel>
+            )}
+          </div>
+        </DashboardControlsCard>
 
         {error && (
           <Card className="border-red-300 bg-red-50/70 dark:border-red-900 dark:bg-red-950/30">

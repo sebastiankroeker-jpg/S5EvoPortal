@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { RefreshCw, SlidersHorizontal, XCircle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,8 +17,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import AccountLinkStatusDialog, { AccountLinkStatusIcon } from "./account-link-status-dialog";
+import {
+  DashboardControlsCard,
+  DashboardPanel,
+  DashboardSearchField,
+  DashboardStatsRow,
+  DashboardToolbar,
+  DashboardToolbarButton,
+} from "./dashboard-controls";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import {
   deriveAccountLinkStatus,
@@ -276,6 +284,7 @@ export default function UserManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [onlineOnly, setOnlineOnly] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const fetchUsers = useCallback(async (options?: { silent?: boolean }) => {
     try {
@@ -483,6 +492,57 @@ export default function UserManagement() {
     };
   }, [filteredUsers, now, users]);
 
+  const hasActiveFilters = Boolean(searchQuery.trim() || onlineOnly);
+  const activeFilterCount = [searchQuery.trim() !== "", onlineOnly].filter(Boolean).length;
+  const resetFilters = () => {
+    setSearchQuery("");
+    setOnlineOnly(false);
+  };
+  const statsItems = [
+    {
+      key: "users",
+      label: "Benutzer",
+      shortLabel: "User",
+      value: stats.filtered.users,
+      total: stats.total.users,
+      tone: "default" as const,
+    },
+    {
+      key: "online",
+      label: "Online",
+      shortLabel: "On",
+      value: stats.filtered.online,
+      total: stats.total.online,
+      tone: "secondary" as const,
+      active: onlineOnly,
+      onClick: () => setOnlineOnly((current) => !current),
+    },
+    {
+      key: "admins",
+      label: "Admins",
+      shortLabel: "Adm.",
+      value: stats.filtered.admins,
+      total: stats.total.admins,
+      tone: "outline" as const,
+    },
+    {
+      key: "moderators",
+      label: "Moderatoren",
+      shortLabel: "Mod.",
+      value: stats.filtered.moderators,
+      total: stats.total.moderators,
+      tone: "outline" as const,
+    },
+    {
+      key: "teamManagers",
+      label: "Teamchef:innen",
+      shortLabel: "Teams",
+      value: stats.filtered.teamManagers,
+      total: stats.total.teamManagers,
+      tone: "outline" as const,
+    },
+  ];
+
   if (loading) {
     return (
       <Card>
@@ -510,40 +570,55 @@ export default function UserManagement() {
             Letzter Schutzmechanismus aktiv: Der letzte Admin kann serverseitig nicht entfernt werden.
           </div>
 
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Suche nach Name, Mail, Rolle oder Team"
-          />
+          <DashboardControlsCard className="p-0 shadow-none">
+            <div className="space-y-2">
+              <DashboardSearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Suche nach Name, Mail, Rolle oder Team"
+              />
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={onlineOnly ? "default" : "outline"}
-              className="h-8"
-              onClick={() => setOnlineOnly((value) => !value)}
-            >
-              Online
-            </Button>
-          </div>
+              <DashboardStatsRow items={statsItems} />
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            {[
-              ["Benutzer", stats.filtered.users, stats.total.users],
-              ["Online", stats.filtered.online, stats.total.online],
-              ["Admins", stats.filtered.admins, stats.total.admins],
-              ["Moderatoren", stats.filtered.moderators, stats.total.moderators],
-              ["Teamchef:innen", stats.filtered.teamManagers, stats.total.teamManagers],
-            ].map(([label, filtered, total]) => (
-              <div key={label} className="rounded-md border border-border/50 bg-muted/25 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">{label}</p>
-                <p className="text-sm font-semibold">
-                  {filtered}<span className="text-xs font-normal text-muted-foreground"> / {total}</span>
-                </p>
-              </div>
-            ))}
-          </div>
+              <DashboardToolbar>
+                <DashboardToolbarButton
+                  icon={<RefreshCw className="size-3.5" />}
+                  label="Aktualisieren"
+                  onClick={() => void fetchUsers()}
+                  variant="outline"
+                />
+                <DashboardToolbarButton
+                  icon={<SlidersHorizontal className="size-3.5" />}
+                  label="Filter"
+                  open={filtersOpen}
+                  badge={activeFilterCount > 0 ? activeFilterCount : null}
+                  onClick={() => setFiltersOpen((open) => !open)}
+                />
+                <DashboardToolbarButton
+                  icon={<XCircle className="size-3.5" />}
+                  label="Filter zurücksetzen"
+                  onClick={resetFilters}
+                  variant={hasActiveFilters ? "default" : "outline"}
+                />
+              </DashboardToolbar>
+
+              {filtersOpen && (
+                <DashboardPanel className="mt-1">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={onlineOnly ? "default" : "outline"}
+                      className="h-8"
+                      onClick={() => setOnlineOnly((value) => !value)}
+                    >
+                      Online
+                    </Button>
+                  </div>
+                </DashboardPanel>
+              )}
+            </div>
+          </DashboardControlsCard>
         </CardHeader>
       </Card>
 
