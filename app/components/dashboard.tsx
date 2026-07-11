@@ -42,6 +42,7 @@ import {
   TEAM_DASHBOARD_FOCUS_EVENT,
   TEAM_FOCUS_STORAGE_KEY,
   TEAM_SEARCH_STORAGE_KEY,
+  openAdminMessageComposer,
   openChangesDashboard,
   openTeamDashboard,
   openUserDashboard,
@@ -648,8 +649,10 @@ function getParticipantLinkMeta(team: Team, participant: Participant) {
   });
 }
 
-function OwnerClaimBadge({ team }: { team: Team }) {
+function OwnerClaimBadge({ team, canUseAdminLinks = false }: { team: Team; canUseAdminLinks?: boolean }) {
   const meta = getOwnerClaimMeta(team);
+  const ownerMessageUserId = team.ownerHasPortalAccount ? team.ownerId : null;
+  const ownerMessageLabel = team.ownerName || team.ownerEmail || team.contactName || team.contactEmail || "Team-Owner";
 
   return (
     <AccountLinkStatusDialog
@@ -672,6 +675,17 @@ function OwnerClaimBadge({ team }: { team: Team }) {
         { label: "Gültig bis", value: team.ownerClaim?.expiresAt && !team.ownerClaim.claimedAt ? formatDateTime(team.ownerClaim.expiresAt) : null },
         { label: "Eingelöst", value: team.ownerClaim?.claimedAt ? formatDateTime(team.ownerClaim.claimedAt) : null },
       ]}
+      actions={canUseAdminLinks && ownerMessageUserId
+        ? [{
+            label: "Nachricht schreiben",
+            onClick: () => openAdminMessageComposer({
+              userId: ownerMessageUserId,
+              email: team.ownerEmail || team.contactEmail,
+              name: ownerMessageLabel,
+              teamId: team.id,
+            }),
+          }]
+        : undefined}
     />
   );
 }
@@ -1204,7 +1218,7 @@ function TeamAdminInfoPanel({
       onClick={onClick}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <OwnerClaimBadge team={team} />
+        <OwnerClaimBadge team={team} canUseAdminLinks />
         <span className="text-muted-foreground">{ownerClaimMeta.description}</span>
       </div>
       <div className="mt-1.5 grid gap-x-3 gap-y-1 text-muted-foreground sm:grid-cols-2">
@@ -1378,10 +1392,12 @@ function MarketplacePersonSummary({
   team,
   participant,
   revealPrivateName,
+  canUseAdminLinks = false,
 }: {
   team: Team;
   participant?: Participant | null;
   revealPrivateName: boolean;
+  canUseAdminLinks?: boolean;
 }) {
   const participantIndex = participant ? (team.participants ?? []).indexOf(participant) : -1;
   const participantLabel = participant
@@ -1391,6 +1407,8 @@ function MarketplacePersonSummary({
   const discipline = DISCIPLINES.find((entry) => entry.id === disciplineCode);
   const latestChangeMeta = participant ? getLatestChangeMeta(participant.latestChange?.status) : null;
   const emailInviteMeta = participant ? getParticipantEmailInvitationMeta(team, participant) : null;
+  const participantMessageUserId = participant?.linkedUserId ?? null;
+  const participantMessageEmail = participant?.portalAccount?.email || participant?.email || null;
 
   return (
     <div className="rounded-md border border-border/60 bg-background p-2.5 text-xs">
@@ -1444,6 +1462,18 @@ function MarketplacePersonSummary({
                     { label: "Gültig bis", value: participant?.emailInvitation?.expiresAt && !participant.emailInvitation.claimedAt ? formatDateTime(participant.emailInvitation.expiresAt) : null },
                     { label: "Eingelöst", value: participant?.emailInvitation?.claimedAt ? formatDateTime(participant.emailInvitation.claimedAt) : null },
                   ]}
+                  actions={canUseAdminLinks && participantMessageUserId
+                    ? [{
+                        label: "Nachricht schreiben",
+                        onClick: () => openAdminMessageComposer({
+                          userId: participantMessageUserId,
+                          email: participantMessageEmail,
+                          name: participantLabel,
+                          teamId: team.id,
+                          participantId: participant?.id,
+                        }),
+                      }]
+                    : undefined}
                 />
               )}
             </div>
@@ -4134,6 +4164,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 team={team}
                                 participant={marketplaceParticipant}
                                 revealPrivateName={revealPrivateDashboardNames}
+                                canUseAdminLinks={canUseAdminLinks}
                               />
                             ) : (
                               <div className="grid gap-1 sm:grid-cols-5">
@@ -4547,6 +4578,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   team={team}
                                   participant={marketplaceParticipant}
                                   revealPrivateName={revealPrivateDashboardNames}
+                                  canUseAdminLinks={canUseAdminLinks}
                                 />
                                 <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs">
                                   {team.contactName && <span>{team.contactName}</span>}
@@ -4688,6 +4720,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                                 { label: "Gültig bis", value: participant?.emailInvitation?.expiresAt && !participant.emailInvitation.claimedAt ? formatDateTime(participant.emailInvitation.expiresAt) : null },
                                                 { label: "Eingelöst", value: participant?.emailInvitation?.claimedAt ? formatDateTime(participant.emailInvitation.claimedAt) : null },
                                               ]}
+                                              actions={canUseAdminLinks && participant?.linkedUserId
+                                                ? [{
+                                                    label: "Nachricht schreiben",
+                                                    onClick: () => openAdminMessageComposer({
+                                                      userId: participant.linkedUserId,
+                                                      email: participant.portalAccount?.email || participant.email,
+                                                      name: participantLabel,
+                                                      teamId: team.id,
+                                                      participantId: participant.id,
+                                                    }),
+                                                  }]
+                                                : undefined}
                                               compact
                                             />
                                           )}
@@ -5995,7 +6039,7 @@ function EditTeamModal({
             <div className="space-y-1 rounded-md border border-border/60 bg-muted/30 p-2.5 text-xs">
               {showOwnerClaimInfo && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <OwnerClaimBadge team={team} />
+                  <OwnerClaimBadge team={team} canUseAdminLinks />
                   <span className="text-muted-foreground">{getOwnerClaimMeta(team).description}</span>
                 </div>
               )}

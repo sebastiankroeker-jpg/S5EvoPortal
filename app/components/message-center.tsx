@@ -54,6 +54,14 @@ type ConversationSummary = {
   }>;
 };
 
+type AdminComposeTarget = {
+  userId: string;
+  email: string | null;
+  name: string | null;
+  teamId: string | null;
+  participantId: string | null;
+};
+
 function formatDateTime(value: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -105,8 +113,12 @@ export default function MessageCenter() {
   const [body, setBody] = useState("");
   const [contextId, setContextId] = useState("");
   const [reply, setReply] = useState("");
+  const [adminComposeTarget, setAdminComposeTarget] = useState<AdminComposeTarget | null>(null);
+  const [adminSubject, setAdminSubject] = useState("Nachricht vom Admin-Team");
+  const [adminBody, setAdminBody] = useState("");
 
   const selected = conversations.find((conversation) => conversation.id === selectedId) ?? conversations[0] ?? null;
+  const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
 
   const filteredConversations = useMemo(() => {
     return conversations.filter((conversation) => statusFilter === "all" || conversation.status === statusFilter);
@@ -149,6 +161,23 @@ export default function MessageCenter() {
   }, [loadContexts, loadConversations, mode]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetUserId = params.get("targetUserId");
+    if (!targetUserId) return;
+
+    setAdminComposeTarget({
+      userId: targetUserId,
+      email: params.get("targetEmail"),
+      name: params.get("targetName"),
+      teamId: params.get("teamId"),
+      participantId: params.get("participantId"),
+    });
+    setMode("admin");
+    setSelectedId(null);
+    void loadConversations("admin");
+  }, [loadConversations]);
+
+  useEffect(() => {
     if (!selected?.id) return;
     void fetch(`/api/messages/conversations/${selected.id}/read`, { method: "POST" })
       .then(() => loadConversations(mode))
@@ -182,6 +211,45 @@ export default function MessageCenter() {
     } finally {
       setSending(false);
     }
+  };
+
+  const createAdminThread = async () => {
+    if (!adminComposeTarget) return;
+    setSending(true);
+    setError("");
+    try {
+      const response = await fetch("/api/messages/admin-conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUserId: adminComposeTarget.userId,
+          teamId: adminComposeTarget.teamId,
+          participantId: adminComposeTarget.participantId,
+          subject: adminSubject,
+          body: adminBody,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Nachricht konnte nicht gesendet werden");
+      setAdminBody("");
+      setAdminSubject("Nachricht vom Admin-Team");
+      setAdminComposeTarget(null);
+      window.history.replaceState({}, "", "/nachrichten");
+      setMode("admin");
+      await loadConversations("admin");
+      if (data.conversation?.id) setSelectedId(data.conversation.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nachricht konnte nicht gesendet werden");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const cancelAdminCompose = () => {
+    setAdminComposeTarget(null);
+    setAdminBody("");
+    setAdminSubject("Nachricht vom Admin-Team");
+    window.history.replaceState({}, "", "/nachrichten");
   };
 
   const sendReply = async () => {
@@ -257,6 +325,47 @@ export default function MessageCenter() {
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
           {error}
         </div>
+      )}
+
+      {canManageSupport && adminComposeTarget && (
+        <Card className="border-rose-500/30 bg-rose-500/5">
+          <CardHeader>
+            <CardTitle className="text-base">Nachricht an {adminTargetLabel}</CardTitle>
+            <CardDescription>
+              Admin-Nachricht als Support-Thread. Der Nachrichtentext wird nicht per Mail weitergeleitet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Zielperson</label>
+                <div className="rounded-md border border-border/60 bg-background px-3 py-2 text-sm">
+                  <div className="font-medium">{adminTargetLabel}</div>
+                  {adminComposeTarget.email && <div className="text-xs text-muted-foreground">{adminComposeTarget.email}</div>}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Betreff</label>
+                <Input value={adminSubject} onChange={(event) => setAdminSubject(event.target.value)} />
+              </div>
+            </div>
+            <Textarea
+              value={adminBody}
+              onChange={(event) => setAdminBody(event.target.value)}
+              rows={4}
+              placeholder="Nachricht schreiben..."
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" disabled={sending} onClick={cancelAdminCompose}>
+                Abbrechen
+              </Button>
+              <Button type="button" disabled={sending || adminBody.trim().length < 2} onClick={createAdminThread}>
+                <Send className="mr-2 h-4 w-4" />
+                Nachricht senden
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_1fr]">

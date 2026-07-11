@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { AlertTriangle, ArrowRight, Ban, Mail, UserCheck, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, Ban, Mail, MessageCircle, UserCheck, UserRound, UsersRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import type { AccountLinkStatusMeta } from "@/lib/account-link-status";
 
-export type AccountLinkDialogTargetType = "team" | "user" | "claim" | "default";
+export type AccountLinkDialogTargetType = "team" | "user" | "claim" | "message" | "default";
 
 export type AccountLinkDialogRow = {
   label: string;
@@ -59,15 +59,17 @@ export function AccountLinkStatusIcon({
 
 function getTargetClassName(targetType?: AccountLinkDialogTargetType) {
   if (targetType === "team") return "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10";
-  if (targetType === "user") return "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100";
-  if (targetType === "claim") return "border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100";
-  return "border-border/60 bg-muted/20 hover:bg-muted/40";
+  if (targetType === "user") return "border-sky-500/40 bg-sky-500/10 text-sky-700 hover:bg-sky-500/15 dark:text-sky-200";
+  if (targetType === "claim") return "border-violet-500/40 bg-violet-500/10 text-violet-700 hover:bg-violet-500/15 dark:text-violet-200";
+  if (targetType === "message") return "border-rose-500/40 bg-rose-500/10 text-rose-700 hover:bg-rose-500/15 dark:text-rose-200";
+  return "border-border/60 bg-muted/20 text-foreground hover:bg-muted/40";
 }
 
 function getTargetIcon(targetType?: AccountLinkDialogTargetType) {
   if (targetType === "team") return <UsersRound className="size-3.5" />;
   if (targetType === "user") return <UserRound className="size-3.5" />;
   if (targetType === "claim") return <Mail className="size-3.5" />;
+  if (targetType === "message") return <MessageCircle className="size-3.5" />;
   return null;
 }
 
@@ -88,8 +90,7 @@ export default function AccountLinkStatusDialog({
 }) {
   const [open, setOpen] = useState(false);
   const visibleRows = rows.filter((row) => row.value !== undefined && row.value !== null && row.value !== "");
-  const hasTargetRows = visibleRows.some((row) => row.onClick);
-  const visibleActions = hasTargetRows ? [] : actions ?? [];
+  const visibleActions = actions ?? [];
 
   const runAndClose = (callback: () => void) => {
     setOpen(false);

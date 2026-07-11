@@ -33,6 +33,24 @@ export function openUserDashboard(input: { userId?: string | null; email?: strin
   pushLocation(`/admin?${params.toString()}`);
 }
 
+export function openAdminMessageComposer(
+  input: {
+    userId?: string | null;
+    email?: string | null;
+    name?: string | null;
+    teamId?: string | null;
+    participantId?: string | null;
+  } = {},
+) {
+  const params = new URLSearchParams({ mode: "admin" });
+  if (input.userId) params.set("targetUserId", input.userId);
+  if (input.email?.trim()) params.set("targetEmail", input.email.trim());
+  if (input.name?.trim()) params.set("targetName", input.name.trim());
+  if (input.teamId) params.set("teamId", input.teamId);
+  if (input.participantId) params.set("participantId", input.participantId);
+  pushLocation(`/nachrichten?${params.toString()}`);
+}
+
 export function openChangesDashboard(
   input: {
     participantId?: string | null;
