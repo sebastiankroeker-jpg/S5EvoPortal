@@ -1,6 +1,25 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 08:53 UTC
+Stand: 2026-07-11 09:08 UTC
+
+## Aktueller Nachtrag: MD Stats Row And Filter Icon State
+
+- App-Commit `df99bc1 Fix dashboard stats row and filter icon state` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_9NiKXJytAWZDantdkKDiun3Myarc`
+- Deployment URL: `https://s5-evo-portal-ec3r4whu1-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-md-stats-row-and-filter-icon-state.md`
+- Geaendert:
+  - Trefferstatistik steht jetzt als eigene Zeile direkt unter dem Suchfeld und oberhalb der Panel-Icons.
+  - Filter-Icon nutzt im zugeklappten Zustand wieder das geschlossene Farbschema.
+  - Aktive Filter bleiben bei geschlossenem Panel weiter ueber den Counter-Badge sichtbar.
+- Checks:
+  - `pnpm exec eslint app/components/dashboard.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/sportlerboerse-dashboard`: 200
 
 ## Aktueller Nachtrag: MD Kombinierbare Klassenpillen
 

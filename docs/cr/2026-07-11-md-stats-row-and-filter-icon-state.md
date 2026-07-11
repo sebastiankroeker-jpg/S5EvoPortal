@@ -95,23 +95,47 @@ Sebastian meldete nach dem Deploy des kombinierbaren Klassenpillen-Follow-ups zw
 ## Verification
 
 - Local checks:
+- `pnpm exec eslint app/components/dashboard.tsx` gruen
+- `npx tsc --noEmit` gruen
+- `git diff --check` gruen
 - Build:
+- `npm run build` gruen
 - Targeted verification:
+- `/sportlerboerse-dashboard`: 200
 - Manual smoke:
+- `npm run smoke:public` gruen gegen `https://portal.s5evo.de`
+- `/`: 200
+- `/login`: 200
+- `/anmeldung`: 200
+- `/aenderungen`: 200
+- `/api/competition`: 200
+- `/api/results`: 200
+- `/api/teams` ohne Session: 401 (erwartet)
+- `/api/admin/pending-changes` ohne Session: 401 (erwartet)
 
 ## Deploy
 
 - Deployment needed: yes, after explicit deploy approval
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_9NiKXJytAWZDantdkKDiun3Myarc`
+- Deployment URL: `https://s5-evo-portal-ec3r4whu1-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-11 09:08 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/`
+  - `/login`
+  - `/anmeldung`
+  - `/aenderungen`
+  - `/sportlerboerse-dashboard`
 - API checks:
+  - `/api/competition`
+  - `/api/results`
+  - `/api/teams` ohne Session
+  - `/api/admin/pending-changes` ohne Session
 - Result:
+  - gruen
 
 ## Follow-Ups
 
