@@ -237,6 +237,11 @@ export default function ProfilePage() {
               <CardDescription>Teilnehmerprofile, die bereits mit deinem Portal-Konto verknüpft sind</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              <Link href="/nachrichten">
+                <Button variant="outline" className="w-full justify-start">
+                  Nachrichten und Admin-Support öffnen
+                </Button>
+              </Link>
               {loadingProfile ? (
                 <div className="text-sm text-muted-foreground">Lade Teilnehmer-Zuordnungen...</div>
               ) : linkedParticipants.length === 0 ? (

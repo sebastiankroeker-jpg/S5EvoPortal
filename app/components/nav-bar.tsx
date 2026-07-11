@@ -12,7 +12,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
-import { Check, EllipsisVertical, FlaskConical, LogOut, Search, UserCircle2 } from "lucide-react";
+import { Check, EllipsisVertical, FlaskConical, LogOut, MessageCircle, Search, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -242,6 +242,18 @@ export default function NavBar() {
                     >
                       <UserCircle2 className="h-3.5 w-3.5" />
                       Profil
+                    </Link>
+                    <Link
+                      href="/nachrichten"
+                      className={`flex items-center gap-2 rounded-sm px-3 py-1.5 text-xs transition-colors ${
+                        pathname === "/nachrichten"
+                          ? "bg-primary/15 text-primary font-medium"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      }`}
+                      onClick={() => setShowAccountMenu(false)}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      Nachrichten
                     </Link>
                     <div className="my-1 border-t border-border/40" />
                     {simulatable.length > 0 && (
