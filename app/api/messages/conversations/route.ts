@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
   const requestedStatus = url.searchParams.get("status");
   const allowedStatuses = new Set(["OPEN", "WAITING_FOR_ADMIN", "WAITING_FOR_USER", "CLOSED"]);
   const status = allowedStatuses.has(requestedStatus || "") ? requestedStatus : null;
-  const tenantId = await getDefaultMessagingTenantId(user.id);
+  const tenantId = await getDefaultMessagingTenantId(user.id, user.email);
 
   if (!tenantId) {
     return NextResponse.json({ conversations: [], canManageSupport: false });
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nachricht ist zu kurz" }, { status: 400 });
   }
 
-  const contexts = await getSupportContextsForUser(user.id);
+  const contexts = await getSupportContextsForUser(user.id, user.email);
   const requestedContextId = typeof body.contextId === "string" ? body.contextId : null;
   const context = contexts.find((entry) => `${entry.type}:${entry.id}` === requestedContextId) ?? contexts[0] ?? null;
 

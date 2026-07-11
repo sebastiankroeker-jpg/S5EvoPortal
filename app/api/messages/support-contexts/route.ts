@@ -16,6 +16,6 @@ export async function GET() {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const contexts = await getSupportContextsForUser(user.id);
+  const contexts = await getSupportContextsForUser(user.id, user.email);
   return NextResponse.json({ contexts });
 }

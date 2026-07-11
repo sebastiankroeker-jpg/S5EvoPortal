@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
+import { normalizeEmail } from "@/lib/current-user";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_SUBJECT_LENGTH = 120;
@@ -41,7 +42,8 @@ export function buildMessagePreview(body: string) {
   return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
 }
 
-export async function getSupportContextsForUser(userId: string): Promise<SupportContext[]> {
+export async function getSupportContextsForUser(userId: string, userEmail?: string | null): Promise<SupportContext[]> {
+  const normalizedUserEmail = normalizeEmail(userEmail);
   const [participants, teams] = await Promise.all([
     prisma.participant.findMany({
       where: {
@@ -72,6 +74,14 @@ export async function getSupportContextsForUser(userId: string): Promise<Support
           { ownerId: userId },
           { teamChiefId: userId },
           { memberRoles: { some: { userId, role: "TEAM_MANAGER", revokedAt: null } } },
+          ...(normalizedUserEmail
+            ? [{
+                contactEmail: {
+                  equals: normalizedUserEmail,
+                  mode: "insensitive" as const,
+                },
+              }]
+            : []),
         ],
       },
       select: {
@@ -114,7 +124,7 @@ export async function getSupportContextsForUser(userId: string): Promise<Support
   return Array.from(contexts.values());
 }
 
-export async function getDefaultMessagingTenantId(userId: string) {
+export async function getDefaultMessagingTenantId(userId: string, userEmail?: string | null) {
   const tenantRole = await prisma.tenantRole.findFirst({
     where: { userId },
     orderBy: { createdAt: "asc" },
@@ -122,7 +132,7 @@ export async function getDefaultMessagingTenantId(userId: string) {
   });
   if (tenantRole?.tenantId) return tenantRole.tenantId;
 
-  const context = (await getSupportContextsForUser(userId))[0];
+  const context = (await getSupportContextsForUser(userId, userEmail))[0];
   return context?.tenantId ?? null;
 }
 
