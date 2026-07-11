@@ -1,6 +1,6 @@
 # CR: Message Navigation Unread Badge
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-11
 Type: hotfix
 Risk: low
@@ -125,21 +125,25 @@ Die neue Nachrichtenfunktion ist aktuell nur über das Profil-/Konto-Menü auffi
 - Build:
   - `npm run build` gruen
 - Targeted verification:
+  - `/api/messages/unread-count` ohne Session: 401
 - Manual smoke:
+  - `npm run smoke:public` gegen Production-Alias gruen
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_8KqCr1nULitdiFUbFrTJjWBcnJ1A`
+- Deployment URL: `https://s5-evo-portal-r3grum4uv-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-11 16:51 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - public smoke core routes via `npm run smoke:public`
 - API checks:
-- Result:
+  - `/api/messages/unread-count` without session: 401
+- Result: gruen
 
 ## Follow-Ups
 

@@ -1,6 +1,27 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 16:24 UTC
+Stand: 2026-07-11 16:54 UTC
+
+## Aktueller Nachtrag: Messaging Navigation And Unread Badge
+
+- App-Commit `1b8b3fc Surface messages in navigation` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_8KqCr1nULitdiFUbFrTJjWBcnJ1A`
+- Deployment URL: `https://s5-evo-portal-r3grum4uv-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-message-navigation-unread-badge.md`
+- Geaendert:
+  - `Nachrichten` ist jetzt im Lupen-/Suchmenue auffindbar.
+  - Suchbegriffe u. a. `nachrichten`, `postfach`, `brief`, `support`, `admin kontaktieren`.
+  - Neuer API-Endpunkt `/api/messages/unread-count` liefert die Anzahl ungelesener Nachrichten fuer angemeldete User.
+  - Profil-/Konto-Icon zeigt bei ungelesenen Nachrichten einen roten Badge.
+  - Mobiles Konto-Menue zeigt die Anzahl zusaetzlich neben `Nachrichten`.
+- Checks:
+  - `pnpm exec eslint app/components/nav-bar.tsx app/components/search-overlay.tsx lib/navigation-menu.ts lib/messaging.ts app/api/messages/unread-count/route.ts` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/api/messages/unread-count` ohne Session: 401
 
 ## Aktueller Nachtrag: Messaging Team-Manager Contact Email Hotfix
 
