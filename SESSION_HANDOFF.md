@@ -1,6 +1,26 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-10 18:41 UTC
+Stand: 2026-07-11 08:53 UTC
+
+## Aktueller Nachtrag: MD Kombinierbare Klassenpillen
+
+- App-Commit `1f58350 Add combinable dashboard class pills` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_EccDbuSxTLc5urnfvdu3tqJqMBUH`
+- Deployment URL: `https://s5-evo-portal-m01076f2j-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-md-combinable-class-pills.md`
+- Geaendert:
+  - Trefferstatistik steht jetzt direkt unter der Such-/Toolbar-Zeile und bleibt auch bei offenem Filterpanel sichtbar.
+  - Klassenpillen in Statistik und Filterpanel sind jetzt kombinierbar statt nur einzeln waehlbar.
+  - Das alte Klassen-Dropdown im Filterpanel ist entfernt.
+  - Gespeicherte Legacy-Filter mit `categoryFilter` werden weiter geladen und auf `categoryFilters` uebernommen.
+- Checks:
+  - `pnpm exec eslint app/components/dashboard.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/sportlerboerse-dashboard`: 200
 
 ## Aktueller Nachtrag: MD List Default And Stats Order
 
