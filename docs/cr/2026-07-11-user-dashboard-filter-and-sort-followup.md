@@ -97,28 +97,63 @@ Nach dem Rollout des wiederverwendbaren Dashboard-Control-Strips fiel im Benutze
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/user-management.tsx`
+  - `docs/cr/2026-07-11-user-dashboard-filter-and-sort-followup.md`
 - Important decisions during implementation:
+  - Rollen-Pillen `Admins`, `Moderatoren`, `Teamchef:innen` sind jetzt direkt als Stats-Filter klickbar.
+  - Mail-Status wurde bewusst einfach gehalten: `mit E-Mail` / `ohne E-Mail`.
+  - Portal-Verknuepfung wurde als fachlich sinnvolle Buckets umgesetzt:
+    - `Verknüpft`
+    - `Konto ohne Link`
+    - `Einladung offen`
+    - `Placeholder`
+    - `Klärfall`
+  - Sortierung ist lokal im Dashboard-State und bietet u. a. `Zuletzt aktiv zuerst`.
 
 ## Verification
 
 - Local checks:
+- `pnpm exec eslint app/components/user-management.tsx` gruen
+- `npx tsc --noEmit` gruen
+- `git diff --check` gruen
 - Build:
+- `npm run build` gruen
 - Targeted verification:
+- `/admin`: 200
 - Manual smoke:
+- `npm run smoke:public` gruen gegen `https://portal.s5evo.de`
+- `/`: 200
+- `/login`: 200
+- `/anmeldung`: 200
+- `/aenderungen`: 200
+- `/api/competition`: 200
+- `/api/results`: 200
+- `/api/teams` ohne Session: 401 (erwartet)
+- `/api/admin/pending-changes` ohne Session: 401 (erwartet)
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_H83dicV1PDv6xfp1c9ZgDt351Kmg`
+- Deployment URL: `https://s5-evo-portal-kmuz04wtn-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-11 12:15 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/`
+  - `/login`
+  - `/anmeldung`
+  - `/aenderungen`
+  - `/admin`
 - API checks:
+  - `/api/competition`
+  - `/api/results`
+  - `/api/teams` ohne Session
+  - `/api/admin/pending-changes` ohne Session
 - Result:
+  - gruen
 
 ## Follow-Ups
 

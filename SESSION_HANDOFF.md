@@ -1,6 +1,26 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 11:57 UTC
+Stand: 2026-07-11 12:15 UTC
+
+## Aktueller Nachtrag: User Dashboard Filter And Sort Follow-Up
+
+- App-Commit `fe7cd2c Add user dashboard filters and sorting` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_H83dicV1PDv6xfp1c9ZgDt351Kmg`
+- Deployment URL: `https://s5-evo-portal-kmuz04wtn-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-user-dashboard-filter-and-sort-followup.md`
+- Geaendert:
+  - Benutzer-Stats `Admins`, `Moderatoren`, `Teamchef:innen` und `Online` sind jetzt als Filter klickbar.
+  - Filterpanel enthaelt jetzt Mail-Status `mit E-Mail` / `ohne E-Mail`.
+  - Filterpanel enthaelt jetzt Portal-Verknuepfungsstatus `Verknüpft`, `Konto ohne Link`, `Einladung offen`, `Placeholder`, `Klärfall`.
+  - Ergebnisliste kann jetzt nach `Zuletzt aktiv zuerst`, `Name A-Z`, `Neueste Registrierung` und `Meiste Teams zuerst` sortiert werden.
+- Checks:
+  - `pnpm exec eslint app/components/user-management.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/admin`: 200
 
 ## Aktueller Nachtrag: Reusable Dashboard Control Strip
 
