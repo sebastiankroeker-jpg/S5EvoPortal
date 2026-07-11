@@ -1,6 +1,6 @@
 # CR: Message Support Contact Email Team Manager
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-11
 Type: hotfix
 Risk: low
@@ -112,21 +112,25 @@ Nach dem Messaging-MVP sollen auch Team-Manager Nachrichten an das Admin-Team sc
 - Build:
   - `npm run build` gruen
 - Targeted verification:
+  - `/api/messages/support-contexts` ohne Session: 401
 - Manual smoke:
+  - `npm run smoke:public` gegen Production-Alias gruen
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_2ATYT4M8WqdiVWrisFPs8dwMDG7D`
+- Deployment URL: `https://s5-evo-portal-hip0x7fuh-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-11 16:21 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - public smoke core routes via `npm run smoke:public`
 - API checks:
-- Result:
+  - `/api/messages/support-contexts` without session: 401
+- Result: gruen
 
 ## Follow-Ups
 

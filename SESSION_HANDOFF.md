@@ -1,6 +1,25 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 13:12 UTC
+Stand: 2026-07-11 16:24 UTC
+
+## Aktueller Nachtrag: Messaging Team-Manager Contact Email Hotfix
+
+- App-Commit `70867cb Allow contact email team messaging contexts` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_2ATYT4M8WqdiVWrisFPs8dwMDG7D`
+- Deployment URL: `https://s5-evo-portal-hip0x7fuh-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-message-support-contact-email-team-manager.md`
+- Geaendert:
+  - Support-Kontexte fuer `/nachrichten` beruecksichtigen jetzt zusaetzlich `Team.contactEmail == User.email`.
+  - Damit koennen Team-Manager/Kontaktpersonen ohne verknuepftes Teilnehmerprofil Nachrichten an das Admin-Team schreiben.
+  - Bestehende Kontexte ueber `ownerId`, `teamChiefId`, `TeamMemberRole` und `Participant.userId` bleiben unveraendert.
+- Checks:
+  - `pnpm exec eslint lib/messaging.ts app/api/messages/support-contexts/route.ts app/api/messages/conversations/route.ts` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/api/messages/support-contexts` ohne Session: 401
 
 ## Aktueller Nachtrag: Participant/Admin Messaging Foundation
 
