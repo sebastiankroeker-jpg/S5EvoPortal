@@ -1,6 +1,34 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 17:31 UTC
+Stand: 2026-07-11 17:44 UTC
+
+## Aktueller Nachtrag: Owner Status Consistency Follow-Up
+
+- App-Commit `3f448f9 Align owner account status display` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_GCgUFBLK84Hvse7vwUW2GofqcjDV`
+- Deployment URL: `https://s5-evo-portal-c6p2ic2x2-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR-Follow-up: `docs/cr/2026-07-11-status-dialog-admin-message-hotfix.md`
+- Ausloeser:
+  - Benutzer-Dashboard zeigte bei Markus Huber / `Die 5 Muskeltiere` `Verknüpft`, der Team-Owner-Statusdialog aber `Login noch nicht aktiviert`.
+- Ursache:
+  - Der konkrete DB-Datensatz hat einen bestaetigten Portal-Login (`authentikSub`) und ist Owner/Teamchef.
+  - Im Team-Owner-Status wurde der offene alte Claim-Link staerker gewichtet als der vorhandene Owner-Portal-Login.
+  - `ownerHasPortalAccount` hing in der Team-API zu eng an der Claim-Feld-Freigabe statt an den sensiblen Teamdaten.
+- Geaendert:
+  - `getOwnerClaimMeta` bewertet `ownerId + ownerHasPortalAccount` als fachliche Verknuepfung.
+  - `app/api/teams` serialisiert `ownerHasPortalAccount` fuer Admin/Orga-sensible Teamdaten.
+  - Offene alte Claim-Links koennen einen bereits bestaetigten Owner-Login nicht mehr auf `Login noch nicht aktiviert` zurueckstufen.
+- Checks:
+  - `pnpm exec eslint app/components/dashboard.tsx app/api/teams/route.ts` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/admin`: 200
+  - `/sportlerboerse-dashboard`: 200
+  - `/api/teams` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
 
 ## Aktueller Nachtrag: Status Dialog Admin Message Hotfix
 

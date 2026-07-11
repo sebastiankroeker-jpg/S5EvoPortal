@@ -114,15 +114,18 @@ Im Statusdialog fuer Teilnehmer oder Owner ist der Kontrast einzelner Ziel-Kache
   - `Nachricht schreiben` erscheint nur fuer Admin-UI-Kontexte und nur bei vorhandener Portal-User-ID.
   - Admin-started Threads verwenden weiterhin `SUPPORT`, setzen initial `WAITING_FOR_USER` und benachrichtigen die Zielperson ohne Nachrichtentext per Mail.
   - Der neue Endpoint validiert Admin/Moderator, Tenant und optionalen Team-/Teilnehmerkontext vor Conversation-Erstellung.
+  - Follow-up `3f448f9`: Owner-Statusdialog und Benutzer-Dashboard verwenden jetzt dieselbe Owner-Link-Bedeutung. Ein vorhandener Owner mit bestaetigtem Portal-Login wird als `Verknüpft` bewertet, auch wenn noch ein alter offener Claim-Link existiert.
+  - `ownerHasPortalAccount` wird fuer Admin/Orga-sensible Teamdaten serialisiert und haengt nicht mehr nur am Owner-Claim-Feld.
 
 ## Verification
 
 - Local checks:
   - `pnpm exec eslint app/components/account-link-status-dialog.tsx app/components/dashboard.tsx app/components/message-center.tsx app/api/messages/admin-conversations/route.ts lib/admin-routing.ts` gruen
+  - Follow-up: `pnpm exec eslint app/components/dashboard.tsx app/api/teams/route.ts` gruen
   - `npx tsc --noEmit` gruen
   - `git diff --check` gruen
 - Build:
-  - `npm run build` gruen
+  - `npm run build` gruen, auch nach Follow-up
 - Targeted verification:
   - Vercel build listet `/api/messages/admin-conversations` und `/nachrichten`.
 - Manual smoke:
@@ -138,6 +141,9 @@ Im Statusdialog fuer Teilnehmer oder Owner ist der Kontrast einzelner Ziel-Kache
 - Deployment URL: `https://s5-evo-portal-ces016epu-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
 - Deployed at: 2026-07-11 17:30 UTC
+- Follow-up deployment ID: `dpl_GCgUFBLK84Hvse7vwUW2GofqcjDV`
+- Follow-up deployment URL: `https://s5-evo-portal-c6p2ic2x2-sebastiankroeker-2781s-projects.vercel.app`
+- Follow-up deployed at: 2026-07-11 17:43 UTC
 
 ## Post-Deploy Smoke
 
