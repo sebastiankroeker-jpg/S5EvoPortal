@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageCircle, RefreshCw, Send } from "lucide-react";
+import { Building2, Inbox, MessageCircle, PanelLeftClose, PanelLeftOpen, RefreshCw, Send, UserRound } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,12 +41,16 @@ type ConversationSummary = {
     id: string;
     bodyPreview: string;
     createdAt: string;
+    senderDisplayMode: "PERSONAL" | "ORG";
+    senderDisplayName: string;
     sender: { id: string; name: string | null; email: string };
   } | null;
   messages: Array<{
     id: string;
     body: string | null;
     bodyPreview: string | null;
+    senderDisplayMode: "PERSONAL" | "ORG";
+    senderDisplayName: string;
     createdAt: string;
     senderId: string;
     sender: { id: string; name: string | null; email: string };
@@ -95,13 +99,53 @@ function statusClassName(status: ConversationSummary["status"]) {
   }
 }
 
-function senderLabel(sender: { name: string | null; email: string }) {
-  return sender.name || sender.email;
+function senderLabel(message: { senderDisplayName?: string; sender: { name: string | null; email: string } }) {
+  return message.senderDisplayName || message.sender.name || message.sender.email;
+}
+
+function SenderModeSelector({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: "ORG" | "PERSONAL";
+  onChange: (value: "ORG" | "PERSONAL") => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="inline-flex rounded-md border border-border bg-muted/30 p-1">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange("ORG")}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors disabled:opacity-60",
+          value === "ORG" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+        )}
+      >
+        <Building2 className="h-3.5 w-3.5" />
+        Orga-Postfach
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange("PERSONAL")}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors disabled:opacity-60",
+          value === "PERSONAL" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+        )}
+      >
+        <UserRound className="h-3.5 w-3.5" />
+        Persönlich
+      </button>
+    </div>
+  );
 }
 
 export default function MessageCenter() {
   const [mode, setMode] = useState<"mine" | "admin">("mine");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contexts, setContexts] = useState<SupportContext[]>([]);
@@ -116,13 +160,21 @@ export default function MessageCenter() {
   const [adminComposeTarget, setAdminComposeTarget] = useState<AdminComposeTarget | null>(null);
   const [adminSubject, setAdminSubject] = useState("Nachricht vom Admin-Team");
   const [adminBody, setAdminBody] = useState("");
+  const [adminSenderDisplayMode, setAdminSenderDisplayMode] = useState<"ORG" | "PERSONAL">("ORG");
+  const [replySenderDisplayMode, setReplySenderDisplayMode] = useState<"ORG" | "PERSONAL">("ORG");
 
-  const selected = conversations.find((conversation) => conversation.id === selectedId) ?? conversations[0] ?? null;
   const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
 
   const filteredConversations = useMemo(() => {
-    return conversations.filter((conversation) => statusFilter === "all" || conversation.status === statusFilter);
+    return conversations
+      .filter((conversation) => statusFilter === "all" || conversation.status === statusFilter)
+      .sort((a, b) => {
+        const aTime = new Date(a.lastMessageAt || a.updatedAt).getTime();
+        const bTime = new Date(b.lastMessageAt || b.updatedAt).getTime();
+        return bTime - aTime;
+      });
   }, [conversations, statusFilter]);
+  const selected = filteredConversations.find((conversation) => conversation.id === selectedId) ?? filteredConversations[0] ?? null;
 
   const loadConversations = useCallback(async (nextMode: "mine" | "admin" = mode) => {
     setLoading(true);
@@ -186,6 +238,7 @@ export default function MessageCenter() {
 
   const switchMode = (nextMode: "mine" | "admin") => {
     setMode(nextMode);
+    setReplySenderDisplayMode(nextMode === "admin" ? "ORG" : "PERSONAL");
     setSelectedId(null);
     void loadConversations(nextMode);
   };
@@ -227,12 +280,14 @@ export default function MessageCenter() {
           participantId: adminComposeTarget.participantId,
           subject: adminSubject,
           body: adminBody,
+          senderDisplayMode: adminSenderDisplayMode,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Nachricht konnte nicht gesendet werden");
       setAdminBody("");
       setAdminSubject("Nachricht vom Admin-Team");
+      setAdminSenderDisplayMode("ORG");
       setAdminComposeTarget(null);
       window.history.replaceState({}, "", "/nachrichten");
       setMode("admin");
@@ -249,6 +304,7 @@ export default function MessageCenter() {
     setAdminComposeTarget(null);
     setAdminBody("");
     setAdminSubject("Nachricht vom Admin-Team");
+    setAdminSenderDisplayMode("ORG");
     window.history.replaceState({}, "", "/nachrichten");
   };
 
@@ -260,7 +316,10 @@ export default function MessageCenter() {
       const response = await fetch(`/api/messages/conversations/${selected.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: reply }),
+        body: JSON.stringify({
+          body: reply,
+          senderDisplayMode: mode === "admin" ? replySenderDisplayMode : "PERSONAL",
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Antwort konnte nicht gesendet werden");
@@ -306,14 +365,6 @@ export default function MessageCenter() {
           <p className="text-sm text-muted-foreground">Support-Threads mit dem Admin-Team. Nachrichten bleiben im Portal nachvollziehbar.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" variant={mode === "mine" ? "default" : "outline"} onClick={() => switchMode("mine")}>
-            Meine Threads
-          </Button>
-          {canManageSupport && (
-            <Button type="button" size="sm" variant={mode === "admin" ? "default" : "outline"} onClick={() => switchMode("admin")}>
-              Admin-Inbox
-            </Button>
-          )}
           <Button type="button" size="sm" variant="outline" onClick={() => loadConversations(mode)} disabled={loading}>
             <RefreshCw className={cn("mr-1 h-3.5 w-3.5", loading && "animate-spin")} />
             Aktualisieren
@@ -349,6 +400,13 @@ export default function MessageCenter() {
                 <Input value={adminSubject} onChange={(event) => setAdminSubject(event.target.value)} />
               </div>
             </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-medium">Senden als</div>
+                <div className="text-xs text-muted-foreground">Die echte Admin-Person bleibt intern nachvollziehbar.</div>
+              </div>
+              <SenderModeSelector value={adminSenderDisplayMode} onChange={setAdminSenderDisplayMode} disabled={sending} />
+            </div>
             <Textarea
               value={adminBody}
               onChange={(event) => setAdminBody(event.target.value)}
@@ -368,59 +426,106 @@ export default function MessageCenter() {
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_1fr]">
-        <Card className="overflow-hidden">
-          <CardHeader className="space-y-3">
-            <div>
-              <CardTitle className="text-base">{mode === "admin" ? "Admin-Inbox" : "Meine Unterhaltungen"}</CardTitle>
-              <CardDescription>{filteredConversations.length} Threads</CardDescription>
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-            >
-              <option value="all">Alle Status</option>
-              <option value="WAITING_FOR_ADMIN">Wartet auf Admin</option>
-              <option value="WAITING_FOR_USER">Wartet auf Teilnehmer:in</option>
-              <option value="OPEN">Offen</option>
-              <option value="CLOSED">Geschlossen</option>
-            </select>
-          </CardHeader>
-          <CardContent className="space-y-2 p-3 pt-0">
-            {loading ? (
-              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Lade Nachrichten...</div>
-            ) : filteredConversations.length === 0 ? (
-              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Keine passenden Threads vorhanden.</div>
-            ) : (
-              filteredConversations.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() => setSelectedId(conversation.id)}
-                  className={cn(
-                    "w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent/60",
-                    selected?.id === conversation.id ? "border-primary bg-primary/10" : "border-border/60 bg-background/60",
-                  )}
+      <div className={cn("grid gap-4", sidebarOpen ? "lg:grid-cols-[minmax(280px,360px)_1fr]" : "lg:grid-cols-[72px_1fr]")}>
+        <Card className={cn("overflow-hidden transition-all", !sidebarOpen && "min-h-[520px]")}>
+          {sidebarOpen ? (
+            <>
+              <CardHeader className="space-y-3 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">{mode === "admin" ? "Admin-Postfach" : "Mein Postfach"}</CardTitle>
+                    <CardDescription>{filteredConversations.length} Threads</CardDescription>
+                  </div>
+                  <Button type="button" size="icon" variant="ghost" onClick={() => setSidebarOpen(false)} aria-label="Threadliste zuklappen">
+                    <PanelLeftClose className="h-4 w-4" />
+                  </Button>
+                </div>
+                {canManageSupport && (
+                  <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1">
+                    <button
+                      type="button"
+                      onClick={() => switchMode("mine")}
+                      className={cn(
+                        "inline-flex h-9 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                        mode === "mine" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+                      )}
+                    >
+                      <UserRound className="h-3.5 w-3.5" />
+                      Mein Postfach
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchMode("admin")}
+                      className={cn(
+                        "inline-flex h-9 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                        mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+                      )}
+                    >
+                      <Inbox className="h-3.5 w-3.5" />
+                      Admin
+                    </button>
+                  </div>
+                )}
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="line-clamp-1 text-sm font-semibold">{conversation.subject}</p>
-                    {conversation.unreadCount > 0 && <Badge className="shrink-0">{conversation.unreadCount}</Badge>}
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <Badge variant="outline" className={statusClassName(conversation.status)}>
-                      {statusLabel(conversation.status)}
-                    </Badge>
-                    {conversation.context.team && <Badge variant="secondary">{conversation.context.team.name}</Badge>}
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                    {conversation.lastMessage?.bodyPreview || "Noch keine Nachricht"}
-                  </p>
-                  <p className="mt-2 text-[11px] text-muted-foreground">{formatDateTime(conversation.lastMessageAt || conversation.updatedAt)}</p>
-                </button>
-              ))
-            )}
-          </CardContent>
+                  <option value="all">Alle Status</option>
+                  <option value="WAITING_FOR_ADMIN">Wartet auf Admin</option>
+                  <option value="WAITING_FOR_USER">Wartet auf Teilnehmer:in</option>
+                  <option value="OPEN">Offen</option>
+                  <option value="CLOSED">Geschlossen</option>
+                </select>
+              </CardHeader>
+              <CardContent className="max-h-[620px] space-y-2 overflow-y-auto p-3 pt-0">
+                {loading ? (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Lade Nachrichten...</div>
+                ) : filteredConversations.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Keine passenden Threads vorhanden.</div>
+                ) : (
+                  filteredConversations.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => setSelectedId(conversation.id)}
+                      className={cn(
+                        "w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent/60",
+                        selected?.id === conversation.id ? "border-primary bg-primary/10" : "border-border/60 bg-background/60",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="line-clamp-1 text-sm font-semibold">{conversation.subject}</p>
+                        {conversation.unreadCount > 0 && <Badge className="shrink-0">{conversation.unreadCount}</Badge>}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <Badge variant="outline" className={statusClassName(conversation.status)}>
+                          {statusLabel(conversation.status)}
+                        </Badge>
+                        {conversation.context.team && <Badge variant="secondary">{conversation.context.team.name}</Badge>}
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                        {conversation.lastMessage?.bodyPreview || "Noch keine Nachricht"}
+                      </p>
+                      <p className="mt-2 text-[11px] text-muted-foreground">{formatDateTime(conversation.lastMessageAt || conversation.updatedAt)}</p>
+                    </button>
+                  ))
+                )}
+              </CardContent>
+            </>
+          ) : (
+            <CardContent className="flex min-h-[520px] flex-col items-center gap-3 p-3">
+              <Button type="button" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)} aria-label="Threadliste aufklappen">
+                <PanelLeftOpen className="h-4 w-4" />
+              </Button>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
+                <Inbox className="h-4 w-4" />
+              </div>
+              <div className="text-center text-xs font-medium text-muted-foreground [writing-mode:vertical-rl]">
+                {filteredConversations.length} Threads
+              </div>
+            </CardContent>
+          )}
         </Card>
 
         <Card className="min-h-[520px]">
@@ -480,7 +585,7 @@ export default function MessageCenter() {
                           )}
                         >
                           <div className={cn("mb-1 text-[11px]", message.mine ? "text-primary-foreground/75" : "text-muted-foreground")}>
-                            {senderLabel(message.sender)} · {formatDateTime(message.createdAt)}
+                            {senderLabel(message)} · {formatDateTime(message.createdAt)}
                           </div>
                           <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body}</p>
                         </div>
@@ -495,6 +600,15 @@ export default function MessageCenter() {
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    {mode === "admin" && canManageSupport && (
+                      <div className="flex flex-col gap-2 rounded-md border border-border/60 bg-muted/20 p-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="text-sm font-medium">Antwort senden als</div>
+                          <div className="text-xs text-muted-foreground">Orga-Postfach ist der Standard für Support-Antworten.</div>
+                        </div>
+                        <SenderModeSelector value={replySenderDisplayMode} onChange={setReplySenderDisplayMode} disabled={sending} />
+                      </div>
+                    )}
                     <Textarea
                       value={reply}
                       onChange={(event) => setReply(event.target.value)}

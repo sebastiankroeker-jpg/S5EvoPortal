@@ -4,6 +4,7 @@ import { normalizeEmail } from "@/lib/current-user";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_SUBJECT_LENGTH = 120;
+export const ORG_MESSAGE_SENDER_LABEL = "Admin-Team";
 
 export type SupportContext =
   | {
@@ -40,6 +41,18 @@ export function normalizeMessageSubject(value: unknown, fallback = "Nachricht an
 export function buildMessagePreview(body: string) {
   const compact = body.replace(/\s+/g, " ").trim();
   return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
+}
+
+export function normalizeSenderDisplayMode(value: unknown, canUseOrgMode: boolean) {
+  if (!canUseOrgMode) return "PERSONAL" as const;
+  return value === "ORG" ? "ORG" as const : "PERSONAL" as const;
+}
+
+function getMessageSenderDisplayName(message: {
+  senderDisplayMode: "PERSONAL" | "ORG";
+  sender: { name: string | null; email: string };
+}) {
+  return message.senderDisplayMode === "ORG" ? ORG_MESSAGE_SENDER_LABEL : message.sender.name || message.sender.email;
 }
 
 export async function getSupportContextsForUser(userId: string, userEmail?: string | null): Promise<SupportContext[]> {
@@ -272,12 +285,16 @@ export function serializeConversation(conversation: Awaited<ReturnType<typeof en
           id: lastMessage.id,
           bodyPreview: lastMessage.bodyPreview || buildMessagePreview(lastMessage.body || ""),
           createdAt: lastMessage.createdAt.toISOString(),
+          senderDisplayMode: lastMessage.senderDisplayMode,
+          senderDisplayName: getMessageSenderDisplayName(lastMessage),
           sender: lastMessage.sender,
         }
       : null,
     messages: conversation.messages.map((message) => ({
       id: message.id,
       contentFormat: message.contentFormat,
+      senderDisplayMode: message.senderDisplayMode,
+      senderDisplayName: getMessageSenderDisplayName(message),
       body: message.body,
       bodyPreview: message.bodyPreview,
       createdAt: message.createdAt.toISOString(),

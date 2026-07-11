@@ -251,6 +251,11 @@ enum MessageContentFormat {
   ENCRYPTED
 }
 
+enum MessageSenderDisplayMode {
+  PERSONAL
+  ORG
+}
+
 // ==================== TENANT ====================
 
 model Tenant {
@@ -682,6 +687,7 @@ model ConversationParticipant {
 model Message {
   id                String               @id @default(cuid())
   contentFormat     MessageContentFormat @default(PLAIN)
+  senderDisplayMode MessageSenderDisplayMode @default(PERSONAL)
   body              String?
   bodyCiphertext    String?
   bodyPreview       String?

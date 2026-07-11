@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
   buildMessagePreview,
+  normalizeSenderDisplayMode,
+  ORG_MESSAGE_SENDER_LABEL,
   normalizeMessageBody,
   normalizeMessageSubject,
   serializeConversation,
@@ -43,6 +45,7 @@ export async function POST(request: NextRequest) {
   const teamId = typeof body.teamId === "string" && body.teamId ? body.teamId : null;
   const participantId = typeof body.participantId === "string" && body.participantId ? body.participantId : null;
   const messageBody = normalizeMessageBody(body.body);
+  const senderDisplayMode = normalizeSenderDisplayMode(body.senderDisplayMode, true);
 
   if (!targetUserId) {
     return NextResponse.json({ error: "Zielperson fehlt" }, { status: 400 });
@@ -144,6 +147,7 @@ export async function POST(request: NextRequest) {
         messages: {
           create: {
             senderId: auth.user.id,
+            senderDisplayMode,
             body: messageBody,
             bodyPreview: buildMessagePreview(messageBody),
           },
@@ -186,7 +190,7 @@ export async function POST(request: NextRequest) {
     to: [targetUser.email],
     subject: "Neue Nachricht im S5Evo-Portal",
     conversationSubject: conversation.subject,
-    actorName: auth.user.name || auth.user.email,
+    actorName: senderDisplayMode === "ORG" ? ORG_MESSAGE_SENDER_LABEL : auth.user.name || auth.user.email,
   }).catch((error) => {
     console.warn("Admin message notification skipped/failed", error);
   });
