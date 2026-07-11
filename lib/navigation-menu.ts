@@ -8,6 +8,7 @@ export interface NavigationMenuItem {
     | "my-teams"
     | "live"
     | "profile"
+    | "messages"
     | "all-teams"
     | "sportlerboerse-mtc"
     | "sportlerboerse-dashboard"
@@ -69,6 +70,13 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Profil",
     keywords: ["profil", "konto", "account", "benutzername"],
     icon: "👤",
+    requiresAuth: true,
+  },
+  {
+    id: "messages",
+    label: "Nachrichten",
+    keywords: ["nachrichten", "postfach", "brief", "mail", "message", "support", "admin kontaktieren"],
+    icon: "✉️",
     requiresAuth: true,
   },
   {
@@ -191,6 +199,7 @@ const CLAIM_ROUTE_ITEM_IDS = new Set<NavigationMenuItem["id"]>([
   "my-teams",
   "live",
   "profile",
+  "messages",
   "sign-out",
 ]);
 

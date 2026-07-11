@@ -122,6 +122,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "profile":
         router.push("/profile");
         break;
+      case "messages":
+        router.push("/nachrichten");
+        break;
       case "administration":
         router.push("/admin");
         break;

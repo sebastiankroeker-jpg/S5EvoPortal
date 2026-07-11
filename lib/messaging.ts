@@ -141,6 +141,37 @@ export async function canManageSupportConversations(userId: string, tenantId: st
   return roles.isAdmin || roles.isModerator;
 }
 
+export async function getUnreadMessageCountForUser(userId: string) {
+  const memberships = await prisma.conversationParticipant.findMany({
+    where: {
+      userId,
+      leftAt: null,
+      conversation: { deletedAt: null },
+    },
+    select: {
+      lastReadAt: true,
+      conversation: {
+        select: {
+          messages: {
+            where: {
+              senderId: { not: userId },
+              deletedAt: null,
+            },
+            select: { createdAt: true },
+          },
+        },
+      },
+    },
+  });
+
+  return memberships.reduce((total, membership) => {
+    const unreadInConversation = membership.lastReadAt
+      ? membership.conversation.messages.filter((message) => message.createdAt > membership.lastReadAt!).length
+      : membership.conversation.messages.length;
+    return total + unreadInConversation;
+  }, 0);
+}
+
 export async function ensureConversationAccess(conversationId: string, userId: string) {
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, deletedAt: null },

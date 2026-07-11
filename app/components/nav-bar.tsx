@@ -32,6 +32,7 @@ export default function NavBar() {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const THEMES: Array<{ id: Theme; icon: string; label: string }> = [
     { id: "light", icon: "☀️", label: "Light" },
@@ -58,6 +59,38 @@ export default function NavBar() {
       window.removeEventListener("sidebar-toggle", handleStorageChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (status !== "authenticated") {
+      return;
+    }
+
+    let cancelled = false;
+    const loadUnreadMessages = async () => {
+      try {
+        const response = await fetch("/api/messages/unread-count");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) setUnreadMessages(Number(data.unreadCount) || 0);
+      } catch {}
+    };
+
+    void loadUnreadMessages();
+    const interval = window.setInterval(loadUnreadMessages, 60_000);
+    const handleFocus = () => void loadUnreadMessages();
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [status]);
+
+  const renderUnreadBadge = () => unreadMessages > 0 ? (
+    <span className="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-4 text-white shadow-sm ring-2 ring-background">
+      {unreadMessages > 99 ? "99+" : unreadMessages}
+    </span>
+  ) : null;
 
   return (
     <nav
@@ -197,12 +230,13 @@ export default function NavBar() {
             )}
             <Link
               href="/profile"
-              className="hidden md:inline-flex h-7 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              className="relative hidden h-7 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground transition-colors hover:text-foreground md:inline-flex"
               title="Profil"
               aria-label="Profil öffnen"
             >
               <UserCircle2 className="h-4 w-4" />
               <span className="hidden md:inline truncate max-w-32">{session.user.name}</span>
+              {renderUnreadBadge()}
             </Link>
             <Button
               variant="ghost"
@@ -219,12 +253,13 @@ export default function NavBar() {
             <div className="relative md:hidden">
               <button
                 onClick={() => setShowAccountMenu(!showAccountMenu)}
-                className="inline-flex h-8 items-center gap-1 rounded-full border border-border/60 bg-background/95 px-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                className="relative inline-flex h-8 items-center gap-1 rounded-full border border-border/60 bg-background/95 px-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
                 aria-label="Konto-Menü öffnen"
                 title="Konto-Menü öffnen"
               >
                 <UserCircle2 className="h-4 w-4" />
                 <EllipsisVertical className="h-4 w-4" />
+                {renderUnreadBadge()}
               </button>
               {showAccountMenu && (
                 <>
@@ -253,7 +288,12 @@ export default function NavBar() {
                       onClick={() => setShowAccountMenu(false)}
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
-                      Nachrichten
+                      <span className="flex-1">Nachrichten</span>
+                      {unreadMessages > 0 && (
+                        <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                          {unreadMessages > 99 ? "99+" : unreadMessages}
+                        </span>
+                      )}
                     </Link>
                     <div className="my-1 border-t border-border/40" />
                     {simulatable.length > 0 && (
