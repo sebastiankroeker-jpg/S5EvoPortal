@@ -3120,39 +3120,78 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
       <div className="rounded-md border border-border/60 bg-card/70 p-2.5 shadow-sm">
         <div className="space-y-2">
-          <div className="grid gap-2 lg:grid-cols-[auto_minmax(16rem,1fr)_auto] lg:items-center">
-            <div className="inline-flex w-fit rounded-md border border-border/60 bg-muted/20 p-0.5">
-              {[
-                { value: "cards" as const, label: "Kacheln" },
-                { value: "list" as const, label: "Liste" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setViewMode(option.value)}
-                  className={`h-8 rounded px-3 text-xs font-medium transition-colors ${
-                    viewMode === option.value
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                  }`}
-                  aria-pressed={viewMode === option.value}
-                >
-                  {option.label}
-                </button>
-              ))}
+          <div className="space-y-2">
+            <div className="grid gap-2 lg:grid-cols-[auto_minmax(16rem,1fr)] lg:items-center">
+              <div className="inline-flex w-fit rounded-md border border-border/60 bg-muted/20 p-0.5">
+                {[
+                  { value: "cards" as const, label: "Kacheln" },
+                  { value: "list" as const, label: "Liste" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setViewMode(option.value)}
+                    className={`h-8 rounded px-3 text-xs font-medium transition-colors ${
+                      viewMode === option.value
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                    }`}
+                    aria-pressed={viewMode === option.value}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative min-w-0">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-9 pl-8 text-sm"
+                  placeholder={marketplaceFocus ? "Sportlerbörse, Kontakt oder Teilnehmer:in" : "Teamname, Team Manager:in oder Teilnehmer:in"}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div className="relative min-w-0">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="h-9 pl-8 text-sm"
-                placeholder={marketplaceFocus ? "Sportlerbörse, Kontakt oder Teilnehmer:in" : "Teamname, Team Manager:in oder Teilnehmer:in"}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div
+              className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap"
+              aria-label="Trefferstatistik"
+            >
+              {teamHitStats.map((stat) => {
+                const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
+                const title = hasActiveFilters
+                  ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
+                  : `${stat.label}: ${stat.total} Treffer`;
+                const active = stat.filterValue === "all" ? categoryFilters.length === 0 : categoryFilters.includes(stat.filterValue);
+                const inactiveClassName =
+                  stat.variant === "secondary"
+                    ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    : stat.variant === "default"
+                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+                      : "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
+
+                return (
+                  <button
+                    key={stat.key}
+                    type="button"
+                    className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                      active ? "border-primary bg-primary text-primary-foreground shadow-sm" : inactiveClassName
+                    }`}
+                    title={`${title} · Tippen zum Filtern`}
+                    aria-label={`${stat.label} filtern`}
+                    aria-pressed={active}
+                    onClick={() => toggleStatFilter(stat.filterValue)}
+                  >
+                    <span className="hidden sm:inline">{stat.label}</span>
+                    <span className="sm:hidden">{stat.shortLabel}</span>
+                    <span className="font-semibold tabular-nums">{valueLabel}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="grid w-full min-w-0 grid-cols-[repeat(auto-fit,minmax(2.25rem,1fr))] items-center gap-1.5 lg:flex lg:w-auto lg:flex-wrap lg:justify-end">
+            <div className="grid w-full min-w-0 grid-cols-[repeat(auto-fit,minmax(2.25rem,1fr))] items-center gap-1.5 lg:flex lg:w-full lg:flex-wrap lg:justify-end">
               <div className="relative flex min-w-0 items-center lg:size-6">
                 <Button
                   type="button"
@@ -3182,7 +3221,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   type="button"
                   size="icon-xs"
                   className="h-7 w-full lg:size-6"
-                  variant={filtersOpen || activeFilterCount > 0 ? "default" : "outline"}
+                  variant={filtersOpen ? "default" : "outline"}
                   onClick={() => {
                     setFiltersOpen((open) => !open);
                     setQuickFilterMenuOpen(false);
@@ -3270,43 +3309,6 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 <XCircle className="size-3.5" />
               </Button>
             </div>
-          </div>
-
-          <div
-            className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap"
-            aria-label="Trefferstatistik"
-          >
-            {teamHitStats.map((stat) => {
-              const valueLabel = hasActiveFilters ? `${stat.current}/${stat.total}` : `${stat.total}`;
-              const title = hasActiveFilters
-                ? `${stat.label}: ${stat.current} Treffer von ${stat.total} ohne Filter`
-                : `${stat.label}: ${stat.total} Treffer`;
-              const active = stat.filterValue === "all" ? categoryFilters.length === 0 : categoryFilters.includes(stat.filterValue);
-              const inactiveClassName =
-                stat.variant === "secondary"
-                  ? "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                  : stat.variant === "default"
-                    ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
-                    : "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground";
-
-              return (
-                <button
-                  key={stat.key}
-                  type="button"
-                  className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
-                    active ? "border-primary bg-primary text-primary-foreground shadow-sm" : inactiveClassName
-                  }`}
-                  title={`${title} · Tippen zum Filtern`}
-                  aria-label={`${stat.label} filtern`}
-                  aria-pressed={active}
-                  onClick={() => toggleStatFilter(stat.filterValue)}
-                >
-                  <span className="hidden sm:inline">{stat.label}</span>
-                  <span className="sm:hidden">{stat.shortLabel}</span>
-                  <span className="font-semibold tabular-nums">{valueLabel}</span>
-                </button>
-              );
-            })}
           </div>
 
           {quickFilterMenuOpen && (
