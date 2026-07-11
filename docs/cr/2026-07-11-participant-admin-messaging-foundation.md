@@ -1,6 +1,6 @@
 # CR: Participant/Admin Messaging Foundation
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-11
 Type: schema
 Risk: medium
@@ -217,23 +217,30 @@ Die bestehende Plattform hat bereits Portal-Konten, Teilnehmer-/Team-Verknüpfun
 - Build:
   - `npm run build` gruen
 - Targeted verification:
-  - pending until deployed/migrated environment is available
+  - `/nachrichten` gegen Production-Alias: 200
+  - `/api/messages/conversations` ohne Session: 401
+  - `/api/messages/support-contexts` ohne Session: 401
 - Manual smoke:
-  - pending until production deploy/migration
+  - `npm run smoke:public` gegen Production-Alias gruen
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_bfLFtFkkNZc57p9Rk7H2vSq6dwUb`
+- Deployment URL: `https://s5-evo-portal-2cmr1k3vr-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-11 13:07 UTC
+- Migration: `npx prisma migrate deploy` applied `20260711125500_add_messaging_foundation`
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/nachrichten`: 200
+  - standard public smoke routes via `npm run smoke:public`: gruen
 - API checks:
-- Result:
+  - `/api/messages/conversations` without session: 401
+  - `/api/messages/support-contexts` without session: 401
+- Result: gruen
 
 ## Follow-Ups
 

@@ -1,6 +1,40 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 12:15 UTC
+Stand: 2026-07-11 13:12 UTC
+
+## Aktueller Nachtrag: Participant/Admin Messaging Foundation
+
+- App-/Schema-Commit `8a4fce7 Add participant admin messaging foundation` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_bfLFtFkkNZc57p9Rk7H2vSq6dwUb`
+- Deployment URL: `https://s5-evo-portal-2cmr1k3vr-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- Migration: `20260711125500_add_messaging_foundation` wurde per `npx prisma migrate deploy` erfolgreich angewendet.
+- CR: `docs/cr/2026-07-11-participant-admin-messaging-foundation.md`
+- Geaendert:
+  - generisches Messaging-Datenmodell mit `Conversation`, `ConversationParticipant` und `Message`
+  - Conversation-Typen vorbereitet: `SUPPORT`, `TEAM`, `DIRECT`, `GROUP`, `SYSTEM`
+  - MVP aktiviert Support-Threads: Teilnehmer:in/Teamchef:in schreibt an Admin-/Moderator-Team
+  - `/nachrichten` als neues Portal-Nachrichtencenter
+  - Admin-/Moderator-Sicht fuer Support-Inbox innerhalb des Nachrichtencenters
+  - API-Routen fuer Thread-Liste, Thread-Detail, Thread-Erstellung, Antworten und Read-State
+  - Nachrichten-Mailhinweise ohne Nachrichtentext; Link fuehrt ins Portal
+  - Message-Schema ist crypto-ready (`contentFormat`, `bodyCiphertext`, `bodyPreview`, `encryptionVersion`, `keyId`), aber MVP speichert Plaintext
+  - Konto-Menue und Profil verlinken auf `/nachrichten`
+- Checks:
+  - `npx prisma generate` gruen
+  - `npx prisma validate` gruen
+  - targeted `pnpm exec eslint ...` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `/api/messages/conversations` ohne Session: 401
+  - `/api/messages/support-contexts` ohne Session: 401
+- Follow-ups:
+  - Authenticated Smoke mit echtem Admin-/Teilnehmerkonto durchspielen: Thread erstellen, Admin antwortet, Read-State pruefen.
+  - Spaeter Team-/Gruppen- und Direktnachrichten freischalten, wenn Privacy-/Kontakt-Einstellungen definiert sind.
+  - Optional Envelope Encryption oder E2EE-Spike separat bewerten.
 
 ## Aktueller Nachtrag: User Dashboard Filter And Sort Follow-Up
 
