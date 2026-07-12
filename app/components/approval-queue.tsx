@@ -143,6 +143,7 @@ const fieldLabels: Record<string, string> = {
   moderationNote: "Moderationshinweis",
   email: "E-Mail",
   participantPublicationPreference: "Namensveröffentlichung",
+  teamName: "Mannschaftsname",
 };
 
 function parseSnapshot(raw?: string | null): Snapshot {
@@ -170,6 +171,9 @@ function formatValue(value: string | number | null | undefined) {
 }
 
 function getChangeTitle(change: DecoratedChange) {
+  if (change.targetType === "TEAM") {
+    return "Mannschaftsname";
+  }
   if (change.bundleType === "SWAP" && (change.bundleGroupSize || 0) > 1) {
     return `Disziplinstausch (${change.bundleGroupSize})`;
   }

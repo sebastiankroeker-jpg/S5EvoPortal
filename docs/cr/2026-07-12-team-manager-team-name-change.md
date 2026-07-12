@@ -1,6 +1,6 @@
 # CR: Team Manager Team Name Change
 
-Status: Draft
+Status: Implemented, deploy pending
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -65,10 +65,10 @@ Sebastian requested that Team Manager:innen should be able to change their Manns
 
 ## Open Questions
 
-- Should duplicate team-name validation match registration rules exactly within the same competition/tenant, excluding the current team?
-- Should team-name requests be bundled with participant approval requests in the UI, or shown as separate team-level changes in `/aenderungen`?
-- Should a pending team-name change block submitting another team-name change, or update the existing pending request?
-- Should "competition start" be enforced from `Competition.status` only, or from both `Competition.status` and `Competition.date`? Recommendation: direct edits are allowed only while status is `DRAFT`/`OPEN` and, if `date` is set, now is before `date`.
+- Resolved: duplicate team-name validation runs within the same competition, excluding the current team.
+- Resolved: team-name requests are shown as separate team-level changes in `/aenderungen`.
+- Resolved: an existing pending team-name request is updated instead of creating parallel rename requests.
+- Resolved: direct edits are allowed only while status is `DRAFT`/`OPEN` and, if `Competition.date` is set, now is before that date.
 
 ## Acceptance Criteria
 
@@ -139,20 +139,35 @@ Use before model switch or subagent delegation.
 
 - Gate needed: yes
 - Reason: implementation changes application behavior and production deploy is required.
-- Approved by: pending
-- Approval timestamp: pending
+- Approved by: Sebastian, "Go"
+- Approval timestamp: 2026-07-12 13:45 UTC
 
 ## Implementation Notes
 
-- Files changed: pending
-- Important decisions during implementation: pending
+- Files changed:
+  - `app/api/teams/[id]/route.ts`
+  - `app/api/admin/pending-changes/route.ts`
+  - `app/api/admin/pending-changes/[id]/route.ts`
+  - `app/components/approval-queue.tsx`
+- Important decisions during implementation:
+  - Team Manager:innen can rename directly before competition start.
+  - Direct pre-start renames update `Team.name`, write an `AuditEvent`, and create an applied generic `ChangeRequest` for consolidated history.
+  - Post-start renames create or update one pending team-scoped generic `ChangeRequest`.
+  - The consolidated change dashboard includes team-level update requests alongside participant requests.
+  - The existing pending-change decision endpoint now handles team update requests before falling back to participant logic.
 
 ## Verification
 
-- Local checks: pending
-- Build: pending
-- Targeted verification: pending
-- Manual smoke: pending
+- Local checks:
+  - `pnpm exec eslint app/api/teams/[id]/route.ts app/api/admin/pending-changes/route.ts app/api/admin/pending-changes/[id]/route.ts app/components/approval-queue.tsx` green with existing `approval-queue.tsx` Hook warning.
+  - `npx tsc --noEmit` green.
+  - `git diff --check` green.
+- Build:
+  - `npm run build` green.
+- Targeted verification:
+  - `npm run verify:team-draft` green.
+- Manual smoke:
+  - Pending production deploy.
 
 ## Deploy
 

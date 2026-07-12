@@ -62,6 +62,22 @@ function normalizeSubmittedText(value?: string | null) {
   return value?.normalize("NFC").trim() || "";
 }
 
+function isBeforeCompetitionStart(competition: { status?: string | null; date?: Date | null }) {
+  if (competition.status === "RUNNING" || competition.status === "CLOSED") {
+    return false;
+  }
+
+  if (competition.date && new Date() >= competition.date) {
+    return false;
+  }
+
+  return true;
+}
+
+function teamNameSnapshot(teamName: string) {
+  return { teamName };
+}
+
 function participantDisplayName(participant: { firstName: string; lastName: string }) {
   return `${participant.firstName} ${participant.lastName}`.trim();
 }
@@ -904,6 +920,7 @@ export async function PUT(
               registrationNotificationEmail: true,
               claimTokenExpiryMode: true,
               claimTokenTtlDays: true,
+              status: true,
               tenant: {
                 select: {
                   name: true,
@@ -972,11 +989,38 @@ export async function PUT(
       const finalTeamName = normalizedTeamName && normalizedTeamName.length >= 3
         ? normalizedTeamName
         : existingTeam.name;
+      const teamNameChanged = finalTeamName !== existingTeam.name;
+      const teamNameChangeIsDirect = canDirectEdit || isBeforeCompetitionStart(existingTeam.competition);
+      const effectiveTeamName = !canDirectEdit && teamNameChanged && !teamNameChangeIsDirect
+        ? existingTeam.name
+        : finalTeamName;
 
-      if (!canDirectEdit && finalTeamName !== existingTeam.name) {
+      if (teamNameChanged) {
+        const duplicateTeam = await prisma.team.findFirst({
+          where: {
+            id: { not: id },
+            competitionId: existingTeam.competitionId,
+            deletedAt: null,
+            name: {
+              equals: finalTeamName,
+              mode: "insensitive",
+            },
+          },
+          select: { id: true, name: true },
+        });
+
+        if (duplicateTeam) {
+          return NextResponse.json(
+            { error: `Eine Mannschaft mit dem Namen "${finalTeamName}" existiert in diesem Wettkampf bereits.`, existingTeamId: duplicateTeam.id },
+            { status: 409 },
+          );
+        }
+      }
+
+      if (!canDirectEdit && teamNameChanged && !teamNameChangeIsDirect && !user) {
         return NextResponse.json(
-          { error: 'Teamname-Aenderungen laufen fuer Team Manager:innen noch nicht ueber den Genehmigungsworkflow. Bitte nur Teilnehmerdaten aendern.' },
-          { status: 409 }
+          { error: 'Unauthorized' },
+          { status: 401 }
         );
       }
 
@@ -1011,6 +1055,9 @@ export async function PUT(
         let updatedRequests = 0;
         let directlyAppliedParticipants = 0;
         let updatedTeamPublication = false;
+        let directlyUpdatedTeamName = false;
+        let createdTeamNameRequest = false;
+        let updatedTeamNameRequest = false;
         let bundledSwapRequests = 0;
         const createdChangeMailItems: Array<{
           participantName: string;
@@ -1090,6 +1137,139 @@ export async function PUT(
             }
 
             swapBundleId = existingBundleId;
+          }
+        }
+
+        if (teamNameChanged && teamNameChangeIsDirect) {
+          const beforeSnapshot = teamNameSnapshot(existingTeam.name);
+          const requestedSnapshot = teamNameSnapshot(finalTeamName);
+
+          await prisma.$transaction(async (tx) => {
+            await tx.team.update({
+              where: { id },
+              data: { name: finalTeamName },
+            });
+
+            await tx.auditEvent.create({
+              data: {
+                action: "TEAM_NAME_CHANGED",
+                scopeType: "TEAM",
+                scopeId: existingTeam.id,
+                entityType: "TEAM",
+                entityId: existingTeam.id,
+                reason: "team_manager_pre_start_rename",
+                beforeData: beforeSnapshot,
+                afterData: requestedSnapshot,
+                meta: {
+                  source: "team_manager_pre_start",
+                  previousTeamName: existingTeam.name,
+                  nextTeamName: finalTeamName,
+                  sessionEmail: normalizedUserEmail,
+                },
+                tenantId: existingTeam.competition.tenantId,
+                competitionId: existingTeam.competitionId,
+                actorId: user!.id,
+              },
+            });
+
+            await recordAppliedChangeRequest(tx, {
+              tenantId: existingTeam.competition.tenantId,
+              competitionId: existingTeam.competitionId,
+              targetType: "TEAM",
+              targetId: existingTeam.id,
+              changeType: "UPDATE",
+              source: "SELF_SERVICE",
+              beforeSnapshot,
+              requestedSnapshot,
+              metadata: {
+                field: "teamName",
+                directReason: "before_competition_start",
+              },
+              actorId: user!.id,
+              message: "Mannschaftsname vor Wettkampfbeginn direkt durch Team Manager:in geaendert",
+            });
+          });
+
+          directlyUpdatedTeamName = true;
+        } else if (teamNameChanged) {
+          const beforeSnapshot = teamNameSnapshot(existingTeam.name);
+          const requestedSnapshot = teamNameSnapshot(finalTeamName);
+          const existingTeamNameRequest = await prisma.changeRequest.findFirst({
+            where: {
+              targetType: "TEAM",
+              targetId: existingTeam.id,
+              changeType: "UPDATE",
+              status: "PENDING",
+              tenantId: existingTeam.competition.tenantId,
+            },
+            orderBy: { updatedAt: "desc" },
+          });
+
+          if (existingTeamNameRequest) {
+            await prisma.$transaction(async (tx) => {
+              await tx.changeRequest.update({
+                where: { id: existingTeamNameRequest.id },
+                data: {
+                  requestedById: user!.id,
+                  beforeSnapshot,
+                  requestedSnapshot,
+                  metadata: {
+                    field: "teamName",
+                    previousTeamName: existingTeam.name,
+                    requestedTeamName: finalTeamName,
+                  },
+                  reviewComment: null,
+                  reviewedAt: null,
+                  reviewedById: null,
+                },
+              });
+
+              await tx.changeRequestAuditLog.create({
+                data: {
+                  changeRequestId: existingTeamNameRequest.id,
+                  actorId: user!.id,
+                  action: "UPDATED",
+                  beforeData: existingTeamNameRequest.requestedSnapshot as Prisma.InputJsonValue,
+                  afterData: requestedSnapshot,
+                  message: "Offener Mannschaftsname-Antrag durch Team Manager:in aktualisiert",
+                },
+              });
+            });
+            updatedTeamNameRequest = true;
+          } else {
+            await prisma.$transaction(async (tx) => {
+              const created = await tx.changeRequest.create({
+                data: {
+                  tenantId: existingTeam.competition.tenantId,
+                  competitionId: existingTeam.competitionId,
+                  targetType: "TEAM",
+                  targetId: existingTeam.id,
+                  changeType: "UPDATE",
+                  source: "SELF_SERVICE",
+                  status: "PENDING",
+                  submittedAt: new Date(),
+                  beforeSnapshot,
+                  requestedSnapshot,
+                  metadata: {
+                    field: "teamName",
+                    previousTeamName: existingTeam.name,
+                    requestedTeamName: finalTeamName,
+                  },
+                  requestedById: user!.id,
+                },
+              });
+
+              await tx.changeRequestAuditLog.create({
+                data: {
+                  changeRequestId: created.id,
+                  actorId: user!.id,
+                  action: "SUBMITTED",
+                  afterData: requestedSnapshot,
+                  message: "Mannschaftsname-Aenderung durch Team Manager:in eingereicht",
+                },
+              });
+            });
+            createdTeamNameRequest = true;
           }
         }
 
@@ -1366,7 +1546,7 @@ export async function PUT(
         if (createdChangeMailItems.length > 0) {
           await sendParticipantChangeSubmittedBatchEmails({
             competition: existingTeam.competition,
-            teamName: finalTeamName,
+            teamName: effectiveTeamName,
             teamContactEmail: existingTeam.contactEmail,
             requester: {
               name: user?.name || userEmail || 'Team Manager:in',
@@ -1390,7 +1570,7 @@ export async function PUT(
               },
               team: {
                 id: existingTeam.id,
-                name: finalTeamName,
+                name: effectiveTeamName,
               },
               competition: existingTeam.competition,
               actorUserId: user?.id ?? null,
@@ -1457,13 +1637,20 @@ export async function PUT(
         }
         const refreshedTeamWithParticipantAccounts = await attachParticipantPortalAccounts(refreshedTeam);
 
-        if (createdRequests === 0 && updatedRequests === 0) {
+        const pendingTeamNameRequestCount = (createdTeamNameRequest ? 1 : 0) + (updatedTeamNameRequest ? 1 : 0);
+        const directUpdateMessageParts = [
+          updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert' : '',
+          directlyUpdatedTeamName ? 'Mannschaftsname aktualisiert' : '',
+          directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}` : '',
+        ].filter(Boolean);
+
+        if (createdRequests === 0 && updatedRequests === 0 && pendingTeamNameRequestCount === 0) {
           return NextResponse.json({
             success: true,
-            applied: updatedTeamPublication || directlyAppliedParticipants > 0,
+            applied: updatedTeamPublication || directlyUpdatedTeamName || directlyAppliedParticipants > 0,
             message:
-              updatedTeamPublication || directlyAppliedParticipants > 0
-                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert' : ''}${updatedTeamPublication && directlyAppliedParticipants > 0 ? ', ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}` : ''}`
+              directUpdateMessageParts.length > 0
+                ? directUpdateMessageParts.join(', ')
                 : 'Keine Aenderungen erkannt',
             classificationWarnings: requestedTeamState.classificationWarnings,
             participantClaimMails: participantClaimMailResults,
@@ -1478,15 +1665,17 @@ export async function PUT(
 
         return NextResponse.json({
           success: true,
-          applied: updatedTeamPublication || directlyAppliedParticipants > 0,
-          message:
-            createdRequests > 0 && updatedRequests > 0
-              ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) eingereicht, ${updatedRequests} offene Anfrage(n) aktualisiert${swapBundleMessage}`
-              : createdRequests > 0
-                ? `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${createdRequests} Aenderungsanfrage(n) zur Genehmigung eingereicht${swapBundleMessage}`
-                : `${updatedTeamPublication ? 'Veröffentlichungsgrad aktualisiert, ' : ''}${directlyAppliedParticipants > 0 ? `${directlyAppliedParticipants} Teilnehmer direkt aktualisiert${invitationMessage}, ` : ''}${updatedRequests} offene Aenderungsanfrage(n) aktualisiert${swapBundleMessage}`,
+          applied: updatedTeamPublication || directlyUpdatedTeamName || directlyAppliedParticipants > 0,
+          message: [
+            directUpdateMessageParts.join(', '),
+            createdRequests > 0 ? `${createdRequests} Teilnehmer-Aenderungsanfrage(n) zur Genehmigung eingereicht` : '',
+            updatedRequests > 0 ? `${updatedRequests} offene Teilnehmer-Anfrage(n) aktualisiert` : '',
+            createdTeamNameRequest ? 'Mannschaftsname-Aenderung zur Genehmigung eingereicht' : '',
+            updatedTeamNameRequest ? 'offene Mannschaftsname-Aenderung aktualisiert' : '',
+            swapBundleMessage ? swapBundleMessage.replace(/^, /, '') : '',
+          ].filter(Boolean).join(', '),
           classificationWarnings: requestedTeamState.classificationWarnings,
-          pendingCount: createdRequests + updatedRequests,
+          pendingCount: createdRequests + updatedRequests + pendingTeamNameRequestCount,
           participantClaimMails: participantClaimMailResults,
           team: serializeTeam(refreshedTeamWithParticipantAccounts, {
             currentUserId: user?.id ?? null,

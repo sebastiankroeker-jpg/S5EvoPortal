@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { reviewLegacyParticipantChangeRequest } from "@/lib/change-request";
@@ -59,6 +60,8 @@ export async function PUT(
       targetId: true,
       changeType: true,
       status: true,
+      beforeSnapshot: true,
+      requestedSnapshot: true,
       metadata: true,
     },
   });
@@ -68,6 +71,20 @@ export async function PUT(
   if (changeRequest) {
     if (changeRequest.tenantId !== auth.tenantId) {
       return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+    }
+
+    if (changeRequest.targetType === "TEAM" && changeRequest.changeType === "UPDATE") {
+      if (changeRequest.status !== "PENDING") {
+        return NextResponse.json({ error: "Änderungsantrag nicht gefunden oder bereits bearbeitet" }, { status: 404 });
+      }
+
+      return reviewTeamChangeRequest({
+        changeRequest,
+        action,
+        comment,
+        reviewerId: auth.user.id,
+        tenantId: auth.tenantId,
+      });
     }
 
     if (changeRequest.targetType !== "PARTICIPANT" || changeRequest.changeType !== "UPDATE") {
@@ -388,4 +405,175 @@ function getLegacyPendingChangeId(metadata: unknown): string | null {
 
   const value = (metadata as { legacyPendingChangeId?: unknown }).legacyPendingChangeId;
   return typeof value === "string" ? value : null;
+}
+
+async function reviewTeamChangeRequest(input: {
+  changeRequest: {
+    id: string;
+    targetId: string;
+    beforeSnapshot: Prisma.JsonValue | null;
+    requestedSnapshot: Prisma.JsonValue;
+  };
+  action: "approve" | "reject";
+  comment: string;
+  reviewerId: string;
+  tenantId: string;
+}) {
+  const team = await prisma.team.findFirst({
+    where: {
+      id: input.changeRequest.targetId,
+      competition: {
+        tenantId: input.tenantId,
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      competitionId: true,
+      competition: {
+        select: {
+          tenantId: true,
+        },
+      },
+    },
+  });
+
+  if (!team) {
+    return NextResponse.json({ error: "Mannschaft nicht gefunden" }, { status: 404 });
+  }
+
+  const requestedTeamName = readTeamName(input.changeRequest.requestedSnapshot);
+  if (!requestedTeamName) {
+    return NextResponse.json({ error: "Mannschaftsname-Antrag ist unvollständig" }, { status: 409 });
+  }
+
+  if (input.action === "approve") {
+    const duplicateTeam = await prisma.team.findFirst({
+      where: {
+        id: { not: team.id },
+        competitionId: team.competitionId,
+        deletedAt: null,
+        name: {
+          equals: requestedTeamName,
+          mode: "insensitive",
+        },
+      },
+      select: { id: true },
+    });
+
+    if (duplicateTeam) {
+      return NextResponse.json(
+        { error: `Eine Mannschaft mit dem Namen "${requestedTeamName}" existiert in diesem Wettkampf bereits.` },
+        { status: 409 },
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.team.update({
+        where: { id: team.id },
+        data: { name: requestedTeamName },
+      });
+
+      await tx.changeRequest.update({
+        where: { id: input.changeRequest.id },
+        data: {
+          status: "APPLIED",
+          reviewedAt: new Date(),
+          reviewedById: input.reviewerId,
+          appliedAt: new Date(),
+          appliedById: input.reviewerId,
+          reviewComment: input.comment || null,
+        },
+      });
+
+      await tx.changeRequestAuditLog.create({
+        data: {
+          changeRequestId: input.changeRequest.id,
+          actorId: input.reviewerId,
+          action: "APPROVED",
+          beforeData: input.changeRequest.beforeSnapshot as Prisma.InputJsonValue,
+          afterData: input.changeRequest.requestedSnapshot as Prisma.InputJsonValue,
+          message: input.comment || "Mannschaftsname-Aenderung genehmigt",
+        },
+      });
+
+      await tx.changeRequestAuditLog.create({
+        data: {
+          changeRequestId: input.changeRequest.id,
+          actorId: input.reviewerId,
+          action: "APPLIED",
+          beforeData: { teamName: team.name },
+          afterData: { teamName: requestedTeamName },
+          message: "Mannschaftsname-Aenderung angewendet",
+        },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          action: "TEAM_NAME_CHANGED",
+          scopeType: "TEAM",
+          scopeId: team.id,
+          entityType: "TEAM",
+          entityId: team.id,
+          reason: "team_name_change_approved",
+          beforeData: { teamName: team.name },
+          afterData: { teamName: requestedTeamName },
+          meta: {
+            changeRequestId: input.changeRequest.id,
+            reviewComment: input.comment || null,
+          },
+          tenantId: team.competition.tenantId,
+          competitionId: team.competitionId,
+          actorId: input.reviewerId,
+        },
+      });
+    });
+
+    return NextResponse.json({
+      status: "approved",
+      message: "Mannschaftsname genehmigt und angewendet",
+    });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.changeRequest.update({
+      where: { id: input.changeRequest.id },
+      data: {
+        status: "REJECTED",
+        reviewedAt: new Date(),
+        reviewedById: input.reviewerId,
+        reviewComment: input.comment || null,
+      },
+    });
+
+    await tx.changeRequestAuditLog.create({
+      data: {
+        changeRequestId: input.changeRequest.id,
+        actorId: input.reviewerId,
+        action: "REJECTED",
+        beforeData: input.changeRequest.beforeSnapshot as Prisma.InputJsonValue,
+        afterData: input.changeRequest.requestedSnapshot as Prisma.InputJsonValue,
+        message: input.comment || "Mannschaftsname-Aenderung abgelehnt",
+      },
+    });
+  });
+
+  return NextResponse.json({
+    status: "rejected",
+    message: "Mannschaftsname-Aenderung abgelehnt",
+  });
+}
+
+function readTeamName(value: Prisma.JsonValue | null): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value.teamName;
+  if (typeof raw !== "string") {
+    return null;
+  }
+
+  const teamName = raw.trim();
+  return teamName.length >= 3 ? teamName : null;
 }

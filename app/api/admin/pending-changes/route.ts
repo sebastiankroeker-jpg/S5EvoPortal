@@ -56,7 +56,37 @@ export async function GET(request: NextRequest) {
     },
     orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
   });
+  const teamChangeRequests = await prisma.changeRequest.findMany({
+    where: {
+      status: whereStatus ? "PENDING" : { in: ["PENDING", "APPROVED", "APPLIED", "REJECTED"] },
+      tenantId: auth.tenantId,
+      targetType: "TEAM",
+      changeType: "UPDATE",
+    },
+    include: {
+      requestedBy: { select: { name: true, email: true } },
+      reviewedBy: { select: { name: true, email: true } },
+      auditLogs: {
+        orderBy: { createdAt: "desc" },
+        take: 4,
+        select: {
+          id: true,
+          action: true,
+          createdAt: true,
+          message: true,
+          actor: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
+  });
   const participantIds = [...new Set(changeRequests.map((change) => change.targetId))];
+  const teamIds = [...new Set(teamChangeRequests.map((change) => change.targetId))];
   const participantById = new Map(
     (participantIds.length
       ? await prisma.participant.findMany({
@@ -99,6 +129,23 @@ export async function GET(request: NextRequest) {
           },
         })
       : []).map((participant) => [participant.id, participant]),
+  );
+  const teamById = new Map(
+    (teamIds.length
+      ? await prisma.team.findMany({
+          where: {
+            id: { in: teamIds },
+            competition: {
+              tenantId: auth.tenantId,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            contactEmail: true,
+          },
+        })
+      : []).map((team) => [team.id, team]),
   );
   const legacyPendingChangeIds = new Set(
     changeRequests.flatMap((changeRequest) => {
@@ -361,12 +408,114 @@ export async function GET(request: NextRequest) {
       ],
     });
   });
+  const teamDecoratedChanges = teamChangeRequests.flatMap((changeRequest) => {
+    const team = teamById.get(changeRequest.targetId);
 
-  const decoratedChanges = [...genericDecoratedChanges, ...legacyDecoratedChanges, ...directDecoratedChanges].sort(
+    if (!team) {
+      return [];
+    }
+
+    return [
+      decorateTeamChange({
+        id: changeRequest.id,
+        changeData: stringifyJsonSnapshot(changeRequest.requestedSnapshot),
+        beforeData: stringifyJsonSnapshot(changeRequest.beforeSnapshot),
+        status: normalizeChangeRequestStatus(changeRequest.status),
+        createdAt: changeRequest.createdAt,
+        updatedAt: changeRequest.updatedAt,
+        reviewedAt: changeRequest.reviewedAt,
+        reviewComment: changeRequest.reviewComment,
+        team,
+        requestedBy: changeRequest.requestedBy,
+        reviewedBy: changeRequest.reviewedBy,
+        targetType: changeRequest.targetType,
+        changeType: changeRequest.changeType,
+        source: changeRequest.source,
+        recentHistory: changeRequest.auditLogs.map((entry) => ({
+          id: entry.id,
+          action: entry.action,
+          createdAt: entry.createdAt,
+          message: entry.message,
+          actor: entry.actor,
+        })),
+      }),
+    ];
+  });
+
+  const decoratedChanges = [...genericDecoratedChanges, ...legacyDecoratedChanges, ...directDecoratedChanges, ...teamDecoratedChanges].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
 
   return NextResponse.json({ changes: decoratedChanges });
+}
+
+function decorateTeamChange(input: {
+  id: string;
+  changeData: string;
+  beforeData?: string | null;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  reviewedAt?: Date | null;
+  reviewComment?: string | null;
+  team: {
+    id: string;
+    name: string;
+    contactEmail?: string | null;
+  };
+  requestedBy: { name: string | null; email: string };
+  reviewedBy?: { name: string | null; email: string } | null;
+  targetType: string;
+  changeType: string;
+  source: string;
+  recentHistory: Array<{
+    id: string;
+    action: string;
+    createdAt: Date;
+    message?: string | null;
+    actor?: { name: string | null; email: string } | null;
+  }>;
+}) {
+  return {
+    id: input.id,
+    changeRequestId: input.id,
+    bundleId: null,
+    bundleType: null,
+    bundleStatus: null,
+    targetType: input.targetType,
+    changeType: input.changeType,
+    source: input.source,
+    changeData: input.changeData,
+    beforeData: input.beforeData,
+    status: input.status,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+    reviewedAt: input.reviewedAt,
+    reviewComment: input.reviewComment,
+    participant: {
+      id: `team:${input.team.id}`,
+      firstName: "Mannschaft",
+      lastName: input.team.name,
+      email: null,
+      team: {
+        id: input.team.id,
+        name: input.team.name,
+        contactEmail: input.team.contactEmail,
+      },
+    },
+    requestedBy: input.requestedBy,
+    reviewedBy: input.reviewedBy,
+    recentHistory: input.recentHistory,
+    impact: {
+      nextClassificationCode: "",
+      nextClassificationLabel: "Mannschaft",
+      nextTotalAge: 0,
+      classificationWarnings: [],
+      disciplineWarnings: [],
+      hasLiveDrift: false,
+      liveDriftSummary: [],
+    },
+  };
 }
 
 type ParticipantForApproval = {
@@ -504,6 +653,14 @@ function normalizeJsonSnapshot(value: Prisma.JsonValue | null): ParticipantSnaps
   }
 
   return parseSnapshot(JSON.stringify(value));
+}
+
+function stringifyJsonSnapshot(value: Prisma.JsonValue | null): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "{}";
+  }
+
+  return JSON.stringify(value);
 }
 
 function normalizeChangeRequestStatus(status: string) {

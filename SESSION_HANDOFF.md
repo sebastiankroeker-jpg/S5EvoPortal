@@ -1,6 +1,29 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 12:00 UTC
+Stand: 2026-07-12 14:05 UTC
+
+## Aktueller Nachtrag: Team Manager Team Name Change
+
+- Ausloeser:
+  - Sebastian: Team Manager:innen sollen unter `Details -> Bearbeiten` den Mannschaftsnamen aendern koennen.
+  - Folgeentscheidung: Bis zum Beginn des Wettkampfs sind Teamnamen-Aenderungen nicht genehmigungspflichtig.
+- CR:
+  - `docs/cr/2026-07-12-team-manager-team-name-change.md`
+- Implementiert, noch nicht deployed:
+  - Team Manager Rename vor Wettkampfbeginn direkt: `Competition.status` nicht `RUNNING`/`CLOSED` und, falls `Competition.date` gesetzt ist, aktueller Zeitpunkt davor.
+  - Direkter Pre-Start-Rename aktualisiert `Team.name`, schreibt `AuditEvent` und einen angewendeten generischen `ChangeRequest` fuer die konsolidierte Historie.
+  - Nach Wettkampfbeginn wird ein team-scoped `ChangeRequest` erstellt oder ein offener Rename-Request aktualisiert.
+  - `/aenderungen` laedt und dekoriert Team-Update-Requests zusaetzlich zu Teilnehmer-Requests.
+  - `/api/admin/pending-changes/[id]` kann Team-Update-Requests genehmigen/ablehnen und prueft beim Approve erneut Namensduplikate.
+  - `approval-queue.tsx` zeigt `teamName` als `Mannschaftsname` und Team-Requests mit Titel `Mannschaftsname`.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/api/teams/[id]/route.ts app/api/admin/pending-changes/route.ts app/api/admin/pending-changes/[id]/route.ts app/components/approval-queue.tsx` gruen mit bestehender Hook-Warnung in `approval-queue.tsx`
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run verify:team-draft` gruen
+  - `npm run build` gruen
+- Naechster Schritt:
+  - Commit erstellen, auf `main` pushen, Vercel-Deploy abwarten, Production smoke: `/`, `/aenderungen`, `/api/admin/pending-changes?scope=all` ohne Session 401, `/api/teams/<id>` ohne Session 401.
 
 ## Aktueller Nachtrag: Legacy Bundle Status Sync Hotfix
 
