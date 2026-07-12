@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 14:00 UTC
+Stand: 2026-07-12 14:59 UTC
 
 ## Aktueller Nachtrag: Team Manager Team Name Field UI Hotfix
 
@@ -18,7 +18,17 @@ Stand: 2026-07-12 14:00 UTC
   - `git diff --check` gruen
   - `npm run build` gruen
 - Deploy:
-  - Noch ausstehend in diesem Lauf.
+  - Commit: `bd23d6f Fix team manager team name field`
+  - Production Deploy: `dpl_GFPC2Jbr4iU4A7f43EKJYSRrgFdV`
+  - Deployment URL: `https://s5-evo-portal-iiz7ec6qr-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-12 14:57 UTC
+- Post-Deploy Smoke:
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/admin`: 200
+  - `/aenderungen`: 200
+  - `/api/teams/probe` ohne Session: 401
+  - `/api/admin/pending-changes?scope=all` ohne Session: 401
 
 ## Aktueller Nachtrag: Team Manager Team Name Change
 
