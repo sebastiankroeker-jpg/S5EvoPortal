@@ -70,7 +70,15 @@ export async function GET(request: NextRequest) {
       ...(status ? { status: status as "OPEN" | "WAITING_FOR_ADMIN" | "WAITING_FOR_USER" | "CLOSED" } : {}),
       ...(mode === "admin"
         ? { type: "SUPPORT" as const }
-        : { participants: { some: { userId: user.id, leftAt: null } } }),
+        : {
+            participants: {
+              some: {
+                userId: user.id,
+                leftAt: null,
+                role: { in: ["OWNER", "MEMBER"] as const },
+              },
+            },
+          }),
     },
     include: conversationInclude(),
     orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
@@ -78,6 +86,8 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     canManageSupport,
+    preferredMode: canManageSupport ? "admin" : "mine",
+    viewerId: user.id,
     conversations: conversations.map((conversation) => serializeConversation(conversation, user.id)),
   });
 }

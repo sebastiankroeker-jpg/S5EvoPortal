@@ -67,7 +67,7 @@ Sebastian tested the current message center on mobile as an admin. Several admin
 - Decision 1: Organization display label should be `Orga-Team` rather than `Admin-Team`.
 - Decision 2: Admin/moderator default mailbox should be the Admin/Orga mailbox.
 - Decision 3: The quick compose action opens the existing new-message composer near the top or as an in-place panel; it should not create a second compose implementation.
-- Open: For an admin who is also personally the target/owner of a support thread, should that thread appear in both mailboxes or only personal? Recommendation: appear in personal when role is OWNER/MEMBER, in Admin/Orga when handled as support staff.
+- Decision 4: For an admin who is also personally the target/owner of a support thread, keep the thread in the personal mailbox when the conversation participant role is `OWNER`/`MEMBER`. Pure support-staff participation via `ADMIN`/`MODERATOR` belongs only in the Orga-Team mailbox.
 
 ## Acceptance Criteria
 
@@ -137,19 +137,36 @@ Use before model switch or subagent delegation.
 
 - Gate needed: yes
 - Reason: production deploy and admin mailbox behavior change.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian (`Bitte deiner Empfehlung folgen & Go`)
+- Approval timestamp: 2026-07-12 17:03 UTC
 
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/message-center.tsx`
+  - `app/api/messages/conversations/route.ts`
+  - `app/api/messages/conversations/[id]/read/route.ts`
+  - `app/api/messages/conversations/[id]/messages/route.ts`
+  - `app/api/messages/admin-conversations/route.ts`
+  - `lib/messaging.ts`
 - Important decisions during implementation:
+  - `mode=mine` now only returns conversations where the viewer has `OWNER` or `MEMBER` participation.
+  - Admin/moderator users default to the Orga-Team mailbox on first load.
+  - Manual mailbox switching marks the default decision as applied so admins can still open `Persönlich`.
+  - Read/reply upserts preserve `OWNER`/`MEMBER` for admin users who are personally targeted by a thread; only support-staff-only access is represented as `ADMIN`.
+  - Organization sender label changed from `Admin-Team` to `Orga-Team`.
+  - The new message action in the personal mailbox header opens the existing compose form and scrolls it into view instead of duplicating compose logic.
+  - Thread headers now show an account/status dialog badge for the relevant contact or Orga-Team context.
 
 ## Verification
 
 - Local checks:
+  - `pnpm exec eslint app/components/message-center.tsx app/api/messages/conversations/route.ts app/api/messages/admin-conversations/route.ts app/api/messages/conversations/[id]/messages/route.ts app/api/messages/conversations/[id]/read/route.ts lib/messaging.ts` green
+  - `npx tsc --noEmit` green
 - Build:
+  - `npm run build` green
 - Targeted verification:
+  - `git diff --check` green
 - Manual smoke:
 
 ## Deploy

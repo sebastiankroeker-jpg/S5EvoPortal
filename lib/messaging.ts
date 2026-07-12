@@ -4,7 +4,7 @@ import { normalizeEmail } from "@/lib/current-user";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_SUBJECT_LENGTH = 120;
-export const ORG_MESSAGE_SENDER_LABEL = "Admin-Team";
+export const ORG_MESSAGE_SENDER_LABEL = "Orga-Team";
 
 export type SupportContext =
   | {
@@ -32,7 +32,7 @@ export function normalizeMessageBody(value: unknown) {
   return value.replace(/\r\n/g, "\n").trim().slice(0, MAX_MESSAGE_LENGTH);
 }
 
-export function normalizeMessageSubject(value: unknown, fallback = "Nachricht an das Admin-Team") {
+export function normalizeMessageSubject(value: unknown, fallback = "Nachricht an das Orga-Team") {
   if (typeof value !== "string") return fallback;
   const subject = value.trim().replace(/\s+/g, " ").slice(0, MAX_SUBJECT_LENGTH);
   return subject || fallback;

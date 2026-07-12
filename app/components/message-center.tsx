@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Building2, Inbox, MessageCircle, PanelLeftClose, PanelLeftOpen, RefreshCw, Send, SlidersHorizontal, UserRound, XCircle } from "lucide-react";
+import { ArrowLeft, Inbox, MessageCircle, PanelLeftClose, PanelLeftOpen, RefreshCw, Send, SlidersHorizontal, UserRound, UsersRound, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   DashboardToolbar,
   DashboardToolbarButton,
 } from "./dashboard-controls";
+import AccountLinkStatusDialog from "./account-link-status-dialog";
 
 type SupportContext = {
   type: "participant" | "team";
@@ -131,8 +132,8 @@ function SenderModeSelector({
           value === "ORG" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
         )}
       >
-        <Building2 className="h-3.5 w-3.5" />
-        Orga-Postfach
+        <UsersRound className="h-3.5 w-3.5" />
+        Orga-Team
       </button>
       <button
         type="button"
@@ -152,6 +153,7 @@ function SenderModeSelector({
 
 export default function MessageCenter() {
   const [mode, setMode] = useState<"mine" | "admin">("mine");
+  const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -163,6 +165,7 @@ export default function MessageCenter() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contexts, setContexts] = useState<SupportContext[]>([]);
   const [canManageSupport, setCanManageSupport] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -171,7 +174,8 @@ export default function MessageCenter() {
   const [contextId, setContextId] = useState("");
   const [reply, setReply] = useState("");
   const [adminComposeTarget, setAdminComposeTarget] = useState<AdminComposeTarget | null>(null);
-  const [adminSubject, setAdminSubject] = useState("Nachricht vom Admin-Team");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [adminSubject, setAdminSubject] = useState("Nachricht vom Orga-Team");
   const [adminBody, setAdminBody] = useState("");
   const [adminSenderDisplayMode, setAdminSenderDisplayMode] = useState<"ORG" | "PERSONAL">("ORG");
   const [replySenderDisplayMode, setReplySenderDisplayMode] = useState<"ORG" | "PERSONAL">("ORG");
@@ -220,6 +224,13 @@ export default function MessageCenter() {
       });
   }, [conversations, searchQuery, sortMode, statusFilter, unreadOnly]);
   const selected = filteredConversations.find((conversation) => conversation.id === selectedId) ?? filteredConversations[0] ?? null;
+  const selectedOwnerParticipant = selected?.participants.find((participant) => ["OWNER", "MEMBER"].includes(participant.role)) ?? null;
+  const selectedViewerParticipant = currentUserId
+    ? selected?.participants.find((participant) => participant.user.id === currentUserId) ?? null
+    : null;
+  const selectedDialogParticipant = mode === "admin"
+    ? selectedOwnerParticipant
+    : selected?.participants.find((participant) => participant.user.id !== currentUserId && ["ADMIN", "MODERATOR"].includes(participant.role)) ?? selectedViewerParticipant ?? null;
   const activeFilterCount = [
     statusFilter !== "all",
     unreadOnly,
@@ -285,6 +296,12 @@ export default function MessageCenter() {
       if (!response.ok) throw new Error(data.error || "Nachrichten konnten nicht geladen werden");
       const entries = Array.isArray(data.conversations) ? data.conversations.filter(Boolean) : [];
       setCanManageSupport(data.canManageSupport === true);
+      setCurrentUserId(typeof data.viewerId === "string" ? data.viewerId : null);
+      if (nextMode === "mine" && data.canManageSupport === true && !adminDefaultApplied) {
+        setAdminDefaultApplied(true);
+        setMode("admin");
+        return;
+      }
       setConversations(entries);
       setSelectedId((current) => (current && entries.some((entry: ConversationSummary) => entry.id === current) ? current : entries[0]?.id ?? null));
     } catch (err) {
@@ -293,7 +310,7 @@ export default function MessageCenter() {
     } finally {
       setLoading(false);
     }
-  }, [mode]);
+  }, [adminDefaultApplied, mode]);
 
   const loadContexts = useCallback(async () => {
     try {
@@ -336,6 +353,7 @@ export default function MessageCenter() {
   }, [loadConversations, mode, selected?.id]);
 
   const switchMode = (nextMode: "mine" | "admin") => {
+    setAdminDefaultApplied(true);
     setMode(nextMode);
     setReplySenderDisplayMode(nextMode === "admin" ? "ORG" : "PERSONAL");
     setSelectedId(null);
@@ -356,6 +374,7 @@ export default function MessageCenter() {
       if (!response.ok) throw new Error(data.error || "Nachricht konnte nicht gesendet werden");
       setSubject("");
       setBody("");
+      setComposeOpen(false);
       setMode("mine");
       await loadConversations("mine");
       if (data.conversation?.id) {
@@ -389,7 +408,7 @@ export default function MessageCenter() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Nachricht konnte nicht gesendet werden");
       setAdminBody("");
-      setAdminSubject("Nachricht vom Admin-Team");
+      setAdminSubject("Nachricht vom Orga-Team");
       setAdminSenderDisplayMode("ORG");
       setAdminComposeTarget(null);
       window.history.replaceState({}, "", "/nachrichten");
@@ -409,7 +428,7 @@ export default function MessageCenter() {
   const cancelAdminCompose = () => {
     setAdminComposeTarget(null);
     setAdminBody("");
-    setAdminSubject("Nachricht vom Admin-Team");
+    setAdminSubject("Nachricht vom Orga-Team");
     setAdminSenderDisplayMode("ORG");
     window.history.replaceState({}, "", "/nachrichten");
   };
@@ -468,7 +487,7 @@ export default function MessageCenter() {
             <MessageCircle className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">Nachrichten</h2>
           </div>
-          <p className="text-sm text-muted-foreground">Support-Threads mit dem Admin-Team. Nachrichten bleiben im Portal nachvollziehbar.</p>
+          <p className="text-sm text-muted-foreground">Support-Threads mit dem Orga-Team. Nachrichten bleiben im Portal nachvollziehbar.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => loadConversations(mode)} disabled={loading}>
@@ -620,15 +639,44 @@ export default function MessageCenter() {
               <CardHeader className="space-y-3 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <CardTitle className="text-base">{mode === "admin" ? "Admin-Postfach" : "Mein Postfach"}</CardTitle>
+                    <CardTitle className="text-base">{mode === "admin" ? "Orga-Team" : "Mein Postfach"}</CardTitle>
                     <CardDescription>{filteredConversations.length} Threads</CardDescription>
                   </div>
-                  <Button type="button" size="icon" variant="ghost" onClick={() => setSidebarOpen(false)} aria-label="Threadliste zuklappen">
-                    <PanelLeftClose className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {mode === "mine" && contexts.length > 0 && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setComposeOpen((open) => !open);
+                          setMobileThreadOpen(false);
+                          window.setTimeout(() => document.getElementById("new-message-composer")?.scrollIntoView({ block: "start", behavior: "smooth" }), 0);
+                        }}
+                        aria-label="Neue Nachricht schreiben"
+                        title="Neue Nachricht schreiben"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button type="button" size="icon" variant="ghost" onClick={() => setSidebarOpen(false)} aria-label="Threadliste zuklappen">
+                      <PanelLeftClose className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 {canManageSupport && (
                   <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1">
+                    <button
+                      type="button"
+                      onClick={() => switchMode("admin")}
+                      className={cn(
+                        "inline-flex h-9 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                        mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+                      )}
+                    >
+                      <UsersRound className="h-3.5 w-3.5" />
+                      Orga-Team
+                    </button>
                     <button
                       type="button"
                       onClick={() => switchMode("mine")}
@@ -638,18 +686,7 @@ export default function MessageCenter() {
                       )}
                     >
                       <UserRound className="h-3.5 w-3.5" />
-                      Mein Postfach
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => switchMode("admin")}
-                      className={cn(
-                        "inline-flex h-9 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
-                        mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
-                      )}
-                    >
-                      <Inbox className="h-3.5 w-3.5" />
-                      Admin
+                      Persönlich
                     </button>
                   </div>
                 )}
@@ -698,7 +735,7 @@ export default function MessageCenter() {
                 <PanelLeftOpen className="h-4 w-4" />
               </Button>
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
-                <Inbox className="h-4 w-4" />
+                {mode === "admin" ? <UsersRound className="h-4 w-4" /> : <Inbox className="h-4 w-4" />}
               </div>
               <div className="min-w-0 flex-1 text-right text-xs font-medium text-muted-foreground lg:flex-none lg:text-center lg:[writing-mode:vertical-rl]">
                 {filteredConversations.length} Threads
@@ -723,11 +760,56 @@ export default function MessageCenter() {
                         Übersicht
                       </Button>
                     </div>
-                    <CardTitle className="text-lg">{selected.subject}</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-lg">{selected.subject}</CardTitle>
+                      {selectedDialogParticipant && (
+                        <AccountLinkStatusDialog
+                          compact
+                          meta={{
+                            status: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "portal_account" : "linked",
+                            label: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "Orga-Team" : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
+                            className:
+                              selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR"
+                                ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
+                                : "border-green-300 bg-green-50 text-green-800",
+                            description:
+                              selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR"
+                                ? "Dieser Thread wird vom Orga-Team als Gruppenpostfach bearbeitet."
+                                : "Fachliche Zielperson dieses Nachrichtenthreads.",
+                          }}
+                          title={selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "Orga-Team" : "Thread-Kontakt"}
+                          rows={[
+                            {
+                              label: "Person",
+                              value: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR"
+                                ? "Orga-Team"
+                                : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
+                              targetType: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "message" : "user",
+                            },
+                            { label: "E-Mail", value: selectedDialogParticipant.user.email, targetType: "user" },
+                            { label: "Rolle", value: selectedDialogParticipant.role },
+                            { label: "Team", value: selected.context.team?.name, targetType: "team" },
+                            {
+                              label: "Teilnehmer:in",
+                              value: selected.context.participant
+                                ? `${selected.context.participant.firstName} ${selected.context.participant.lastName}`
+                                : null,
+                              targetType: "user",
+                            },
+                            {
+                              label: "Wettkampf",
+                              value: selected.context.competition
+                                ? `${selected.context.competition.name} ${selected.context.competition.year}`
+                                : null,
+                            },
+                          ]}
+                        />
+                      )}
+                    </div>
                     <CardDescription>
                       {selected.context.participant
                         ? `${selected.context.participant.firstName} ${selected.context.participant.lastName}`
-                        : "Support-Thread"}
+                        : mode === "admin" ? "Support-Thread im Orga-Team" : "Support-Thread"}
                       {selected.context.team ? ` · ${selected.context.team.name}` : ""}
                       {selected.context.competition ? ` · ${selected.context.competition.name} ${selected.context.competition.year}` : ""}
                     </CardDescription>
@@ -781,7 +863,7 @@ export default function MessageCenter() {
 
                 {selected.status === "CLOSED" && mode !== "admin" ? (
                   <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                    Dieser Thread ist geschlossen. Das Admin-Team kann ihn bei Bedarf wieder öffnen.
+                    Dieser Thread ist geschlossen. Das Orga-Team kann ihn bei Bedarf wieder öffnen.
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -814,10 +896,10 @@ export default function MessageCenter() {
         </Card>
       </div>
 
-      {contexts.length > 0 && (
-        <Card>
+      {contexts.length > 0 && composeOpen && (
+        <Card id="new-message-composer">
           <CardHeader>
-            <CardTitle className="text-base">Neue Nachricht an das Admin-Team</CardTitle>
+            <CardTitle className="text-base">Neue Nachricht an das Orga-Team</CardTitle>
             <CardDescription>Der Nachrichtentext wird nicht per Mail weitergeleitet, sondern bleibt im Portal.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -848,9 +930,12 @@ export default function MessageCenter() {
               value={body}
               onChange={(event) => setBody(event.target.value)}
               rows={4}
-              placeholder="Nachricht an das Admin-Team..."
+              placeholder="Nachricht an das Orga-Team..."
             />
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" disabled={sending} onClick={() => setComposeOpen(false)}>
+                Abbrechen
+              </Button>
               <Button type="button" disabled={sending || body.trim().length < 2} onClick={createThread}>
                 <Send className="mr-2 h-4 w-4" />
                 Nachricht senden

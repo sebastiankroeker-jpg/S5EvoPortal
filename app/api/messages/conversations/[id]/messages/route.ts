@@ -45,16 +45,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const now = new Date();
   await prisma.$transaction(async (tx) => {
     if (loaded.canManage) {
+      const participantRole = loaded.participant && ["OWNER", "MEMBER"].includes(loaded.participant.role)
+        ? loaded.participant.role
+        : "ADMIN";
       await tx.conversationParticipant.upsert({
         where: { conversationId_userId: { conversationId: id, userId: user.id } },
         create: {
           conversationId: id,
           userId: user.id,
-          role: "ADMIN",
+          role: participantRole,
           lastReadAt: now,
         },
         update: {
-          role: "ADMIN",
+          role: participantRole,
           lastReadAt: now,
           leftAt: null,
         },

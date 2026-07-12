@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
   const competitionId = participant?.team.competitionId ?? team?.competitionId ?? null;
   const resolvedTeamId = participant?.teamId ?? team?.id ?? null;
   const now = new Date();
-  const subject = normalizeMessageSubject(body.subject, "Nachricht vom Admin-Team");
+  const subject = normalizeMessageSubject(body.subject, "Nachricht vom Orga-Team");
 
   const conversation = await prisma.$transaction(async (tx) => {
     const created = await tx.conversation.create({

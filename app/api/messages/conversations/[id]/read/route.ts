@@ -25,7 +25,9 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   await upsertConversationParticipant({
     conversationId: id,
     userId: user.id,
-    role: loaded.canManage ? "ADMIN" : loaded.participant?.role ?? "MEMBER",
+    role: loaded.participant && ["OWNER", "MEMBER"].includes(loaded.participant.role)
+      ? loaded.participant.role
+      : loaded.canManage ? "ADMIN" : loaded.participant?.role ?? "MEMBER",
     lastReadAt: new Date(),
   });
 
