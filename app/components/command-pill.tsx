@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { X, Search, Menu } from "lucide-react";
+import { X, Search, Menu, Sparkles } from "lucide-react";
 import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
@@ -35,7 +35,7 @@ export default function CommandPill() {
   const { data: session } = useSession();
   const { can, activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
   const notifications = useNotifications();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const activeCompetitionId = activeCompetition?.id ?? null;
   const canBrowseAllTeams = can("team.view.all") || canRoleViewAllTeams(activeRole, activeCompetition);
@@ -610,6 +610,16 @@ export default function CommandPill() {
                           </Button>
                         ))}
                       </div>
+                      <Button
+                        type="button"
+                        variant={sparkleEnabled ? "secondary" : "ghost"}
+                        size="sm"
+                        className="mt-2 h-7 w-full justify-center gap-1 text-xs"
+                        onClick={toggleSparkle}
+                      >
+                        <Sparkles className="size-3.5" />
+                        Sparkle {sparkleEnabled ? "an" : "aus"}
+                      </Button>
                     </div>
 
                     {/* Account Section */}

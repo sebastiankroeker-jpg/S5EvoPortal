@@ -26,6 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { openUserDashboard } from "@/lib/admin-routing";
+import { useTheme } from "@/lib/theme-context";
 import { cn } from "@/lib/utils";
 import {
   DashboardPanel,
@@ -133,7 +135,7 @@ function statusLabel(status: ConversationSummary["status"]) {
     case "WAITING_FOR_ADMIN":
       return "wartet auf Admin";
     case "WAITING_FOR_USER":
-      return "wartet auf Antwort";
+      return "offen";
     case "CLOSED":
       return "geschlossen";
     default:
@@ -186,6 +188,17 @@ function conversationPersonLabel(conversation: ConversationSummary, mode: "mine"
 
   if (outgoing) return "Orga-Team";
   return conversation.lastMessage ? senderLabel(conversation.lastMessage) : "Orga-Team";
+}
+
+function conversationContactParticipant(conversation: ConversationSummary, mode: "mine" | "admin", currentUserId: string | null) {
+  if (mode === "admin") {
+    return conversation.participants.find((participant) => ["OWNER", "MEMBER"].includes(participant.role)) ?? null;
+  }
+
+  const outgoing = isOutgoingConversation(conversation, mode, currentUserId);
+  if (outgoing) return null;
+
+  return conversation.participants.find((participant) => ["ADMIN", "MODERATOR"].includes(participant.role)) ?? null;
 }
 
 function messageDirectionBadgeClass(direction: "gesendet" | "empfangen") {
@@ -253,6 +266,7 @@ function readReceiptLabel(conversation: ConversationSummary, message: Conversati
 }
 
 export default function MessageCenter() {
+  const { sparkleEnabled } = useTheme();
   const [mode, setMode] = useState<"mine" | "admin">("mine");
   const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -292,6 +306,7 @@ export default function MessageCenter() {
   const visibleColumnKey = visibleColumns.join("|");
 
   const triggerNavigationBurst = (target: NavigationBurstTarget) => {
+    if (!sparkleEnabled) return;
     setNavigationBurst({ id: Date.now(), target });
   };
 
@@ -379,13 +394,14 @@ export default function MessageCenter() {
             ? "Orga-Team"
             : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
           targetType: selectedDialogIsOrgTeam ? "message" : "user",
+          onClick: !selectedDialogIsOrgTeam
+            ? () => openUserDashboard({
+                userId: selectedDialogParticipant.user.id,
+                email: selectedDialogParticipant.user.email,
+                teamId: selected?.context.team?.id,
+              })
+            : undefined,
         },
-        ...(!selectedDialogIsOrgTeam
-          ? [
-              { label: "E-Mail", value: selectedDialogParticipant.user.email, targetType: "user" as const },
-              { label: "Team", value: selected?.context.team?.name, targetType: "team" as const },
-            ]
-          : []),
         { label: "Rolle", value: selectedDialogParticipant.role },
         {
           label: "Teilnehmer:in",
@@ -393,6 +409,13 @@ export default function MessageCenter() {
             ? `${selected.context.participant.firstName} ${selected.context.participant.lastName}`
             : null,
           targetType: "user",
+          onClick: !selectedDialogIsOrgTeam
+            ? () => openUserDashboard({
+                userId: selectedDialogParticipant.user.id,
+                email: selectedDialogParticipant.user.email,
+                teamId: selected?.context.team?.id,
+              })
+            : undefined,
         },
         {
           label: "Wettkampf",
@@ -655,6 +678,33 @@ export default function MessageCenter() {
     }
   };
 
+  const renderAdminTargetPortalBadge = () => {
+    if (!adminComposeTarget) return null;
+    const displayName = adminComposeTarget.name || "Portal-Konto";
+    const openTarget = () => openUserDashboard({
+      userId: adminComposeTarget.userId,
+      email: adminComposeTarget.email,
+      teamId: adminComposeTarget.teamId,
+    });
+
+    return (
+      <AccountLinkStatusDialog
+        compact
+        meta={{
+          status: "linked",
+          label: displayName,
+          className: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-200",
+          description: "Portal-Konto des Nachrichten-Adressaten.",
+        }}
+        title="Portal-Kontakt"
+        rows={[
+          { label: "Person", value: displayName, targetType: "user", onClick: openTarget, title: "Im Benutzer-Dashboard öffnen" },
+          { label: "Rolle", value: "Adressat" },
+        ]}
+      />
+    );
+  };
+
   const moveVisibleColumn = (columnKey: MessageListColumnKey, direction: "up" | "down") => {
     setVisibleColumns((current) => {
       const index = current.indexOf(columnKey);
@@ -681,6 +731,57 @@ export default function MessageCenter() {
     return sortDirection === "asc" ? <ChevronUp className="size-3.5 text-foreground" /> : <ChevronDown className="size-3.5 text-foreground" />;
   };
 
+  const renderPortalContactBadge = (conversation: ConversationSummary, compact = true) => {
+    const contact = conversationContactParticipant(conversation, mode, currentUserId);
+    if (!contact) {
+      return (
+        <AccountLinkStatusDialog
+          compact={compact}
+          meta={{
+            status: "portal_account",
+            label: "Orga-Team",
+            className: "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200",
+            description: "Gruppenpostfach des Orga-Teams.",
+          }}
+          title="Orga-Team"
+          rows={[
+            { label: "Kontakt", value: "Orga-Team", targetType: "message" },
+            { label: "Rolle", value: "Gruppenpostfach" },
+          ]}
+        />
+      );
+    }
+
+    const displayName = contact.user.name || "Portal-Konto";
+    const openContact = () => openUserDashboard({ userId: contact.user.id, email: contact.user.email, teamId: conversation.context.team?.id });
+
+    return (
+      <AccountLinkStatusDialog
+        compact={compact}
+        meta={{
+          status: "linked",
+          label: displayName,
+          className: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-200",
+          description: "Portal-Konto des fachlichen Kontakts.",
+        }}
+        title="Portal-Kontakt"
+        rows={[
+          { label: "Person", value: displayName, targetType: "user", onClick: openContact, title: "Im Benutzer-Dashboard öffnen" },
+          { label: "Rolle", value: contact.role },
+          {
+            label: "Teilnehmer:in",
+            value: conversation.context.participant
+              ? `${conversation.context.participant.firstName} ${conversation.context.participant.lastName}`
+              : null,
+            targetType: "user",
+            onClick: openContact,
+            title: "Im Benutzer-Dashboard öffnen",
+          },
+        ]}
+      />
+    );
+  };
+
   const renderConversationCell = (conversation: ConversationSummary, columnKey: MessageListColumnKey): ReactNode => {
     const direction = conversationDirectionLabel(conversation, mode, currentUserId);
     switch (columnKey) {
@@ -697,10 +798,15 @@ export default function MessageCenter() {
           </Badge>
         );
       case "person":
-        return <span className="line-clamp-1">{conversationPersonLabel(conversation, mode, currentUserId)}</span>;
+        return (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate">{conversationPersonLabel(conversation, mode, currentUserId)}</span>
+            <span className="shrink-0">{renderPortalContactBadge(conversation)}</span>
+          </span>
+        );
       case "subject":
         return (
-          <span className="line-clamp-1 font-medium text-foreground">
+          <span className={cn("line-clamp-1 text-foreground", conversation.unreadCount > 0 ? "font-semibold" : "font-normal")}>
             {conversation.subject}
             {conversation.unreadCount > 0 && <Badge className="ml-1 h-5 px-1.5 text-[10px]">{conversation.unreadCount}</Badge>}
           </span>
@@ -761,7 +867,10 @@ export default function MessageCenter() {
       {canManageSupport && adminComposeTarget && (
         <Card className="border-rose-500/30 bg-rose-500/5">
           <CardHeader className="space-y-2 p-3 sm:p-4">
-            <CardTitle className="text-base">Nachricht an {adminTargetLabel}</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-base">Nachricht an {adminTargetLabel}</CardTitle>
+              {renderAdminTargetPortalBadge()}
+            </div>
             <CardDescription>
               Admin-Nachricht als Support-Thread. Der Nachrichtentext wird nicht per Mail weitergeleitet.
             </CardDescription>
@@ -788,8 +897,10 @@ export default function MessageCenter() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Zielperson</label>
                 <div className="rounded-md border border-border/60 bg-background px-3 py-2 text-sm">
-                  <div className="font-medium">{adminTargetLabel}</div>
-                  {adminComposeTarget.email && <div className="text-xs text-muted-foreground">{adminComposeTarget.email}</div>}
+                  <div className="flex items-center gap-2 font-medium">
+                    <span>{adminTargetLabel}</span>
+                    {renderAdminTargetPortalBadge()}
+                  </div>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -818,7 +929,7 @@ export default function MessageCenter() {
 
       <div className={cn("grid gap-4", sidebarOpen ? "lg:grid-cols-[minmax(280px,360px)_1fr]" : "lg:grid-cols-[72px_1fr]")}>
         <Card className={cn("relative overflow-hidden transition-all", mobileThreadOpen && "hidden lg:block", !sidebarOpen && "lg:min-h-[520px]")}>
-          <NavigationSparkleBurst active={navigationBurst?.target === "list"} burstId={navigationBurst?.id} label="Postfach" />
+          <NavigationSparkleBurst active={sparkleEnabled && navigationBurst?.target === "list"} burstId={navigationBurst?.id} label="Postfach" />
           {sidebarOpen ? (
             <>
               <CardHeader className="space-y-2 p-3">
@@ -1139,9 +1250,10 @@ export default function MessageCenter() {
                               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                                 {conversationPersonLabel(conversation, mode, currentUserId)}
                               </span>
+                              <span className="shrink-0">{renderPortalContactBadge(conversation)}</span>
                             </div>
                             <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
-                              <span className="min-w-0 truncate text-sm font-semibold">{conversation.subject}</span>
+                              <span className={cn("min-w-0 truncate text-sm", conversation.unreadCount > 0 ? "font-semibold" : "font-normal")}>{conversation.subject}</span>
                               <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                                 {formatDateTime(conversation.lastMessageAt || conversation.updatedAt)}
                               </span>
@@ -1170,7 +1282,7 @@ export default function MessageCenter() {
         </Card>
 
         <Card className={cn("relative min-h-[520px] overflow-hidden", !mobileThreadOpen && "hidden lg:block")}>
-          <NavigationSparkleBurst active={navigationBurst?.target === "thread"} burstId={navigationBurst?.id} label="Thread" />
+          <NavigationSparkleBurst active={sparkleEnabled && navigationBurst?.target === "thread"} burstId={navigationBurst?.id} label="Thread" />
           {!selected ? (
             <CardContent className="flex min-h-[420px] items-center justify-center text-center text-sm text-muted-foreground">
               Wähle einen Thread aus oder starte eine neue Nachricht.
@@ -1348,7 +1460,7 @@ export default function MessageCenter() {
 
       {contexts.length > 0 && composeOpen && (
         <Card id="new-message-composer" className="relative">
-          <NavigationSparkleBurst active={navigationBurst?.target === "composer"} burstId={navigationBurst?.id} label="Composer" />
+          <NavigationSparkleBurst active={sparkleEnabled && navigationBurst?.target === "composer"} burstId={navigationBurst?.id} label="Composer" />
           <CardHeader className="space-y-2 p-3 sm:p-4">
             <CardTitle className="text-base">Neue Nachricht an das Orga-Team</CardTitle>
             <CardDescription>Der Nachrichtentext wird nicht per Mail weitergeleitet, sondern bleibt im Portal.</CardDescription>

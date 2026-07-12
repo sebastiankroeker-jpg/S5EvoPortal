@@ -7,6 +7,9 @@ export type Theme = "light" | "dark" | "bunt" | "esv";
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  sparkleEnabled: boolean;
+  setSparkleEnabled: (enabled: boolean) => void;
+  toggleSparkle: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
@@ -16,6 +19,7 @@ interface ThemeProviderProps {
 }
 
 const THEME_STORAGE_KEY = "s5evo-theme";
+const THEME_EFFECTS_STORAGE_KEY = "s5evo-theme-effects";
 const LEGACY_THEME_KEYS = ["theme", "app-theme", "color-theme"];
 
 function isTheme(value: string | null): value is Theme {
@@ -32,6 +36,15 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       if (isTheme(legacyTheme)) return legacyTheme;
     }
     return "light";
+  });
+  const [sparkleByTheme, setSparkleByTheme] = useState<Partial<Record<Theme, boolean>>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const parsed = JSON.parse(localStorage.getItem(THEME_EFFECTS_STORAGE_KEY) || "{}");
+      return typeof parsed === "object" && parsed !== null ? parsed : {};
+    } catch {
+      return {};
+    }
   });
 
   useEffect(() => {
@@ -50,9 +63,21 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [theme]);
 
+  useEffect(() => {
+    localStorage.setItem(THEME_EFFECTS_STORAGE_KEY, JSON.stringify(sparkleByTheme));
+  }, [sparkleByTheme]);
+
+  const sparkleEnabled = Boolean(sparkleByTheme[theme]);
+  const setSparkleEnabled = (enabled: boolean) => {
+    setSparkleByTheme((current) => ({ ...current, [theme]: enabled }));
+  };
+
   const contextValue: ThemeContextType = {
     theme,
     setTheme,
+    sparkleEnabled,
+    setSparkleEnabled,
+    toggleSparkle: () => setSparkleEnabled(!sparkleEnabled),
   };
 
   return (

@@ -12,7 +12,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
-import { Check, EllipsisVertical, FlaskConical, LogOut, MessageCircle, Search, UserCircle2 } from "lucide-react";
+import { Check, EllipsisVertical, FlaskConical, LogOut, MessageCircle, Search, Sparkles, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -26,7 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function NavBar() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
   const { activeRole, roles, setSimulatedRole, isSimulating } = usePermissions();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -128,10 +128,24 @@ export default function NavBar() {
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={toggleSparkle}
+            className={`ml-1 hidden h-7 items-center gap-1 rounded-full border px-2 text-[11px] font-medium transition-colors md:inline-flex ${
+              sparkleEnabled
+                ? "border-amber-400 bg-amber-400/10 text-amber-700 dark:text-amber-200"
+                : "border-border/50 text-muted-foreground hover:text-foreground"
+            }`}
+            aria-label={sparkleEnabled ? "Sparkle-Effekt deaktivieren" : "Sparkle-Effekt aktivieren"}
+            title={sparkleEnabled ? "Sparkle-Effekt für dieses Theme deaktivieren" : "Sparkle-Effekt für dieses Theme aktivieren"}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Sparkle</span>
+          </button>
           {showThemeMenu && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)} />
-              <div className="absolute left-0 top-full mt-1 w-32 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50 md:hidden">
+              <div className="absolute left-0 top-full mt-1 w-40 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50 md:hidden">
                 {THEMES.map((t) => (
                   <button
                     key={t.id}
@@ -149,6 +163,22 @@ export default function NavBar() {
                     {theme === t.id && <Check className="h-3.5 w-3.5" />}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className={`mt-1 flex w-full items-center justify-between border-t border-border/50 px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
+                    sparkleEnabled ? "text-amber-700 dark:text-amber-200" : "text-muted-foreground"
+                  }`}
+                  onClick={() => {
+                    toggleSparkle();
+                    setShowThemeMenu(false);
+                  }}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Sparkle
+                  </span>
+                  {sparkleEnabled && <Check className="h-3.5 w-3.5" />}
+                </button>
               </div>
             </>
           )}

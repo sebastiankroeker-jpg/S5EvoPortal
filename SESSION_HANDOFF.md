@@ -1,6 +1,39 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 23:10 UTC
+Stand: 2026-07-12 23:28 UTC
+
+## Aktueller Nachtrag: Message Theme Sparkle And Portal Badges
+
+- Ausloeser:
+  - Sebastian wollte den Sparkle-Effekt ueber den Theme-Switcher aktivieren und dann fuer das aktuelle Theme verwenden.
+  - Im Posteingang sollen gelesene Antworten den Betreff nicht fett zeigen.
+  - Der auffaellige `wartet auf Antwort`-Badge soll raus.
+  - Portal-Badge des Adressaten soll auch in der Uebersicht sichtbar sein.
+  - Forward-Navigation aus dem Portal-Badge in Mail/Header und Uebersicht zum User-Dashboard soll funktionieren.
+- CR:
+  - `docs/cr/2026-07-12-message-theme-sparkle-and-portal-badges.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `lib/theme-context.tsx`
+  - `app/components/nav-bar.tsx`
+  - `app/components/sidebar.tsx`
+  - `app/components/command-pill.tsx`
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - Theme-Context speichert Sparkle als lokalen Effekt pro Theme (`s5evo-theme-effects`).
+  - Navbar, Sidebar und Command-Menue zeigen einen Sparkle-Schalter am Theme-Bereich.
+  - Message-Center zeigt Sparkle-Bursts nur noch, wenn Sparkle fuer das aktive Theme eingeschaltet ist.
+  - Gelesene Threads zeigen den Betreff normalgewichtig; ungelesene bleiben betont.
+  - `WAITING_FOR_USER` rendert im sichtbaren Status-Badge neutral als `offen`.
+  - Sender/Empfaenger-Spalte zeigt einen Portal-/Orga-Badge.
+  - Portal-Badge-Dialog in Uebersicht, Thread-Header und Admin-Compose kann ohne sichtbare E-Mail-/Team-Kontextdaten ins User-Dashboard navigieren.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx app/components/nav-bar.tsx app/components/sidebar.tsx app/components/command-pill.tsx lib/theme-context.tsx`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
+  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
 
 ## Aktueller Nachtrag: Message Center Nested Controls And Sparkle Navigation
 

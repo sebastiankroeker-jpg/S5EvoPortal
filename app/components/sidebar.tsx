@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 import { usePermissions } from "@/lib/permissions-context";
 import { useTheme, type Theme } from "@/lib/theme-context";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 import { isClaimNavigationPath } from "@/lib/navigation-menu";
 import { useCompetition } from "@/lib/competition-context";
@@ -71,7 +71,7 @@ export default function Sidebar() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
   const { active: activeCompetition } = useCompetition();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
 
@@ -259,6 +259,20 @@ export default function Sidebar() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={toggleSparkle}
+          className={`mx-2 mt-1 flex h-7 items-center justify-center gap-1 rounded-md border px-2 text-[11px] font-medium transition-colors ${
+            sparkleEnabled
+              ? "border-amber-400 bg-amber-400/10 text-amber-700 dark:text-amber-200"
+              : "border-border/50 text-muted-foreground hover:text-foreground"
+          } ${isCollapsed ? "mx-auto w-7 px-0" : "w-[calc(100%-1rem)]"}`}
+          title={sparkleEnabled ? "Sparkle-Effekt für dieses Theme deaktivieren" : "Sparkle-Effekt für dieses Theme aktivieren"}
+          aria-label={sparkleEnabled ? "Sparkle-Effekt deaktivieren" : "Sparkle-Effekt aktivieren"}
+        >
+          <Sparkles className="size-3.5" />
+          {!isCollapsed && <span>Sparkle</span>}
+        </button>
       </div>
 
       {/* Search Overlay */}
