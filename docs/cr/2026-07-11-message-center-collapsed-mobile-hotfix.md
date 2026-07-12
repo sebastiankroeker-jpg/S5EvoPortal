@@ -1,6 +1,6 @@
 # CR: Message Center Collapsed Mobile Hotfix
 
-Status: Implemented - pending deploy approval
+Status: Deployed
 Date: 2026-07-11
 Type: hotfix
 Risk: low
@@ -61,8 +61,8 @@ Im mobilen Nachrichtencenter ist das zugeklappte linke Thread-Panel als sehr hoh
 
 - Gate needed: yes
 - Reason: Production deploy.
-- Approved by: pending
-- Approval timestamp: pending
+- Approved by: Sebastian
+- Approval timestamp: 2026-07-11 19:35 UTC
 
 ## Implementation Notes
 
@@ -82,21 +82,29 @@ Im mobilen Nachrichtencenter ist das zugeklappte linke Thread-Panel als sehr hoh
 - Targeted verification:
   - Collapsed sidebar CSS trennt Mobile-Row und Desktop-Rail ueber `lg:` Klassen.
 - Manual smoke:
-  - pending production deploy
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `/admin`: 200
+  - `/api/messages/conversations` ohne Session: 401
+  - `/api/messages/unread-count` ohne Session: 401
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_9kUFoBDKWggk6ugNrS3LCQVMtsiT`
+- Deployment URL: `https://s5-evo-portal-rcrh70cfm-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 07:34 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/nachrichten`: 200
+  - `/admin`: 200
 - API checks:
-- Result:
+  - `/api/messages/conversations` without session: 401
+  - `/api/messages/unread-count` without session: 401
+- Result: green
 
 ## Follow-Ups
 

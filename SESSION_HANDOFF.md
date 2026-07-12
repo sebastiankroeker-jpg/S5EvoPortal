@@ -1,6 +1,28 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-11 19:15 UTC
+Stand: 2026-07-12 07:40 UTC
+
+## Aktueller Nachtrag: Message Center Collapsed Mobile Hotfix
+
+- App-Commit `1dec83b Fix message sidebar collapsed mobile layout` ist auf `origin/main` gepusht und produktiv deployed.
+- Production Deploy: `dpl_9kUFoBDKWggk6ugNrS3LCQVMtsiT`
+- Deployment URL: `https://s5-evo-portal-rcrh70cfm-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CR: `docs/cr/2026-07-11-message-center-collapsed-mobile-hotfix.md`
+- Geaendert:
+  - Zugeklapptes Nachrichten-Panel ist auf Mobile jetzt eine kompakte horizontale Leiste statt einer hohen leeren Rail.
+  - Thread-Zaehler bleibt auf Mobile horizontal lesbar.
+  - Desktop behaelt die schmale Rail mit vertikaler Thread-Zahl.
+- Checks:
+  - `pnpm exec eslint app/components/message-center.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `/admin`: 200
+  - `/api/messages/conversations` ohne Session: 401
+  - `/api/messages/unread-count` ohne Session: 401
 
 ## Aktueller Nachtrag: Message Center Sidebar And Sender Mode
 
