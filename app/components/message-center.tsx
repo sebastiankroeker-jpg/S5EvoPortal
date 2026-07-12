@@ -1,8 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Inbox, MessageCircle, PanelLeftClose, PanelLeftOpen, RefreshCw, Send, SlidersHorizontal, UserRound, UsersRound, XCircle } from "lucide-react";
+import {
+  ArrowDownUp,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
+  MessageCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RefreshCw,
+  Send,
+  SlidersHorizontal,
+  UserRound,
+  UsersRound,
+  XCircle,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,6 +91,34 @@ type AdminComposeTarget = {
   participantId: string | null;
 };
 
+type SortDirection = "asc" | "desc";
+type MessageListColumnKey = "status" | "direction" | "person" | "subject" | "date";
+type MessageSortMode = "latest" | "unread" | "subject" | "status" | "person";
+
+const MESSAGE_LIST_COLUMNS_STORAGE_KEY = "s5evo.messages.visibleColumns.v1";
+const DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS: MessageListColumnKey[] = ["status", "direction", "person", "subject", "date"];
+const MESSAGE_LIST_COLUMNS: Array<{ key: MessageListColumnKey; label: string }> = [
+  { key: "status", label: "Status" },
+  { key: "direction", label: "Badge" },
+  { key: "person", label: "Sender/Empfänger" },
+  { key: "subject", label: "Betreff" },
+  { key: "date", label: "Datum & Uhrzeit" },
+];
+const MESSAGE_SORT_OPTIONS: Array<{ value: MessageSortMode; label: string }> = [
+  { value: "latest", label: "Letzte Aktivität" },
+  { value: "unread", label: "Ungelesene zuerst" },
+  { value: "status", label: "Status" },
+  { value: "person", label: "Sender/Empfänger" },
+  { value: "subject", label: "Betreff" },
+];
+
+function sanitizeMessageColumns(value: unknown): MessageListColumnKey[] {
+  if (!Array.isArray(value)) return DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS;
+  const allowed = new Set(MESSAGE_LIST_COLUMNS.map((column) => column.key));
+  const columns = value.filter((entry): entry is MessageListColumnKey => typeof entry === "string" && allowed.has(entry as MessageListColumnKey));
+  return columns.length > 0 ? columns : DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS;
+}
+
 function formatDateTime(value: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -110,6 +154,59 @@ function statusClassName(status: ConversationSummary["status"]) {
 
 function senderLabel(message: { senderDisplayName?: string; sender: { name: string | null; email: string } }) {
   return message.senderDisplayName || message.sender.name || message.sender.email;
+}
+
+function conversationParticipantName(conversation: ConversationSummary) {
+  return conversation.context.participant
+    ? `${conversation.context.participant.firstName} ${conversation.context.participant.lastName}`
+    : "";
+}
+
+function isOutgoingConversation(conversation: ConversationSummary, mode: "mine" | "admin", currentUserId: string | null) {
+  const lastMessage = conversation.lastMessage;
+  if (!lastMessage) return false;
+  if (mode === "admin") return lastMessage.senderDisplayMode === "ORG";
+  return Boolean(currentUserId && lastMessage.sender.id === currentUserId);
+}
+
+function conversationDirectionLabel(conversation: ConversationSummary, mode: "mine" | "admin", currentUserId: string | null) {
+  return isOutgoingConversation(conversation, mode, currentUserId) ? "gesendet" : "empfangen";
+}
+
+function conversationPersonLabel(conversation: ConversationSummary, mode: "mine" | "admin", currentUserId: string | null) {
+  const outgoing = isOutgoingConversation(conversation, mode, currentUserId);
+  if (mode === "admin") {
+    const owner = conversation.participants.find((participant) => ["OWNER", "MEMBER"].includes(participant.role));
+    const ownerName = owner?.user.name || owner?.user.email;
+    if (outgoing) return ownerName || conversationParticipantName(conversation) || conversation.context.team?.name || "Empfänger";
+    return conversation.lastMessage ? senderLabel(conversation.lastMessage) : ownerName || "Sender";
+  }
+
+  if (outgoing) return "Orga-Team";
+  return conversation.lastMessage ? senderLabel(conversation.lastMessage) : "Orga-Team";
+}
+
+function messageDirectionBadgeClass(direction: "gesendet" | "empfangen") {
+  return direction === "gesendet"
+    ? "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+    : "border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200";
+}
+
+function MessageMetaStrip({
+  items,
+}: {
+  items: Array<{ key: string; label: string; value: ReactNode }>;
+}) {
+  return (
+    <div className="grid gap-1 rounded-md border border-border/60 bg-muted/20 p-2 text-xs sm:grid-cols-2 xl:grid-cols-5">
+      {items.map((item) => (
+        <div key={item.key} className="min-w-0">
+          <div className="text-[10px] uppercase text-muted-foreground">{item.label}</div>
+          <div className="min-w-0 truncate font-medium text-foreground">{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function SenderModeSelector({
@@ -157,10 +254,13 @@ export default function MessageCenter() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [sortMode, setSortMode] = useState<"latest" | "unread" | "subject" | "status">("latest");
+  const [sortMode, setSortMode] = useState<MessageSortMode>("latest");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<MessageListColumnKey[]>(DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contexts, setContexts] = useState<SupportContext[]>([]);
@@ -181,6 +281,27 @@ export default function MessageCenter() {
   const [replySenderDisplayMode, setReplySenderDisplayMode] = useState<"ORG" | "PERSONAL">("ORG");
 
   const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
+  const visibleColumnDefs = useMemo(
+    () => visibleColumns.map((key) => MESSAGE_LIST_COLUMNS.find((column) => column.key === key)).filter(Boolean) as Array<{ key: MessageListColumnKey; label: string }>,
+    [visibleColumns],
+  );
+  const visibleColumnKey = visibleColumns.join("|");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      setVisibleColumns(sanitizeMessageColumns(JSON.parse(stored)));
+    } catch {
+      setVisibleColumns(DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
 
   const filteredConversations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -209,20 +330,24 @@ export default function MessageCenter() {
         return haystack.includes(query);
       })
       .sort((a, b) => {
+        const directionFactor = sortDirection === "asc" ? 1 : -1;
         if (sortMode === "unread") {
           return b.unreadCount - a.unreadCount || new Date(b.lastMessageAt || b.updatedAt).getTime() - new Date(a.lastMessageAt || a.updatedAt).getTime();
         }
         if (sortMode === "subject") {
-          return a.subject.localeCompare(b.subject, "de");
+          return a.subject.localeCompare(b.subject, "de") * directionFactor;
         }
         if (sortMode === "status") {
-          return statusLabel(a.status).localeCompare(statusLabel(b.status), "de") || new Date(b.lastMessageAt || b.updatedAt).getTime() - new Date(a.lastMessageAt || a.updatedAt).getTime();
+          return statusLabel(a.status).localeCompare(statusLabel(b.status), "de") * directionFactor || new Date(b.lastMessageAt || b.updatedAt).getTime() - new Date(a.lastMessageAt || a.updatedAt).getTime();
+        }
+        if (sortMode === "person") {
+          return conversationPersonLabel(a, mode, currentUserId).localeCompare(conversationPersonLabel(b, mode, currentUserId), "de") * directionFactor;
         }
         const aTime = new Date(a.lastMessageAt || a.updatedAt).getTime();
         const bTime = new Date(b.lastMessageAt || b.updatedAt).getTime();
-        return bTime - aTime;
+        return (aTime - bTime) * directionFactor;
       });
-  }, [conversations, searchQuery, sortMode, statusFilter, unreadOnly]);
+  }, [conversations, currentUserId, mode, searchQuery, sortDirection, sortMode, statusFilter, unreadOnly]);
   const selected = filteredConversations.find((conversation) => conversation.id === selectedId) ?? filteredConversations[0] ?? null;
   const selectedOwnerParticipant = selected?.participants.find((participant) => ["OWNER", "MEMBER"].includes(participant.role)) ?? null;
   const selectedViewerParticipant = currentUserId
@@ -268,7 +393,11 @@ export default function MessageCenter() {
     unreadOnly,
     searchQuery.trim() !== "",
     sortMode !== "latest",
+    sortDirection !== "desc",
   ].filter(Boolean).length;
+  const listOptionsBadge = visibleColumns.length !== DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS.length || visibleColumnKey !== DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS.join("|")
+    ? visibleColumns.length
+    : null;
   const messageStatsItems = [
     {
       key: "all",
@@ -511,6 +640,67 @@ export default function MessageCenter() {
     }
   };
 
+  const moveVisibleColumn = (columnKey: MessageListColumnKey, direction: "up" | "down") => {
+    setVisibleColumns((current) => {
+      const index = current.indexOf(columnKey);
+      if (index < 0) return current;
+      const nextIndex = direction === "up" ? index - 1 : index + 1;
+      if (nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
+  const handleHeaderSort = (field: MessageSortMode) => {
+    if (sortMode === field) {
+      setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortMode(field);
+    setSortDirection(field === "latest" || field === "unread" ? "desc" : "asc");
+  };
+
+  const getHeaderSortIcon = (field: MessageSortMode) => {
+    if (sortMode !== field) return <ArrowDownUp className="size-3.5 text-muted-foreground" />;
+    return sortDirection === "asc" ? <ChevronUp className="size-3.5 text-foreground" /> : <ChevronDown className="size-3.5 text-foreground" />;
+  };
+
+  const renderConversationCell = (conversation: ConversationSummary, columnKey: MessageListColumnKey): ReactNode => {
+    const direction = conversationDirectionLabel(conversation, mode, currentUserId);
+    switch (columnKey) {
+      case "status":
+        return (
+          <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", statusClassName(conversation.status))}>
+            {statusLabel(conversation.status)}
+          </Badge>
+        );
+      case "direction":
+        return (
+          <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass(direction))}>
+            {direction}
+          </Badge>
+        );
+      case "person":
+        return <span className="line-clamp-1">{conversationPersonLabel(conversation, mode, currentUserId)}</span>;
+      case "subject":
+        return (
+          <span className="line-clamp-1 font-medium text-foreground">
+            {conversation.subject}
+            {conversation.unreadCount > 0 && <Badge className="ml-1 h-5 px-1.5 text-[10px]">{conversation.unreadCount}</Badge>}
+          </span>
+        );
+      case "date":
+        return <span className="tabular-nums">{formatDateTime(conversation.lastMessageAt || conversation.updatedAt)}</span>;
+      default:
+        return null;
+    }
+  };
+
+  const selectedDirection = selected ? conversationDirectionLabel(selected, mode, currentUserId) : null;
+  const selectedPerson = selected ? conversationPersonLabel(selected, mode, currentUserId) : null;
+  const selectedTimestamp = selected ? formatDateTime(selected.lastMessageAt || selected.updatedAt) : "—";
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/80 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -537,11 +727,28 @@ export default function MessageCenter() {
 
       {canManageSupport && adminComposeTarget && (
         <Card className="border-rose-500/30 bg-rose-500/5">
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <CardTitle className="text-base">Nachricht an {adminTargetLabel}</CardTitle>
             <CardDescription>
               Admin-Nachricht als Support-Thread. Der Nachrichtentext wird nicht per Mail weitergeleitet.
             </CardDescription>
+            <MessageMetaStrip
+              items={[
+                { key: "status", label: "Status", value: "Entwurf" },
+                {
+                  key: "direction",
+                  label: "Badge",
+                  value: (
+                    <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass("gesendet"))}>
+                      gesendet
+                    </Badge>
+                  ),
+                },
+                { key: "person", label: "Empfänger", value: adminTargetLabel },
+                { key: "subject", label: "Betreff", value: adminSubject || "—" },
+                { key: "date", label: "Datum & Uhrzeit", value: formatDateTime(new Date().toISOString()) },
+              ]}
+            />
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -604,7 +811,20 @@ export default function MessageCenter() {
               label="Filter"
               open={filtersOpen}
               badge={activeFilterCount > 0 ? activeFilterCount : null}
-              onClick={() => setFiltersOpen((open) => !open)}
+              onClick={() => {
+                setFiltersOpen((open) => !open);
+                setListOptionsOpen(false);
+              }}
+            />
+            <DashboardToolbarButton
+              icon={<ArrowDownUp className="size-3.5" />}
+              label="Spalten & Sortierung"
+              open={listOptionsOpen}
+              badge={listOptionsBadge}
+              onClick={() => {
+                setListOptionsOpen((open) => !open);
+                setFiltersOpen(false);
+              }}
             />
             <DashboardToolbarButton
               icon={<XCircle className="size-3.5" />}
@@ -614,6 +834,7 @@ export default function MessageCenter() {
                 setStatusFilter("all");
                 setUnreadOnly(false);
                 setSortMode("latest");
+                setSortDirection("desc");
               }}
               variant={activeFilterCount > 0 ? "default" : "outline"}
             />
@@ -658,6 +879,114 @@ export default function MessageCenter() {
                   />
                   Nur ungelesene Threads
                 </label>
+              </div>
+            </DashboardPanel>
+          )}
+
+          {listOptionsOpen && (
+            <DashboardPanel className="space-y-3">
+              <div className="space-y-0.5 px-1">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <ArrowDownUp className="size-4" />
+                  Listenoptionen
+                </div>
+                <p className="text-xs text-muted-foreground">Sortierung festlegen und sichtbare Inbox-Spalten anpassen</p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+                <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                  <span>Sortieren nach</span>
+                  <select
+                    value={sortMode}
+                    onChange={(event) => {
+                      const value = event.target.value as MessageSortMode;
+                      setSortMode(value);
+                      setSortDirection(value === "latest" || value === "unread" ? "desc" : "asc");
+                    }}
+                    className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                  >
+                    {MESSAGE_SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                  <span>Reihenfolge</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-full justify-between"
+                    onClick={() => setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"))}
+                  >
+                    {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
+                    <ArrowDownUp className="size-3.5" />
+                  </Button>
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <p className="px-1 text-xs font-medium text-muted-foreground">Sichtbare Spalten & Reihenfolge</p>
+                <div className="space-y-1.5">
+                  {visibleColumnDefs.map((column, index) => {
+                    const disableRemoval = visibleColumnDefs.length === 1;
+                    return (
+                      <div
+                        key={column.key}
+                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked
+                          disabled={disableRemoval}
+                          aria-label={`${column.label} ausblenden`}
+                          onChange={() => {
+                            if (disableRemoval) return;
+                            setVisibleColumns((current) => current.filter((entry) => entry !== column.key));
+                          }}
+                        />
+                        <span className="min-w-0 truncate">{column.label}</span>
+                        <span className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+                            title={`${column.label} nach links schieben`}
+                            aria-label={`${column.label} nach links schieben`}
+                            disabled={index === 0}
+                            onClick={() => moveVisibleColumn(column.key, "up")}
+                          >
+                            <ChevronUp className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+                            title={`${column.label} nach rechts schieben`}
+                            aria-label={`${column.label} nach rechts schieben`}
+                            disabled={index === visibleColumnDefs.length - 1}
+                            onClick={() => moveVisibleColumn(column.key, "down")}
+                          >
+                            <ChevronDown className="size-3.5" />
+                          </button>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {MESSAGE_LIST_COLUMNS.filter((column) => !visibleColumns.includes(column.key)).map((column) => (
+                    <button
+                      key={column.key}
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/40"
+                      onClick={() => setVisibleColumns((current) => [...current, column.key])}
+                    >
+                      <span className="inline-flex size-4 items-center justify-center rounded border border-border/70 text-[10px]">+</span>
+                      <span>{column.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </DashboardPanel>
           )}
@@ -723,41 +1052,104 @@ export default function MessageCenter() {
                   </div>
                 )}
               </CardHeader>
-              <CardContent className="max-h-[620px] space-y-2 overflow-y-auto p-3 pt-0">
+              <CardContent className="max-h-[620px] overflow-y-auto p-3 pt-0">
                 {loading ? (
                   <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Lade Nachrichten...</div>
                 ) : filteredConversations.length === 0 ? (
                   <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Keine passenden Threads vorhanden.</div>
                 ) : (
-                  filteredConversations.map((conversation) => (
-                    <button
-                      key={conversation.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(conversation.id);
-                        setMobileThreadOpen(true);
-                      }}
-                      className={cn(
-                        "w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent/60",
-                        selected?.id === conversation.id ? "border-primary bg-primary/10" : "border-border/60 bg-background/60",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="line-clamp-1 text-sm font-semibold">{conversation.subject}</p>
-                        {conversation.unreadCount > 0 && <Badge className="shrink-0">{conversation.unreadCount}</Badge>}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <Badge variant="outline" className={statusClassName(conversation.status)}>
-                          {statusLabel(conversation.status)}
-                        </Badge>
-                        {conversation.context.team && <Badge variant="secondary">{conversation.context.team.name}</Badge>}
-                      </div>
-                      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                        {conversation.lastMessage?.bodyPreview || "Noch keine Nachricht"}
-                      </p>
-                      <p className="mt-2 text-[11px] text-muted-foreground">{formatDateTime(conversation.lastMessageAt || conversation.updatedAt)}</p>
-                    </button>
-                  ))
+                  <div className="space-y-1.5">
+                    <div className="hidden overflow-x-auto rounded-md border border-border/60 lg:block">
+                      <table className="w-full min-w-[680px] text-xs">
+                        <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground">
+                          <tr className="border-b border-border/60">
+                            {visibleColumnDefs.map((column) => {
+                              const sortableField: MessageSortMode | null =
+                                column.key === "status" ? "status"
+                                  : column.key === "person" ? "person"
+                                    : column.key === "subject" ? "subject"
+                                      : column.key === "date" ? "latest"
+                                        : null;
+                              return (
+                                <th key={column.key} className="whitespace-nowrap px-2 py-2 font-medium">
+                                  {sortableField ? (
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                                      onClick={() => handleHeaderSort(sortableField)}
+                                    >
+                                      <span>{column.label}</span>
+                                      {getHeaderSortIcon(sortableField)}
+                                    </button>
+                                  ) : (
+                                    column.label
+                                  )}
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredConversations.map((conversation) => (
+                            <tr
+                              key={conversation.id}
+                              className={cn(
+                                "cursor-pointer border-b border-border/40 align-middle transition-colors last:border-0 hover:bg-accent/50",
+                                selected?.id === conversation.id && "bg-primary/10",
+                              )}
+                              onClick={() => {
+                                setSelectedId(conversation.id);
+                                setMobileThreadOpen(true);
+                              }}
+                            >
+                              {visibleColumnDefs.map((column) => (
+                                <td key={column.key} className="max-w-[180px] px-2 py-2 text-muted-foreground">
+                                  {renderConversationCell(conversation, column.key)}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="space-y-1.5 lg:hidden">
+                      {filteredConversations.map((conversation) => {
+                        const direction = conversationDirectionLabel(conversation, mode, currentUserId);
+                        return (
+                          <button
+                            key={conversation.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedId(conversation.id);
+                              setMobileThreadOpen(true);
+                            }}
+                            className={cn(
+                              "w-full rounded-md border px-2.5 py-2 text-left transition-colors hover:bg-accent/60",
+                              selected?.id === conversation.id ? "border-primary bg-primary/10" : "border-border/60 bg-background/60",
+                            )}
+                          >
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", statusClassName(conversation.status))}>
+                                {statusLabel(conversation.status)}
+                              </Badge>
+                              <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass(direction))}>
+                                {direction}
+                              </Badge>
+                              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                                {conversationPersonLabel(conversation, mode, currentUserId)}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+                              <span className="min-w-0 truncate text-sm font-semibold">{conversation.subject}</span>
+                              <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                                {formatDateTime(conversation.lastMessageAt || conversation.updatedAt)}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </>
@@ -838,6 +1230,31 @@ export default function MessageCenter() {
                     )}
                   </div>
                 </div>
+                <MessageMetaStrip
+                  items={[
+                    {
+                      key: "status",
+                      label: "Status",
+                      value: (
+                        <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", statusClassName(selected.status))}>
+                          {statusLabel(selected.status)}
+                        </Badge>
+                      ),
+                    },
+                    {
+                      key: "direction",
+                      label: "Badge",
+                      value: selectedDirection ? (
+                        <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass(selectedDirection))}>
+                          {selectedDirection}
+                        </Badge>
+                      ) : "—",
+                    },
+                    { key: "person", label: selectedDirection === "gesendet" ? "Empfänger" : "Sender", value: selectedPerson || "—" },
+                    { key: "subject", label: "Betreff", value: selected.subject },
+                    { key: "date", label: "Datum & Uhrzeit", value: selectedTimestamp },
+                  ]}
+                />
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-xl border border-border/50 bg-muted/20 p-3">
@@ -906,9 +1323,26 @@ export default function MessageCenter() {
 
       {contexts.length > 0 && composeOpen && (
         <Card id="new-message-composer">
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <CardTitle className="text-base">Neue Nachricht an das Orga-Team</CardTitle>
             <CardDescription>Der Nachrichtentext wird nicht per Mail weitergeleitet, sondern bleibt im Portal.</CardDescription>
+            <MessageMetaStrip
+              items={[
+                { key: "status", label: "Status", value: "Entwurf" },
+                {
+                  key: "direction",
+                  label: "Badge",
+                  value: (
+                    <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass("gesendet"))}>
+                      gesendet
+                    </Badge>
+                  ),
+                },
+                { key: "person", label: "Empfänger", value: "Orga-Team" },
+                { key: "subject", label: "Betreff", value: subject || "—" },
+                { key: "date", label: "Datum & Uhrzeit", value: formatDateTime(new Date().toISOString()) },
+              ]}
+            />
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
