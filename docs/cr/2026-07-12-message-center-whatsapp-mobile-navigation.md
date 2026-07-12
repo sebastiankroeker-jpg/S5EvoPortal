@@ -1,6 +1,6 @@
 # CR: Message Center WhatsApp Mobile Navigation
 
-Status: Draft
+Status: Implemented - pending deploy approval
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -40,8 +40,8 @@ Sebastian wants the message center to feel more like WhatsApp, especially on mob
 
 ## Open Questions
 
-- Should mobile open the newest/selected thread by default, or always start in overview?
-- Should unread conversations be visually prioritized above read conversations, or stay chronological by latest activity?
+- Decision 1: Mobile starts in conversation overview unless a URL-driven target/thread is selected.
+- Decision 2: Keep chronological latest-activity order for v1; unread state is visual/filterable, not a hard sort override.
 
 ## Acceptance Criteria
 
@@ -92,19 +92,30 @@ Sebastian wants the message center to feel more like WhatsApp, especially on mob
 - Gate needed: yes
 - Reason: production deploy.
 - Approved by:
-- Approval timestamp:
+- Approved by: Sebastian
+- Approval timestamp: 2026-07-12 09:18 UTC
 
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/message-center.tsx`
 - Important decisions during implementation:
+  - Mobile blendet die Threadliste aus, sobald ein Thread aktiv geöffnet wurde.
+  - Mobile Thread-Ansicht bekommt eine explizite `Übersicht`-Zurück-Aktion.
+  - Desktop nutzt weiterhin die bestehende Sidebar-/Thread-Zweispaltigkeit.
 
 ## Verification
 
 - Local checks:
+  - `pnpm exec eslint app/components/message-center.tsx app/components/approval-queue.tsx` gruen mit bestehender Hook-Warnung in `approval-queue.tsx`
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
 - Build:
+  - `npm run build` gruen
 - Targeted verification:
+  - Mobile-Navigation ist state-basiert getrennt (`mobileThreadOpen`), Desktop bleibt ueber `lg:` sichtbar.
 - Manual smoke:
+  - pending production deploy
 
 ## Deploy
 

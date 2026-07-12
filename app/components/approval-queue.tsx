@@ -256,6 +256,7 @@ function isDirectChange(change: Pick<PendingChange, "status" | "source">) {
 
 export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueueProps) {
   const { activeRole } = usePermissions();
+  const dashboardMode = variant === "page";
   const [changes, setChanges] = useState<PendingChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -263,14 +264,14 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [comments, setComments] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [updatedOnly, setUpdatedOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "DIRECT" | "ALL">("PENDING");
+  const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "DIRECT" | "ALL">(dashboardMode ? "ALL" : "PENDING");
+  const [sortMode, setSortMode] = useState<"priority" | "latest" | "oldest" | "participant" | "team" | "fieldCount">("priority");
   const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
   const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastDecisionResult, setLastDecisionResult] = useState<DecisionResult | null>(null);
 
-  const dashboardMode = variant === "page";
   const canUseAdminLinks = activeRole === "ADMIN";
 
   const fetchChanges = async (mode: "initial" | "refresh" = "initial") => {
@@ -371,6 +372,12 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
           change.participant.team.name,
           change.requesterLabel,
           change.requestedBy.email,
+          change.reviewedBy?.name || "",
+          change.reviewedBy?.email || "",
+          change.status,
+          change.source || "",
+          getStatusFilterLabel(isDirectChange(change) ? "DIRECT" : change.status === "APPROVED" || change.status === "REJECTED" || change.status === "PENDING" ? change.status : "ALL"),
+          ...change.recentHistory?.map((entry) => `${formatAuditAction(entry.action)} ${entry.actor?.name || ""} ${entry.actor?.email || ""} ${entry.message || ""}`) || [],
           ...change.fields.map((field) => (fieldLabels[field.key] || field.key) + " " + formatValue(field.before) + " " + formatValue(field.after)),
         ]
           .join(" ")
@@ -379,6 +386,21 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         return haystack.includes(query);
       })
       .sort((left, right) => {
+        if (sortMode === "latest") {
+          return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+        }
+        if (sortMode === "oldest") {
+          return new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime();
+        }
+        if (sortMode === "participant") {
+          return left.participantName.localeCompare(right.participantName, "de") || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+        }
+        if (sortMode === "team") {
+          return left.participant.team.name.localeCompare(right.participant.team.name, "de") || left.participantName.localeCompare(right.participantName, "de");
+        }
+        if (sortMode === "fieldCount") {
+          return right.fields.length - left.fields.length || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+        }
         if (right.priorityScore !== left.priorityScore) {
           return right.priorityScore - left.priorityScore;
         }
@@ -416,7 +438,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     }
 
     return collapsed;
-  }, [decoratedChanges, participantFilterId, searchQuery, statusFilter, teamFilterId, updatedOnly]);
+  }, [decoratedChanges, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly]);
 
   const visibleChanges = useMemo(() => {
     return dashboardMode ? filteredChanges : filteredChanges.slice(0, 3);
@@ -444,13 +466,15 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     };
   }, [decoratedChanges]);
 
-  const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== "PENDING" || updatedOnly);
+  const defaultStatusFilter = dashboardMode ? "ALL" : "PENDING";
+  const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== defaultStatusFilter || updatedOnly || sortMode !== "priority");
   const activeFilterCount = [
     Boolean(participantFilterId),
     Boolean(teamFilterId),
     searchQuery.trim() !== "",
-    statusFilter !== "PENDING",
+    statusFilter !== defaultStatusFilter,
     updatedOnly,
+    sortMode !== "priority",
   ].filter(Boolean).length;
 
   const statsItems = [
@@ -526,19 +550,28 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
 
     if (participantFilterId) labels.push("Teilnehmer: " + (participantName || "Auswahl"));
     if (teamFilterId) labels.push("Team: " + (teamName || "Auswahl"));
-    if (statusFilter !== "PENDING") labels.push("Status: " + getStatusFilterLabel(statusFilter));
+    if (statusFilter !== defaultStatusFilter) labels.push("Status: " + getStatusFilterLabel(statusFilter));
     if (updatedOnly) labels.push("nur aktualisierte Anträge");
+    if (sortMode !== "priority") labels.push("Sortierung: " + {
+      latest: "letzte Aktivität",
+      oldest: "älteste zuerst",
+      participant: "Teilnehmer A-Z",
+      team: "Team A-Z",
+      fieldCount: "meiste Felder",
+      priority: "Priorität",
+    }[sortMode]);
     if (searchQuery.trim()) labels.push("Suche: " + searchQuery.trim());
 
     return labels.join(" · ");
-  }, [decoratedChanges, participantFilterId, searchQuery, statusFilter, teamFilterId, updatedOnly]);
+  }, [decoratedChanges, defaultStatusFilter, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly]);
 
   const resetDashboardFilters = () => {
     setParticipantFilterId(null);
     setTeamFilterId(null);
     setSearchQuery("");
-    setStatusFilter("PENDING");
+    setStatusFilter(defaultStatusFilter);
     setUpdatedOnly(false);
+    setSortMode("priority");
     window.history.replaceState(null, "", "/aenderungen");
   };
 
@@ -710,6 +743,26 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                     >
                       Aktualisierte
                     </Button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                      <span>Sortierung</span>
+                      <select
+                        value={sortMode}
+                        onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+                        className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                      >
+                        <option value="priority">Priorität</option>
+                        <option value="latest">Letzte Aktivität</option>
+                        <option value="oldest">Älteste zuerst</option>
+                        <option value="participant">Teilnehmer A-Z</option>
+                        <option value="team">Team A-Z</option>
+                        <option value="fieldCount">Meiste Feldwechsel</option>
+                      </select>
+                    </label>
+                    <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                      Gesamtübersicht umfasst offene, entschiedene und direkte Änderungen. Aktionen bleiben nur bei offenen Anträgen aktiv.
+                    </div>
                   </div>
                 </div>
               </DashboardPanel>

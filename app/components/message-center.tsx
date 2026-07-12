@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Building2, Inbox, MessageCircle, PanelLeftClose, PanelLeftOpen, RefreshCw, Send, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, Inbox, MessageCircle, PanelLeftClose, PanelLeftOpen, RefreshCw, Send, SlidersHorizontal, UserRound, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  DashboardControlsCard,
+  DashboardPanel,
+  DashboardSearchField,
+  DashboardStatsRow,
+  DashboardToolbar,
+  DashboardToolbarButton,
+} from "./dashboard-controls";
 
 type SupportContext = {
   type: "participant" | "team";
@@ -145,7 +153,12 @@ function SenderModeSelector({
 export default function MessageCenter() {
   const [mode, setMode] = useState<"mine" | "admin">("mine");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<"latest" | "unread" | "subject" | "status">("latest");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contexts, setContexts] = useState<SupportContext[]>([]);
@@ -166,15 +179,101 @@ export default function MessageCenter() {
   const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
 
   const filteredConversations = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
     return conversations
-      .filter((conversation) => statusFilter === "all" || conversation.status === statusFilter)
+      .filter((conversation) => {
+        if (statusFilter === "unread" && conversation.unreadCount <= 0) return false;
+        if (statusFilter !== "all" && statusFilter !== "unread" && conversation.status !== statusFilter) return false;
+        if (unreadOnly && conversation.unreadCount <= 0) return false;
+        if (!query) return true;
+
+        const participantName = conversation.context.participant
+          ? `${conversation.context.participant.firstName} ${conversation.context.participant.lastName}`
+          : "";
+        const haystack = [
+          conversation.subject,
+          statusLabel(conversation.status),
+          conversation.context.team?.name || "",
+          participantName,
+          conversation.context.competition ? `${conversation.context.competition.name} ${conversation.context.competition.year}` : "",
+          conversation.lastMessage?.bodyPreview || "",
+          conversation.lastMessage?.senderDisplayName || "",
+          conversation.lastMessage?.sender.name || "",
+          conversation.lastMessage?.sender.email || "",
+        ].join(" ").toLowerCase();
+
+        return haystack.includes(query);
+      })
       .sort((a, b) => {
+        if (sortMode === "unread") {
+          return b.unreadCount - a.unreadCount || new Date(b.lastMessageAt || b.updatedAt).getTime() - new Date(a.lastMessageAt || a.updatedAt).getTime();
+        }
+        if (sortMode === "subject") {
+          return a.subject.localeCompare(b.subject, "de");
+        }
+        if (sortMode === "status") {
+          return statusLabel(a.status).localeCompare(statusLabel(b.status), "de") || new Date(b.lastMessageAt || b.updatedAt).getTime() - new Date(a.lastMessageAt || a.updatedAt).getTime();
+        }
         const aTime = new Date(a.lastMessageAt || a.updatedAt).getTime();
         const bTime = new Date(b.lastMessageAt || b.updatedAt).getTime();
         return bTime - aTime;
       });
-  }, [conversations, statusFilter]);
+  }, [conversations, searchQuery, sortMode, statusFilter, unreadOnly]);
   const selected = filteredConversations.find((conversation) => conversation.id === selectedId) ?? filteredConversations[0] ?? null;
+  const activeFilterCount = [
+    statusFilter !== "all",
+    unreadOnly,
+    searchQuery.trim() !== "",
+    sortMode !== "latest",
+  ].filter(Boolean).length;
+  const messageStatsItems = [
+    {
+      key: "all",
+      label: "Alle",
+      shortLabel: "Alle",
+      value: filteredConversations.length,
+      total: conversations.length,
+      tone: "outline" as const,
+      active: statusFilter === "all" && !unreadOnly,
+      onClick: () => {
+        setStatusFilter("all");
+        setUnreadOnly(false);
+      },
+    },
+    {
+      key: "unread",
+      label: "Ungelesen",
+      shortLabel: "Neu",
+      value: filteredConversations.filter((conversation) => conversation.unreadCount > 0).length,
+      total: conversations.filter((conversation) => conversation.unreadCount > 0).length,
+      tone: "default" as const,
+      active: statusFilter === "unread" || unreadOnly,
+      onClick: () => {
+        setStatusFilter("unread");
+        setUnreadOnly(false);
+      },
+    },
+    {
+      key: "waiting-admin",
+      label: "Admin",
+      shortLabel: "Admin",
+      value: filteredConversations.filter((conversation) => conversation.status === "WAITING_FOR_ADMIN").length,
+      total: conversations.filter((conversation) => conversation.status === "WAITING_FOR_ADMIN").length,
+      tone: "outline" as const,
+      active: statusFilter === "WAITING_FOR_ADMIN",
+      onClick: () => setStatusFilter("WAITING_FOR_ADMIN"),
+    },
+    {
+      key: "waiting-user",
+      label: "Antwort",
+      shortLabel: "Antw.",
+      value: filteredConversations.filter((conversation) => conversation.status === "WAITING_FOR_USER").length,
+      total: conversations.filter((conversation) => conversation.status === "WAITING_FOR_USER").length,
+      tone: "secondary" as const,
+      active: statusFilter === "WAITING_FOR_USER",
+      onClick: () => setStatusFilter("WAITING_FOR_USER"),
+    },
+  ];
 
   const loadConversations = useCallback(async (nextMode: "mine" | "admin" = mode) => {
     setLoading(true);
@@ -240,6 +339,7 @@ export default function MessageCenter() {
     setMode(nextMode);
     setReplySenderDisplayMode(nextMode === "admin" ? "ORG" : "PERSONAL");
     setSelectedId(null);
+    setMobileThreadOpen(false);
     void loadConversations(nextMode);
   };
 
@@ -258,7 +358,10 @@ export default function MessageCenter() {
       setBody("");
       setMode("mine");
       await loadConversations("mine");
-      if (data.conversation?.id) setSelectedId(data.conversation.id);
+      if (data.conversation?.id) {
+        setSelectedId(data.conversation.id);
+        setMobileThreadOpen(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nachricht konnte nicht gesendet werden");
     } finally {
@@ -292,7 +395,10 @@ export default function MessageCenter() {
       window.history.replaceState({}, "", "/nachrichten");
       setMode("admin");
       await loadConversations("admin");
-      if (data.conversation?.id) setSelectedId(data.conversation.id);
+      if (data.conversation?.id) {
+        setSelectedId(data.conversation.id);
+        setMobileThreadOpen(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nachricht konnte nicht gesendet werden");
     } finally {
@@ -426,8 +532,89 @@ export default function MessageCenter() {
         </Card>
       )}
 
+      <DashboardControlsCard>
+        <div className="space-y-2">
+          <DashboardSearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Suche Betreff, Team, Person, Absender oder Nachricht"
+          />
+          <DashboardStatsRow items={messageStatsItems} />
+          <DashboardToolbar>
+            <DashboardToolbarButton
+              icon={<RefreshCw className={cn("size-3.5", loading && "animate-spin")} />}
+              label="Aktualisieren"
+              onClick={() => loadConversations(mode)}
+              disabled={loading}
+              variant="outline"
+            />
+            <DashboardToolbarButton
+              icon={<SlidersHorizontal className="size-3.5" />}
+              label="Filter"
+              open={filtersOpen}
+              badge={activeFilterCount > 0 ? activeFilterCount : null}
+              onClick={() => setFiltersOpen((open) => !open)}
+            />
+            <DashboardToolbarButton
+              icon={<XCircle className="size-3.5" />}
+              label="Filter zurücksetzen"
+              onClick={() => {
+                setSearchQuery("");
+                setStatusFilter("all");
+                setUnreadOnly(false);
+                setSortMode("latest");
+              }}
+              variant={activeFilterCount > 0 ? "default" : "outline"}
+            />
+          </DashboardToolbar>
+
+          {filtersOpen && (
+            <DashboardPanel>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                  <span>Status</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                  >
+                    <option value="all">Alle Status</option>
+                    <option value="unread">Ungelesen</option>
+                    <option value="WAITING_FOR_ADMIN">Wartet auf Admin</option>
+                    <option value="WAITING_FOR_USER">Wartet auf Teilnehmer:in</option>
+                    <option value="OPEN">Offen</option>
+                    <option value="CLOSED">Geschlossen</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                  <span>Sortierung</span>
+                  <select
+                    value={sortMode}
+                    onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+                    className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                  >
+                    <option value="latest">Letzte Aktivität</option>
+                    <option value="unread">Ungelesene zuerst</option>
+                    <option value="status">Status</option>
+                    <option value="subject">Betreff A-Z</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={unreadOnly}
+                    onChange={(event) => setUnreadOnly(event.target.checked)}
+                  />
+                  Nur ungelesene Threads
+                </label>
+              </div>
+            </DashboardPanel>
+          )}
+        </div>
+      </DashboardControlsCard>
+
       <div className={cn("grid gap-4", sidebarOpen ? "lg:grid-cols-[minmax(280px,360px)_1fr]" : "lg:grid-cols-[72px_1fr]")}>
-        <Card className={cn("overflow-hidden transition-all", !sidebarOpen && "lg:min-h-[520px]")}>
+        <Card className={cn("overflow-hidden transition-all", mobileThreadOpen && "hidden lg:block", !sidebarOpen && "lg:min-h-[520px]")}>
           {sidebarOpen ? (
             <>
               <CardHeader className="space-y-3 p-3">
@@ -466,17 +653,6 @@ export default function MessageCenter() {
                     </button>
                   </div>
                 )}
-                <select
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                >
-                  <option value="all">Alle Status</option>
-                  <option value="WAITING_FOR_ADMIN">Wartet auf Admin</option>
-                  <option value="WAITING_FOR_USER">Wartet auf Teilnehmer:in</option>
-                  <option value="OPEN">Offen</option>
-                  <option value="CLOSED">Geschlossen</option>
-                </select>
               </CardHeader>
               <CardContent className="max-h-[620px] space-y-2 overflow-y-auto p-3 pt-0">
                 {loading ? (
@@ -488,7 +664,10 @@ export default function MessageCenter() {
                     <button
                       key={conversation.id}
                       type="button"
-                      onClick={() => setSelectedId(conversation.id)}
+                      onClick={() => {
+                        setSelectedId(conversation.id);
+                        setMobileThreadOpen(true);
+                      }}
                       className={cn(
                         "w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent/60",
                         selected?.id === conversation.id ? "border-primary bg-primary/10" : "border-border/60 bg-background/60",
@@ -528,7 +707,7 @@ export default function MessageCenter() {
           )}
         </Card>
 
-        <Card className="min-h-[520px]">
+        <Card className={cn("min-h-[520px]", !mobileThreadOpen && "hidden lg:block")}>
           {!selected ? (
             <CardContent className="flex min-h-[420px] items-center justify-center text-center text-sm text-muted-foreground">
               Wähle einen Thread aus oder starte eine neue Nachricht.
@@ -538,6 +717,12 @@ export default function MessageCenter() {
               <CardHeader className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
+                    <div className="mb-2 flex items-center gap-2 lg:hidden">
+                      <Button type="button" size="sm" variant="outline" onClick={() => setMobileThreadOpen(false)}>
+                        <ArrowLeft className="mr-1 h-4 w-4" />
+                        Übersicht
+                      </Button>
+                    </div>
                     <CardTitle className="text-lg">{selected.subject}</CardTitle>
                     <CardDescription>
                       {selected.context.participant

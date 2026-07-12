@@ -1,6 +1,6 @@
 # CR: Change Dashboard Consolidated History
 
-Status: Draft
+Status: Implemented - pending deploy approval
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -101,19 +101,30 @@ After the direct participant change hotfix, `/aenderungen` can show direct admin
 - Gate needed: yes
 - Reason: production deploy; possible API surface changes.
 - Approved by:
-- Approval timestamp:
+- Approved by: Sebastian
+- Approval timestamp: 2026-07-12 09:18 UTC
 
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/approval-queue.tsx`
 - Important decisions during implementation:
+  - Seitenmodus von `/aenderungen` startet jetzt mit Status `ALL`, damit offene, entschiedene und direkte Aenderungen standardmaessig gemeinsam sichtbar sind.
+  - Embedded Queue bleibt bei `PENDING`, damit Admin-Startseite weiter nur offene Arbeit zeigt.
+  - Direkte Aenderungen bleiben nicht-aktionierbare Historieneintraege.
 
 ## Verification
 
 - Local checks:
+  - `pnpm exec eslint app/components/message-center.tsx app/components/approval-queue.tsx` gruen mit bestehender Hook-Warnung in `approval-queue.tsx`
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
 - Build:
+  - `npm run build` gruen
 - Targeted verification:
+  - Default-Status ist je nach Variante getrennt: Page `ALL`, embedded `PENDING`.
 - Manual smoke:
+  - pending production deploy
 
 ## Deploy
 

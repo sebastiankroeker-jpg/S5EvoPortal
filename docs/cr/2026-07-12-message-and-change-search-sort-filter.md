@@ -1,6 +1,6 @@
 # CR: Message And Change Search Sort Filter
 
-Status: Draft
+Status: Implemented - pending deploy approval
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -111,19 +111,32 @@ Sebastian wants Nachrichten and Änderungs-Dashboard to get search, sort, and fi
 - Gate needed: yes
 - Reason: production deploy; possible API query behavior changes.
 - Approved by:
-- Approval timestamp:
+- Approved by: Sebastian
+- Approval timestamp: 2026-07-12 09:18 UTC
 
 ## Implementation Notes
 
 - Files changed:
+  - `app/components/message-center.tsx`
+  - `app/components/approval-queue.tsx`
 - Important decisions during implementation:
+  - Nachrichten nutzen denselben Control-Strip-Stil wie MD: Suche, Stats-Pills, Toolbar, Filterpanel.
+  - Nachrichtenfilter v1: Status, ungelesen, Sortierung nach letzter Aktivitaet/ungelesen/Status/Betreff.
+  - Aenderungen erweitern Suche um Status, Quelle, Actor, Review-Infos und Historiennachrichten.
+  - Aenderungen bekommen Sortierung nach Prioritaet, letzter Aktivitaet, aelteste zuerst, Teilnehmer, Team und Feldanzahl.
 
 ## Verification
 
 - Local checks:
+  - `pnpm exec eslint app/components/message-center.tsx app/components/approval-queue.tsx` gruen mit bestehender Hook-Warnung in `approval-queue.tsx`
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
 - Build:
+  - `npm run build` gruen
 - Targeted verification:
+  - Filter-/Sortierlogik laeuft clientseitig auf den bereits geladenen Listen.
 - Manual smoke:
+  - pending production deploy
 
 ## Deploy
 

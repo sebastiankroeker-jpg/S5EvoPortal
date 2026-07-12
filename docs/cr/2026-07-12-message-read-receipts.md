@@ -39,8 +39,9 @@ Sebastian wants messages to make it visible whether and when they were read.
 ## Data / API Design
 
 - Proposed data model:
-  - Option A: derive conversation-level read state from existing participant `lastReadAt`.
-  - Option B: add message-level read receipt table for exact per-message/per-recipient timestamps.
+- Option A: derive conversation-level read state from existing participant `lastReadAt`.
+- Option B: add message-level read receipt table for exact per-message/per-recipient timestamps.
+- Decision: Sebastian chose Option B / message-level receipts on 2026-07-12.
 - Proposed API shape:
   - Include read receipt summary in conversation detail, e.g. `readBy`, `lastReadAt`, or `readStatus`.
 - Backward compatibility:
@@ -51,7 +52,7 @@ Sebastian wants messages to make it visible whether and when they were read.
 
 ## Open Questions
 
-- Is conversation-level `lastReadAt` enough for v1, or do we need exact message-level receipts?
+- Decision 1: Use exact message-level receipts, not only conversation-level `lastReadAt`.
 - For admin/org mailbox messages, should participants see which individual admin read it, or only `Admin-Team gelesen`?
 - Should admins see read state for all participants in a support conversation?
 - Should read time be shown inline, in tooltip, or in message detail metadata?
@@ -73,7 +74,8 @@ Sebastian wants messages to make it visible whether and when they were read.
   - `app/api/messages/conversations/[id]/read/route.ts`
   - `app/components/message-center.tsx`
 - Current decisions:
-  - Start by evaluating existing `ConversationParticipant.lastReadAt`.
+  - Implement as message-level receipts when this CR is picked up.
+  - Existing `ConversationParticipant.lastReadAt` may remain as unread/conversation cursor, but is not sufficient for receipts.
 - Open decisions:
   - Option A vs Option B.
   - Exact visibility labels for org mailbox/admin reads.
