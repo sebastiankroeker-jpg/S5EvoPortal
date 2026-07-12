@@ -100,6 +100,26 @@ Stand: 2026-07-12 22:18 UTC
   - Auf Mobile `/nachrichten` hart aktualisieren und pruefen, dass die Uebersicht als kompakte WhatsApp-aehnliche Zeilenliste navigiert.
   - Auf Desktop Spaltenoptionen/Sortierung in `Mein Postfach` testen und einen Thread plus neue Nachricht oeffnen.
 
+## Aktueller Nachtrag: Message Compose Header Compact Follow-up
+
+- Ausloeser:
+  - Sebastian zeigte nach dem Deploy einen mobilen Screenshot der Schreiben-Ansicht.
+  - Der Metadatenkopf in `Neue Nachricht an das Orga-Team` war noch zu hoch, weil der gemeinsame Meta-Strip mobil als einspaltige Detailkarte umbrechen konnte.
+  - Unter `Kontext` erschien zusaetzlich eine Detail-Hilfszeile mit Kontextdaten.
+- CR:
+  - Nachtrag in `docs/cr/2026-07-12-message-list-compact-columns.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - `MessageMetaStrip` rendert jetzt als kompakte horizontale, wrap-faehige Metazeile.
+  - Admin- und persoenliche Compose-Header haben weniger Padding/Spacing.
+  - Die Kontext-Detail-Hilfszeile unter dem Kontext-Dropdown ist entfernt.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx`
+  - `npx tsc --noEmit`
+- Naechster Schritt:
+  - `git diff --check`, `npm run build`, Commit, dann Sebastian-Go fuer Production deployen.
+
 ## Aktueller Nachtrag: Message Orga Context Privacy Hotfix
 
 - Ausloeser:

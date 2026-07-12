@@ -199,11 +199,11 @@ function MessageMetaStrip({
   items: Array<{ key: string; label: string; value: ReactNode }>;
 }) {
   return (
-    <div className="grid gap-1 rounded-md border border-border/60 bg-muted/20 p-2 text-xs sm:grid-cols-2 xl:grid-cols-5">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5 text-xs">
       {items.map((item) => (
-        <div key={item.key} className="min-w-0">
-          <div className="text-[10px] uppercase text-muted-foreground">{item.label}</div>
-          <div className="min-w-0 truncate font-medium text-foreground">{item.value}</div>
+        <div key={item.key} className="inline-flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 text-[10px] uppercase text-muted-foreground">{item.label}</span>
+          <span className="min-w-0 max-w-[11rem] truncate font-medium text-foreground sm:max-w-[14rem]">{item.value}</span>
         </div>
       ))}
     </div>
@@ -725,7 +725,7 @@ export default function MessageCenter() {
 
       {canManageSupport && adminComposeTarget && (
         <Card className="border-rose-500/30 bg-rose-500/5">
-          <CardHeader className="space-y-3">
+          <CardHeader className="space-y-2 p-3 sm:p-4">
             <CardTitle className="text-base">Nachricht an {adminTargetLabel}</CardTitle>
             <CardDescription>
               Admin-Nachricht als Support-Thread. Der Nachrichtentext wird nicht per Mail weitergeleitet.
@@ -1311,7 +1311,7 @@ export default function MessageCenter() {
 
       {contexts.length > 0 && composeOpen && (
         <Card id="new-message-composer">
-          <CardHeader className="space-y-3">
+          <CardHeader className="space-y-2 p-3 sm:p-4">
             <CardTitle className="text-base">Neue Nachricht an das Orga-Team</CardTitle>
             <CardDescription>Der Nachrichtentext wird nicht per Mail weitergeleitet, sondern bleibt im Portal.</CardDescription>
             <MessageMetaStrip
@@ -1347,9 +1347,6 @@ export default function MessageCenter() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-muted-foreground">
-                  {contexts.find((context) => `${context.type}:${context.id}` === contextId)?.detail || "Wähle einen Kontext."}
-                </p>
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Betreff</label>

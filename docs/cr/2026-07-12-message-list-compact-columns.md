@@ -109,6 +109,10 @@ Sebastian tested the mobile message center and sent screenshots. The inbox cards
     - Orga mailbox: `senderDisplayMode === ORG` is sent.
     - Personal mailbox: current viewer sender id is sent.
   - Read and compose headers reuse the same metadata vocabulary: status, badge, sender/recipient, subject, date/time.
+  - Post-deploy mobile screenshot follow-up:
+    - `MessageMetaStrip` now renders as a compact wrapping horizontal strip instead of a one-column mobile detail card.
+    - Read/write compose headers use reduced padding/spacing.
+    - The new personal message composer no longer shows the extra context detail helper line below the context select.
 
 ## Verification
 
@@ -121,6 +125,7 @@ Sebastian tested the mobile message center and sent screenshots. The inbox cards
 - Targeted verification:
   - Reviewed inbox rendering paths for desktop table and mobile row list.
   - Reviewed thread/read and compose header metadata order.
+  - Follow-up static verification confirms the write/compose header can no longer collapse into five tall label/value rows on mobile.
 - Manual smoke:
   - `npm run smoke:public` against production alias green
   - `/nachrichten` returned 200
