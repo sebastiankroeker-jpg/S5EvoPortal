@@ -1,6 +1,6 @@
 # CR: Legacy Bundle Status Sync Hotfix
 
-Status: Local fixed, deploy pending
+Status: Deployed
 Date: 2026-07-12
 Type: hotfix
 Risk: low
@@ -33,7 +33,7 @@ Investigation showed the canonical `pending_changes` bundle records were already
 - Auth/permission impact: unchanged, Admin/Moderator-only routes.
 - Production/deploy impact:
   - One targeted production data correction was applied on 2026-07-12 10:42 UTC.
-  - Code deploy is still pending user approval because `main` triggers Production.
+  - Code deploy completed after Sebastian approved with "Go" on 2026-07-12 11:55 UTC.
 
 ## Data / API Design
 
@@ -101,9 +101,10 @@ Investigation showed the canonical `pending_changes` bundle records were already
 - Reason: production data mutation and later production deploy.
 - Approved by:
   - Production data correction: implicit incident response to Sebastian's reported stuck entry.
-  - Production code deploy: pending.
+  - Production code deploy: Sebastian approved with "Go".
 - Approval timestamp:
   - Data correction applied at 2026-07-12 10:42 UTC.
+  - Code deploy approved at 2026-07-12 11:55 UTC.
 
 ## Implementation Notes
 
@@ -128,21 +129,27 @@ Investigation showed the canonical `pending_changes` bundle records were already
     - `pending_changes.cmqytaj3y0001kz042y7gc5tj`: `APPROVED` / `APPROVED`.
     - `change_requests.cmqytajju0005kz04wvdu99eo`: `APPLIED`, with `reviewedAt` and `appliedAt` set to `2026-06-29T06:04:27.820Z`.
 - Manual smoke:
-  - Pending authenticated browser smoke after deploy.
+  - `npm run smoke:public` green against `https://portal.s5evo.de`.
+  - `/aenderungen` returned 200.
+  - `/api/admin/pending-changes?scope=all` without session returned 401.
+  - Authenticated browser smoke still recommended for the specific dashboard row.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID: pending
-- Deployment URL: pending
+- Deployment ID: `dpl_GZ7tX93ZywkDFU6fZTsUayzQNSYC`
+- Deployment URL: `https://s5-evo-portal-9g6e5dgwo-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: pending
+- Deployed at: 2026-07-12 11:57 UTC
 
 ## Post-Deploy Smoke
 
-- Routes checked: pending
-- API checks: pending
-- Result: pending
+- Routes checked:
+  - `npm run smoke:public`
+  - `GET /aenderungen`: 200
+- API checks:
+  - `GET /api/admin/pending-changes?scope=all` without session: 401
+- Result: green
 
 ## Follow-Ups
 

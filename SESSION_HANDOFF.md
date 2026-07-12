@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 10:48 UTC
+Stand: 2026-07-12 12:00 UTC
 
 ## Aktueller Nachtrag: Legacy Bundle Status Sync Hotfix
 
@@ -15,7 +15,11 @@ Stand: 2026-07-12 10:48 UTC
   - `change_requests.cmqytajju0005kz04wvdu99eo`: am 2026-07-12 10:42 UTC von `PENDING` auf `APPLIED` synchronisiert.
   - Audit-Logs `APPROVED` und `APPLIED` fuer die nachtraegliche Legacy-Bundle-Synchronisierung angelegt.
   - Keine Teilnehmerdaten geaendert, kein Mailversand.
-- Lokaler Code-Fix, noch nicht gepusht/deployed:
+- Code-Fix ist auf `origin/main` gepusht und produktiv deployed:
+  - Commit: `3489ad7 Fix legacy bundle status sync`
+  - Production Deploy: `dpl_GZ7tX93ZywkDFU6fZTsUayzQNSYC`
+  - Deployment URL: `https://s5-evo-portal-9g6e5dgwo-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/api/admin/pending-changes/route.ts`: Legacy-verlinkte Eintraege bevorzugen `pending_changes.status`.
   - `app/api/admin/participant-change-bundles/[id]/decision/route.ts`: Bundle-Entscheidungen synchronisieren verknuepfte generische `change_requests`.
   - CR: `docs/cr/2026-07-12-legacy-bundle-status-sync-hotfix.md`
@@ -24,8 +28,11 @@ Stand: 2026-07-12 10:48 UTC
   - `npx tsc --noEmit` gruen
   - `git diff --check` gruen
   - `npm run build` gruen
-- Naechster Schritt:
-  - Nach Sebastian-Go: Code committen, auf `main` pushen, Vercel-Deploy abwarten, `/aenderungen` und `/api/admin/pending-changes?scope=all` smoke-testen.
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/aenderungen`: 200
+  - `/api/admin/pending-changes?scope=all` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Angemeldet `/aenderungen` hart aktualisieren und den Edward-Wolf-Eintrag prüfen; er sollte nicht mehr als `In Prüfung` erscheinen.
 
 ## Aktueller Nachtrag: Message And Change Dashboard Controls
 
