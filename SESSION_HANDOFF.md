@@ -2,6 +2,24 @@
 
 Stand: 2026-07-12 14:00 UTC
 
+## Aktueller Nachtrag: Team Manager Team Name Field UI Hotfix
+
+- Ausloeser:
+  - Sebastian testete mit User `NDBS`; Rollenverwaltung zeigte `Team Manager:in` fuer Team `5Kampf Orga`, aber im Dialog `Team bearbeiten` war `Team-Name` nicht eingabebereit.
+- Ursache:
+  - Backend-/Rollenlogik war bereits erweitert.
+  - Im gemeinsamen Edit-Dialog war das Team-Name-Input noch mit `disabled={!showAdminInfo}` nur fuer Admin/Orga freigegeben.
+- Geaendert:
+  - `app/components/dashboard.tsx`: Team-Name-Feld ist fuer den vorhandenen editierbaren Team-Dialog nicht mehr admin-only disabled.
+  - Team-Manager-Hinweis nennt Team-Name als direkte Pre-Start-Aenderung.
+- Checks:
+  - `pnpm exec eslint app/components/dashboard.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+- Deploy:
+  - Noch ausstehend in diesem Lauf.
+
 ## Aktueller Nachtrag: Team Manager Team Name Change
 
 - Ausloeser:

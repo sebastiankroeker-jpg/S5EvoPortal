@@ -6032,7 +6032,7 @@ function EditTeamModal({
         <CardContent className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
           {!showAdminInfo && (
             <StatusMessage tone="info" role="note" className="px-2.5 py-2 text-xs">
-              Geprüfte Teilnehmerdaten gehen zur Genehmigung. E-Mail, T-Shirt, Notiz und Veröffentlichung speichern direkt.
+              Geprüfte Teilnehmerdaten gehen zur Genehmigung. Team-Name, E-Mail, T-Shirt, Notiz und Veröffentlichung speichern direkt, solange der Wettkampf noch nicht begonnen hat.
             </StatusMessage>
           )}
           {showAdminInfo && showInfo && (
@@ -6067,7 +6067,6 @@ function EditTeamModal({
               value={formData.teamName}
               onChange={(e) => setFormData({ ...formData, teamName: e.target.value })}
               className="mt-1 h-9"
-              disabled={!showAdminInfo}
             />
           </div>
 

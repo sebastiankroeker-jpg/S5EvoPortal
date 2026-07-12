@@ -192,4 +192,5 @@ Use before model switch or subagent delegation.
 
 ## Follow-Ups
 
+- 2026-07-12 UI hotfix: Team Manager:innen konnten serverseitig umbenennen, aber das Team-Name-Feld war im gemeinsamen Edit-Dialog noch per `disabled={!showAdminInfo}` nur fuer Admin/Orga editierbar. Das Feld ist jetzt fuer editierbare Teams freigegeben; der Team-Manager-Hinweis nennt Team-Name als pre-start direkte Aenderung.
 - Consider adding a compact team-level change type/filter in `/aenderungen` if more non-participant team edits are added later.
