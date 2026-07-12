@@ -1,6 +1,40 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 18:49 UTC
+Stand: 2026-07-12 20:49 UTC
+
+## Aktueller Nachtrag: Message List Compact Columns
+
+- Ausloeser:
+  - Sebastian wollte die Zeile im Messenger-Eingang deutlich kompakter.
+  - Gewuenschte Metadaten-Reihenfolge: Status, Badge gesendet/empfangen, Empfaenger oder Sender, Betreff, Datum & Uhrzeit.
+  - Dieselbe Metadatenlogik sollte im Mail-/Thread-Header beim Lesen und Schreiben sichtbar sein.
+  - Desktop sollte eine konfigurierbare Listenanzeige mit Spaltenoptionen und Sortierung wie in der MD-Listanzeige bekommen.
+- CR:
+  - `docs/cr/2026-07-12-message-list-compact-columns.md`
+- Implementiert und produktiv deployed:
+  - Commit: `592240c Add compact configurable message list`
+  - Production Deploy: `dpl_BPueAWdtDt4F7M6SvNy49WdL1P7A`
+  - Deployment URL: `https://s5-evo-portal-kkqbi66jz-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+- Geaendert:
+  - Mobile Messenger-Uebersicht bleibt eine kompakte Thread-Zeilenliste zum Rein-Navigieren.
+  - Desktop Messenger-Uebersicht nutzt eine kompakte spaltenbasierte Liste.
+  - Spaltenauswahl, Reihenfolge und Sortierung sind lokal konfigurierbar und im Stil der MD-Listanzeige umgesetzt.
+  - Standardspalten: Status, gesendet/empfangen, Sender/Empfaenger, Betreff, Datum & Uhrzeit.
+  - Thread-/Read-Header und Compose-Header zeigen dieselbe kompakte Metadaten-Vokabularik.
+- Checks:
+  - `pnpm exec eslint app/components/message-center.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - Remote Vercel Build/TypeScript gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Auf Mobile `/nachrichten` hart aktualisieren und pruefen, dass die Uebersicht als kompakte WhatsApp-aehnliche Zeilenliste navigiert.
+  - Auf Desktop Spaltenoptionen/Sortierung in `Mein Postfach` testen und einen Thread plus neue Nachricht oeffnen.
 
 ## Aktueller Nachtrag: Message Orga Context Privacy Hotfix
 

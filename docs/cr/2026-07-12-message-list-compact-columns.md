@@ -1,6 +1,6 @@
 # CR: Message List Compact Columns
 
-Status: Ready for Deploy Approval
+Status: Deployed
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -122,21 +122,31 @@ Sebastian tested the mobile message center and sent screenshots. The inbox cards
   - Reviewed inbox rendering paths for desktop table and mobile row list.
   - Reviewed thread/read and compose header metadata order.
 - Manual smoke:
-  - Pending production deploy.
+  - `npm run smoke:public` against production alias green
+  - `/nachrichten` returned 200
+  - `GET /api/messages/conversations` without session returned 401
+  - `POST /api/messages/admin-conversations` without session returned 401
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_BPueAWdtDt4F7M6SvNy49WdL1P7A`
+- Deployment URL: `https://s5-evo-portal-kkqbi66jz-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 20:49 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/`, `/login`, `/anmeldung`, `/aenderungen`
+  - `/nachrichten`
+  - `/api/competition`, `/api/results`
 - API checks:
-- Result:
+  - `/api/teams` without session: 401
+  - `/api/admin/pending-changes` without session: 401
+  - `GET /api/messages/conversations` without session: 401
+  - `POST /api/messages/admin-conversations` without session: 401
+- Result: green
 
 ## Follow-Ups
 
