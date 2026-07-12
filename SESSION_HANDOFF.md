@@ -1,6 +1,42 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 14:59 UTC
+Stand: 2026-07-12 17:20 UTC
+
+## Aktueller Nachtrag: Message Center Admin Mailbox UX
+
+- Ausloeser:
+  - Sebastian gab Go fuer die Empfehlung zum Messenger-CR:
+    - Persoenliche Admin-Threads bleiben im persoenlichen Postfach nur bei `OWNER`/`MEMBER`.
+    - Reine Orga-/Support-Beteiligung via `ADMIN`/`MODERATOR` gehoert ins Orga-Team-Postfach.
+- CR:
+  - `docs/cr/2026-07-12-message-center-admin-mailbox-ux.md`
+- Implementiert und produktiv deployed:
+  - Commit: `f30c648 Implement message center org mailbox UX`
+  - Doku-Commit: dieser Handoff-/CR-Nachtrag (`Document message center org mailbox deploy [skip ci]`)
+  - Production Deploy: `dpl_5N4fZ4jyHHUoy9qMaBLHqbHevNG9`
+  - Deployment URL: `https://s5-evo-portal-3jxkp2607-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+- Geaendert:
+  - `/api/messages/conversations?mode=mine` liefert nur noch Threads, in denen der Viewer `OWNER` oder `MEMBER` ist.
+  - Admins/Moderator:innen starten in `/nachrichten` standardmaessig im Orga-Team-Postfach.
+  - Switch-Reihenfolge ist jetzt `Orga-Team` links, `Persoenlich` rechts.
+  - `Admin-Team`-Copy wurde fuer Nachrichten auf `Orga-Team` umgestellt.
+  - Header von `Mein Postfach` hat einen Icon-Button fuer neue Nachrichten; er nutzt das bestehende Compose-Formular.
+  - Thread-Header zeigt einen Account-/Statusdialog-Badge fuer Zielkontakt oder Orga-Team-Kontext.
+  - Read-/Reply-Upserts bewahren `OWNER`/`MEMBER`, wenn ein Admin selbst fachlicher Thread-Empfaenger ist; nur reine Support-Teilnahme wird als `ADMIN` gefuehrt.
+- Checks:
+  - `pnpm exec eslint app/components/message-center.tsx app/api/messages/conversations/route.ts app/api/messages/admin-conversations/route.ts app/api/messages/conversations/[id]/messages/route.ts app/api/messages/conversations/[id]/read/route.ts lib/messaging.ts` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Als Admin `/nachrichten` hart aktualisieren: Start im Orga-Team-Postfach, Orga-Team-Threads nicht mehr in `Persoenlich`.
+  - In `Persoenlich` den Header-Button fuer neue Nachricht testen.
+  - Einen Thread oeffnen und den Header-Badge/Dialog pruefen.
 
 ## Aktueller Nachtrag: Neuer Draft-CR Message Center Admin Mailbox UX
 

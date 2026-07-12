@@ -168,20 +168,25 @@ Use before model switch or subagent delegation.
 - Targeted verification:
   - `git diff --check` green
 - Manual smoke:
+  - Production smoke after deploy green against `https://portal.s5evo.de`.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_5N4fZ4jyHHUoy9qMaBLHqbHevNG9`
+- Deployment URL: `https://s5-evo-portal-3jxkp2607-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 17:18 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` green
+  - `/nachrichten`: 200
 - API checks:
-- Result:
+  - `GET /api/messages/conversations` without session: 401
+  - `POST /api/messages/admin-conversations` without session: 401
+- Result: green
 
 ## Follow-Ups
 
