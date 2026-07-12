@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { sendParticipantChangeDecisionEmail } from "@/lib/mail/participant-change";
@@ -258,6 +259,14 @@ export async function PUT(
           },
         });
 
+        await syncLegacyBundleChangeRequests(tx, {
+          pendingChangeIds: pendingChanges.map((change) => change.id),
+          actorId: auth.user.id,
+          approved: true,
+          applied: true,
+          comment: comment || null,
+        });
+
         await tx.participantAuditLog.createMany({
           data: pendingChanges.map((change) => {
             const requestedSnapshot = requestedByParticipantId.get(change.participantId);
@@ -364,19 +373,26 @@ export async function PUT(
         throw new Error("BUNDLE_STATE_CHANGED");
       }
 
-    await tx.pendingChange.updateMany({
-      where: {
-        bundleId,
-        status: "PENDING",
-      },
-      data: {
-        status: "REJECTED",
-        bundleStatus: "REJECTED",
-        reviewedAt: new Date(),
-        reviewedById: auth.user.id,
-        reviewComment: comment || null,
-      },
-    });
+      await tx.pendingChange.updateMany({
+        where: {
+          bundleId,
+          status: "PENDING",
+        },
+        data: {
+          status: "REJECTED",
+          bundleStatus: "REJECTED",
+          reviewedAt: new Date(),
+          reviewedById: auth.user.id,
+          reviewComment: comment || null,
+        },
+      });
+
+      await syncLegacyBundleChangeRequests(tx, {
+        pendingChangeIds: pendingChanges.map((change) => change.id),
+        actorId: auth.user.id,
+        approved: false,
+        comment: comment || null,
+      });
 
     await tx.participantAuditLog.createMany({
       data: pendingChanges.map((change) => ({
@@ -456,6 +472,85 @@ export async function PUT(
       notifications,
     }),
   });
+}
+
+async function syncLegacyBundleChangeRequests(
+  tx: Prisma.TransactionClient,
+  input: {
+    pendingChangeIds: string[];
+    actorId: string;
+    approved: boolean;
+    applied?: boolean;
+    comment?: string | null;
+  },
+) {
+  if (input.pendingChangeIds.length === 0) {
+    return;
+  }
+
+  const requests = await tx.changeRequest.findMany({
+    where: {
+      status: "PENDING",
+      OR: input.pendingChangeIds.map((id) => ({
+        metadata: { path: ["legacyPendingChangeId"], equals: id },
+      })),
+    },
+    select: {
+      id: true,
+      beforeSnapshot: true,
+      requestedSnapshot: true,
+    },
+  });
+
+  if (requests.length === 0) {
+    return;
+  }
+
+  const now = new Date();
+  const nextStatus = input.approved ? (input.applied === false ? "APPROVED" : "APPLIED") : "REJECTED";
+  await tx.changeRequest.updateMany({
+    where: { id: { in: requests.map((request) => request.id) } },
+    data: {
+      status: nextStatus,
+      reviewedAt: now,
+      reviewedById: input.actorId,
+      appliedAt: nextStatus === "APPLIED" ? now : null,
+      appliedById: nextStatus === "APPLIED" ? input.actorId : null,
+      reviewComment: input.comment || null,
+    },
+  });
+
+  await tx.changeRequestAuditLog.createMany({
+    data: requests.map((request) => ({
+      changeRequestId: request.id,
+      actorId: input.actorId,
+      action: input.approved ? "APPROVED" : "REJECTED",
+      beforeData: asAuditJson(request.beforeSnapshot),
+      afterData: asAuditJson(request.requestedSnapshot),
+      message: input.comment || (input.approved ? "Aenderungsantrag genehmigt" : "Aenderungsantrag abgelehnt"),
+    })),
+  });
+
+  if (nextStatus === "APPLIED") {
+    await tx.changeRequestAuditLog.createMany({
+      data: requests.map((request) => ({
+        changeRequestId: request.id,
+        actorId: input.actorId,
+        action: "APPLIED",
+        beforeData: asAuditJson(request.beforeSnapshot),
+        afterData: asAuditJson(request.requestedSnapshot),
+        message: "Aenderungsantrag angewendet",
+      })),
+    });
+  }
+}
+
+function asAuditJson(value: Prisma.JsonValue | null): Prisma.InputJsonValue | undefined {
+  if (value === null) {
+    return undefined;
+  }
+
+  return value as Prisma.InputJsonValue;
 }
 
 function buildBundleFieldResults(

@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
           },
           select: {
             id: true,
+            status: true,
             bundleId: true,
             bundleType: true,
             bundleStatus: true,
@@ -273,7 +274,7 @@ export async function GET(request: NextRequest) {
         bundleStatus: pendingChangeMeta?.bundleStatus,
         changeData: serializeSnapshot(requestedSnapshot),
         beforeData: serializeSnapshot(beforeSnapshot),
-        status: normalizeChangeRequestStatus(changeRequest.status),
+        status: pendingChangeMeta?.status ?? normalizeChangeRequestStatus(changeRequest.status),
         createdAt: changeRequest.createdAt,
         updatedAt: changeRequest.updatedAt,
         reviewedAt: changeRequest.reviewedAt,

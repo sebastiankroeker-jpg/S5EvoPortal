@@ -1,6 +1,31 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 09:32 UTC
+Stand: 2026-07-12 10:48 UTC
+
+## Aktueller Nachtrag: Legacy Bundle Status Sync Hotfix
+
+- Ausloeser:
+  - Sebastian meldete per Screenshot, dass der Edward-Wolf-Feldwechsel in `/aenderungen` weiterhin als `In Prüfung` angezeigt wird und nicht weg bearbeitet werden kann.
+- Ursache:
+  - Das Legacy-Bundle in `pending_changes` war bereits `APPROVED`.
+  - Der verknuepfte generische Spiegel-Datensatz `change_requests.cmqytajju0005kz04wvdu99eo` stand noch auf `PENDING`.
+  - Das konsolidierte Dashboard zeigte dadurch den stale generischen Status statt des kanonischen Legacy-Status.
+- Produktion Datenkorrektur:
+  - `pending_changes.cmqytaj3y0001kz042y7gc5tj`: bereits `APPROVED` / Bundle `APPROVED`.
+  - `change_requests.cmqytajju0005kz04wvdu99eo`: am 2026-07-12 10:42 UTC von `PENDING` auf `APPLIED` synchronisiert.
+  - Audit-Logs `APPROVED` und `APPLIED` fuer die nachtraegliche Legacy-Bundle-Synchronisierung angelegt.
+  - Keine Teilnehmerdaten geaendert, kein Mailversand.
+- Lokaler Code-Fix, noch nicht gepusht/deployed:
+  - `app/api/admin/pending-changes/route.ts`: Legacy-verlinkte Eintraege bevorzugen `pending_changes.status`.
+  - `app/api/admin/participant-change-bundles/[id]/decision/route.ts`: Bundle-Entscheidungen synchronisieren verknuepfte generische `change_requests`.
+  - CR: `docs/cr/2026-07-12-legacy-bundle-status-sync-hotfix.md`
+- Checks:
+  - `pnpm exec eslint app/api/admin/pending-changes/route.ts app/api/admin/participant-change-bundles/[id]/decision/route.ts` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+- Naechster Schritt:
+  - Nach Sebastian-Go: Code committen, auf `main` pushen, Vercel-Deploy abwarten, `/aenderungen` und `/api/admin/pending-changes?scope=all` smoke-testen.
 
 ## Aktueller Nachtrag: Message And Change Dashboard Controls
 
