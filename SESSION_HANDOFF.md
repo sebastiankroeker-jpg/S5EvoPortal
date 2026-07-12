@@ -1,6 +1,34 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 23:44 UTC
+Stand: 2026-07-12 23:55 UTC
+
+## Aktueller Nachtrag: Message Status Multi Filter Persistence
+
+- Ausloeser:
+  - Sebastian zeigte die mobile Messenger-Filteransicht.
+  - Gewuenscht:
+    - Status im Filter-Panel kombinierbar filterbar anbieten.
+    - Status `geschlossen` default ausblenden.
+    - Filter merken, wenn man weg navigiert und zurueckkommt.
+    - Loesung soll ressourcenschonend bleiben.
+- CR:
+  - `docs/cr/2026-07-12-message-status-multi-filter.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - Statusfilter ist jetzt eine kombinierbare Mehrfachauswahl.
+  - Default sichtbare Status: `OPEN`, `WAITING_FOR_ADMIN`, `WAITING_FOR_USER`; `CLOSED` muss bewusst aktiviert werden.
+  - Filter-Reset stellt genau diesen Default wieder her.
+  - Suche, Statusfilter, Ungelesen-Schalter, Sortierfeld und Sortierrichtung werden clientseitig in `localStorage` pro Postfachmodus gespeichert.
+  - Keine API-/DB-Aenderung; Filterung bleibt clientseitig auf den bereits geladenen Threads.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
+  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
 
 ## Aktueller Nachtrag: Message Theme Sparkle And Portal Badges
 

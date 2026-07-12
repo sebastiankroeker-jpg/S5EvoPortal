@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
@@ -95,11 +95,27 @@ type AdminComposeTarget = {
 };
 
 type SortDirection = "asc" | "desc";
+type MessageStatusFilter = ConversationSummary["status"];
 type MessageListColumnKey = "status" | "direction" | "person" | "subject" | "date";
 type MessageSortMode = "latest" | "unread" | "subject" | "status" | "person";
 type NavigationBurstTarget = "list" | "thread" | "composer";
+type MessageFilterState = {
+  statuses?: unknown;
+  searchQuery?: unknown;
+  unreadOnly?: unknown;
+  sortMode?: unknown;
+  sortDirection?: unknown;
+};
 
 const MESSAGE_LIST_COLUMNS_STORAGE_KEY = "s5evo.messages.visibleColumns.v1";
+const MESSAGE_FILTERS_STORAGE_KEY = "s5evo.messages.filters.v1";
+const MESSAGE_STATUS_FILTERS: Array<{ value: MessageStatusFilter; label: string }> = [
+  { value: "OPEN", label: "Offen" },
+  { value: "WAITING_FOR_ADMIN", label: "Wartet auf Admin" },
+  { value: "WAITING_FOR_USER", label: "Wartet auf Teilnehmer:in" },
+  { value: "CLOSED", label: "Geschlossen" },
+];
+const DEFAULT_MESSAGE_STATUS_FILTERS: MessageStatusFilter[] = ["OPEN", "WAITING_FOR_ADMIN", "WAITING_FOR_USER"];
 const DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS: MessageListColumnKey[] = ["status", "direction", "person", "subject", "date"];
 const MESSAGE_LIST_COLUMNS: Array<{ key: MessageListColumnKey; label: string }> = [
   { key: "status", label: "Status" },
@@ -121,6 +137,34 @@ function sanitizeMessageColumns(value: unknown): MessageListColumnKey[] {
   const allowed = new Set(MESSAGE_LIST_COLUMNS.map((column) => column.key));
   const columns = value.filter((entry): entry is MessageListColumnKey => typeof entry === "string" && allowed.has(entry as MessageListColumnKey));
   return columns.length > 0 ? columns : DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS;
+}
+
+function sanitizeMessageStatusFilters(value: unknown): MessageStatusFilter[] {
+  if (!Array.isArray(value)) return DEFAULT_MESSAGE_STATUS_FILTERS;
+  const allowed = new Set(MESSAGE_STATUS_FILTERS.map((status) => status.value));
+  const statuses = value.filter((entry): entry is MessageStatusFilter => typeof entry === "string" && allowed.has(entry as MessageStatusFilter));
+  return statuses.length > 0 ? Array.from(new Set(statuses)) : DEFAULT_MESSAGE_STATUS_FILTERS;
+}
+
+function sanitizeMessageFilterState(value: MessageFilterState): {
+  statuses: MessageStatusFilter[];
+  searchQuery: string;
+  unreadOnly: boolean;
+  sortMode: MessageSortMode;
+  sortDirection: SortDirection;
+} {
+  return {
+    statuses: sanitizeMessageStatusFilters(value.statuses),
+    searchQuery: typeof value.searchQuery === "string" ? value.searchQuery : "",
+    unreadOnly: typeof value.unreadOnly === "boolean" ? value.unreadOnly : false,
+    sortMode: MESSAGE_SORT_OPTIONS.some((option) => option.value === value.sortMode) ? value.sortMode as MessageSortMode : "latest",
+    sortDirection: value.sortDirection === "asc" || value.sortDirection === "desc" ? value.sortDirection : "desc",
+  };
+}
+
+function areStatusFiltersDefault(statuses: MessageStatusFilter[]) {
+  return statuses.length === DEFAULT_MESSAGE_STATUS_FILTERS.length
+    && DEFAULT_MESSAGE_STATUS_FILTERS.every((status) => statuses.includes(status));
 }
 
 function formatDateTime(value: string | null) {
@@ -269,7 +313,7 @@ export default function MessageCenter() {
   const { sparkleEnabled } = useTheme();
   const [mode, setMode] = useState<"mine" | "admin">("mine");
   const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilters, setStatusFilters] = useState<MessageStatusFilter[]>(DEFAULT_MESSAGE_STATUS_FILTERS);
   const [searchQuery, setSearchQuery] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [sortMode, setSortMode] = useState<MessageSortMode>("latest");
@@ -297,6 +341,7 @@ export default function MessageCenter() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [adminSubject, setAdminSubject] = useState("Nachricht vom Orga-Team");
   const [adminBody, setAdminBody] = useState("");
+  const skipNextFilterPersistRef = useRef(false);
 
   const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
   const visibleColumnDefs = useMemo(
@@ -308,6 +353,23 @@ export default function MessageCenter() {
   const triggerNavigationBurst = (target: NavigationBurstTarget) => {
     if (!sparkleEnabled) return;
     setNavigationBurst({ id: Date.now(), target });
+  };
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilters(DEFAULT_MESSAGE_STATUS_FILTERS);
+    setUnreadOnly(false);
+    setSortMode("latest");
+    setSortDirection("desc");
+  };
+
+  const toggleStatusFilter = (status: MessageStatusFilter) => {
+    setStatusFilters((current) => {
+      const next = current.includes(status)
+        ? current.filter((entry) => entry !== status)
+        : [...current, status];
+      return next.length > 0 ? next : current;
+    });
   };
 
   useEffect(() => {
@@ -327,6 +389,46 @@ export default function MessageCenter() {
   }, [visibleColumns]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(MESSAGE_FILTERS_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      const modeState = parsed && typeof parsed === "object" ? (parsed as Record<string, MessageFilterState>)[mode] : null;
+      if (!modeState) return;
+      const next = sanitizeMessageFilterState(modeState);
+      skipNextFilterPersistRef.current = true;
+      setStatusFilters(next.statuses);
+      setSearchQuery(next.searchQuery);
+      setUnreadOnly(next.unreadOnly);
+      setSortMode(next.sortMode);
+      setSortDirection(next.sortDirection);
+    } catch {}
+  }, [mode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (skipNextFilterPersistRef.current) {
+      skipNextFilterPersistRef.current = false;
+      return;
+    }
+    let current: Record<string, MessageFilterState> = {};
+    try {
+      const stored = window.localStorage.getItem(MESSAGE_FILTERS_STORAGE_KEY);
+      current = stored ? JSON.parse(stored) : {};
+    } catch {
+      current = {};
+    }
+    window.localStorage.setItem(
+      MESSAGE_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        ...current,
+        [mode]: { statuses: statusFilters, searchQuery, unreadOnly, sortMode, sortDirection },
+      }),
+    );
+  }, [mode, searchQuery, sortDirection, sortMode, statusFilters, unreadOnly]);
+
+  useEffect(() => {
     if (!navigationBurst) return;
     const timeout = window.setTimeout(() => setNavigationBurst(null), 1300);
     return () => window.clearTimeout(timeout);
@@ -336,8 +438,7 @@ export default function MessageCenter() {
     const query = searchQuery.trim().toLowerCase();
     return conversations
       .filter((conversation) => {
-        if (statusFilter === "unread" && conversation.unreadCount <= 0) return false;
-        if (statusFilter !== "all" && statusFilter !== "unread" && conversation.status !== statusFilter) return false;
+        if (!statusFilters.includes(conversation.status)) return false;
         if (unreadOnly && conversation.unreadCount <= 0) return false;
         if (!query) return true;
 
@@ -376,7 +477,7 @@ export default function MessageCenter() {
         const bTime = new Date(b.lastMessageAt || b.updatedAt).getTime();
         return (aTime - bTime) * directionFactor;
       });
-  }, [conversations, currentUserId, mode, searchQuery, sortDirection, sortMode, statusFilter, unreadOnly]);
+  }, [conversations, currentUserId, mode, searchQuery, sortDirection, sortMode, statusFilters, unreadOnly]);
   const selected = filteredConversations.find((conversation) => conversation.id === selectedId) ?? filteredConversations[0] ?? null;
   const selectedOwnerParticipant = selected?.participants.find((participant) => ["OWNER", "MEMBER"].includes(participant.role)) ?? null;
   const selectedViewerParticipant = currentUserId
@@ -426,7 +527,7 @@ export default function MessageCenter() {
       ]
     : [];
   const activeFilterCount = [
-    statusFilter !== "all",
+    !areStatusFiltersDefault(statusFilters),
     unreadOnly,
     searchQuery.trim() !== "",
     sortMode !== "latest",
@@ -443,9 +544,9 @@ export default function MessageCenter() {
       value: filteredConversations.length,
       total: conversations.length,
       tone: "outline" as const,
-      active: statusFilter === "all" && !unreadOnly,
+      active: areStatusFiltersDefault(statusFilters) && !unreadOnly,
       onClick: () => {
-        setStatusFilter("all");
+        setStatusFilters(DEFAULT_MESSAGE_STATUS_FILTERS);
         setUnreadOnly(false);
       },
     },
@@ -456,10 +557,9 @@ export default function MessageCenter() {
       value: filteredConversations.filter((conversation) => conversation.unreadCount > 0).length,
       total: conversations.filter((conversation) => conversation.unreadCount > 0).length,
       tone: "default" as const,
-      active: statusFilter === "unread" || unreadOnly,
+      active: unreadOnly,
       onClick: () => {
-        setStatusFilter("unread");
-        setUnreadOnly(false);
+        setUnreadOnly((current) => !current);
       },
     },
     {
@@ -469,8 +569,8 @@ export default function MessageCenter() {
       value: filteredConversations.filter((conversation) => conversation.status === "WAITING_FOR_ADMIN").length,
       total: conversations.filter((conversation) => conversation.status === "WAITING_FOR_ADMIN").length,
       tone: "outline" as const,
-      active: statusFilter === "WAITING_FOR_ADMIN",
-      onClick: () => setStatusFilter("WAITING_FOR_ADMIN"),
+      active: statusFilters.length === 1 && statusFilters.includes("WAITING_FOR_ADMIN"),
+      onClick: () => setStatusFilters(["WAITING_FOR_ADMIN"]),
     },
     {
       key: "waiting-user",
@@ -479,8 +579,8 @@ export default function MessageCenter() {
       value: filteredConversations.filter((conversation) => conversation.status === "WAITING_FOR_USER").length,
       total: conversations.filter((conversation) => conversation.status === "WAITING_FOR_USER").length,
       tone: "secondary" as const,
-      active: statusFilter === "WAITING_FOR_USER",
-      onClick: () => setStatusFilter("WAITING_FOR_USER"),
+      active: statusFilters.length === 1 && statusFilters.includes("WAITING_FOR_USER"),
+      onClick: () => setStatusFilters(["WAITING_FOR_USER"]),
     },
   ];
 
@@ -999,35 +1099,39 @@ export default function MessageCenter() {
                     <DashboardToolbarButton
                       icon={<XCircle className="size-3.5" />}
                       label="Filter zurücksetzen"
-                      onClick={() => {
-                        setSearchQuery("");
-                        setStatusFilter("all");
-                        setUnreadOnly(false);
-                        setSortMode("latest");
-                        setSortDirection("desc");
-                      }}
+                      onClick={resetFilters}
                       variant={activeFilterCount > 0 ? "default" : "outline"}
                     />
                   </DashboardToolbar>
 
                   {filtersOpen && (
                     <DashboardPanel>
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                        <div className="space-y-1.5">
                           <span>Status</span>
-                          <select
-                            value={statusFilter}
-                            onChange={(event) => setStatusFilter(event.target.value)}
-                            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                          >
-                            <option value="all">Alle Status</option>
-                            <option value="unread">Ungelesen</option>
-                            <option value="WAITING_FOR_ADMIN">Wartet auf Admin</option>
-                            <option value="WAITING_FOR_USER">Wartet auf Teilnehmer:in</option>
-                            <option value="OPEN">Offen</option>
-                            <option value="CLOSED">Geschlossen</option>
-                          </select>
-                        </label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {MESSAGE_STATUS_FILTERS.map((option) => {
+                              const active = statusFilters.includes(option.value);
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  className={cn(
+                                    "inline-flex min-h-9 items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition-colors",
+                                    active
+                                      ? "border-primary bg-primary/10 text-foreground"
+                                      : "border-border/60 bg-background text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                                  )}
+                                  onClick={() => toggleStatusFilter(option.value)}
+                                  aria-pressed={active}
+                                >
+                                  <span className="min-w-0 truncate">{option.label}</span>
+                                  <span className={cn("size-2 rounded-full", active ? "bg-primary" : "bg-muted-foreground/30")} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                         <label className="space-y-1 text-xs font-medium text-muted-foreground">
                           <span>Sortierung</span>
                           <select
