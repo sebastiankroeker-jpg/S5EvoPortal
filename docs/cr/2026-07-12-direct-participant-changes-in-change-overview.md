@@ -1,6 +1,6 @@
 # CR: Direct Participant Changes In Change Overview
 
-Status: Implemented - pending deploy approval
+Status: Deployed
 Date: 2026-07-12
 Type: hotfix
 Risk: low
@@ -85,7 +85,8 @@ Ursache: `/aenderungen` laedt bisher nur Pending-/ChangeRequest-Daten aus `/api/
 - Gate needed: yes
 - Reason: Production deploy.
 - Approved by:
-- Approval timestamp:
+- Approved by: Sebastian
+- Approval timestamp: 2026-07-12 08:07 UTC
 
 ## Implementation Notes
 
@@ -109,21 +110,25 @@ Ursache: `/aenderungen` laedt bisher nur Pending-/ChangeRequest-Daten aus `/api/
   - DB-Pruefung bestaetigt Direct-Audit-Eintrag fuer `Die 5 Muskeltiere` / `Vinzenz Kronacker`.
   - API-Design mappt diesen Log als synthetischen `DIRECT`-Eintrag fuer `/aenderungen`.
 - Manual smoke:
-  - pending production deploy
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/aenderungen`: 200
+  - `/api/admin/pending-changes?scope=all` ohne Session: 401
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_2yJnXvAgGm2fa6TjqUCebxRtXgzt`
+- Deployment URL: `https://s5-evo-portal-82kj9by2m-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 08:08 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/aenderungen`: 200
 - API checks:
-- Result:
+  - `/api/admin/pending-changes?scope=all` without session: 401
+- Result: green
 
 ## Follow-Ups
 

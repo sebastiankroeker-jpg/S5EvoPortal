@@ -1,6 +1,36 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 07:40 UTC
+Stand: 2026-07-12 08:15 UTC
+
+## Aktueller Nachtrag: Direct Changes In Overview And Profile Name Hotfix
+
+- App-Commits sind auf `origin/main` gepusht und produktiv deployed:
+  - `5bb680f Show direct participant changes in change overview`
+  - `6795175 Fix profile display name persistence`
+- Production Deploy: `dpl_2yJnXvAgGm2fa6TjqUCebxRtXgzt`
+- Deployment URL: `https://s5-evo-portal-82kj9by2m-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CRs:
+  - `docs/cr/2026-07-12-direct-participant-changes-in-change-overview.md`
+  - `docs/cr/2026-07-12-profile-display-name-save-hotfix.md`
+- Geaendert:
+  - `/aenderungen` laedt bei `scope=all` zusaetzlich `ParticipantAuditLog.DIRECT_CHANGE` als synthetische Eintraege mit Status `DIRECT`.
+  - Direkte Admin-Aenderungen werden als `Direkt geändert` angezeigt und bekommen einen eigenen `Direkt`-Filter.
+  - Embedded Admin-Queue bleibt auf offene Antraege fokussiert.
+  - Profil-Anzeigename bleibt nach dem Speichern erhalten; `resolveCurrentUser()` ueberschreibt vorhandene Namen nicht mehr aus Authentik.
+  - Profile-UI uebernimmt den gespeicherten Namen aus der API-Antwort und stoesst ein Session-Update an.
+- Konkreter Ausloeser:
+  - `Die 5 Muskeltiere` / `Vinzenz Kronacker`, Direct-Change am 2026-07-11 16:52 UTC durch Sebastian K.; vorher nur im Participant-Audit, nicht in `/aenderungen`.
+- Checks:
+  - targeted `pnpm exec eslint ...` gruen mit bestehender Hook-Warnung in `approval-queue.tsx`
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/aenderungen`: 200
+  - `/profile`: 200
+  - `/api/admin/pending-changes?scope=all` ohne Session: 401
+  - `/api/profile` ohne Session: 401
 
 ## Aktueller Nachtrag: Message Center Collapsed Mobile Hotfix
 
