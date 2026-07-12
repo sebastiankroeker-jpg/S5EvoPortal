@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Send,
   SlidersHorizontal,
+  Sparkles,
   UserRound,
   UsersRound,
   XCircle,
@@ -27,7 +28,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
-  DashboardControlsCard,
   DashboardPanel,
   DashboardSearchField,
   DashboardStatsRow,
@@ -95,6 +95,7 @@ type AdminComposeTarget = {
 type SortDirection = "asc" | "desc";
 type MessageListColumnKey = "status" | "direction" | "person" | "subject" | "date";
 type MessageSortMode = "latest" | "unread" | "subject" | "status" | "person";
+type NavigationBurstTarget = "list" | "thread" | "composer";
 
 const MESSAGE_LIST_COLUMNS_STORAGE_KEY = "s5evo.messages.visibleColumns.v1";
 const DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS: MessageListColumnKey[] = ["status", "direction", "person", "subject", "date"];
@@ -210,6 +211,34 @@ function MessageMetaStrip({
   );
 }
 
+function NavigationSparkleBurst({
+  active,
+  burstId,
+  label,
+}: {
+  active: boolean;
+  burstId?: number;
+  label: string;
+}) {
+  if (!active) return null;
+
+  return (
+    <motion.div
+      key={`${label}-${burstId ?? 0}`}
+      className="pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-1 rounded-full border border-amber-300/70 bg-amber-50/95 px-2.5 py-1 text-[11px] font-medium text-amber-900 shadow-lg dark:border-amber-700/70 dark:bg-amber-950/95 dark:text-amber-100"
+      initial={{ opacity: 0, scale: 0.75, y: 8 }}
+      animate={{ opacity: [0, 1, 1, 0], scale: [0.75, 1.04, 1, 0.96], y: [8, 0, 0, -8] }}
+      transition={{ duration: 1.15, ease: "easeOut" }}
+    >
+      <Sparkles className="size-3.5" />
+      <span>{label}</span>
+      <span className="absolute -left-2 top-1 size-1.5 rounded-full bg-sky-400" />
+      <span className="absolute -right-1 -top-1 size-1.5 rounded-full bg-fuchsia-400" />
+      <span className="absolute bottom-0 left-5 size-1 rounded-full bg-emerald-400" />
+    </motion.div>
+  );
+}
+
 function readReceiptLabel(conversation: ConversationSummary, message: ConversationSummary["messages"][number]) {
   const recipientReads = conversation.participants
     .filter((participant) => participant.user.id !== message.senderId && participant.lastReadAt)
@@ -236,6 +265,7 @@ export default function MessageCenter() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
   const [threadDetailsOpen, setThreadDetailsOpen] = useState(false);
+  const [navigationBurst, setNavigationBurst] = useState<{ id: number; target: NavigationBurstTarget } | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<MessageListColumnKey[]>(DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -261,6 +291,10 @@ export default function MessageCenter() {
   );
   const visibleColumnKey = visibleColumns.join("|");
 
+  const triggerNavigationBurst = (target: NavigationBurstTarget) => {
+    setNavigationBurst({ id: Date.now(), target });
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY);
@@ -276,6 +310,12 @@ export default function MessageCenter() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
+
+  useEffect(() => {
+    if (!navigationBurst) return;
+    const timeout = window.setTimeout(() => setNavigationBurst(null), 1300);
+    return () => window.clearTimeout(timeout);
+  }, [navigationBurst]);
 
   const filteredConversations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -493,6 +533,7 @@ export default function MessageCenter() {
     setSelectedId(null);
     setMobileThreadOpen(false);
     setThreadDetailsOpen(false);
+    triggerNavigationBurst("list");
     void loadConversations(nextMode);
   };
 
@@ -515,6 +556,7 @@ export default function MessageCenter() {
       if (data.conversation?.id) {
         setSelectedId(data.conversation.id);
         setMobileThreadOpen(true);
+        triggerNavigationBurst("thread");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nachricht konnte nicht gesendet werden");
@@ -551,6 +593,7 @@ export default function MessageCenter() {
       if (data.conversation?.id) {
         setSelectedId(data.conversation.id);
         setMobileThreadOpen(true);
+        triggerNavigationBurst("thread");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nachricht konnte nicht gesendet werden");
@@ -675,46 +718,38 @@ export default function MessageCenter() {
 
   return (
     <div className="space-y-4">
-      <div className={cn("flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/80 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between", mobileThreadOpen && "max-lg:hidden")}>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Nachrichten</h2>
+      <div className={cn("flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-card/80 px-3 py-2 shadow-sm", mobileThreadOpen && "max-lg:hidden")}>
+        <div className="flex min-w-0 items-center gap-2">
+          <MessageCircle className="h-4 w-4 shrink-0 text-primary" />
+          <h2 className="truncate text-base font-semibold">Nachrichten</h2>
+        </div>
+        {canManageSupport && (
+          <div className="grid shrink-0 grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1">
+            <button
+              type="button"
+              onClick={() => switchMode("admin")}
+              className={cn(
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
+                mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+              )}
+            >
+              <UsersRound className="h-3.5 w-3.5" />
+              <span className="hidden min-[390px]:inline">Orga-Team</span>
+              <span className="min-[390px]:hidden">Orga</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode("mine")}
+              className={cn(
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
+                mode === "mine" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+              )}
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              <span>Persönlich</span>
+            </button>
           </div>
-          <p className="text-sm text-muted-foreground">Support-Threads mit dem Orga-Team. Nachrichten bleiben im Portal nachvollziehbar.</p>
-        </div>
-        <div className="flex flex-col gap-2 sm:items-end">
-          {canManageSupport && (
-            <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1">
-              <button
-                type="button"
-                onClick={() => switchMode("admin")}
-                className={cn(
-                  "inline-flex h-9 items-center justify-center gap-1.5 rounded px-3 text-xs font-medium transition-colors",
-                  mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
-                )}
-              >
-                <UsersRound className="h-3.5 w-3.5" />
-                Orga-Team
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode("mine")}
-                className={cn(
-                  "inline-flex h-9 items-center justify-center gap-1.5 rounded px-3 text-xs font-medium transition-colors",
-                  mode === "mine" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
-                )}
-              >
-                <UserRound className="h-3.5 w-3.5" />
-                Persönlich
-              </button>
-            </div>
-          )}
-          <Button type="button" size="sm" variant="outline" onClick={() => loadConversations(mode)} disabled={loading}>
-            <RefreshCw className={cn("mr-1 h-3.5 w-3.5", loading && "animate-spin")} />
-            Aktualisieren
-          </Button>
-        </div>
+        )}
       </div>
 
       {error && (
@@ -781,218 +816,16 @@ export default function MessageCenter() {
         </Card>
       )}
 
-      <DashboardControlsCard className={mobileThreadOpen ? "max-lg:hidden" : undefined}>
-        <div className="space-y-2">
-          <DashboardSearchField
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Suche Betreff, Team, Person, Absender oder Nachricht"
-          />
-          <DashboardStatsRow items={messageStatsItems} />
-          <DashboardToolbar>
-            <DashboardToolbarButton
-              icon={<RefreshCw className={cn("size-3.5", loading && "animate-spin")} />}
-              label="Aktualisieren"
-              onClick={() => loadConversations(mode)}
-              disabled={loading}
-              variant="outline"
-            />
-            <DashboardToolbarButton
-              icon={<SlidersHorizontal className="size-3.5" />}
-              label="Filter"
-              open={filtersOpen}
-              badge={activeFilterCount > 0 ? activeFilterCount : null}
-              onClick={() => {
-                setFiltersOpen((open) => !open);
-                setListOptionsOpen(false);
-              }}
-            />
-            <DashboardToolbarButton
-              icon={<ArrowDownUp className="size-3.5" />}
-              label="Spalten & Sortierung"
-              open={listOptionsOpen}
-              badge={listOptionsBadge}
-              onClick={() => {
-                setListOptionsOpen((open) => !open);
-                setFiltersOpen(false);
-              }}
-            />
-            <DashboardToolbarButton
-              icon={<XCircle className="size-3.5" />}
-              label="Filter zurücksetzen"
-              onClick={() => {
-                setSearchQuery("");
-                setStatusFilter("all");
-                setUnreadOnly(false);
-                setSortMode("latest");
-                setSortDirection("desc");
-              }}
-              variant={activeFilterCount > 0 ? "default" : "outline"}
-            />
-          </DashboardToolbar>
-
-          {filtersOpen && (
-            <DashboardPanel>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                  <span>Status</span>
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
-                    className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                  >
-                    <option value="all">Alle Status</option>
-                    <option value="unread">Ungelesen</option>
-                    <option value="WAITING_FOR_ADMIN">Wartet auf Admin</option>
-                    <option value="WAITING_FOR_USER">Wartet auf Teilnehmer:in</option>
-                    <option value="OPEN">Offen</option>
-                    <option value="CLOSED">Geschlossen</option>
-                  </select>
-                </label>
-                <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                  <span>Sortierung</span>
-                  <select
-                    value={sortMode}
-                    onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
-                    className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                  >
-                    <option value="latest">Letzte Aktivität</option>
-                    <option value="unread">Ungelesene zuerst</option>
-                    <option value="status">Status</option>
-                    <option value="subject">Betreff A-Z</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={unreadOnly}
-                    onChange={(event) => setUnreadOnly(event.target.checked)}
-                  />
-                  Nur ungelesene Threads
-                </label>
-              </div>
-            </DashboardPanel>
-          )}
-
-          {listOptionsOpen && (
-            <DashboardPanel className="space-y-3">
-              <div className="space-y-0.5 px-1">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <ArrowDownUp className="size-4" />
-                  Listenoptionen
-                </div>
-                <p className="text-xs text-muted-foreground">Sortierung festlegen und sichtbare Inbox-Spalten anpassen</p>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
-                <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                  <span>Sortieren nach</span>
-                  <select
-                    value={sortMode}
-                    onChange={(event) => {
-                      const value = event.target.value as MessageSortMode;
-                      setSortMode(value);
-                      setSortDirection(value === "latest" || value === "unread" ? "desc" : "asc");
-                    }}
-                    className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                  >
-                    {MESSAGE_SORT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-1 text-xs font-medium text-muted-foreground">
-                  <span>Reihenfolge</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 w-full justify-between"
-                    onClick={() => setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"))}
-                  >
-                    {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
-                    <ArrowDownUp className="size-3.5" />
-                  </Button>
-                </label>
-              </div>
-
-              <div className="space-y-2">
-                <p className="px-1 text-xs font-medium text-muted-foreground">Sichtbare Spalten & Reihenfolge</p>
-                <div className="space-y-1.5">
-                  {visibleColumnDefs.map((column, index) => {
-                    const disableRemoval = visibleColumnDefs.length === 1;
-                    return (
-                      <div
-                        key={column.key}
-                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4"
-                          checked
-                          disabled={disableRemoval}
-                          aria-label={`${column.label} ausblenden`}
-                          onChange={() => {
-                            if (disableRemoval) return;
-                            setVisibleColumns((current) => current.filter((entry) => entry !== column.key));
-                          }}
-                        />
-                        <span className="min-w-0 truncate">{column.label}</span>
-                        <span className="flex shrink-0 gap-1">
-                          <button
-                            type="button"
-                            className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-                            title={`${column.label} nach links schieben`}
-                            aria-label={`${column.label} nach links schieben`}
-                            disabled={index === 0}
-                            onClick={() => moveVisibleColumn(column.key, "up")}
-                          >
-                            <ChevronUp className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-                            title={`${column.label} nach rechts schieben`}
-                            aria-label={`${column.label} nach rechts schieben`}
-                            disabled={index === visibleColumnDefs.length - 1}
-                            onClick={() => moveVisibleColumn(column.key, "down")}
-                          >
-                            <ChevronDown className="size-3.5" />
-                          </button>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {MESSAGE_LIST_COLUMNS.filter((column) => !visibleColumns.includes(column.key)).map((column) => (
-                    <button
-                      key={column.key}
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/40"
-                      onClick={() => setVisibleColumns((current) => [...current, column.key])}
-                    >
-                      <span className="inline-flex size-4 items-center justify-center rounded border border-border/70 text-[10px]">+</span>
-                      <span>{column.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </DashboardPanel>
-          )}
-        </div>
-      </DashboardControlsCard>
-
       <div className={cn("grid gap-4", sidebarOpen ? "lg:grid-cols-[minmax(280px,360px)_1fr]" : "lg:grid-cols-[72px_1fr]")}>
-        <Card className={cn("overflow-hidden transition-all", mobileThreadOpen && "hidden lg:block", !sidebarOpen && "lg:min-h-[520px]")}>
+        <Card className={cn("relative overflow-hidden transition-all", mobileThreadOpen && "hidden lg:block", !sidebarOpen && "lg:min-h-[520px]")}>
+          <NavigationSparkleBurst active={navigationBurst?.target === "list"} burstId={navigationBurst?.id} label="Postfach" />
           {sidebarOpen ? (
             <>
-              <CardHeader className="space-y-3 p-3">
+              <CardHeader className="space-y-2 p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <CardTitle className="text-base">{mode === "admin" ? "Orga-Team" : "Mein Postfach"}</CardTitle>
-                    <CardDescription>{filteredConversations.length} Threads</CardDescription>
+                    <CardDescription className="text-xs">{filteredConversations.length} Threads</CardDescription>
                   </div>
                   <div className="flex items-center gap-1">
                     {mode === "mine" && contexts.length > 0 && (
@@ -1003,6 +836,7 @@ export default function MessageCenter() {
                         onClick={() => {
                           setComposeOpen((open) => !open);
                           setMobileThreadOpen(false);
+                          triggerNavigationBurst("composer");
                           window.setTimeout(() => document.getElementById("new-message-composer")?.scrollIntoView({ block: "start", behavior: "smooth" }), 0);
                         }}
                         aria-label="Neue Nachricht schreiben"
@@ -1015,6 +849,206 @@ export default function MessageCenter() {
                       <PanelLeftClose className="h-4 w-4" />
                     </Button>
                   </div>
+                </div>
+                <div className="space-y-2 rounded-md border border-border/60 bg-muted/15 p-2">
+                  <DashboardSearchField
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Suche Betreff, Person, Absender oder Nachricht"
+                  />
+                  <DashboardStatsRow items={messageStatsItems} />
+                  <DashboardToolbar>
+                    <DashboardToolbarButton
+                      icon={<RefreshCw className={cn("size-3.5", loading && "animate-spin")} />}
+                      label="Aktualisieren"
+                      onClick={() => loadConversations(mode)}
+                      disabled={loading}
+                      variant="outline"
+                    />
+                    <DashboardToolbarButton
+                      icon={<SlidersHorizontal className="size-3.5" />}
+                      label="Filter"
+                      open={filtersOpen}
+                      badge={activeFilterCount > 0 ? activeFilterCount : null}
+                      onClick={() => {
+                        setFiltersOpen((open) => !open);
+                        setListOptionsOpen(false);
+                      }}
+                    />
+                    <DashboardToolbarButton
+                      icon={<ArrowDownUp className="size-3.5" />}
+                      label="Spalten & Sortierung"
+                      open={listOptionsOpen}
+                      badge={listOptionsBadge}
+                      onClick={() => {
+                        setListOptionsOpen((open) => !open);
+                        setFiltersOpen(false);
+                      }}
+                    />
+                    <DashboardToolbarButton
+                      icon={<XCircle className="size-3.5" />}
+                      label="Filter zurücksetzen"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setStatusFilter("all");
+                        setUnreadOnly(false);
+                        setSortMode("latest");
+                        setSortDirection("desc");
+                      }}
+                      variant={activeFilterCount > 0 ? "default" : "outline"}
+                    />
+                  </DashboardToolbar>
+
+                  {filtersOpen && (
+                    <DashboardPanel>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                          <span>Status</span>
+                          <select
+                            value={statusFilter}
+                            onChange={(event) => setStatusFilter(event.target.value)}
+                            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                          >
+                            <option value="all">Alle Status</option>
+                            <option value="unread">Ungelesen</option>
+                            <option value="WAITING_FOR_ADMIN">Wartet auf Admin</option>
+                            <option value="WAITING_FOR_USER">Wartet auf Teilnehmer:in</option>
+                            <option value="OPEN">Offen</option>
+                            <option value="CLOSED">Geschlossen</option>
+                          </select>
+                        </label>
+                        <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                          <span>Sortierung</span>
+                          <select
+                            value={sortMode}
+                            onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+                            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                          >
+                            <option value="latest">Letzte Aktivität</option>
+                            <option value="unread">Ungelesene zuerst</option>
+                            <option value="status">Status</option>
+                            <option value="subject">Betreff A-Z</option>
+                          </select>
+                        </label>
+                        <label className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={unreadOnly}
+                            onChange={(event) => setUnreadOnly(event.target.checked)}
+                          />
+                          Nur ungelesene Threads
+                        </label>
+                      </div>
+                    </DashboardPanel>
+                  )}
+
+                  {listOptionsOpen && (
+                    <DashboardPanel className="space-y-3">
+                      <div className="space-y-0.5 px-1">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <ArrowDownUp className="size-4" />
+                          Listenoptionen
+                        </div>
+                        <p className="text-xs text-muted-foreground">Sortierung festlegen und sichtbare Inbox-Spalten anpassen</p>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+                        <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                          <span>Sortieren nach</span>
+                          <select
+                            value={sortMode}
+                            onChange={(event) => {
+                              const value = event.target.value as MessageSortMode;
+                              setSortMode(value);
+                              setSortDirection(value === "latest" || value === "unread" ? "desc" : "asc");
+                            }}
+                            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                          >
+                            {MESSAGE_SORT_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="space-y-1 text-xs font-medium text-muted-foreground">
+                          <span>Reihenfolge</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-9 w-full justify-between"
+                            onClick={() => setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"))}
+                          >
+                            {sortDirection === "asc" ? "Aufsteigend" : "Absteigend"}
+                            <ArrowDownUp className="size-3.5" />
+                          </Button>
+                        </label>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="px-1 text-xs font-medium text-muted-foreground">Sichtbare Spalten & Reihenfolge</p>
+                        <div className="space-y-1.5">
+                          {visibleColumnDefs.map((column, index) => {
+                            const disableRemoval = visibleColumnDefs.length === 1;
+                            return (
+                              <div
+                                key={column.key}
+                                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-sm"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4"
+                                  checked
+                                  disabled={disableRemoval}
+                                  aria-label={`${column.label} ausblenden`}
+                                  onChange={() => {
+                                    if (disableRemoval) return;
+                                    setVisibleColumns((current) => current.filter((entry) => entry !== column.key));
+                                  }}
+                                />
+                                <span className="min-w-0 truncate">{column.label}</span>
+                                <span className="flex shrink-0 gap-1">
+                                  <button
+                                    type="button"
+                                    className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+                                    title={`${column.label} nach links schieben`}
+                                    aria-label={`${column.label} nach links schieben`}
+                                    disabled={index === 0}
+                                    onClick={() => moveVisibleColumn(column.key, "up")}
+                                  >
+                                    <ChevronUp className="size-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="inline-flex size-7 items-center justify-center rounded border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+                                    title={`${column.label} nach rechts schieben`}
+                                    aria-label={`${column.label} nach rechts schieben`}
+                                    disabled={index === visibleColumnDefs.length - 1}
+                                    onClick={() => moveVisibleColumn(column.key, "down")}
+                                  >
+                                    <ChevronDown className="size-3.5" />
+                                  </button>
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {MESSAGE_LIST_COLUMNS.filter((column) => !visibleColumns.includes(column.key)).map((column) => (
+                            <button
+                              key={column.key}
+                              type="button"
+                              className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/40"
+                              onClick={() => setVisibleColumns((current) => [...current, column.key])}
+                            >
+                              <span className="inline-flex size-4 items-center justify-center rounded border border-border/70 text-[10px]">+</span>
+                              <span>{column.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </DashboardPanel>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="max-h-[620px] overflow-y-auto p-3 pt-0">
@@ -1065,6 +1099,7 @@ export default function MessageCenter() {
                               onClick={() => {
                                 setSelectedId(conversation.id);
                                 setMobileThreadOpen(true);
+                                triggerNavigationBurst("thread");
                               }}
                             >
                               {visibleColumnDefs.map((column) => (
@@ -1087,6 +1122,7 @@ export default function MessageCenter() {
                             onClick={() => {
                               setSelectedId(conversation.id);
                               setMobileThreadOpen(true);
+                              triggerNavigationBurst("thread");
                             }}
                             className={cn(
                               "w-full rounded-md border px-2.5 py-2 text-left transition-colors hover:bg-accent/60",
@@ -1133,7 +1169,8 @@ export default function MessageCenter() {
           )}
         </Card>
 
-        <Card className={cn("min-h-[520px] overflow-hidden", !mobileThreadOpen && "hidden lg:block")}>
+        <Card className={cn("relative min-h-[520px] overflow-hidden", !mobileThreadOpen && "hidden lg:block")}>
+          <NavigationSparkleBurst active={navigationBurst?.target === "thread"} burstId={navigationBurst?.id} label="Thread" />
           {!selected ? (
             <CardContent className="flex min-h-[420px] items-center justify-center text-center text-sm text-muted-foreground">
               Wähle einen Thread aus oder starte eine neue Nachricht.
@@ -1310,7 +1347,8 @@ export default function MessageCenter() {
       </div>
 
       {contexts.length > 0 && composeOpen && (
-        <Card id="new-message-composer">
+        <Card id="new-message-composer" className="relative">
+          <NavigationSparkleBurst active={navigationBurst?.target === "composer"} burstId={navigationBurst?.id} label="Composer" />
           <CardHeader className="space-y-2 p-3 sm:p-4">
             <CardTitle className="text-base">Neue Nachricht an das Orga-Team</CardTitle>
             <CardDescription>Der Nachrichtentext wird nicht per Mail weitergeleitet, sondern bleibt im Portal.</CardDescription>

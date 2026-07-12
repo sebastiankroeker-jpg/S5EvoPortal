@@ -1,6 +1,34 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 22:18 UTC
+Stand: 2026-07-12 23:10 UTC
+
+## Aktueller Nachtrag: Message Center Nested Controls And Sparkle Navigation
+
+- Ausloeser:
+  - Sebastian zeigte die mobile Messenger-Ansicht.
+  - Gewuenscht:
+    - obere Nachrichtenbox um ca. zwei Drittel in der Hoehe reduzieren.
+    - Suche/Layout-Steuerung aus der separaten Box in die Threadlisten-Box verschachteln.
+    - erste Zeile der Threadlisten-Box als `Orga-Team 3 Threads` bzw. `Mein Postfach 3 Threads`.
+    - einfacher visueller Glitzer-/Konfetti-Hinweis fuer Bildschirmaufnahmen, wo eine Navigation gelandet ist.
+- CR:
+  - `docs/cr/2026-07-12-message-center-nested-controls-sparkle-navigation.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - obere Messenger-Box ist jetzt eine kompakte Titel-/Switch-Zeile.
+  - Suche, Statuschips, Aktualisieren, Filter und Spalten-/Sortieroptionen sind in den Header der Threadlisten-Card verschoben.
+  - Suchplaceholder nennt keine Teamdaten mehr.
+  - Threadlisten-Titel kombiniert Postfachname und Threadanzahl in einer Zeile.
+  - `NavigationSparkleBurst` zeigt kurz einen lokalen, pointer-events-freien Sparkle-Hinweis bei Postfachwechsel, Threadnavigation und Composer-Navigation.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
+  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
 
 ## Aktueller Nachtrag: Message Email Dialog Excerpt
 
