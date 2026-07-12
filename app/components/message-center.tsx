@@ -223,45 +223,6 @@ function readReceiptLabel(conversation: ConversationSummary, message: Conversati
   return `Gelesen ${formatDateTime(new Date(firstReadAt).toISOString())}`;
 }
 
-function SenderModeSelector({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: "ORG" | "PERSONAL";
-  onChange: (value: "ORG" | "PERSONAL") => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="inline-flex rounded-md border border-border bg-muted/30 p-1">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange("ORG")}
-        className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors disabled:opacity-60",
-          value === "ORG" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
-        )}
-      >
-        <UsersRound className="h-3.5 w-3.5" />
-        Orga-Team
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange("PERSONAL")}
-        className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors disabled:opacity-60",
-          value === "PERSONAL" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
-        )}
-      >
-        <UserRound className="h-3.5 w-3.5" />
-        Persönlich
-      </button>
-    </div>
-  );
-}
-
 export default function MessageCenter() {
   const [mode, setMode] = useState<"mine" | "admin">("mine");
   const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
@@ -292,8 +253,6 @@ export default function MessageCenter() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [adminSubject, setAdminSubject] = useState("Nachricht vom Orga-Team");
   const [adminBody, setAdminBody] = useState("");
-  const [adminSenderDisplayMode, setAdminSenderDisplayMode] = useState<"ORG" | "PERSONAL">("ORG");
-  const [replySenderDisplayMode, setReplySenderDisplayMode] = useState<"ORG" | "PERSONAL">("ORG");
 
   const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
   const visibleColumnDefs = useMemo(
@@ -531,7 +490,6 @@ export default function MessageCenter() {
   const switchMode = (nextMode: "mine" | "admin") => {
     setAdminDefaultApplied(true);
     setMode(nextMode);
-    setReplySenderDisplayMode(nextMode === "admin" ? "ORG" : "PERSONAL");
     setSelectedId(null);
     setMobileThreadOpen(false);
     setThreadDetailsOpen(false);
@@ -579,14 +537,13 @@ export default function MessageCenter() {
           participantId: adminComposeTarget.participantId,
           subject: adminSubject,
           body: adminBody,
-          senderDisplayMode: adminSenderDisplayMode,
+          senderDisplayMode: "ORG",
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Nachricht konnte nicht gesendet werden");
       setAdminBody("");
       setAdminSubject("Nachricht vom Orga-Team");
-      setAdminSenderDisplayMode("ORG");
       setAdminComposeTarget(null);
       window.history.replaceState({}, "", "/nachrichten");
       setMode("admin");
@@ -606,7 +563,6 @@ export default function MessageCenter() {
     setAdminComposeTarget(null);
     setAdminBody("");
     setAdminSubject("Nachricht vom Orga-Team");
-    setAdminSenderDisplayMode("ORG");
     window.history.replaceState({}, "", "/nachrichten");
   };
 
@@ -620,7 +576,7 @@ export default function MessageCenter() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           body: reply,
-          senderDisplayMode: mode === "admin" ? replySenderDisplayMode : "PERSONAL",
+          senderDisplayMode: mode === "admin" ? "ORG" : "PERSONAL",
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -719,7 +675,7 @@ export default function MessageCenter() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/80 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className={cn("flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/80 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between", mobileThreadOpen && "max-lg:hidden")}>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-primary" />
@@ -727,7 +683,33 @@ export default function MessageCenter() {
           </div>
           <p className="text-sm text-muted-foreground">Support-Threads mit dem Orga-Team. Nachrichten bleiben im Portal nachvollziehbar.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:items-end">
+          {canManageSupport && (
+            <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1">
+              <button
+                type="button"
+                onClick={() => switchMode("admin")}
+                className={cn(
+                  "inline-flex h-9 items-center justify-center gap-1.5 rounded px-3 text-xs font-medium transition-colors",
+                  mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+                )}
+              >
+                <UsersRound className="h-3.5 w-3.5" />
+                Orga-Team
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode("mine")}
+                className={cn(
+                  "inline-flex h-9 items-center justify-center gap-1.5 rounded px-3 text-xs font-medium transition-colors",
+                  mode === "mine" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
+                )}
+              >
+                <UserRound className="h-3.5 w-3.5" />
+                Persönlich
+              </button>
+            </div>
+          )}
           <Button type="button" size="sm" variant="outline" onClick={() => loadConversations(mode)} disabled={loading}>
             <RefreshCw className={cn("mr-1 h-3.5 w-3.5", loading && "animate-spin")} />
             Aktualisieren
@@ -780,13 +762,6 @@ export default function MessageCenter() {
                 <Input value={adminSubject} onChange={(event) => setAdminSubject(event.target.value)} />
               </div>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-sm font-medium">Senden als</div>
-                <div className="text-xs text-muted-foreground">Die echte Admin-Person bleibt intern nachvollziehbar.</div>
-              </div>
-              <SenderModeSelector value={adminSenderDisplayMode} onChange={setAdminSenderDisplayMode} disabled={sending} />
-            </div>
             <Textarea
               value={adminBody}
               onChange={(event) => setAdminBody(event.target.value)}
@@ -806,7 +781,7 @@ export default function MessageCenter() {
         </Card>
       )}
 
-      <DashboardControlsCard>
+      <DashboardControlsCard className={mobileThreadOpen ? "max-lg:hidden" : undefined}>
         <div className="space-y-2">
           <DashboardSearchField
             value={searchQuery}
@@ -1041,32 +1016,6 @@ export default function MessageCenter() {
                     </Button>
                   </div>
                 </div>
-                {canManageSupport && (
-                  <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1">
-                    <button
-                      type="button"
-                      onClick={() => switchMode("admin")}
-                      className={cn(
-                        "inline-flex h-9 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
-                        mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
-                      )}
-                    >
-                      <UsersRound className="h-3.5 w-3.5" />
-                      Orga-Team
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => switchMode("mine")}
-                      className={cn(
-                        "inline-flex h-9 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
-                        mode === "mine" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background",
-                      )}
-                    >
-                      <UserRound className="h-3.5 w-3.5" />
-                      Persönlich
-                    </button>
-                  </div>
-                )}
               </CardHeader>
               <CardContent className="max-h-[620px] overflow-y-auto p-3 pt-0">
                 {loading ? (
@@ -1339,15 +1288,6 @@ export default function MessageCenter() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {mode === "admin" && canManageSupport && (
-                      <div className="flex flex-col gap-2 rounded-md border border-border/60 bg-muted/20 p-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <div className="text-sm font-medium">Antwort senden als</div>
-                          <div className="text-xs text-muted-foreground">Orga-Postfach ist der Standard für Support-Antworten.</div>
-                        </div>
-                        <SenderModeSelector value={replySenderDisplayMode} onChange={setReplySenderDisplayMode} disabled={sending} />
-                      </div>
-                    )}
                     <Textarea
                       value={reply}
                       onChange={(event) => setReply(event.target.value)}

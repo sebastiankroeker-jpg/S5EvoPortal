@@ -18,6 +18,10 @@ Stand: 2026-07-12 21:20 UTC
   - Antwort-Composer bleibt unten sticky.
   - Gesendete/ausgehende Nachrichten zeigen privacy-schonend `Gelesen` plus Zeitpunkt, wenn ein Gegenueber gelesen hat.
   - Header-Fallback fuer Kontakte vermeidet E-Mail-Anzeige und nutzt `Kontakt`.
+  - Nach mobilem Screenshot-Feedback:
+    - Mobile Thread-Details blenden die obere Nachrichten-Landingbox und Such-/Filterleiste aus.
+    - Admin-/Persoenlich-Umschalter sitzt nur noch in der obersten Nachrichtenbox.
+    - Einzelne Threads/Antworten bieten keine Sender-Umschaltung mehr; Admin-Postfach antwortet als `Orga-Team`, persoenliches Postfach als `Persoenlich`.
 - Checks lokal gruen:
   - `pnpm exec eslint app/components/message-center.tsx`
   - `npx tsc --noEmit`

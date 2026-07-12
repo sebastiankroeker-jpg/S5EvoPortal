@@ -19,6 +19,9 @@ Sebastian approved the recommended Manager-perspective UI refresh for message de
   - Move full metadata into collapsible thread details.
   - Keep the message composer sticky at the bottom of the detail view.
   - Show message-level read timing for sent/outgoing messages when available.
+  - Hide the mailbox landing/search/filter chrome while a mobile thread detail is open.
+  - Keep the Admin/Personal mailbox switch only in the top landing box for admins.
+  - Remove per-thread sender switching; sender identity follows the active mailbox.
 - Out of scope:
   - Message schema changes.
   - New read-receipt recipient identities.
@@ -54,6 +57,9 @@ Sebastian approved the recommended Manager-perspective UI refresh for message de
 - Sent/outgoing messages show "Gelesen" with timestamp when a recipient has read them.
 - Mobile back-to-overview navigation remains obvious.
 - Existing message list, filters, sort, compose, reply and admin close/reopen flows continue to work.
+- On mobile, opening a thread hides the mailbox landing/filter area so the detail view gets the full usable height.
+- Admins only see the Admin/Personal mailbox switch in the top mailbox landing area, not inside individual threads.
+- Admin replies in the Orga-Team mailbox are sent as `Orga-Team`; personal mailbox replies are sent as `Persoenlich`.
 
 ## Implementation Handoff
 
@@ -108,6 +114,9 @@ Sebastian approved the recommended Manager-perspective UI refresh for message de
 - Important decisions during implementation:
   - `lastReadAt` is already serialized on conversation participants, so only the TypeScript type and UI derivation were needed.
   - Header fallback for non-org contacts uses "Kontakt" instead of an email address.
+  - Screenshot feedback from mobile testing showed too much mailbox chrome and a per-thread sender switch in the detail view.
+  - The mailbox context now owns sender identity: admin mode sends replies as `ORG`, personal mode as `PERSONAL`.
+  - The Admin/Personal switch moved to the top message landing box and is hidden with that box in mobile thread detail mode.
 
 ## Verification
 
