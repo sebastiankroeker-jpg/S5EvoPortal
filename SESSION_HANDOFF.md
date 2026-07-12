@@ -2,6 +2,22 @@
 
 Stand: 2026-07-12 14:59 UTC
 
+## Aktueller Nachtrag: Neuer Draft-CR Message Center Admin Mailbox UX
+
+- Ausloeser:
+  - Sebastian bestaetigte Teamname-Hotfix erfolgreich.
+  - Neuer Messenger-CR mit Admin-/Orga-Postfach-UX:
+    - Orga-Team-Nachrichten erscheinen aktuell im persoenlichen Bereich.
+    - Neue Nachricht ist nur durch Scrollen nach unten erreichbar.
+    - Admin-/Persoenlich-Switch soll Admin links und fuer Admins standardmaessig aktiv zeigen.
+    - Thread-Header soll User-Badge mit Dialog-Menue wie in anderen Kontexten bekommen.
+    - Orga-Icons sollen als `Orga-Team` beschriftet und als Gruppe erkennbar sein.
+- CR-Draft:
+  - `docs/cr/2026-07-12-message-center-admin-mailbox-ux.md`
+- Empfohlener naechster Schritt:
+  - Nach Sebastian-Go implementieren und deployen.
+  - Erwartete Hauptdateien: `app/components/message-center.tsx`, `lib/messaging.ts`, `app/api/messages/conversations/route.ts`, ggf. Admin-/Reply-Routen.
+
 ## Aktueller Nachtrag: Team Manager Team Name Field UI Hotfix
 
 - Ausloeser:
