@@ -48,7 +48,7 @@ type ProfileResponse = {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const { theme, setTheme } = useTheme();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -106,7 +106,11 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
-      if (!res.ok) throw new Error("Speichern fehlgeschlagen");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Speichern fehlgeschlagen");
+      const savedName = data?.user?.name || name.trim();
+      setName(savedName);
+      await update({ name: savedName });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {

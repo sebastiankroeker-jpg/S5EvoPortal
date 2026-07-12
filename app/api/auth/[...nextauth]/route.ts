@@ -144,7 +144,7 @@ export const authOptions: NextAuthOptions = {
       }));
       return true;
     },
-    async jwt({ token, account, profile }) {
+    async jwt({ token, account, profile, trigger, session }) {
       // Keep the session token lean so the auth cookie stays below browser limits.
       if (account) {
         const authentikProfile = profile as AuthentikProfile | undefined;
@@ -153,6 +153,17 @@ export const authOptions: NextAuthOptions = {
         token.name = authentikProfile?.name ?? authentikProfile?.preferred_username;
         token.picture = authentikProfile?.picture;
         token.idToken = account.id_token;
+      }
+      if (trigger === "update") {
+        const updatedName =
+          typeof session?.name === "string"
+            ? session.name.trim()
+            : typeof session?.user?.name === "string"
+              ? session.user.name.trim()
+              : "";
+        if (updatedName) {
+          token.name = updatedName;
+        }
       }
       return token;
     },

@@ -53,7 +53,7 @@ async function syncResolvedUser(
     data.email = identity.email;
   }
 
-  if (identity.name && user.name !== identity.name) {
+  if (identity.name && !user.name?.trim()) {
     data.name = identity.name;
   }
 
