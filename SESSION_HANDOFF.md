@@ -1,6 +1,35 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 21:20 UTC
+Stand: 2026-07-12 22:10 UTC
+
+## Aktueller Nachtrag: Message Email Dialog Excerpt
+
+- Ausloeser:
+  - Sebastian zeigte eine mobile E-Mail-Benachrichtigung, die nur auf eine neue Portal-Nachricht verweist.
+  - Gewuenscht: E-Mail an Teilnehmer soll direkt die aktuelle Antwort plus den vorherigen Dialog enthalten.
+  - Mobile Mailclients sollen ordentlich aussehen; Desktop ebenso.
+- CR:
+  - `docs/cr/2026-07-12-message-email-dialog-excerpt.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `lib/mail/message-notification.ts`
+  - `app/api/messages/conversations/route.ts`
+  - `app/api/messages/conversations/[id]/messages/route.ts`
+  - `app/api/messages/admin-conversations/route.ts`
+- Geaendert:
+  - Message-Mailtemplate zeigt jetzt eine kompakte S5Evo-Karte mit Thread, Absenderlabel, aktueller Antwort und bisherigem Dialog.
+  - Dialogauszug ist auf die letzten acht Thread-Nachrichten begrenzt.
+  - Die aktuelle Antwort steht nur einmal prominent oben; vorherige Nachrichten stehen unter `Bisheriger Dialog`.
+  - Keine Teamdaten, Empfaenger-E-Mail, Teilnehmer-E-Mail oder interne Kontextdaten im Mailbody.
+  - Anzeige-Fallbacks vermeiden E-Mail-Adressen (`Teilnehmer`, `Kontakt`, `Orga-Team`).
+  - Plain-Text-Fallback enthaelt dieselbe Antwort-/Dialogstruktur.
+- Checks lokal gruen:
+  - `pnpm exec eslint lib/mail/message-notification.ts app/api/messages/conversations/route.ts app/api/messages/conversations/[id]/messages/route.ts app/api/messages/admin-conversations/route.ts`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
+  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
 
 ## Aktueller Nachtrag: Message Detail Chat Refresh
 

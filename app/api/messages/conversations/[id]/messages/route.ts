@@ -98,7 +98,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     to: recipients,
     subject: "Neue Antwort im S5Evo-Portal",
     conversationSubject: reloaded.conversation?.subject || loaded.conversation.subject,
-    actorName: senderDisplayMode === "ORG" ? ORG_MESSAGE_SENDER_LABEL : user.name || user.email,
+    actorName: senderDisplayMode === "ORG" ? ORG_MESSAGE_SENDER_LABEL : user.name || "Kontakt",
+    messages: reloaded.conversation?.messages.map((message) => ({
+      id: message.id,
+      body: message.body,
+      bodyPreview: message.bodyPreview,
+      createdAt: message.createdAt,
+      senderDisplayName:
+        message.senderDisplayMode === "ORG"
+          ? ORG_MESSAGE_SENDER_LABEL
+          : message.sender.name || "Kontakt",
+    })),
   }).catch((error) => {
     console.warn("Message notification skipped/failed", error);
   });

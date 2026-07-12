@@ -10,6 +10,7 @@ import {
   getSupportContextsForUser,
   normalizeMessageBody,
   normalizeMessageSubject,
+  ORG_MESSAGE_SENDER_LABEL,
   serializeConversation,
 } from "@/lib/messaging";
 import { sendMessageNotificationEmail } from "@/lib/mail/message-notification";
@@ -174,7 +175,17 @@ export async function POST(request: NextRequest) {
     to: recipients,
     subject: "Neue Support-Nachricht im S5Evo-Portal",
     conversationSubject: conversation.subject,
-    actorName: user.name || user.email,
+    actorName: user.name || "Teilnehmer",
+    messages: conversation.messages.map((message) => ({
+      id: message.id,
+      body: message.body,
+      bodyPreview: message.bodyPreview,
+      createdAt: message.createdAt,
+      senderDisplayName:
+        message.senderDisplayMode === "ORG"
+          ? ORG_MESSAGE_SENDER_LABEL
+          : message.sender.name || "Teilnehmer",
+    })),
   }).catch((error) => {
     console.warn("Message notification skipped/failed", error);
   });

@@ -190,7 +190,17 @@ export async function POST(request: NextRequest) {
     to: [targetUser.email],
     subject: "Neue Nachricht im S5Evo-Portal",
     conversationSubject: conversation.subject,
-    actorName: senderDisplayMode === "ORG" ? ORG_MESSAGE_SENDER_LABEL : auth.user.name || auth.user.email,
+    actorName: senderDisplayMode === "ORG" ? ORG_MESSAGE_SENDER_LABEL : auth.user.name || "Kontakt",
+    messages: conversation.messages.map((message) => ({
+      id: message.id,
+      body: message.body,
+      bodyPreview: message.bodyPreview,
+      createdAt: message.createdAt,
+      senderDisplayName:
+        message.senderDisplayMode === "ORG"
+          ? ORG_MESSAGE_SENDER_LABEL
+          : message.sender.name || "Kontakt",
+    })),
   }).catch((error) => {
     console.warn("Admin message notification skipped/failed", error);
   });
