@@ -94,8 +94,8 @@ Sebastian shared a mobile mail screenshot showing that portal message notificati
 
 - Gate needed: yes
 - Reason: production deploy after implementation.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian ("Go")
+- Approval timestamp: 2026-07-12 22:14 UTC
 
 ## Implementation Notes
 
@@ -123,21 +123,23 @@ Sebastian shared a mobile mail screenshot showing that portal message notificati
   - Static diff review confirms all three message notification callers now pass sanitized message excerpts.
   - Static diff review confirms display-name fallbacks no longer expose e-mail addresses in the e-mail body.
 - Manual smoke:
-  - Pending production deploy.
+  - Production smoke passed after deploy.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_4pAHNYPrrqbySPYsBwJwpPBEHbRs`
+- Deployment URL: `https://s5-evo-portal-6wjx49uaf-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 22:17 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `https://portal.s5evo.de` -> HTTP 200
+  - `https://portal.s5evo.de/nachrichten` -> HTTP 200
 - API checks:
-- Result:
+- Result: passed
 
 ## Follow-Ups
 

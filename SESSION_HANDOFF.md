@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 22:10 UTC
+Stand: 2026-07-12 22:18 UTC
 
 ## Aktueller Nachtrag: Message Email Dialog Excerpt
 
@@ -10,7 +10,11 @@ Stand: 2026-07-12 22:10 UTC
   - Mobile Mailclients sollen ordentlich aussehen; Desktop ebenso.
 - CR:
   - `docs/cr/2026-07-12-message-email-dialog-excerpt.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `be72207 Include message dialog excerpt in email`
+  - Production Deploy: `dpl_4pAHNYPrrqbySPYsBwJwpPBEHbRs`
+  - Deployment URL: `https://s5-evo-portal-6wjx49uaf-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `lib/mail/message-notification.ts`
   - `app/api/messages/conversations/route.ts`
   - `app/api/messages/conversations/[id]/messages/route.ts`
@@ -27,9 +31,11 @@ Stand: 2026-07-12 22:10 UTC
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Naechster Schritt:
-  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
-  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
+- Post-Deploy Smoke:
+  - `https://portal.s5evo.de`: 200
+  - `https://portal.s5evo.de/nachrichten`: 200
+- Naechster sinnvoller Real-Smoke:
+  - Eine echte Antwort in einem Teilnehmer-Thread senden und die empfangene E-Mail auf Mobile/Desktop pruefen: aktuelle Antwort oben, vorheriger Dialog darunter, keine E-Mail-/Team-Kontextdaten im Mailbody.
 
 ## Aktueller Nachtrag: Message Detail Chat Refresh
 
