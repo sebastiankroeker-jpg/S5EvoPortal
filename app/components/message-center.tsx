@@ -18,7 +18,7 @@ import {
   DashboardToolbar,
   DashboardToolbarButton,
 } from "./dashboard-controls";
-import AccountLinkStatusDialog from "./account-link-status-dialog";
+import AccountLinkStatusDialog, { type AccountLinkDialogRow } from "./account-link-status-dialog";
 
 type SupportContext = {
   type: "participant" | "team";
@@ -231,6 +231,38 @@ export default function MessageCenter() {
   const selectedDialogParticipant = mode === "admin"
     ? selectedOwnerParticipant
     : selected?.participants.find((participant) => participant.user.id !== currentUserId && ["ADMIN", "MODERATOR"].includes(participant.role)) ?? selectedViewerParticipant ?? null;
+  const selectedDialogIsOrgTeam = selectedDialogParticipant ? ["ADMIN", "MODERATOR"].includes(selectedDialogParticipant.role) : false;
+  const selectedDialogRows: AccountLinkDialogRow[] = selectedDialogParticipant
+    ? [
+        {
+          label: "Person",
+          value: selectedDialogIsOrgTeam
+            ? "Orga-Team"
+            : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
+          targetType: selectedDialogIsOrgTeam ? "message" : "user",
+        },
+        ...(!selectedDialogIsOrgTeam
+          ? [
+              { label: "E-Mail", value: selectedDialogParticipant.user.email, targetType: "user" as const },
+              { label: "Team", value: selected?.context.team?.name, targetType: "team" as const },
+            ]
+          : []),
+        { label: "Rolle", value: selectedDialogParticipant.role },
+        {
+          label: "Teilnehmer:in",
+          value: selected?.context.participant
+            ? `${selected.context.participant.firstName} ${selected.context.participant.lastName}`
+            : null,
+          targetType: "user",
+        },
+        {
+          label: "Wettkampf",
+          value: selected?.context.competition
+            ? `${selected.context.competition.name} ${selected.context.competition.year}`
+            : null,
+        },
+      ]
+    : [];
   const activeFilterCount = [
     statusFilter !== "all",
     unreadOnly,
@@ -766,43 +798,19 @@ export default function MessageCenter() {
                         <AccountLinkStatusDialog
                           compact
                           meta={{
-                            status: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "portal_account" : "linked",
-                            label: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "Orga-Team" : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
+                            status: selectedDialogIsOrgTeam ? "portal_account" : "linked",
+                            label: selectedDialogIsOrgTeam ? "Orga-Team" : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
                             className:
-                              selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR"
+                              selectedDialogIsOrgTeam
                                 ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
                                 : "border-green-300 bg-green-50 text-green-800",
                             description:
-                              selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR"
+                              selectedDialogIsOrgTeam
                                 ? "Dieser Thread wird vom Orga-Team als Gruppenpostfach bearbeitet."
                                 : "Fachliche Zielperson dieses Nachrichtenthreads.",
                           }}
-                          title={selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "Orga-Team" : "Thread-Kontakt"}
-                          rows={[
-                            {
-                              label: "Person",
-                              value: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR"
-                                ? "Orga-Team"
-                                : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
-                              targetType: selectedDialogParticipant.role === "ADMIN" || selectedDialogParticipant.role === "MODERATOR" ? "message" : "user",
-                            },
-                            { label: "E-Mail", value: selectedDialogParticipant.user.email, targetType: "user" },
-                            { label: "Rolle", value: selectedDialogParticipant.role },
-                            { label: "Team", value: selected.context.team?.name, targetType: "team" },
-                            {
-                              label: "Teilnehmer:in",
-                              value: selected.context.participant
-                                ? `${selected.context.participant.firstName} ${selected.context.participant.lastName}`
-                                : null,
-                              targetType: "user",
-                            },
-                            {
-                              label: "Wettkampf",
-                              value: selected.context.competition
-                                ? `${selected.context.competition.name} ${selected.context.competition.year}`
-                                : null,
-                            },
-                          ]}
+                          title={selectedDialogIsOrgTeam ? "Orga-Team" : "Thread-Kontakt"}
+                          rows={selectedDialogRows}
                         />
                       )}
                     </div>
