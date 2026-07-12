@@ -1,6 +1,6 @@
 # CR: Message Center Nested Controls And Sparkle Navigation
 
-Status: Draft
+Status: Deployed
 Date: 2026-07-12
 Type: feature
 Risk: low
@@ -88,8 +88,8 @@ Sebastian reviewed the mobile message center after the compact list deploy. The 
 
 - Gate needed: yes
 - Reason: production deploy.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian
+- Approval timestamp: 2026-07-12 23:35 UTC
 
 ## Implementation Notes
 
@@ -115,21 +115,26 @@ Sebastian reviewed the mobile message center after the compact list deploy. The 
   - Reviewed mobile stacking: top intro row, nested controls in mailbox card, compact thread list remains.
   - Reviewed sparkles as pointer-events-none transient UI only, no API/data impact.
 - Manual smoke:
-  - Pending production deploy.
+  - Production smoke green after deploy.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_8bPskBCMk4kJeoyGNCHqx11wYCvz`
+- Deployment URL: `https://s5-evo-portal-2wu5bcdfn-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 23:43 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `https://portal.s5evo.de` -> 200
+  - `https://portal.s5evo.de/nachrichten` -> 200
+  - `npm run smoke:public` green
 - API checks:
-- Result:
+  - `GET /api/messages/conversations` without session -> 401
+  - `POST /api/messages/admin-conversations` without session -> 401
+- Result: green
 
 ## Follow-Ups
 

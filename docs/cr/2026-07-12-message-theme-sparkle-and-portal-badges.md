@@ -1,6 +1,6 @@
 # CR: Message Theme Sparkle And Portal Badges
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -143,16 +143,21 @@ Sebastian reviewed the latest message center iteration and wants the navigation 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_8bPskBCMk4kJeoyGNCHqx11wYCvz`
+- Deployment URL: `https://s5-evo-portal-2wu5bcdfn-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 23:43 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `https://portal.s5evo.de` -> 200
+  - `https://portal.s5evo.de/nachrichten` -> 200
+  - `npm run smoke:public` green
 - API checks:
-- Result:
+  - `GET /api/messages/conversations` without session -> 401
+  - `POST /api/messages/admin-conversations` without session -> 401
+- Result: green
 
 ## Follow-Ups
 

@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 23:28 UTC
+Stand: 2026-07-12 23:44 UTC
 
 ## Aktueller Nachtrag: Message Theme Sparkle And Portal Badges
 
@@ -12,7 +12,11 @@ Stand: 2026-07-12 23:28 UTC
   - Forward-Navigation aus dem Portal-Badge in Mail/Header und Uebersicht zum User-Dashboard soll funktionieren.
 - CR:
   - `docs/cr/2026-07-12-message-theme-sparkle-and-portal-badges.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `ed0e8e7 Gate message sparkle and add portal badges`
+  - Production Deploy: `dpl_8bPskBCMk4kJeoyGNCHqx11wYCvz`
+  - Deployment URL: `https://s5-evo-portal-2wu5bcdfn-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `lib/theme-context.tsx`
   - `app/components/nav-bar.tsx`
   - `app/components/sidebar.tsx`
@@ -31,9 +35,15 @@ Stand: 2026-07-12 23:28 UTC
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Naechster Schritt:
-  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
-  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
+- Post-Deploy Smoke:
+  - `https://portal.s5evo.de`: 200
+  - `https://portal.s5evo.de/nachrichten`: 200
+  - `npm run smoke:public` gruen
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Als Admin `/nachrichten` hart aktualisieren, Sparkle im Theme-Schalter aktivieren und Postfach-/Thread-/Composer-Navigation pruefen.
+  - Portal-Badge in Uebersicht und Thread-Header oeffnen und User-Dashboard-Forward testen.
 
 ## Aktueller Nachtrag: Message Center Nested Controls And Sparkle Navigation
 
@@ -46,7 +56,11 @@ Stand: 2026-07-12 23:28 UTC
     - einfacher visueller Glitzer-/Konfetti-Hinweis fuer Bildschirmaufnahmen, wo eine Navigation gelandet ist.
 - CR:
   - `docs/cr/2026-07-12-message-center-nested-controls-sparkle-navigation.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `66a3dc2 Nest message controls and add navigation sparkle`
+  - Production Deploy: `dpl_8bPskBCMk4kJeoyGNCHqx11wYCvz`
+  - Deployment URL: `https://s5-evo-portal-2wu5bcdfn-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/components/message-center.tsx`
 - Geaendert:
   - obere Messenger-Box ist jetzt eine kompakte Titel-/Switch-Zeile.
@@ -59,9 +73,12 @@ Stand: 2026-07-12 23:28 UTC
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Naechster Schritt:
-  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
-  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
+- Post-Deploy Smoke:
+  - `https://portal.s5evo.de`: 200
+  - `https://portal.s5evo.de/nachrichten`: 200
+  - `npm run smoke:public` gruen
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
 
 ## Aktueller Nachtrag: Message Email Dialog Excerpt
 
