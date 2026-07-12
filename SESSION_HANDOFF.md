@@ -1,6 +1,31 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 20:49 UTC
+Stand: 2026-07-12 21:20 UTC
+
+## Aktueller Nachtrag: Message Detail Chat Refresh
+
+- Ausloeser:
+  - Sebastian gab Go fuer den empfohlenen Manager-Perspektive-Refresh der Nachrichten-Detailansicht.
+  - Ziel: Detail-Ebene deutlich mehr wie moderner Chat statt Portal-Formular.
+- CR:
+  - `docs/cr/2026-07-12-message-detail-chat-refresh.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - Thread-Detailansicht nutzt jetzt einen kompakten sticky Chat-Header.
+  - Vollstaendige Metadaten sind ueber einen Details-Toggle einklappbar.
+  - Nachrichtenverlauf scrollt separat zwischen Header und Composer.
+  - Antwort-Composer bleibt unten sticky.
+  - Gesendete/ausgehende Nachrichten zeigen privacy-schonend `Gelesen` plus Zeitpunkt, wenn ein Gegenueber gelesen hat.
+  - Header-Fallback fuer Kontakte vermeidet E-Mail-Anzeige und nutzt `Kontakt`.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
+  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
 
 ## Aktueller Nachtrag: Message List Compact Columns
 

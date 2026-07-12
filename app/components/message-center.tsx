@@ -60,6 +60,7 @@ type ConversationSummary = {
   participants: Array<{
     id: string;
     role: string;
+    lastReadAt: string | null;
     user: { id: string; name: string | null; email: string };
   }>;
   lastMessage: {
@@ -209,6 +210,19 @@ function MessageMetaStrip({
   );
 }
 
+function readReceiptLabel(conversation: ConversationSummary, message: ConversationSummary["messages"][number]) {
+  const recipientReads = conversation.participants
+    .filter((participant) => participant.user.id !== message.senderId && participant.lastReadAt)
+    .map((participant) => new Date(participant.lastReadAt || "").getTime())
+    .filter((timestamp) => Number.isFinite(timestamp));
+  if (recipientReads.length === 0) return null;
+
+  const messageTime = new Date(message.createdAt).getTime();
+  const firstReadAt = Math.min(...recipientReads.filter((timestamp) => timestamp >= messageTime));
+  if (!Number.isFinite(firstReadAt)) return null;
+  return `Gelesen ${formatDateTime(new Date(firstReadAt).toISOString())}`;
+}
+
 function SenderModeSelector({
   value,
   onChange,
@@ -260,6 +274,7 @@ export default function MessageCenter() {
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
+  const [threadDetailsOpen, setThreadDetailsOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<MessageListColumnKey[]>(DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -519,6 +534,7 @@ export default function MessageCenter() {
     setReplySenderDisplayMode(nextMode === "admin" ? "ORG" : "PERSONAL");
     setSelectedId(null);
     setMobileThreadOpen(false);
+    setThreadDetailsOpen(false);
     void loadConversations(nextMode);
   };
 
@@ -1168,124 +1184,155 @@ export default function MessageCenter() {
           )}
         </Card>
 
-        <Card className={cn("min-h-[520px]", !mobileThreadOpen && "hidden lg:block")}>
+        <Card className={cn("min-h-[520px] overflow-hidden", !mobileThreadOpen && "hidden lg:block")}>
           {!selected ? (
             <CardContent className="flex min-h-[420px] items-center justify-center text-center text-sm text-muted-foreground">
               Wähle einen Thread aus oder starte eine neue Nachricht.
             </CardContent>
           ) : (
-            <>
-              <CardHeader className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="mb-2 flex items-center gap-2 lg:hidden">
-                      <Button type="button" size="sm" variant="outline" onClick={() => setMobileThreadOpen(false)}>
-                        <ArrowLeft className="mr-1 h-4 w-4" />
-                        Übersicht
-                      </Button>
+            <div className="flex h-[calc(100dvh-140px)] min-h-[520px] flex-col lg:h-[720px]">
+              <div className="sticky top-0 z-10 border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur">
+                <div className="flex items-center gap-2">
+                  <div className="lg:hidden">
+                    <Button type="button" size="icon" variant="ghost" onClick={() => setMobileThreadOpen(false)} aria-label="Zurück zur Übersicht">
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="min-w-0 truncate text-sm font-semibold sm:text-base">{selected.subject}</h3>
+                      <Badge variant="outline" className={cn("hidden h-5 shrink-0 px-1.5 text-[10px] sm:inline-flex", statusClassName(selected.status))}>
+                        {statusLabel(selected.status)}
+                      </Badge>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-lg">{selected.subject}</CardTitle>
-                      {selectedDialogParticipant && (
-                        <AccountLinkStatusDialog
-                          compact
-                          meta={{
-                            status: selectedDialogIsOrgTeam ? "portal_account" : "linked",
-                            label: selectedDialogIsOrgTeam ? "Orga-Team" : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
-                            className:
-                              selectedDialogIsOrgTeam
-                                ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
-                                : "border-green-300 bg-green-50 text-green-800",
-                            description:
-                              selectedDialogIsOrgTeam
-                                ? "Dieser Thread wird vom Orga-Team als Gruppenpostfach bearbeitet."
-                                : "Fachliche Zielperson dieses Nachrichtenthreads.",
-                          }}
-                          title={selectedDialogIsOrgTeam ? "Orga-Team" : "Thread-Kontakt"}
-                          rows={selectedDialogRows}
-                        />
-                      )}
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="min-w-0 truncate">{selectedPerson || "Orga-Team"}</span>
+                      <span className="shrink-0">·</span>
+                      <span className="shrink-0 tabular-nums">{selectedTimestamp}</span>
                     </div>
-                    <CardDescription>
+                  </div>
+                  {selectedDialogParticipant && (
+                    <AccountLinkStatusDialog
+                      compact
+                      meta={{
+                        status: selectedDialogIsOrgTeam ? "portal_account" : "linked",
+                        label: selectedDialogIsOrgTeam ? "Orga-Team" : selectedDialogParticipant.user.name || "Kontakt",
+                        className:
+                          selectedDialogIsOrgTeam
+                            ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
+                            : "border-green-300 bg-green-50 text-green-800",
+                        description:
+                          selectedDialogIsOrgTeam
+                            ? "Dieser Thread wird vom Orga-Team als Gruppenpostfach bearbeitet."
+                            : "Fachliche Zielperson dieses Nachrichtenthreads.",
+                      }}
+                      title={selectedDialogIsOrgTeam ? "Orga-Team" : "Thread-Kontakt"}
+                      rows={selectedDialogRows}
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setThreadDetailsOpen((open) => !open)}
+                    aria-label={threadDetailsOpen ? "Thread-Details ausblenden" : "Thread-Details anzeigen"}
+                    title={threadDetailsOpen ? "Thread-Details ausblenden" : "Thread-Details anzeigen"}
+                  >
+                    {threadDetailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {threadDetailsOpen && (
+                  <div className="mt-2 space-y-2">
+                    <div className="text-xs text-muted-foreground">
                       {selected.context.participant
                         ? `${selected.context.participant.firstName} ${selected.context.participant.lastName}`
                         : mode === "admin" ? "Support-Thread im Orga-Team" : "Support-Thread"}
                       {selected.context.team ? ` · ${selected.context.team.name}` : ""}
                       {selected.context.competition ? ` · ${selected.context.competition.name} ${selected.context.competition.year}` : ""}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className={statusClassName(selected.status)}>
-                      {statusLabel(selected.status)}
-                    </Badge>
-                    {mode === "admin" && selected.status !== "CLOSED" && (
-                      <Button type="button" size="sm" variant="outline" disabled={sending} onClick={() => updateStatus("CLOSED")}>
-                        Schließen
-                      </Button>
+                    </div>
+                    <MessageMetaStrip
+                      items={[
+                        {
+                          key: "status",
+                          label: "Status",
+                          value: (
+                            <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", statusClassName(selected.status))}>
+                              {statusLabel(selected.status)}
+                            </Badge>
+                          ),
+                        },
+                        {
+                          key: "direction",
+                          label: "Badge",
+                          value: selectedDirection ? (
+                            <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass(selectedDirection))}>
+                              {selectedDirection}
+                            </Badge>
+                          ) : "—",
+                        },
+                        { key: "person", label: selectedDirection === "gesendet" ? "Empfänger" : "Sender", value: selectedPerson || "—" },
+                        { key: "subject", label: "Betreff", value: selected.subject },
+                        { key: "date", label: "Datum & Uhrzeit", value: selectedTimestamp },
+                      ]}
+                    />
+                    {mode === "admin" && (
+                      <div className="flex justify-end gap-2">
+                        {selected.status !== "CLOSED" ? (
+                          <Button type="button" size="sm" variant="outline" disabled={sending} onClick={() => updateStatus("CLOSED")}>
+                            Schließen
+                          </Button>
+                        ) : (
+                          <Button type="button" size="sm" variant="outline" disabled={sending} onClick={() => updateStatus("OPEN")}>
+                            Wieder öffnen
+                          </Button>
+                        )}
+                      </div>
                     )}
-                    {mode === "admin" && selected.status === "CLOSED" && (
-                      <Button type="button" size="sm" variant="outline" disabled={sending} onClick={() => updateStatus("OPEN")}>
-                        Wieder öffnen
-                      </Button>
-                    )}
                   </div>
-                </div>
-                <MessageMetaStrip
-                  items={[
-                    {
-                      key: "status",
-                      label: "Status",
-                      value: (
-                        <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", statusClassName(selected.status))}>
-                          {statusLabel(selected.status)}
-                        </Badge>
-                      ),
-                    },
-                    {
-                      key: "direction",
-                      label: "Badge",
-                      value: selectedDirection ? (
-                        <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass(selectedDirection))}>
-                          {selectedDirection}
-                        </Badge>
-                      ) : "—",
-                    },
-                    { key: "person", label: selectedDirection === "gesendet" ? "Empfänger" : "Sender", value: selectedPerson || "—" },
-                    { key: "subject", label: "Betreff", value: selected.subject },
-                    { key: "date", label: "Datum & Uhrzeit", value: selectedTimestamp },
-                  ]}
-                />
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-xl border border-border/50 bg-muted/20 p-3">
+                )}
+              </div>
+
+              <CardContent className="min-h-0 flex-1 overflow-y-auto bg-muted/20 p-3">
+                <div className="space-y-3">
                   {selected.messages.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Noch keine Nachrichten vorhanden.</div>
+                    <div className="rounded-md border border-dashed bg-background p-3 text-sm text-muted-foreground">Noch keine Nachrichten vorhanden.</div>
                   ) : (
-                    selected.messages.map((message) => (
-                      <motion.div
-                        key={message.id}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={cn("flex", message.mine ? "justify-end" : "justify-start")}
-                      >
-                        <div
-                          className={cn(
-                            "max-w-[82%] rounded-2xl px-3 py-2 shadow-sm",
-                            message.mine
-                              ? "bg-primary text-primary-foreground"
-                              : "border border-border/60 bg-background text-foreground",
-                          )}
+                    selected.messages.map((message) => {
+                      const receipt =
+                        message.mine || (mode === "admin" && message.senderDisplayMode === "ORG")
+                          ? readReceiptLabel(selected, message)
+                          : null;
+                      return (
+                        <motion.div
+                          key={message.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={cn("flex", message.mine ? "justify-end" : "justify-start")}
                         >
-                          <div className={cn("mb-1 text-[11px]", message.mine ? "text-primary-foreground/75" : "text-muted-foreground")}>
-                            {senderLabel(message)} · {formatDateTime(message.createdAt)}
+                          <div className={cn("flex max-w-[86%] flex-col", message.mine ? "items-end" : "items-start")}>
+                            <div
+                              className={cn(
+                                "rounded-2xl px-3 py-2 shadow-sm",
+                                message.mine
+                                  ? "rounded-br-md bg-primary text-primary-foreground"
+                                  : "rounded-bl-md border border-border/60 bg-background text-foreground",
+                              )}
+                            >
+                              <div className={cn("mb-1 text-[11px]", message.mine ? "text-primary-foreground/75" : "text-muted-foreground")}>
+                                {senderLabel(message)} · {formatDateTime(message.createdAt)}
+                              </div>
+                              <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body}</p>
+                            </div>
+                            {receipt && <div className="mt-1 px-1 text-[11px] text-muted-foreground">{receipt}</div>}
                           </div>
-                          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body}</p>
-                        </div>
-                      </motion.div>
-                    ))
+                        </motion.div>
+                      );
+                    })
                   )}
                 </div>
+              </CardContent>
 
+              <div className="sticky bottom-0 z-10 border-t border-border/60 bg-card/95 p-3 backdrop-blur">
                 {selected.status === "CLOSED" && mode !== "admin" ? (
                   <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
                     Dieser Thread ist geschlossen. Das Orga-Team kann ihn bei Bedarf wieder öffnen.
@@ -1304,8 +1351,9 @@ export default function MessageCenter() {
                     <Textarea
                       value={reply}
                       onChange={(event) => setReply(event.target.value)}
-                      rows={4}
+                      rows={2}
                       placeholder="Antwort schreiben..."
+                      className="min-h-20 resize-none"
                     />
                     <div className="flex justify-end">
                       <Button type="button" disabled={sending || reply.trim().length < 2} onClick={sendReply}>
@@ -1315,8 +1363,8 @@ export default function MessageCenter() {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </>
+              </div>
+            </div>
           )}
         </Card>
       </div>
