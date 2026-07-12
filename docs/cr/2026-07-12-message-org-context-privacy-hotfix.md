@@ -1,6 +1,6 @@
 # CR: Message Orga Context Privacy Hotfix
 
-Status: Ready for Deploy
+Status: Deployed
 Date: 2026-07-12
 Type: hotfix
 Risk: low
@@ -53,7 +53,7 @@ Sebastian reported via mobile screenshot that the Orga-Team context dialog in `/
   - Treat `ADMIN` and `MODERATOR` dialog participants as Orga-Team context.
   - Filter sensitive rows only for that Orga-Team context.
 - Open decisions:
-  - Production deploy requires Sebastian's Go.
+  - None.
 - Non-goals:
   - No API redaction or schema changes in this hotfix.
 - Expected implementation steps:
@@ -80,8 +80,8 @@ Sebastian reported via mobile screenshot that the Orga-Team context dialog in `/
 
 - Gate needed: yes
 - Reason: production deploy
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian (`Go`)
+- Approval timestamp: 2026-07-12 18:44 UTC
 
 ## Implementation Notes
 
@@ -102,21 +102,25 @@ Sebastian reported via mobile screenshot that the Orga-Team context dialog in `/
 - Targeted verification:
   - Static code verification confirms Orga-Team dialog rows no longer include e-mail or team.
 - Manual smoke:
-  - Pending after production deploy.
+  - Production smoke passed after deploy.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_FeS1MGBkRfmmFr7F2on6eoKqA7XJ`
+- Deployment URL: `https://s5-evo-portal-ewsk1ae6h-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 18:49 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` against `https://portal.s5evo.de` passed.
+  - `/nachrichten`: 200.
 - API checks:
-- Result:
+  - `GET /api/messages/conversations` without session: 401.
+  - `POST /api/messages/admin-conversations` without session: 401.
+- Result: passed.
 
 ## Follow-Ups
 

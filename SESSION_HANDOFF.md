@@ -1,6 +1,34 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 17:20 UTC
+Stand: 2026-07-12 18:49 UTC
+
+## Aktueller Nachtrag: Message Orga Context Privacy Hotfix
+
+- Ausloeser:
+  - Sebastian meldete per Screenshot, dass der Orga-Team-Kontextdialog in `/nachrichten` zu freizuegig ist.
+  - E-Mail und Team sollten in dieser Orga-Team-Kontextinfo ausgeblendet werden.
+- CR:
+  - `docs/cr/2026-07-12-message-org-context-privacy-hotfix.md`
+- Implementiert und produktiv deployed:
+  - Commit: `8e39f80 Hide org context sensitive message details`
+  - Production Deploy: `dpl_FeS1MGBkRfmmFr7F2on6eoKqA7XJ`
+  - Deployment URL: `https://s5-evo-portal-ewsk1ae6h-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+- Geaendert:
+  - Orga-Team-Kontextdialog blendet `E-Mail` und `Team` aus.
+  - Normale Thread-Kontakte behalten ihre bisherigen Kontextzeilen.
+  - API/DB blieben unveraendert; Hotfix betrifft nur die sichtbaren Dialogzeilen.
+- Checks:
+  - `pnpm exec eslint app/components/message-center.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Als Admin `/nachrichten` hart aktualisieren, Orga-Team-Thread oeffnen und den Header-Badge/Dialog pruefen: keine E-Mail, kein Team im Orga-Team-Kontext.
 
 ## Aktueller Nachtrag: Message Center Admin Mailbox UX
 
