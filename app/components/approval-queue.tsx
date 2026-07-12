@@ -212,9 +212,10 @@ function getTargetTypeLabel(targetType?: string) {
   return "Antrag";
 }
 
-function getStatusFilterLabel(status: "PENDING" | "APPROVED" | "REJECTED" | "ALL") {
+function getStatusFilterLabel(status: "PENDING" | "APPROVED" | "REJECTED" | "DIRECT" | "ALL") {
   if (status === "APPROVED") return "genehmigt";
   if (status === "REJECTED") return "abgelehnt";
+  if (status === "DIRECT") return "direkt geändert";
   if (status === "ALL") return "alle";
   return "offen";
 }
@@ -249,6 +250,10 @@ function resolveDisplayStatus(change: PendingChange) {
   return change.status;
 }
 
+function isDirectChange(change: Pick<PendingChange, "status" | "source">) {
+  return change.status === "DIRECT" || change.source === "PARTICIPANT_AUDIT_DIRECT_CHANGE";
+}
+
 export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueueProps) {
   const { activeRole } = usePermissions();
   const [changes, setChanges] = useState<PendingChange[]>([]);
@@ -258,7 +263,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [comments, setComments] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [updatedOnly, setUpdatedOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "ALL">("PENDING");
+  const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "DIRECT" | "ALL">("PENDING");
   const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
   const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -308,7 +313,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       const participantId = params.get("participantId");
       const teamId = params.get("teamId");
 
-      if (status === "PENDING" || status === "APPROVED" || status === "REJECTED" || status === "ALL") {
+      if (status === "PENDING" || status === "APPROVED" || status === "REJECTED" || status === "DIRECT" || status === "ALL") {
         setStatusFilter(status);
       }
       if (query) setSearchQuery(query);
@@ -424,12 +429,14 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     const lastUpdated = decoratedChanges[0]?.updatedAt || null;
     const approvedCount = decoratedChanges.filter((change) => change.status === "APPROVED").length;
     const rejectedCount = decoratedChanges.filter((change) => change.status === "REJECTED").length;
+    const directCount = decoratedChanges.filter((change) => isDirectChange(change)).length;
     const openCount = decoratedChanges.filter((change) => change.status === "PENDING").length;
 
     return {
       openCount,
       approvedCount,
       rejectedCount,
+      directCount,
       teamCount,
       updatedCount,
       fieldCount,
@@ -476,6 +483,16 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       tone: "outline" as const,
       active: statusFilter === "REJECTED",
       onClick: () => setStatusFilter("REJECTED"),
+    },
+    {
+      key: "direct",
+      label: "Direkt geändert",
+      shortLabel: "Direkt",
+      value: filteredChanges.filter((change) => isDirectChange(change)).length,
+      total: stats.directCount,
+      tone: "outline" as const,
+      active: statusFilter === "DIRECT",
+      onClick: () => setStatusFilter("DIRECT"),
     },
     {
       key: "all",
@@ -666,6 +683,16 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                     </Button>
                     <Button
                       type="button"
+                      variant={statusFilter === "DIRECT" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setStatusFilter("DIRECT")}
+                      className="justify-between gap-2"
+                    >
+                      <span>Direkt</span>
+                      <span className="rounded bg-background/30 px-1 text-[10px]">{stats.directCount}</span>
+                    </Button>
+                    <Button
+                      type="button"
                       variant={statusFilter === "ALL" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setStatusFilter("ALL")}
@@ -705,8 +732,8 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
               <p className="mt-3 text-lg font-medium">Keine offenen Treffer</p>
               <p className="text-sm text-muted-foreground">
                 {decoratedChanges.length === 0
-                  ? "Aktuell gibt es keine Aenderungsantraege."
-                  : "Zu den aktiven Filtern wurden keine passenden Antraege gefunden."}
+                  ? "Aktuell gibt es keine Aenderungseintraege."
+                  : "Zu den aktiven Filtern wurden keine passenden Eintraege gefunden."}
               </p>
             </CardContent>
           </Card>
@@ -926,6 +953,8 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
     return <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>;
   }
 
+  const afterLabel = isDirectChange(change) ? "Neu" : "Beantragt";
+
   return (
     <div className="space-y-2">
       {change.fields.map((field) => (
@@ -939,7 +968,7 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
               <div className="mt-1 text-muted-foreground">{formatValue(field.before)}</div>
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">Beantragt</div>
+              <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">{afterLabel}</div>
               <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</div>
             </div>
           </div>
@@ -972,6 +1001,7 @@ function ChangeList({
 
   const getStatusTone = (status: string) => {
     if (status === "CONFLICT") return "border-red-300 text-red-700 dark:text-red-200";
+    if (status === "DIRECT") return "border-blue-300 text-blue-700 dark:text-blue-200";
     if (status === "APPROVED") return "border-green-300 text-green-700 dark:text-green-200";
     if (status === "REJECTED") return "border-red-300 text-red-700 dark:text-red-200";
     return "border-amber-300 text-amber-700 dark:text-amber-200";
@@ -979,6 +1009,7 @@ function ChangeList({
 
   const getStatusLabel = (status: string) => {
     if (status === "CONFLICT") return "Konflikt";
+    if (status === "DIRECT") return "Direkt geändert";
     if (status === "APPROVED") return "Genehmigt";
     if (status === "REJECTED") return "Abgelehnt";
     return "In Pruefung";
@@ -1011,7 +1042,9 @@ function ChangeList({
                   ? "border-green-200/80 dark:border-green-900/70"
                   : displayStatus === "REJECTED" || displayStatus === "CONFLICT"
                     ? "border-red-200/80 dark:border-red-900/70"
-                    : "border-amber-200/80 dark:border-amber-900/70"
+                    : displayStatus === "DIRECT"
+                      ? "border-blue-200/80 dark:border-blue-900/70"
+                      : "border-amber-200/80 dark:border-amber-900/70"
               }
             >
               <CardContent className="space-y-2 p-2.5">
@@ -1045,7 +1078,7 @@ function ChangeList({
                         {change.participant.team.name}
                       </button>
                       <span>·</span>
-                      <span>Antrag von {change.requesterLabel}</span>
+                      <span>{isDirectChange(change) ? "Geändert von" : "Antrag von"} {change.requesterLabel}</span>
                       <span>·</span>
                       <span>{formatDateTime(change.updatedAt)}</span>
                     </div>
@@ -1164,7 +1197,7 @@ function ChangeList({
 
                     <div className="space-y-2">
                       <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                        Kommentar der Orga
+                        {isDirectChange(change) ? "Audit-Hinweis" : "Kommentar der Orga"}
                       </label>
                       {displayStatus === "PENDING" ? (
                         <>
@@ -1227,7 +1260,9 @@ function ChangeList({
                   ? "border-green-200/80 dark:border-green-900/70"
                   : displayStatus === "REJECTED" || displayStatus === "CONFLICT"
                     ? "border-red-200/80 dark:border-red-900/70"
-                    : "border-amber-200/80 dark:border-amber-900/70"
+                    : displayStatus === "DIRECT"
+                      ? "border-blue-200/80 dark:border-blue-900/70"
+                      : "border-amber-200/80 dark:border-amber-900/70"
               }
             >
               <CardHeader className={compact ? "pb-2" : "pb-3"}>
@@ -1272,7 +1307,7 @@ function ChangeList({
                       >
                         {change.participant.team.name}
                       </button>
-                      <span>· Antrag von</span>
+                      <span>· {isDirectChange(change) ? "geändert von" : "Antrag von"}</span>
                       <button
                         type="button"
                         className={canUseAdminLinks ? "font-medium text-foreground hover:text-primary" : "font-medium text-foreground"}
@@ -1383,7 +1418,7 @@ function ChangeList({
 
               <div className="space-y-2">
                 <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                  Kommentar der Orga
+                  {isDirectChange(change) ? "Audit-Hinweis" : "Kommentar der Orga"}
                 </label>
                 {displayStatus === "PENDING" ? (
                   <>

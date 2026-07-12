@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const scope = request.nextUrl.searchParams.get("scope");
+  const includeDirectChanges = scope === "all";
   const whereStatus =
     scope === "all"
       ? undefined
@@ -195,6 +196,62 @@ export async function GET(request: NextRequest) {
     orderBy: { updatedAt: "desc" },
   });
 
+  const directAuditLogs = includeDirectChanges
+    ? await prisma.participantAuditLog.findMany({
+        where: {
+          action: "DIRECT_CHANGE",
+          participant: {
+            team: {
+              competition: {
+                tenantId: auth.tenantId,
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 250,
+        select: {
+          id: true,
+          beforeData: true,
+          afterData: true,
+          message: true,
+          createdAt: true,
+          actor: { select: { name: true, email: true } },
+          participant: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              birthYear: true,
+              gender: true,
+              disciplineCode: true,
+              shirtSize: true,
+              moderationNote: true,
+              participantPublicationPreference: true,
+              email: true,
+              team: {
+                select: {
+                  id: true,
+                  name: true,
+                  classificationCode: true,
+                  contactEmail: true,
+                  participants: {
+                    where: { deletedAt: null },
+                    select: {
+                      id: true,
+                      birthYear: true,
+                      gender: true,
+                      disciplineCode: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      })
+    : [];
+
   const genericDecoratedChanges = changeRequests.flatMap((changeRequest) => {
     const participant = participantById.get(changeRequest.targetId);
     const legacyPendingChangeId = getLegacyPendingChangeId(changeRequest.metadata);
@@ -274,7 +331,37 @@ export async function GET(request: NextRequest) {
     });
   });
 
-  const decoratedChanges = [...genericDecoratedChanges, ...legacyDecoratedChanges].sort(
+  const directDecoratedChanges = directAuditLogs.map((entry) => {
+    const actor = entry.actor ?? { name: "System", email: "system@s5evo.local" };
+
+    return decorateParticipantChange({
+      id: `direct:${entry.id}`,
+      changeData: entry.afterData || "{}",
+      beforeData: entry.beforeData,
+      status: "DIRECT",
+      createdAt: entry.createdAt,
+      updatedAt: entry.createdAt,
+      reviewedAt: entry.createdAt,
+      reviewComment: entry.message,
+      participant: entry.participant,
+      requestedBy: actor,
+      reviewedBy: actor,
+      targetType: "PARTICIPANT",
+      changeType: "UPDATE",
+      source: "PARTICIPANT_AUDIT_DIRECT_CHANGE",
+      recentHistory: [
+        {
+          id: entry.id,
+          action: "DIRECT_CHANGE",
+          createdAt: entry.createdAt,
+          message: entry.message,
+          actor,
+        },
+      ],
+    });
+  });
+
+  const decoratedChanges = [...genericDecoratedChanges, ...legacyDecoratedChanges, ...directDecoratedChanges].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
 
