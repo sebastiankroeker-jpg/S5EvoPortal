@@ -1,6 +1,6 @@
 # CR: Team Manager Team Name Change
 
-Status: Implemented, deploy pending
+Status: Deployed
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -167,21 +167,28 @@ Use before model switch or subagent delegation.
 - Targeted verification:
   - `npm run verify:team-draft` green.
 - Manual smoke:
-  - Pending production deploy.
+  - `npm run smoke:public` green against `https://portal.s5evo.de`.
+  - `/aenderungen` returned 200.
+  - `/api/admin/pending-changes?scope=all` without session returned 401.
+  - `/api/teams/probe` without session returned 401.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID: pending
-- Deployment URL: pending
+- Deployment ID: `dpl_HnExu1AX9AppfTkVAmZr3cz3sdtJ`
+- Deployment URL: `https://s5-evo-portal-428opfzot-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: pending
+- Deployed at: 2026-07-12 13:56 UTC
 
 ## Post-Deploy Smoke
 
-- Routes checked: pending
-- API checks: pending
-- Result: pending
+- Routes checked:
+  - `npm run smoke:public`
+  - `GET /aenderungen`: 200
+- API checks:
+  - `GET /api/admin/pending-changes?scope=all` without session: 401
+  - `GET /api/teams/probe` without session: 401
+- Result: green
 
 ## Follow-Ups
 

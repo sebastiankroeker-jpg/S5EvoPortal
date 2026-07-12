@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 14:05 UTC
+Stand: 2026-07-12 14:00 UTC
 
 ## Aktueller Nachtrag: Team Manager Team Name Change
 
@@ -9,7 +9,13 @@ Stand: 2026-07-12 14:05 UTC
   - Folgeentscheidung: Bis zum Beginn des Wettkampfs sind Teamnamen-Aenderungen nicht genehmigungspflichtig.
 - CR:
   - `docs/cr/2026-07-12-team-manager-team-name-change.md`
-- Implementiert, noch nicht deployed:
+- Implementiert und produktiv deployed:
+  - Commits:
+    - `2fea5d0 Draft team manager team name change CR`
+    - `fb4833d Implement team manager team name changes`
+  - Production Deploy: `dpl_HnExu1AX9AppfTkVAmZr3cz3sdtJ`
+  - Deployment URL: `https://s5-evo-portal-428opfzot-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - Team Manager Rename vor Wettkampfbeginn direkt: `Competition.status` nicht `RUNNING`/`CLOSED` und, falls `Competition.date` gesetzt ist, aktueller Zeitpunkt davor.
   - Direkter Pre-Start-Rename aktualisiert `Team.name`, schreibt `AuditEvent` und einen angewendeten generischen `ChangeRequest` fuer die konsolidierte Historie.
   - Nach Wettkampfbeginn wird ein team-scoped `ChangeRequest` erstellt oder ein offener Rename-Request aktualisiert.
@@ -22,8 +28,13 @@ Stand: 2026-07-12 14:05 UTC
   - `git diff --check` gruen
   - `npm run verify:team-draft` gruen
   - `npm run build` gruen
-- Naechster Schritt:
-  - Commit erstellen, auf `main` pushen, Vercel-Deploy abwarten, Production smoke: `/`, `/aenderungen`, `/api/admin/pending-changes?scope=all` ohne Session 401, `/api/teams/<id>` ohne Session 401.
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/aenderungen`: 200
+  - `/api/admin/pending-changes?scope=all` ohne Session: 401
+  - `/api/teams/probe` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Als Team Manager:in vor Wettkampfbeginn Mannschaft unter `Details -> Bearbeiten` umbenennen; Name sollte direkt gespeichert werden.
+  - Als Admin `/aenderungen` pruefen; direkte Umbenennung sollte als angewendete Mannschaftsname-Aenderung in der Historie auftauchen.
 
 ## Aktueller Nachtrag: Legacy Bundle Status Sync Hotfix
 
