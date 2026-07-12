@@ -1,6 +1,6 @@
 # CR: Change Dashboard Consolidated History
 
-Status: Implemented - pending deploy approval
+Status: Deployed
 Date: 2026-07-12
 Type: feature
 Risk: medium
@@ -124,21 +124,25 @@ After the direct participant change hotfix, `/aenderungen` can show direct admin
 - Targeted verification:
   - Default-Status ist je nach Variante getrennt: Page `ALL`, embedded `PENDING`.
 - Manual smoke:
-  - pending production deploy
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/aenderungen`: 200
+  - `/api/admin/pending-changes?scope=all` ohne Session: 401
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_881AguqPcGbhDUBNUewE5iXJHbPu`
+- Deployment URL: `https://s5-evo-portal-a5rb0h4ce-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-12 09:24 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/aenderungen`: 200
 - API checks:
-- Result:
+  - `/api/admin/pending-changes?scope=all` without session: 401
+- Result: green
 
 ## Follow-Ups
 

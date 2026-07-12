@@ -1,6 +1,37 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 08:15 UTC
+Stand: 2026-07-12 09:32 UTC
+
+## Aktueller Nachtrag: Message And Change Dashboard Controls
+
+- App-/CR-Commits sind auf `origin/main` gepusht und produktiv deployed:
+  - `ffb63c3 Draft messaging and change dashboard CR backlog`
+  - `5e2c8ad Implement message and change dashboard controls`
+- Production Deploy: `dpl_881AguqPcGbhDUBNUewE5iXJHbPu`
+- Deployment URL: `https://s5-evo-portal-a5rb0h4ce-sebastiankroeker-2781s-projects.vercel.app`
+- Alias: `https://portal.s5evo.de`
+- CRs:
+  - `docs/cr/2026-07-12-message-center-whatsapp-mobile-navigation.md`
+  - `docs/cr/2026-07-12-change-dashboard-consolidated-history.md`
+  - `docs/cr/2026-07-12-message-and-change-search-sort-filter.md`
+  - `docs/cr/2026-07-12-message-read-receipts.md` bleibt Draft; Entscheidung: Message-Level-Receipts.
+- Geaendert:
+  - Nachrichten haben jetzt Control-Strip mit Suche, Status-/Unread-Pills, Filterpanel und Sortierung.
+  - Mobile `/nachrichten` trennt Thread-Uebersicht und Thread-Ansicht; Threadansicht hat eine `Übersicht`-Rueckaktion.
+  - Desktop-Nachrichtenlayout bleibt als Sidebar/Thread-Layout erhalten.
+  - `/aenderungen` startet in der Seitenansicht als Gesamtuebersicht `ALL`, embedded Queue bleibt `PENDING`.
+  - Aenderungs-Suche umfasst zusaetzlich Status, Quelle, Actor/Reviewer und Historienmeldungen.
+  - Aenderungen haben Sortierung nach Prioritaet, letzter Aktivitaet, aelteste zuerst, Teilnehmer, Team und Feldanzahl.
+- Checks:
+  - `pnpm exec eslint app/components/message-center.tsx app/components/approval-queue.tsx` gruen mit bestehender Hook-Warnung in `approval-queue.tsx`
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+  - `npm run smoke:public` gegen Production-Alias gruen
+  - `/nachrichten`: 200
+  - `/aenderungen`: 200
+  - `/api/messages/conversations` ohne Session: 401
+  - `/api/admin/pending-changes?scope=all` ohne Session: 401
 
 ## Aktueller Nachtrag: Direct Changes In Overview And Profile Name Hotfix
 
