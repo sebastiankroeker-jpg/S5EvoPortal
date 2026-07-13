@@ -7,6 +7,7 @@ import { requireTenantRoles } from "@/lib/server-permissions";
 
 type AdminMessageTarget = {
   userId: string;
+  email: string;
   name: string | null;
   label: string;
   description: string;
@@ -16,22 +17,23 @@ type AdminMessageTarget = {
 
 type TargetAggregate = {
   userId: string;
+  email: string;
   name: string | null;
   label: string;
   contexts: Set<string>;
   teamId: string | null;
   participantId: string | null;
 };
-type RegisteredTargetUser = { id: string; name: string | null; authentikSub: string | null };
+type RegisteredTargetUser = { id: string; email: string; name: string | null; authentikSub: string | null };
 
-function displayName(user: { name: string | null }) {
-  return user.name || "Portal-Konto";
+function displayName(user: { email: string; name: string | null }) {
+  return user.name || user.email || "Portal-Konto";
 }
 
 function addTarget(
   targets: Map<string, TargetAggregate>,
   input: {
-    user: { id: string; name: string | null; authentikSub: string | null };
+    user: RegisteredTargetUser;
     context: string;
     teamId?: string | null;
     participantId?: string | null;
@@ -47,6 +49,7 @@ function addTarget(
   }
   targets.set(input.user.id, {
     userId: input.user.id,
+    email: input.user.email,
     name: input.user.name,
     label: displayName(input.user),
     contexts: new Set([input.context]),
@@ -75,7 +78,7 @@ export async function GET() {
         id: { not: auth.user.id },
         tenantRoles: { some: { tenantId: auth.tenantId } },
       },
-      select: { id: true, name: true, authentikSub: true },
+      select: { id: true, email: true, name: true, authentikSub: true },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }],
       take: 200,
     }),
@@ -88,7 +91,7 @@ export async function GET() {
       },
       select: {
         id: true,
-        user: { select: { id: true, name: true, authentikSub: true } },
+        user: { select: { id: true, email: true, name: true, authentikSub: true } },
         team: {
           select: {
             id: true,
@@ -110,11 +113,11 @@ export async function GET() {
       },
       select: {
         id: true,
-        owner: { select: { id: true, name: true, authentikSub: true } },
-        teamChief: { select: { id: true, name: true, authentikSub: true } },
+        owner: { select: { id: true, email: true, name: true, authentikSub: true } },
+        teamChief: { select: { id: true, email: true, name: true, authentikSub: true } },
         memberRoles: {
           where: { role: "TEAM_MANAGER", revokedAt: null, user: { deletedAt: null, authentikSub: { not: null } } },
-          select: { user: { select: { id: true, name: true, authentikSub: true } } },
+          select: { user: { select: { id: true, email: true, name: true, authentikSub: true } } },
         },
       },
       orderBy: [{ name: "asc" }],
@@ -162,6 +165,7 @@ export async function GET() {
   return NextResponse.json({
     targets: Array.from(targets.values()).map((target): AdminMessageTarget & { searchText: string } => ({
       userId: target.userId,
+      email: target.email,
       name: target.name,
       label: target.label,
       description: targetDescription(target),
@@ -169,6 +173,7 @@ export async function GET() {
       participantId: target.participantId,
       searchText: [
         target.label,
+        target.email,
         ...target.contexts,
       ].join(" "),
     })).sort((a, b) => {

@@ -133,7 +133,10 @@ export async function POST(request: NextRequest) {
   const competitionId = participant?.team.competitionId ?? team?.competitionId ?? null;
   const resolvedTeamId = participant?.teamId ?? team?.id ?? null;
   const now = new Date();
-  const subject = normalizeMessageSubject(body.subject, "Nachricht vom Orga-Team");
+  const subject = normalizeMessageSubject(
+    body.subject,
+    senderDisplayMode === "ORG" ? "Nachricht vom Orga-Team" : "Persoenliche Nachricht",
+  );
 
   const conversation = await prisma.$transaction(async (tx) => {
     const created = await tx.conversation.create({
@@ -158,19 +161,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const adminRoles = await tx.tenantRole.findMany({
-      where: {
-        tenantId: auth.tenantId,
-        role: { in: ["ADMIN", "MODERATOR"] },
-        user: { deletedAt: null },
-      },
-      select: { userId: true, role: true },
-    });
-
-    const participantRows = new Map<string, "OWNER" | "ADMIN" | "MODERATOR">();
+    const participantRows = new Map<string, "OWNER" | "MEMBER" | "ADMIN" | "MODERATOR">();
     participantRows.set(targetUser.id, "OWNER");
-    for (const adminRole of adminRoles) {
-      participantRows.set(adminRole.userId, adminRole.role === "ADMIN" ? "ADMIN" : "MODERATOR");
+    if (senderDisplayMode === "PERSONAL") {
+      participantRows.set(auth.user.id, "MEMBER");
+    } else {
+      const adminRoles = await tx.tenantRole.findMany({
+        where: {
+          tenantId: auth.tenantId,
+          role: { in: ["ADMIN", "MODERATOR"] },
+          user: { deletedAt: null },
+        },
+        select: { userId: true, role: true },
+      });
+
+      for (const adminRole of adminRoles) {
+        participantRows.set(adminRole.userId, adminRole.role === "ADMIN" ? "ADMIN" : "MODERATOR");
+      }
     }
 
     await tx.conversationParticipant.createMany({

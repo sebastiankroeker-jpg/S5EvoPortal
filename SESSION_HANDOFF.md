@@ -1,6 +1,38 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 09:00 UTC
+Stand: 2026-07-13 11:15 UTC
+
+## Aktueller Nachtrag: Messenger Kanal-Klarheit und persoenliche Admin-Threads
+
+- Ausloeser:
+  - Sebastian entschied: `Persoenlich = persoenlich`.
+  - Zielpersonensuche soll neben Anzeigenamen auch E-Mail anzeigen.
+  - Persoenlicher Compose soll ohne sichtbares Kontext-Feld auskommen; Betreff reicht.
+- CR:
+  - `docs/cr/2026-07-13-message-channel-clarity-compact-ui.md`
+- Implementiert, noch nicht deployed:
+  - `app/components/message-center.tsx`
+  - `app/api/messages/admin-targets/route.ts`
+  - `app/api/messages/admin-conversations/route.ts`
+  - `app/api/messages/conversations/route.ts`
+  - `app/api/messages/conversations/[id]/messages/route.ts`
+  - `lib/messaging.ts`
+- Geaendert:
+  - Admin-Target-API liefert und durchsucht `email`.
+  - Zielpersonensuche und Kontakt-/Portal-Badges zeigen Name plus E-Mail.
+  - Admins starten im Tab `Persoenlich` eine echte 1:1-Nachricht an eine registrierte Zielperson; im Tab `Orga-Team` weiter eine Gruppenpostfach-Nachricht.
+  - Persoenliche Admin-Threads enthalten nur Zielperson (`OWNER`) und absendenden Admin (`MEMBER`), keine Admin-/Moderator-Gruppe.
+  - Orga-Postfach-Liste und Admin-Fallback-Zugriff beschraenken sich auf Threads mit aktiven `ADMIN`/`MODERATOR`-Teilnehmern.
+  - Replies koennen `senderDisplayMode=ORG` nur noch in Orga-Threads nutzen; persoenliche Threads bleiben persoenlich.
+  - Thread-Header und Reply-Bereich zeigen explizit `Kanal: Orga-Team/Persoenlich` und `Antwortet als ...`.
+  - Sichtbares Kontext-Feld im User-Composer entfernt; API nutzt weiter den ersten erlaubten Kontext als Default.
+- Checks lokal gruen:
+  - `npx tsc --noEmit`
+  - `npx eslint app/components/message-center.tsx app/api/messages/admin-targets/route.ts app/api/messages/admin-conversations/route.ts app/api/messages/conversations/route.ts app/api/messages/conversations/[id]/messages/route.ts lib/messaging.ts`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Optional Browser-Real-Smoke mit Admin-Login, dann Commit/Push/Deploy nach Go.
 
 ## Aktueller Nachtrag: MTC Owner Finalisierung
 

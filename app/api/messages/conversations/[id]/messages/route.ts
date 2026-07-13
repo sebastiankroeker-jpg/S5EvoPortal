@@ -33,7 +33,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const body = await request.json().catch(() => ({}));
   const messageBody = normalizeMessageBody(body.body);
-  const senderDisplayMode = normalizeSenderDisplayMode(body.senderDisplayMode, loaded.canManage);
+  const canUseOrgMode = loaded.canManage
+    && loaded.conversation.participants.some((participant) => ["ADMIN", "MODERATOR"].includes(participant.role));
+  const senderDisplayMode = normalizeSenderDisplayMode(body.senderDisplayMode, canUseOrgMode);
   if (messageBody.length < 2) {
     return NextResponse.json({ error: "Nachricht ist zu kurz" }, { status: 400 });
   }

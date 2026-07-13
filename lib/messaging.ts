@@ -214,9 +214,12 @@ export async function ensureConversationAccess(conversationId: string, userId: s
 
   const participant = conversation.participants.find((entry) => entry.userId === userId && !entry.leftAt) ?? null;
   const canManage = await canManageSupportConversations(userId, conversation.tenantId);
+  const hasAdminMailboxParticipant = conversation.participants.some((entry) =>
+    ["ADMIN", "MODERATOR"].includes(entry.role),
+  );
   return {
     conversation,
-    access: Boolean(participant || (conversation.type === "SUPPORT" && canManage)),
+    access: Boolean(participant || (conversation.type === "SUPPORT" && canManage && hasAdminMailboxParticipant)),
     canManage,
     participant,
   };

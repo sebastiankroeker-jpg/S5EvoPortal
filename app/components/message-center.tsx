@@ -109,6 +109,7 @@ type AdminMessageTarget = AdminComposeTarget & {
 };
 
 type SortDirection = "asc" | "desc";
+type MessageSenderDisplayMode = "PERSONAL" | "ORG";
 type MessageStatusFilter = ConversationSummary["status"];
 type MessageListColumnKey = "status" | "direction" | "person" | "subject" | "date";
 type MessageSortMode = "latest" | "unread" | "subject" | "status" | "person";
@@ -210,15 +211,16 @@ function sanitizePersonalComposeDraft(value: PersonalComposeDraft) {
   };
 }
 
-function sanitizeAdminComposeDraft(value: AdminComposeDraft) {
+function sanitizeAdminComposeDraft(value: AdminComposeDraft, fallbackSubject = "Nachricht vom Orga-Team") {
   return {
-    subject: typeof value.subject === "string" ? value.subject : "Nachricht vom Orga-Team",
+    subject: typeof value.subject === "string" ? value.subject : fallbackSubject,
     body: typeof value.body === "string" ? value.body : "",
   };
 }
 
-function adminComposeDraftKey(target: Pick<AdminComposeTarget, "userId" | "teamId" | "participantId">) {
+function adminComposeDraftKey(target: Pick<AdminComposeTarget, "userId" | "teamId" | "participantId">, senderMode: MessageSenderDisplayMode = "ORG") {
   return [
+    senderMode,
     target.userId,
     target.teamId || "no-team",
     target.participantId || "no-participant",
@@ -228,11 +230,18 @@ function adminComposeDraftKey(target: Pick<AdminComposeTarget, "userId" | "teamI
 function adminTargetToComposeTarget(target: AdminMessageTarget): AdminComposeTarget {
   return {
     userId: target.userId,
-    email: null,
+    email: target.email,
     name: target.name || target.label,
     teamId: target.teamId,
     participantId: target.participantId,
   };
+}
+
+function formatPersonWithEmail(person: { name?: string | null; email?: string | null }) {
+  const name = person.name?.trim();
+  const email = person.email?.trim();
+  if (name && email) return `${name} · ${email}`;
+  return name || email || "Portal-Konto";
 }
 
 function formatDateTime(value: string | null) {
@@ -298,7 +307,13 @@ function conversationPersonLabel(conversation: ConversationSummary, mode: "mine"
     return conversation.lastMessage ? senderLabel(conversation.lastMessage) : ownerName || "Sender";
   }
 
-  if (outgoing) return "Orga-Team";
+  if (outgoing) {
+    const viewer = currentUserId ? conversation.participants.find((participant) => participant.user.id === currentUserId) : null;
+    const personalRecipient = viewer?.role === "MEMBER"
+      ? conversation.participants.find((participant) => participant.user.id !== currentUserId && ["OWNER", "MEMBER"].includes(participant.role))
+      : null;
+    return personalRecipient ? formatPersonWithEmail(personalRecipient.user) : "Orga-Team";
+  }
   return conversation.lastMessage ? senderLabel(conversation.lastMessage) : "Orga-Team";
 }
 
@@ -308,7 +323,11 @@ function conversationContactParticipant(conversation: ConversationSummary, mode:
   }
 
   const outgoing = isOutgoingConversation(conversation, mode, currentUserId);
-  if (outgoing) return null;
+  if (outgoing) {
+    const viewer = currentUserId ? conversation.participants.find((participant) => participant.user.id === currentUserId) : null;
+    if (viewer?.role !== "MEMBER") return null;
+    return conversation.participants.find((participant) => participant.user.id !== currentUserId && ["OWNER", "MEMBER"].includes(participant.role)) ?? null;
+  }
 
   return conversation.participants.find((participant) => ["ADMIN", "MODERATOR"].includes(participant.role)) ?? null;
 }
@@ -408,6 +427,7 @@ export default function MessageCenter() {
   const [contextId, setContextId] = useState("");
   const [reply, setReply] = useState("");
   const [adminComposeTarget, setAdminComposeTarget] = useState<AdminComposeTarget | null>(null);
+  const [adminComposeSenderMode, setAdminComposeSenderMode] = useState<MessageSenderDisplayMode>("ORG");
   const [composeOpen, setComposeOpen] = useState(false);
   const [adminSubject, setAdminSubject] = useState("Nachricht vom Orga-Team");
   const [adminBody, setAdminBody] = useState("");
@@ -416,7 +436,8 @@ export default function MessageCenter() {
   const skipNextPersonalDraftPersistRef = useRef(false);
   const skipNextAdminDraftPersistRef = useRef(false);
 
-  const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
+  const adminTargetLabel = adminComposeTarget ? formatPersonWithEmail(adminComposeTarget) : "Zielperson";
+  const adminComposeChannelLabel = adminComposeSenderMode === "ORG" ? "Orga-Team" : "Persönlich";
   const visibleColumnDefs = useMemo(
     () => visibleColumns.map((key) => MESSAGE_LIST_COLUMNS.find((column) => column.key === key)).filter(Boolean) as Array<{ key: MessageListColumnKey; label: string }>,
     [visibleColumns],
@@ -533,11 +554,12 @@ export default function MessageCenter() {
   useEffect(() => {
     if (typeof window === "undefined" || !adminComposeTarget) return;
     const drafts = readJsonRecord(window.localStorage.getItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY));
-    const draft = sanitizeAdminComposeDraft((drafts[adminComposeDraftKey(adminComposeTarget)] ?? {}) as AdminComposeDraft);
+    const fallbackSubject = adminComposeSenderMode === "ORG" ? "Nachricht vom Orga-Team" : "Persönliche Nachricht";
+    const draft = sanitizeAdminComposeDraft((drafts[adminComposeDraftKey(adminComposeTarget, adminComposeSenderMode)] ?? {}) as AdminComposeDraft, fallbackSubject);
     skipNextAdminDraftPersistRef.current = true;
     setAdminSubject(draft.subject);
     setAdminBody(draft.body);
-  }, [adminComposeTarget]);
+  }, [adminComposeSenderMode, adminComposeTarget]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !adminComposeTarget) return;
@@ -546,7 +568,7 @@ export default function MessageCenter() {
       return;
     }
     const drafts = readJsonRecord(window.localStorage.getItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY));
-    const key = adminComposeDraftKey(adminComposeTarget);
+    const key = adminComposeDraftKey(adminComposeTarget, adminComposeSenderMode);
     if (!adminSubject.trim() && !adminBody.trim()) {
       delete drafts[key];
     } else {
@@ -557,7 +579,7 @@ export default function MessageCenter() {
       return;
     }
     window.localStorage.setItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
-  }, [adminBody, adminComposeTarget, adminSubject]);
+  }, [adminBody, adminComposeSenderMode, adminComposeTarget, adminSubject]);
 
   useEffect(() => {
     if (!navigationBurst) return;
@@ -616,7 +638,7 @@ export default function MessageCenter() {
     : null;
   const selectedDialogParticipant = mode === "admin"
     ? selectedOwnerParticipant
-    : selected?.participants.find((participant) => participant.user.id !== currentUserId && ["ADMIN", "MODERATOR"].includes(participant.role)) ?? selectedViewerParticipant ?? null;
+    : selected?.participants.find((participant) => participant.user.id !== currentUserId) ?? selectedViewerParticipant ?? null;
   const selectedDialogIsOrgTeam = selectedDialogParticipant ? ["ADMIN", "MODERATOR"].includes(selectedDialogParticipant.role) : false;
   const selectedAdminComposeTarget: AdminComposeTarget | null = selectedOwnerParticipant && selected
     ? {
@@ -630,23 +652,24 @@ export default function MessageCenter() {
   const adminTargetOptions = useMemo(() => {
     const options = new Map<string, AdminMessageTarget>();
     for (const target of adminTargets) {
-      options.set(adminComposeDraftKey(target), target);
+      options.set(adminComposeDraftKey(target, adminComposeSenderMode), target);
     }
-    if (adminComposeTarget && !options.has(adminComposeDraftKey(adminComposeTarget))) {
-      options.set(adminComposeDraftKey(adminComposeTarget), {
+    if (adminComposeTarget && !options.has(adminComposeDraftKey(adminComposeTarget, adminComposeSenderMode))) {
+      options.set(adminComposeDraftKey(adminComposeTarget, adminComposeSenderMode), {
         ...adminComposeTarget,
         label: adminTargetLabel,
         description: selected?.context.team?.name || "Aktueller Nachrichtenkontext",
       });
     }
     return Array.from(options.values());
-  }, [adminComposeTarget, adminTargetLabel, adminTargets, selected?.context.team?.name]);
+  }, [adminComposeSenderMode, adminComposeTarget, adminTargetLabel, adminTargets, selected?.context.team?.name]);
   const filteredAdminTargetOptions = useMemo(() => {
     const query = adminTargetSearch.trim().toLowerCase();
     if (!query) return adminTargetOptions;
     return adminTargetOptions.filter((target) => {
       const haystack = [
         target.label,
+        target.email || "",
         target.description,
         target.name || "",
         target.searchText || "",
@@ -660,7 +683,7 @@ export default function MessageCenter() {
           label: "Person",
           value: selectedDialogIsOrgTeam
             ? "Orga-Team"
-            : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
+            : formatPersonWithEmail(selectedDialogParticipant.user),
           targetType: selectedDialogIsOrgTeam ? "message" : "user",
           onClick: !selectedDialogIsOrgTeam
             ? () => openUserDashboard({
@@ -670,6 +693,18 @@ export default function MessageCenter() {
               })
             : undefined,
         },
+        !selectedDialogIsOrgTeam
+          ? {
+              label: "E-Mail",
+              value: selectedDialogParticipant.user.email,
+              targetType: "user" as const,
+              onClick: () => openUserDashboard({
+                userId: selectedDialogParticipant.user.id,
+                email: selectedDialogParticipant.user.email,
+                teamId: selected?.context.team?.id,
+              }),
+            }
+          : null,
         { label: "Rolle", value: selectedDialogParticipant.role },
         {
           label: "Teilnehmer:in",
@@ -691,7 +726,7 @@ export default function MessageCenter() {
             ? `${selected.context.competition.name} ${selected.context.competition.year}`
             : null,
         },
-      ]
+      ].filter(Boolean) as AccountLinkDialogRow[]
     : [];
   const activeFilterCount = [
     !areStatusFiltersDefault(statusFilters),
@@ -710,7 +745,7 @@ export default function MessageCenter() {
     triggerNavigationBurst("composer");
   };
 
-  const openAdminCompose = async () => {
+  const openAdminCompose = async (senderMode: MessageSenderDisplayMode = "ORG") => {
     const targets = adminTargets.length > 0 ? adminTargets : await loadAdminTargets();
     const selectedTarget = selectedAdminComposeTarget
       ? targets.find((target) => target.userId === selectedAdminComposeTarget.userId)
@@ -722,6 +757,7 @@ export default function MessageCenter() {
       setError("Keine verknüpften Empfänger gefunden");
       return;
     }
+    setAdminComposeSenderMode(senderMode);
     setAdminComposeTarget(initialTarget);
     setAdminTargetSearch("");
     setMobileThreadOpen(false);
@@ -920,14 +956,14 @@ export default function MessageCenter() {
           participantId: adminComposeTarget.participantId,
           subject: adminSubject,
           body: adminBody,
-          senderDisplayMode: "ORG",
+          senderDisplayMode: adminComposeSenderMode,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Nachricht konnte nicht gesendet werden");
       if (typeof window !== "undefined") {
         const drafts = readJsonRecord(window.localStorage.getItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY));
-        delete drafts[adminComposeDraftKey(adminComposeTarget)];
+        delete drafts[adminComposeDraftKey(adminComposeTarget, adminComposeSenderMode)];
         if (Object.keys(drafts).length === 0) {
           window.localStorage.removeItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY);
         } else {
@@ -935,12 +971,13 @@ export default function MessageCenter() {
         }
       }
       setAdminBody("");
-      setAdminSubject("Nachricht vom Orga-Team");
+      setAdminSubject(adminComposeSenderMode === "ORG" ? "Nachricht vom Orga-Team" : "Persönliche Nachricht");
       setAdminComposeTarget(null);
       setAdminTargetSearch("");
       window.history.replaceState({}, "", "/nachrichten");
-      setMode("admin");
-      await loadConversations("admin");
+      const nextMode = adminComposeSenderMode === "ORG" ? "admin" : "mine";
+      setMode(nextMode);
+      await loadConversations(nextMode);
       if (data.conversation?.id) {
         setSelectedId(data.conversation.id);
         setMobileThreadOpen(true);
@@ -1007,7 +1044,7 @@ export default function MessageCenter() {
 
   const renderAdminTargetPortalBadge = () => {
     if (!adminComposeTarget) return null;
-    const displayName = adminComposeTarget.name || "Portal-Konto";
+    const displayName = adminComposeTarget.name || adminComposeTarget.email || "Portal-Konto";
     const openTarget = () => openUserDashboard({
       userId: adminComposeTarget.userId,
       email: adminComposeTarget.email,
@@ -1026,6 +1063,7 @@ export default function MessageCenter() {
         title="Portal-Kontakt"
         rows={[
           { label: "Person", value: displayName, targetType: "user", onClick: openTarget, title: "Im Benutzer-Dashboard öffnen" },
+          { label: "E-Mail", value: adminComposeTarget.email, targetType: "user", onClick: openTarget, title: "Im Benutzer-Dashboard öffnen" },
           { label: "Rolle", value: "Adressat" },
         ]}
       />
@@ -1079,7 +1117,7 @@ export default function MessageCenter() {
       );
     }
 
-    const displayName = contact.user.name || "Portal-Konto";
+    const displayName = contact.user.name || contact.user.email || "Portal-Konto";
     const openContact = () => openUserDashboard({ userId: contact.user.id, email: contact.user.email, teamId: conversation.context.team?.id });
 
     return (
@@ -1094,6 +1132,7 @@ export default function MessageCenter() {
         title="Portal-Kontakt"
         rows={[
           { label: "Person", value: displayName, targetType: "user", onClick: openContact, title: "Im Benutzer-Dashboard öffnen" },
+          { label: "E-Mail", value: contact.user.email, targetType: "user", onClick: openContact, title: "Im Benutzer-Dashboard öffnen" },
           { label: "Rolle", value: contact.role },
           {
             label: "Teilnehmer:in",
@@ -1148,6 +1187,11 @@ export default function MessageCenter() {
   const selectedDirection = selected ? conversationDirectionLabel(selected, mode, currentUserId) : null;
   const selectedPerson = selected ? conversationPersonLabel(selected, mode, currentUserId) : null;
   const selectedTimestamp = selected ? formatDateTime(selected.lastMessageAt || selected.updatedAt) : "—";
+  const selectedIsOrgThread = selected
+    ? selected.participants.some((participant) => ["ADMIN", "MODERATOR"].includes(participant.role))
+    : false;
+  const selectedChannelLabel = selectedIsOrgThread ? "Orga-Team" : "Persönlich";
+  const replySenderLabel = mode === "admin" ? "Orga-Team" : "Persönlich";
 
   return (
     <div className="space-y-4">
@@ -1195,15 +1239,18 @@ export default function MessageCenter() {
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader className="space-y-2 pr-8">
             <div className="flex flex-wrap items-center gap-2">
-              <DialogTitle>Nachricht an {adminTargetLabel}</DialogTitle>
+              <DialogTitle>{adminComposeChannelLabel}: Nachricht an {adminTargetLabel}</DialogTitle>
               {renderAdminTargetPortalBadge()}
             </div>
             <DialogDescription>
-              Admin-Nachricht als Support-Thread. Der Nachrichtentext wird nicht per Mail weitergeleitet.
+              {adminComposeSenderMode === "ORG"
+                ? "Nachricht aus dem Orga-Postfach. Das Orga-Team bleibt als Gruppenpostfach beteiligt."
+                : "Persönliche 1:1-Nachricht. Sichtbar und bearbeitbar nur für dich und die Zielperson."}
             </DialogDescription>
             <MessageMetaStrip
               items={[
                 { key: "status", label: "Status", value: "Entwurf" },
+                { key: "channel", label: "Kanal", value: adminComposeChannelLabel },
                 {
                   key: "direction",
                   label: "Badge",
@@ -1242,8 +1289,8 @@ export default function MessageCenter() {
                     <div className="px-2 py-2 text-sm text-muted-foreground">Keine Treffer für diese Suche</div>
                   ) : (
                     filteredAdminTargetOptions.map((target) => {
-                      const key = adminComposeDraftKey(target);
-                      const active = adminComposeTarget ? adminComposeDraftKey(adminComposeTarget) === key : false;
+                      const key = adminComposeDraftKey(target, adminComposeSenderMode);
+                      const active = adminComposeTarget ? adminComposeDraftKey(adminComposeTarget, adminComposeSenderMode) === key : false;
                       return (
                         <button
                           key={key}
@@ -1254,7 +1301,7 @@ export default function MessageCenter() {
                             active ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                           )}
                         >
-                          <span className="truncate font-medium">{target.label}</span>
+                          <span className="truncate font-medium">{formatPersonWithEmail(target)}</span>
                           <span className={cn("truncate text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>
                             {target.description}
                           </span>
@@ -1304,7 +1351,7 @@ export default function MessageCenter() {
                     <CardDescription className="text-xs">{filteredConversations.length} Threads</CardDescription>
                   </div>
                   <div className="flex items-center gap-1">
-                    {mode === "mine" && contexts.length > 0 && (
+                    {mode === "mine" && !canManageSupport && contexts.length > 0 && (
                       <Button
                         type="button"
                         size="icon"
@@ -1316,12 +1363,25 @@ export default function MessageCenter() {
                         <Send className="h-4 w-4" />
                       </Button>
                     )}
+                    {mode === "mine" && canManageSupport && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openAdminCompose("PERSONAL")}
+                        disabled={adminTargetsLoading}
+                        aria-label="Neue persönliche Nachricht schreiben"
+                        title="Neue persönliche Nachricht schreiben"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
                     {mode === "admin" && canManageSupport && (
                       <Button
                         type="button"
                         size="icon"
                         variant="ghost"
-                        onClick={openAdminCompose}
+                        onClick={() => openAdminCompose("ORG")}
                         disabled={adminTargetsLoading}
                         aria-label="Neue Orga-Nachricht schreiben"
                         title="Neue Orga-Nachricht schreiben"
@@ -1681,6 +1741,8 @@ export default function MessageCenter() {
                       </Badge>
                     </div>
                     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="shrink-0 font-medium text-foreground">Kanal: {selectedChannelLabel}</span>
+                      <span className="shrink-0">·</span>
                       <span className="min-w-0 truncate">{selectedPerson || "Orga-Team"}</span>
                       <span className="shrink-0">·</span>
                       <span className="shrink-0 tabular-nums">{selectedTimestamp}</span>
@@ -1691,7 +1753,7 @@ export default function MessageCenter() {
                       compact
                       meta={{
                         status: selectedDialogIsOrgTeam ? "portal_account" : "linked",
-                        label: selectedDialogIsOrgTeam ? "Orga-Team" : selectedDialogParticipant.user.name || "Kontakt",
+                        label: selectedDialogIsOrgTeam ? "Orga-Team" : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
                         className:
                           selectedDialogIsOrgTeam
                             ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
@@ -1736,6 +1798,7 @@ export default function MessageCenter() {
                             </Badge>
                           ),
                         },
+                        { key: "channel", label: "Kanal", value: selectedChannelLabel },
                         {
                           key: "direction",
                           label: "Badge",
@@ -1821,7 +1884,8 @@ export default function MessageCenter() {
                     placeholder="Antwort schreiben..."
                     className="min-h-20 resize-none"
                   />
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">Antwortet als {replySenderLabel}</span>
                     <Button type="button" disabled={sending || reply.trim().length < 2} onClick={sendReply}>
                       <Send className="mr-2 h-4 w-4" />
                       Antwort senden
@@ -1859,25 +1923,9 @@ export default function MessageCenter() {
             />
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Kontext</label>
-                <select
-                  value={contextId}
-                  onChange={(event) => setContextId(event.target.value)}
-                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
-                >
-                  {contexts.map((context) => (
-                    <option key={`${context.type}:${context.id}`} value={`${context.type}:${context.id}`}>
-                      {context.label} · {context.type === "team" ? "Mannschaft" : "Teilnehmer:in"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Betreff</label>
-                <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="z. B. Frage zur Anmeldung" />
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Betreff</label>
+              <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="z. B. Frage zur Anmeldung" />
             </div>
             <Textarea
               value={body}

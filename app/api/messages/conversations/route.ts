@@ -70,7 +70,15 @@ export async function GET(request: NextRequest) {
       tenantId,
       ...(status ? { status: status as "OPEN" | "WAITING_FOR_ADMIN" | "WAITING_FOR_USER" | "CLOSED" } : {}),
       ...(mode === "admin"
-        ? { type: "SUPPORT" as const }
+        ? {
+            type: "SUPPORT" as const,
+            participants: {
+              some: {
+                leftAt: null,
+                role: { in: ["ADMIN", "MODERATOR"] as const },
+              },
+            },
+          }
         : {
             participants: {
               some: {
