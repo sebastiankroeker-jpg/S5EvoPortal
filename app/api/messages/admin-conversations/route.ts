@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   const [targetUser, tenantRole, participant, team] = await Promise.all([
     prisma.user.findFirst({
       where: { id: targetUserId, deletedAt: null },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, authentikSub: true },
     }),
     prisma.tenantRole.findFirst({
       where: { userId: targetUserId, tenantId: auth.tenantId },
@@ -107,6 +107,9 @@ export async function POST(request: NextRequest) {
 
   if (!targetUser) {
     return NextResponse.json({ error: "Zielperson nicht gefunden" }, { status: 404 });
+  }
+  if (!targetUser.authentikSub) {
+    return NextResponse.json({ error: "Zielperson hat kein registriertes Portal-Konto" }, { status: 403 });
   }
 
   if (participantId && !participant) {

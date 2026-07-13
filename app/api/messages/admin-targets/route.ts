@@ -14,15 +14,52 @@ type AdminMessageTarget = {
   participantId: string | null;
 };
 
+type TargetAggregate = {
+  userId: string;
+  name: string | null;
+  label: string;
+  contexts: Set<string>;
+  teamId: string | null;
+  participantId: string | null;
+};
+type RegisteredTargetUser = { id: string; name: string | null; authentikSub: string | null };
+
 function displayName(user: { name: string | null }) {
   return user.name || "Portal-Konto";
 }
 
-function addTarget(targets: Map<string, AdminMessageTarget>, target: AdminMessageTarget) {
-  if (!target.userId) return;
-  const key = [target.userId, target.teamId || "no-team", target.participantId || "no-participant"].join(":");
-  if (targets.has(key)) return;
-  targets.set(key, target);
+function addTarget(
+  targets: Map<string, TargetAggregate>,
+  input: {
+    user: { id: string; name: string | null; authentikSub: string | null };
+    context: string;
+    teamId?: string | null;
+    participantId?: string | null;
+  },
+) {
+  if (!input.user.id || !input.user.authentikSub) return;
+  const existing = targets.get(input.user.id);
+  if (existing) {
+    existing.contexts.add(input.context);
+    if (!existing.participantId && input.participantId) existing.participantId = input.participantId;
+    if (!existing.teamId && input.teamId) existing.teamId = input.teamId;
+    return;
+  }
+  targets.set(input.user.id, {
+    userId: input.user.id,
+    name: input.user.name,
+    label: displayName(input.user),
+    contexts: new Set([input.context]),
+    teamId: input.teamId ?? null,
+    participantId: input.participantId ?? null,
+  });
+}
+
+function targetDescription(target: TargetAggregate) {
+  const contexts = Array.from(target.contexts).sort((a, b) => a.localeCompare(b, "de"));
+  const visible = contexts.slice(0, 2).join(" · ");
+  const remaining = contexts.length - 2;
+  return remaining > 0 ? `${visible} · +${remaining} weitere Verknuepfungen` : visible;
 }
 
 export async function GET() {
@@ -34,10 +71,11 @@ export async function GET() {
     prisma.user.findMany({
       where: {
         deletedAt: null,
+        authentikSub: { not: null },
         id: { not: auth.user.id },
         tenantRoles: { some: { tenantId: auth.tenantId } },
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, authentikSub: true },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }],
       take: 200,
     }),
@@ -45,19 +83,15 @@ export async function GET() {
       where: {
         deletedAt: null,
         userId: { not: null },
-        user: { deletedAt: null, id: { not: auth.user.id } },
+        user: { deletedAt: null, authentikSub: { not: null }, id: { not: auth.user.id } },
         team: { deletedAt: null, competition: { tenantId: auth.tenantId } },
       },
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, authentikSub: true } },
         team: {
           select: {
             id: true,
-            name: true,
-            competition: { select: { name: true, year: true } },
           },
         },
       },
@@ -76,13 +110,11 @@ export async function GET() {
       },
       select: {
         id: true,
-        name: true,
-        owner: { select: { id: true, name: true } },
-        teamChief: { select: { id: true, name: true } },
-        competition: { select: { name: true, year: true } },
+        owner: { select: { id: true, name: true, authentikSub: true } },
+        teamChief: { select: { id: true, name: true, authentikSub: true } },
         memberRoles: {
-          where: { role: "TEAM_MANAGER", revokedAt: null, user: { deletedAt: null } },
-          select: { user: { select: { id: true, name: true } } },
+          where: { role: "TEAM_MANAGER", revokedAt: null, user: { deletedAt: null, authentikSub: { not: null } } },
+          select: { user: { select: { id: true, name: true, authentikSub: true } } },
         },
       },
       orderBy: [{ name: "asc" }],
@@ -90,46 +122,37 @@ export async function GET() {
     }),
   ]);
 
-  const targets = new Map<string, AdminMessageTarget>();
+  const targets = new Map<string, TargetAggregate>();
 
   for (const user of tenantUsers) {
     addTarget(targets, {
-      userId: user.id,
-      name: user.name,
-      label: displayName(user),
-      description: "Portal-Rolle im aktuellen Mandanten",
-      teamId: null,
-      participantId: null,
+      user,
+      context: "Portal-Rolle im aktuellen Mandanten",
     });
   }
 
   for (const participant of participants) {
     if (!participant.user || participant.user.id === auth.user.id) continue;
     addTarget(targets, {
-      userId: participant.user.id,
-      name: participant.user.name,
-      label: `${displayName(participant.user)} · ${participant.firstName} ${participant.lastName}`,
-      description: `${participant.team.name} · ${participant.team.competition.name} ${participant.team.competition.year}`,
+      user: participant.user,
+      context: "Teilnehmer:in verknuepft",
       teamId: participant.team.id,
       participantId: participant.id,
     });
   }
 
   for (const team of teams) {
-    const context = `${team.name} · ${team.competition.name} ${team.competition.year}`;
     const users = [
       team.owner ? { user: team.owner, relation: "Teamkontakt" } : null,
       team.teamChief ? { user: team.teamChief, relation: "Teamchef:in" } : null,
       ...team.memberRoles.map((role) => ({ user: role.user, relation: "Team Manager:in" })),
-    ].filter((entry): entry is { user: { id: string; name: string | null }; relation: string } => Boolean(entry?.user));
+    ].filter((entry): entry is { user: RegisteredTargetUser; relation: string } => Boolean(entry?.user));
 
     for (const entry of users) {
       if (entry.user.id === auth.user.id) continue;
       addTarget(targets, {
-        userId: entry.user.id,
-        name: entry.user.name,
-        label: `${displayName(entry.user)} · ${entry.relation}`,
-        description: context,
+        user: entry.user,
+        context: entry.relation,
         teamId: team.id,
         participantId: null,
       });
@@ -137,7 +160,18 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    targets: Array.from(targets.values()).sort((a, b) => {
+    targets: Array.from(targets.values()).map((target): AdminMessageTarget & { searchText: string } => ({
+      userId: target.userId,
+      name: target.name,
+      label: target.label,
+      description: targetDescription(target),
+      teamId: target.teamId,
+      participantId: target.participantId,
+      searchText: [
+        target.label,
+        ...target.contexts,
+      ].join(" "),
+    })).sort((a, b) => {
       const byLabel = a.label.localeCompare(b.label, "de");
       return byLabel || a.description.localeCompare(b.description, "de");
     }),

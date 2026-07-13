@@ -1,6 +1,33 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 00:34 UTC
+Stand: 2026-07-13 00:50 UTC
+
+## Aktueller Nachtrag: Message Admin Target Registered Search
+
+- Ausloeser:
+  - Sebastian meldete anhand mobiler Screenshots:
+    - Admin-Empfaengerauswahl soll auf registrierte Benutzer eingeschraenkt werden.
+    - In der Empfaengerauswahl soll ein Suchfeld angeboten werden.
+- CR:
+  - `docs/cr/2026-07-13-message-admin-target-registered-search.md`
+- Implementiert, noch nicht deployed:
+  - `app/api/messages/admin-targets/route.ts`
+  - `app/api/messages/admin-conversations/route.ts`
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - `GET /api/messages/admin-targets` liefert nur noch User mit `authentikSub` und dedupliziert auf eine Zielperson pro User.
+  - Mehrere Rollen/Team-/Teilnehmer-Kontexte werden zu einer kurzen Beschreibung verdichtet, statt mehrere Auswahlzeilen zu erzeugen.
+  - Suchtext beruecksichtigt Name und Rollen-/Verknuepfungsbeschreibung; Team-/Teilnehmernamen werden in dieser Zielauswahl nicht ausgeliefert.
+  - Der Admin-Composer nutzt jetzt ein Suchfeld plus scrollbare Trefferliste statt nativem Select.
+  - `POST /api/messages/admin-conversations` lehnt unregistrierte Zieluser serverseitig mit `403` ab.
+  - Keine E-Mail-Adressen in der Zielauswahl; keine DB-Migration.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx app/api/messages/admin-targets/route.ts app/api/messages/admin-conversations/route.ts`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit pushen/deployen nach Sebastians Go.
 
 ## Aktueller Nachtrag: Message Admin Free Targets And Reopen
 

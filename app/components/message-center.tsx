@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
+  Search,
   Send,
   SlidersHorizontal,
   Sparkles,
@@ -104,6 +105,7 @@ type AdminComposeTarget = {
 type AdminMessageTarget = AdminComposeTarget & {
   label: string;
   description: string;
+  searchText?: string;
 };
 
 type SortDirection = "asc" | "desc";
@@ -409,6 +411,7 @@ export default function MessageCenter() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [adminSubject, setAdminSubject] = useState("Nachricht vom Orga-Team");
   const [adminBody, setAdminBody] = useState("");
+  const [adminTargetSearch, setAdminTargetSearch] = useState("");
   const skipNextFilterPersistRef = useRef(false);
   const skipNextPersonalDraftPersistRef = useRef(false);
   const skipNextAdminDraftPersistRef = useRef(false);
@@ -638,6 +641,19 @@ export default function MessageCenter() {
     }
     return Array.from(options.values());
   }, [adminComposeTarget, adminTargetLabel, adminTargets, selected?.context.team?.name]);
+  const filteredAdminTargetOptions = useMemo(() => {
+    const query = adminTargetSearch.trim().toLowerCase();
+    if (!query) return adminTargetOptions;
+    return adminTargetOptions.filter((target) => {
+      const haystack = [
+        target.label,
+        target.description,
+        target.name || "",
+        target.searchText || "",
+      ].join(" ").toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [adminTargetOptions, adminTargetSearch]);
   const selectedDialogRows: AccountLinkDialogRow[] = selectedDialogParticipant
     ? [
         {
@@ -696,12 +712,18 @@ export default function MessageCenter() {
 
   const openAdminCompose = async () => {
     const targets = adminTargets.length > 0 ? adminTargets : await loadAdminTargets();
-    const initialTarget = selectedAdminComposeTarget ?? (targets[0] ? adminTargetToComposeTarget(targets[0]) : null);
+    const selectedTarget = selectedAdminComposeTarget
+      ? targets.find((target) => target.userId === selectedAdminComposeTarget.userId)
+      : null;
+    const initialTarget = selectedTarget
+      ? adminTargetToComposeTarget(selectedTarget)
+      : (targets[0] ? adminTargetToComposeTarget(targets[0]) : null);
     if (!initialTarget) {
       setError("Keine verknüpften Empfänger gefunden");
       return;
     }
     setAdminComposeTarget(initialTarget);
+    setAdminTargetSearch("");
     setMobileThreadOpen(false);
     triggerNavigationBurst("composer");
   };
@@ -915,6 +937,7 @@ export default function MessageCenter() {
       setAdminBody("");
       setAdminSubject("Nachricht vom Orga-Team");
       setAdminComposeTarget(null);
+      setAdminTargetSearch("");
       window.history.replaceState({}, "", "/nachrichten");
       setMode("admin");
       await loadConversations("admin");
@@ -932,6 +955,7 @@ export default function MessageCenter() {
 
   const cancelAdminCompose = () => {
     setAdminComposeTarget(null);
+    setAdminTargetSearch("");
     window.history.replaceState({}, "", "/nachrichten");
   };
 
@@ -1199,28 +1223,49 @@ export default function MessageCenter() {
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Zielperson</label>
-                <select
-                  value={adminComposeTarget ? adminComposeDraftKey(adminComposeTarget) : ""}
-                  onChange={(event) => {
-                    const selectedTarget = adminTargetOptions.find((target) => adminComposeDraftKey(target) === event.target.value);
-                    if (selectedTarget) setAdminComposeTarget(adminTargetToComposeTarget(selectedTarget));
-                  }}
-                  disabled={adminTargetsLoading || adminTargetOptions.length === 0}
-                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
-                >
-                  {adminTargetOptions.length === 0 ? (
-                    <option value="">Keine verknüpften Empfänger</option>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={adminTargetSearch}
+                    onChange={(event) => setAdminTargetSearch(event.target.value)}
+                    disabled={adminTargetsLoading || adminTargetOptions.length === 0}
+                    placeholder="Registrierten Benutzer suchen"
+                    className="pl-9"
+                  />
+                </div>
+                <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-background p-1">
+                  {adminTargetsLoading ? (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">Empfänger werden geladen...</div>
+                  ) : adminTargetOptions.length === 0 ? (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">Keine registrierten Empfänger gefunden</div>
+                  ) : filteredAdminTargetOptions.length === 0 ? (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">Keine Treffer für diese Suche</div>
                   ) : (
-                    adminTargetOptions.map((target) => (
-                      <option key={adminComposeDraftKey(target)} value={adminComposeDraftKey(target)}>
-                        {target.label} · {target.description}
-                      </option>
-                    ))
+                    filteredAdminTargetOptions.map((target) => {
+                      const key = adminComposeDraftKey(target);
+                      const active = adminComposeTarget ? adminComposeDraftKey(adminComposeTarget) === key : false;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setAdminComposeTarget(adminTargetToComposeTarget(target))}
+                          className={cn(
+                            "flex w-full min-w-0 flex-col rounded px-2 py-1.5 text-left text-sm transition-colors",
+                            active ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                          )}
+                        >
+                          <span className="truncate font-medium">{target.label}</span>
+                          <span className={cn("truncate text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                            {target.description}
+                          </span>
+                        </button>
+                      );
+                    })
                   )}
-                </select>
+                </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {renderAdminTargetPortalBadge()}
-                  <span className="truncate">Nur verknüpfte Portal-User im aktuellen Mandanten.</span>
+                  <span className="truncate">Nur registrierte Portal-User im aktuellen Mandanten.</span>
                 </div>
               </div>
               <div className="space-y-1.5">
