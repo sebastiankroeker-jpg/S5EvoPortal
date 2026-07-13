@@ -224,3 +224,20 @@ Rueckmeldungen:
   - `GET /api/messages/admin-conversations` -> 405 because route is POST-only
   - `POST /api/messages/admin-conversations` without session -> 401
 - Result: gruen
+
+## Follow-Up 2026-07-13 14:10 UTC - Personal Close And Mobile Cosmetics
+
+- Trigger: Production screenshots show mobile message list/detail after contact e-mail rollout.
+- Cosmetic findings:
+  - Thread detail header was too cramped on mobile: subject/channel row and contact badge could visually collide.
+  - Mobile thread list row was dense after adding `Name · E-Mail`; status, direction, person, badge, date and subject competed in one compact block.
+- Functional addition:
+  - Personal mailbox participants should also be able to close/reopen their personal threads.
+- Implementation:
+  - Conversation status `PATCH` now allows either Orga/Admin managers or active `OWNER`/`MEMBER` participants of the conversation.
+  - `READ_ONLY` and pure `ADMIN`/`MODERATOR` participant rows without support-management permission remain unable to change status.
+  - Message detail contact badge moved to its own mobile-safe row below subject/channel metadata.
+  - Mobile thread cards now separate status/direction/person, contact badge/date, and subject into clearer rows.
+  - The existing close/reopen control is shown whenever the current viewer can update the thread status, including personal mailbox OWNER/MEMBER users.
+- Verification:
+  - `npx eslint app/components/message-center.tsx app/api/messages/conversations/[id]/route.ts` gruen.

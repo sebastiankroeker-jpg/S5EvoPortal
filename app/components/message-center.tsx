@@ -641,6 +641,9 @@ export default function MessageCenter() {
   const selectedViewerParticipant = currentUserId
     ? selected?.participants.find((participant) => participant.user.id === currentUserId) ?? null
     : null;
+  const selectedViewerCanUpdateStatus = Boolean(
+    canManageSupport || (selectedViewerParticipant && ["OWNER", "MEMBER"].includes(selectedViewerParticipant.role)),
+  );
   const selectedDialogParticipant = mode === "admin"
     ? selectedOwnerParticipant
     : selected?.participants.find((participant) => participant.user.id !== currentUserId) ?? selectedViewerParticipant ?? null;
@@ -1683,22 +1686,24 @@ export default function MessageCenter() {
                             )}
                           >
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", statusClassName(conversation.status))}>
+                              <Badge variant="outline" className={cn("h-5 shrink-0 px-1.5 text-[10px]", statusClassName(conversation.status))}>
                                 {statusLabel(conversation.status)}
                               </Badge>
-                              <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", messageDirectionBadgeClass(direction))}>
+                              <Badge variant="outline" className={cn("h-5 shrink-0 px-1.5 text-[10px]", messageDirectionBadgeClass(direction))}>
                                 {direction}
                               </Badge>
                               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                                 {conversationPersonLabel(conversation, mode, currentUserId)}
                               </span>
-                              <span className="shrink-0">{renderPortalContactBadge(conversation)}</span>
                             </div>
                             <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
-                              <span className={cn("min-w-0 truncate text-sm", conversation.unreadCount > 0 ? "font-semibold" : "font-normal")}>{conversation.subject}</span>
+                              <span className="min-w-0">{renderPortalContactBadge(conversation)}</span>
                               <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                                 {formatDateTime(conversation.lastMessageAt || conversation.updatedAt)}
                               </span>
+                            </div>
+                            <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+                              <span className={cn("min-w-0 truncate text-sm", conversation.unreadCount > 0 ? "font-semibold" : "font-normal")}>{conversation.subject}</span>
                             </div>
                           </button>
                         );
@@ -1732,7 +1737,7 @@ export default function MessageCenter() {
           ) : (
             <div className="flex h-[calc(100dvh-140px)] min-h-[520px] flex-col lg:h-[720px]">
               <div className="sticky top-0 z-10 border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur">
-                <div className="flex items-center gap-2">
+                <div className="flex items-start gap-2">
                   <div className="lg:hidden">
                     <Button type="button" size="icon" variant="ghost" onClick={() => setMobileThreadOpen(false)} aria-label="Zurück zur Übersicht">
                       <ArrowLeft className="h-4 w-4" />
@@ -1753,7 +1758,19 @@ export default function MessageCenter() {
                       <span className="shrink-0 tabular-nums">{selectedTimestamp}</span>
                     </div>
                   </div>
-                  {selectedDialogParticipant && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setThreadDetailsOpen((open) => !open)}
+                    aria-label={threadDetailsOpen ? "Thread-Details ausblenden" : "Thread-Details anzeigen"}
+                    title={threadDetailsOpen ? "Thread-Details ausblenden" : "Thread-Details anzeigen"}
+                  >
+                    {threadDetailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {selectedDialogParticipant && (
+                  <div className="mt-1 flex min-w-0">
                     <AccountLinkStatusDialog
                       compact
                       meta={{
@@ -1771,18 +1788,8 @@ export default function MessageCenter() {
                       title={selectedDialogIsOrgTeam ? "Orga-Team" : "Thread-Kontakt"}
                       rows={selectedDialogRows}
                     />
-                  )}
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setThreadDetailsOpen((open) => !open)}
-                    aria-label={threadDetailsOpen ? "Thread-Details ausblenden" : "Thread-Details anzeigen"}
-                    title={threadDetailsOpen ? "Thread-Details ausblenden" : "Thread-Details anzeigen"}
-                  >
-                    {threadDetailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </div>
+                  </div>
+                )}
                 {threadDetailsOpen && (
                   <div className="mt-2 space-y-2">
                     <div className="text-xs text-muted-foreground">
@@ -1818,7 +1825,7 @@ export default function MessageCenter() {
                         { key: "date", label: "Datum & Uhrzeit", value: selectedTimestamp },
                       ]}
                     />
-                    {mode === "admin" && (
+                    {selectedViewerCanUpdateStatus && (
                       <div className="flex justify-end gap-2">
                         {selected.status !== "CLOSED" ? (
                           <Button type="button" size="sm" variant="outline" disabled={sending} onClick={() => updateStatus("CLOSED")}>

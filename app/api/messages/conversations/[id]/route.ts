@@ -41,7 +41,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const loaded = await ensureConversationAccess(id, user.id);
-  if (!loaded.access || !loaded.conversation || !loaded.canManage) {
+  const canUpdateStatus = Boolean(
+    loaded.canManage || (loaded.participant && ["OWNER", "MEMBER"].includes(loaded.participant.role)),
+  );
+  if (!loaded.access || !loaded.conversation || !canUpdateStatus) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
