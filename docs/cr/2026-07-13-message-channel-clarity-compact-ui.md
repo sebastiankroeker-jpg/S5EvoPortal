@@ -131,8 +131,8 @@ Rueckmeldungen:
 
 - Gate needed: yes
 - Reason: Auth-/Privacy-Semantik fuer persoenliche Admin-Kommunikation und anschliessender Production-Deploy.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian, "Bitte direkt Production & Go :)"
+- Approval timestamp: 2026-07-13 12:10 UTC
 
 ## Implementation Notes
 
@@ -162,22 +162,30 @@ Rueckmeldungen:
 - Targeted verification:
   - API-/UI-Logik lokal per TypeScript/ESLint/Build verifiziert.
 - Manual smoke:
-  - Pending; vor Deploy sinnvoll im Browser mit Admin-Login und Zielperson.
+  - Production smoke ohne Login gruen; Browser-Real-Smoke mit Admin-Login bleibt optional.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_6x3eJszRccjTkQzF3k8qbc8FdDpF`
+- Deployment URL: `https://s5-evo-portal-ifgomehp4-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-13 12:15 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `npm run smoke:public` against `https://portal.s5evo.de` gruen
 - API checks:
-- Result:
+  - `GET /api/messages/conversations` without session -> 401
+  - `GET /api/messages/admin-targets` without session -> 401
+  - `GET /api/messages/admin-conversations` -> 405 because route is POST-only
+  - `POST /api/messages/admin-conversations` without session -> 401
+- Result: gruen
 
 ## Follow-Ups
 
-- None
+- Optional Browser-Real-Smoke mit Admin-Login: persoenlich an User schreiben, Orga-Team an User schreiben, Empfaengeransicht Kanal pruefen.

@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 11:15 UTC
+Stand: 2026-07-13 12:18 UTC
 
 ## Aktueller Nachtrag: Messenger Kanal-Klarheit und persoenliche Admin-Threads
 
@@ -10,7 +10,11 @@ Stand: 2026-07-13 11:15 UTC
   - Persoenlicher Compose soll ohne sichtbares Kontext-Feld auskommen; Betreff reicht.
 - CR:
   - `docs/cr/2026-07-13-message-channel-clarity-compact-ui.md`
-- Implementiert, noch nicht deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `90c9619 Clarify personal message channels`
+  - Production Deploy: `dpl_6x3eJszRccjTkQzF3k8qbc8FdDpF`
+  - Deployment URL: `https://s5-evo-portal-ifgomehp4-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/components/message-center.tsx`
   - `app/api/messages/admin-targets/route.ts`
   - `app/api/messages/admin-conversations/route.ts`
@@ -31,8 +35,16 @@ Stand: 2026-07-13 11:15 UTC
   - `npx eslint app/components/message-center.tsx app/api/messages/admin-targets/route.ts app/api/messages/admin-conversations/route.ts app/api/messages/conversations/route.ts app/api/messages/conversations/[id]/messages/route.ts lib/messaging.ts`
   - `git diff --check`
   - `npm run build`
+- Post-Deploy Smoke:
+  - `npm run smoke:public` gegen `https://portal.s5evo.de` gruen
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `GET /api/messages/conversations` ohne Session -> 401
+  - `GET /api/messages/admin-targets` ohne Session -> 401
+  - `POST /api/messages/admin-conversations` ohne Session -> 401
 - Naechster Schritt:
-  - Optional Browser-Real-Smoke mit Admin-Login, dann Commit/Push/Deploy nach Go.
+  - Optional Browser-Real-Smoke mit Admin-Login: persoenlich an User schreiben, Orga-Team an User schreiben, Empfaengeransicht Kanal pruefen.
 
 ## Aktueller Nachtrag: MTC Owner Finalisierung
 
