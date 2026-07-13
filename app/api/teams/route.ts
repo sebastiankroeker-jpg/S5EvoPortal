@@ -235,6 +235,7 @@ function serializeTeam(
     canSeeSensitiveParticipantFields?: boolean;
     canSeeOwnerClaimFields?: boolean;
     canEditAllTeams?: boolean;
+    currentUserHasPortalAccount?: boolean;
   },
 ) {
   if (!team) return null;
@@ -246,6 +247,12 @@ function serializeTeam(
       .map((memberRole) => memberRole.userId) ?? [],
   );
   if (team.teamChiefId) activeTeamManagerUserIds.add(team.teamChiefId);
+  const isCurrentUserOwner = Boolean(options?.currentUserId && team.ownerId === options.currentUserId);
+  const canFinalizeMarketplaceMatching =
+    team.registrationMode === "MARKETPLACE" &&
+    isCurrentUserOwner &&
+    options?.currentUserHasPortalAccount === true &&
+    (team.participants ?? []).length === 5;
   const teamAccess = resolveTeamAccess({
     team: {
       teamChiefId: team.teamChiefId,
@@ -261,6 +268,7 @@ function serializeTeam(
   const canCurrentUserEdit = teamAccess.canEditTeam;
   const canSeeSensitiveParticipantFields = options?.canSeeSensitiveParticipantFields === true || canCurrentUserEdit;
   const isCurrentUserTeam =
+    isCurrentUserOwner ||
     teamAccess.isLegacyOwner ||
     teamAccess.isTeamManager ||
     ((team.participants ?? []).some((participant) => {
@@ -300,6 +308,7 @@ function serializeTeam(
     teamChiefId: canSeeSensitiveParticipantFields ? team.teamChiefId ?? null : null,
     isCurrentUserTeam,
     canCurrentUserEdit,
+    canFinalizeMarketplaceMatching,
     canManageTeamManagers: teamAccess.canManageTeamManagers,
     createdAt: team.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updatedAt: team.updatedAt?.toISOString?.() ?? team.createdAt?.toISOString?.() ?? new Date().toISOString(),
@@ -454,6 +463,7 @@ export async function GET(request: NextRequest) {
         : {
             OR: [
               ...(user ? [{ teamChiefId: user.id }] : []),
+              ...(user ? [{ ownerId: user.id }] : []),
               ...(user
                 ? [{
                     participants: {
@@ -643,6 +653,7 @@ export async function GET(request: NextRequest) {
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,
             canEditAllTeams: access.canEditAllTeams,
+            currentUserHasPortalAccount: Boolean(user?.authentikSub),
             canSeeSensitiveParticipantFields: access.canEditAllTeams,
             canSeeOwnerClaimFields: effectiveScopeRole === "ADMIN" && access.isAdmin,
           })];

@@ -1,6 +1,37 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 00:50 UTC
+Stand: 2026-07-13 08:58 UTC
+
+## Aktueller Nachtrag: MTC Owner Finalisierung
+
+- Ausloeser:
+  - Sebastian gab Go fuer die Funktion, dass Owner vollstaendige MTC-Mannschaften selbst in regulaere Mannschaften ueberfuehren koennen.
+  - Markus Huber ist der akute Praxisfall; wichtig war die Unterscheidung zwischen MTC-Owner-Vorzustand und regulaeren Teamchef-/Teammanager-Rechten.
+- CR:
+  - `docs/cr/2026-07-13-mtc-owner-finalize.md`
+- Implementiert, noch nicht deployed:
+  - `app/api/admin/marketplace-matching/route.ts`
+  - `app/api/teams/route.ts`
+  - `app/api/teams/[id]/route.ts`
+  - `app/components/dashboard.tsx`
+  - `app/api/admin/users/route.ts`
+  - `app/components/user-management.tsx`
+- Geaendert:
+  - `POST /api/admin/marketplace-matching` erlaubt Aktion `finalize` jetzt fuer Admins oder den eingeloggten Owner des Ziel-MTCs mit bestaetigtem Portal-Login.
+  - Alle Nicht-Finalize-Matching-Aktionen und `GET /api/admin/marketplace-matching` bleiben Admin-only.
+  - Beim Finalisieren wird fuer `targetTeam.ownerId` eine aktive `TEAM_MANAGER`-Rolle angelegt/reaktiviert und danach `syncDerivedTeamchefRole` ausgefuehrt.
+  - Eigene MTCs werden im Team-Dashboard auch ueber `ownerId` geladen, ohne allgemeine Edit-Rechte zu vergeben.
+  - Owner sehen fuer eigene vollstaendige MTCs den Uebernehmen-Dialog; Admin-Slotverwaltung, Suche und Entwurf-Metadaten bleiben ausgeblendet.
+  - Benutzerverwaltung unterscheidet MTC-Owner ohne regulaere Teamrechte als `MTC-Owner` statt `Team Manager:in`.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/api/admin/marketplace-matching/route.ts app/components/dashboard.tsx app/api/admin/users/route.ts app/components/user-management.tsx app/api/teams/route.ts app/api/teams/[id]/route.ts`
+  - `npx tsc --noEmit`
+  - `npm run verify:team-draft`
+  - `npm run verify:account-link-status`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit und Deploy nach Sebastians Go; danach Real-Smoke mit Markus-Huber-Login oder Admin-Simulation.
 
 ## Aktueller Nachtrag: Message Admin Target Registered Search
 

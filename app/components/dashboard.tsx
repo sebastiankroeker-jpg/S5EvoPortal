@@ -108,6 +108,7 @@ interface Team {
   updatedAt?: string;
   isCurrentUserTeam?: boolean;
   canCurrentUserEdit?: boolean;
+  canFinalizeMarketplaceMatching?: boolean;
   canManageTeamManagers?: boolean;
   ownerClaim?: OwnerClaimInfo | null;
   participants?: Participant[];
@@ -1306,6 +1307,7 @@ function getTeamCapabilities(team: Team, access: { canEditAll: boolean; canEditO
   const isMarketplaceTeam = team.registrationMode === "MARKETPLACE";
   const isMtcDraft = isMarketplaceMatchingTeam(team);
   const canEditMarketplaceObject = access.canEditAll && isMarketplaceTeam;
+  const canFinalizeMtcDraft = isMtcDraft && (access.canEditAll || team.canFinalizeMarketplaceMatching === true);
 
   return {
     isMarketplaceTeam,
@@ -1315,6 +1317,7 @@ function getTeamCapabilities(team: Team, access: { canEditAll: boolean; canEditO
     canEditPublicationPreferences: canEditMarketplaceObject || access.canEditOwnTeam === true,
     canManageSlots: access.canEditAll && isMtcDraft,
     canSearchParticipants: access.canEditAll && isMtcDraft && getParticipantCount(team) < 5,
+    canFinalizeMtcDraft,
   };
 }
 
@@ -3939,7 +3942,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
                   const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
                   const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
-                  const canEditMarketplaceMatching = capabilities.canManageSlots;
+                  const canEditMarketplaceMatching = capabilities.canManageSlots || capabilities.canFinalizeMtcDraft;
                   const canDeleteTeam = team.canManageTeamManagers === true;
                   const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
 
@@ -4029,7 +4032,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   variant="outline"
                                   onClick={() => openMarketplaceMatching(team)}
                                 >
-                                  Entwurf bearbeiten
+                                  {capabilities.canManageSlots ? "Entwurf bearbeiten" : "Als Mannschaft übernehmen"}
                                 </Button>
                               )}
                               {canEditMarketplaceParticipant && (
@@ -4098,7 +4101,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
               const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
               const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
-              const canEditMarketplaceMatching = capabilities.canManageSlots;
+              const canEditMarketplaceMatching = capabilities.canManageSlots || capabilities.canFinalizeMtcDraft;
               const canDeleteTeam = team.canManageTeamManagers === true;
               const isMarketplaceContainerOpen = expandedMarketplaceContainerTeam === team.id;
               const marketplaceContainerMailMeta = getEmailInvitationMeta(team.contactEmail ? "none" : "missing_email");
@@ -4264,7 +4267,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           {showCompactActionColumn && (
                             <div className="flex items-start justify-end">
                               <div className="flex flex-col gap-1">
-                                {canEditMarketplaceMatching && !isMarketplaceMatching && (
+                                {canEditMarketplaceMatching && (
                                   <Button
                                     type="button"
                                     size="sm"
@@ -4275,7 +4278,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                       openMarketplaceMatching(team);
                                     }}
                                   >
-                                    Entwurf
+                                    {capabilities.canManageSlots ? "Entwurf" : "Übernehmen"}
                                   </Button>
                                 )}
                                 {canEditMarketplaceParticipant && (
@@ -4385,7 +4388,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Person
                                 </Button>
                               )}
-                              {canEditMarketplaceMatching && !isMarketplaceMatching && (
+                              {canEditMarketplaceMatching && (
                                 <Button
                                   size="xs"
                                   variant="outline"
@@ -4394,7 +4397,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     openMarketplaceMatching(team);
                                   }}
                                 >
-                                  Entwurf
+                                  {capabilities.canManageSlots ? "Entwurf" : "Übernehmen"}
                                 </Button>
                               )}
                               {canEditMarketplaceTeam && !isMarketplaceMatching && (
@@ -4864,7 +4867,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 }}
                                 className="flex-1"
                               >
-                                Entwurf bearbeiten
+                                {capabilities.canManageSlots ? "Entwurf bearbeiten" : "Als Mannschaft übernehmen"}
                               </Button>
                             )}
                             {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
@@ -4949,6 +4952,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           team={activeMarketplaceMatchingTeam}
           competitionId={activeCompetition?.id}
           initialDisciplineFilter={marketplaceMatchingDisciplineFilter}
+          canManageSlots={canEditAll}
           onAddParticipant={handleMarketplaceMatchingAdd}
           onMoveParticipant={handleMarketplaceMatchingMove}
           onRemoveParticipant={handleMarketplaceMatchingRemove}
@@ -4980,6 +4984,7 @@ function MarketplaceMatchingModal({
   team,
   competitionId,
   initialDisciplineFilter,
+  canManageSlots = false,
   onAddParticipant,
   onMoveParticipant,
   onRemoveParticipant,
@@ -4990,6 +4995,7 @@ function MarketplaceMatchingModal({
   team: Team;
   competitionId?: string;
   initialDisciplineFilter?: string;
+  canManageSlots?: boolean;
   onAddParticipant: (targetTeamId: string, participantId: string, targetDiscipline?: string) => void | Promise<void>;
   onMoveParticipant: (targetTeamId: string, participantId: string, targetDiscipline: string) => void | Promise<void>;
   onRemoveParticipant: (targetTeamId: string, participantId: string) => void | Promise<void>;
@@ -5077,8 +5083,13 @@ function MarketplaceMatchingModal({
   }, [competitionId, team.id]);
 
   useEffect(() => {
+    if (!canManageSlots) {
+      setAvailableParticipants([]);
+      setLoadingAvailable(false);
+      return;
+    }
     void loadAvailableParticipants();
-  }, [loadAvailableParticipants]);
+  }, [canManageSlots, loadAvailableParticipants]);
 
   useEffect(() => {
     setOpenSearchSlotId(initialDisciplineFilter || null);
@@ -5245,6 +5256,7 @@ function MarketplaceMatchingModal({
                 </div>
               </div>
 
+              {canManageSlots && (
               <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2.5">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="space-y-1">
@@ -5304,6 +5316,7 @@ function MarketplaceMatchingModal({
                   />
                 </div>
               </div>
+              )}
 
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -5346,7 +5359,7 @@ function MarketplaceMatchingModal({
                               <p className="text-sm text-muted-foreground">Noch frei</p>
                             )}
                           </div>
-                          {participant?.id && (
+                          {participant?.id && canManageSlots && (
                             <div className="flex shrink-0 flex-col gap-1.5 sm:min-w-44">
                               <Select
                                 value={assignedDisciplineId}
@@ -5392,7 +5405,7 @@ function MarketplaceMatchingModal({
                               )}
                             </div>
                           )}
-                          {!participant && (
+                          {!participant && canManageSlots && (
                             <Button
                               type="button"
                               size="sm"
@@ -5505,9 +5518,11 @@ function MarketplaceMatchingModal({
             <Button variant="outline" onClick={onCancel} disabled={finalizing || savingMetadata}>
               Schließen
             </Button>
-            <Button variant="outline" onClick={handleSaveDraft} disabled={savingMetadata || finalizing} aria-busy={savingMetadata}>
-              {savingMetadata ? "Speichert..." : "Entwurf speichern"}
-            </Button>
+            {canManageSlots && (
+              <Button variant="outline" onClick={handleSaveDraft} disabled={savingMetadata || finalizing} aria-busy={savingMetadata}>
+                {savingMetadata ? "Speichert..." : "Entwurf speichern"}
+              </Button>
+            )}
             <Button onClick={handleFinalize} disabled={!canFinalize || finalizing} aria-busy={finalizing}>
               {finalizing ? "Übernehme..." : "Als Mannschaft übernehmen"}
             </Button>

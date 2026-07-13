@@ -192,7 +192,7 @@ export async function GET() {
       };
 
       for (const team of u.ownedTeams) {
-        upsertTeamScope(team, "Owner", { isOwner: true, isTeamManager: true });
+        upsertTeamScope(team, "Owner", { isOwner: true, isTeamManager: team.registrationMode !== "MARKETPLACE" });
       }
       for (const team of u.chiefOfTeams) {
         upsertTeamScope(team, "Teamchef:in", { isLegacyTeamChief: true, isTeamManager: true });

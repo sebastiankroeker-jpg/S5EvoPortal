@@ -942,6 +942,7 @@ export default function UserManagement() {
                         </div>
                         <div className="mt-2 divide-y divide-border/50 overflow-hidden rounded-md border border-border/40 bg-background/60">
                           {user.teamScopes.map((team) => {
+                            const isMtcOwnerVorzustand = isMtcScope(team) && team.isOwner && !team.isTeamManager;
                             const isFixedManager = team.isOwner || team.isLegacyTeamChief;
                             const isUpdating = updatingTeamScopeKey === `${user.id}:${team.id}`;
                             const isMtc = isMtcScope(team);
@@ -976,9 +977,9 @@ export default function UserManagement() {
                                   <UserTeamScopeStatusDialog user={user} team={team} />
                                   <Badge
                                     variant="outline"
-                                    className={`shrink-0 ${team.isTeamManager ? "border-green-300 text-green-700" : "border-muted text-muted-foreground"}`}
+                                    className={`shrink-0 ${team.isTeamManager ? "border-green-300 text-green-700" : isMtcOwnerVorzustand ? "border-sky-300 text-sky-700" : "border-muted text-muted-foreground"}`}
                                   >
-                                    {team.isTeamManager ? "Team Manager:in" : "Keine Managerrechte"}
+                                    {team.isTeamManager ? "Team Manager:in" : isMtcOwnerVorzustand ? "MTC-Owner" : "Keine Managerrechte"}
                                   </Badge>
                                   <Button
                                     type="button"
@@ -987,7 +988,7 @@ export default function UserManagement() {
                                     className="h-7 flex-1 px-2 text-[11px] sm:flex-none"
                                     onClick={() => toggleTeamManager(user, team)}
                                     disabled={saving || isUpdating || isFixedManager}
-                                    title={isFixedManager ? "Owner/Teamchef-Rechte kommen aus der Team-Zuordnung" : undefined}
+                                    title={isMtcOwnerVorzustand ? "MTC-Owner wird beim Überführen zur regulären Teamrolle" : isFixedManager ? "Owner/Teamchef-Rechte kommen aus der Team-Zuordnung" : undefined}
                                   >
                                     {isUpdating
                                       ? "..."

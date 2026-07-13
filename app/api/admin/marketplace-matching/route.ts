@@ -42,7 +42,7 @@ function toTeamDraftParticipant(participant: {
   };
 }
 
-async function requireMatchingAdmin(session: Session | null, competitionId?: string | null) {
+async function requireMatchingUser(session: Session | null, competitionId?: string | null) {
   const userEmail = session?.user?.email;
   if (!userEmail) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
@@ -69,11 +69,19 @@ async function requireMatchingAdmin(session: Session | null, competitionId?: str
   }
 
   const access = await getScopedRoleFlags(userEmail, competition.tenantId, session);
-  if (!access.canEditAllTeams) {
+
+  return { user, userEmail, competition, access };
+}
+
+async function requireMatchingAdmin(session: Session | null, competitionId?: string | null) {
+  const auth = await requireMatchingUser(session, competitionId);
+  if ("error" in auth) return auth;
+
+  if (!auth.access.canEditAllTeams) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
-  return { user, userEmail, competition, access };
+  return auth;
 }
 
 async function loadAvailableMarketplaceParticipants(competitionId: string, targetTeamId?: string | null) {
@@ -158,10 +166,11 @@ export async function POST(request: NextRequest) {
     teamPublicationLevel?: string;
   } | null;
 
-  const auth = await requireMatchingAdmin(session, body?.competitionId);
-  if ("error" in auth) return auth.error;
-
   const action = body?.action;
+  const auth = action === "finalize"
+    ? await requireMatchingUser(session, body?.competitionId)
+    : await requireMatchingAdmin(session, body?.competitionId);
+  if ("error" in auth) return auth.error;
 
   if (action === "createDraft") {
     const draftName = body?.teamName?.trim() || "Börsen-Mannschaft";
@@ -222,6 +231,10 @@ export async function POST(request: NextRequest) {
 
   if (!targetTeam) {
     return NextResponse.json({ error: "Börsen-Mannschaft nicht gefunden." }, { status: 404 });
+  }
+
+  if (action !== "finalize" && !auth.access.canEditAllTeams) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   if (action === "addParticipant") {
@@ -610,6 +623,21 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === "finalize") {
+    const isAdminFinalize = auth.access.canEditAllTeams;
+    const isOwnerFinalize =
+      !isAdminFinalize &&
+      Boolean(auth.user.authentikSub) &&
+      Boolean(targetTeam.ownerId) &&
+      targetTeam.ownerId === auth.user.id;
+
+    if (!isAdminFinalize && !isOwnerFinalize) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (targetTeam.marketplaceStatus === "WITHDRAWN") {
+      return NextResponse.json({ error: "Zurückgezogene MTC-Mannschaften können nicht übernommen werden." }, { status: 409 });
+    }
+
     if (targetTeam.participants.length !== 5) {
       return NextResponse.json({ error: "Eine echte Mannschaft braucht genau 5 Teilnehmer." }, { status: 400 });
     }
@@ -668,6 +696,30 @@ export async function POST(request: NextRequest) {
           totalAge,
         },
       });
+
+      if (targetTeam.ownerId) {
+        await tx.teamMemberRole.upsert({
+          where: {
+            teamId_userId_role: {
+              teamId: targetTeam.id,
+              userId: targetTeam.ownerId,
+              role: "TEAM_MANAGER",
+            },
+          },
+          update: {
+            revokedAt: null,
+            revokedByUserId: null,
+            reason: "marketplace_matching_finalize_owner",
+          },
+          create: {
+            teamId: targetTeam.id,
+            userId: targetTeam.ownerId,
+            role: "TEAM_MANAGER",
+            reason: "marketplace_matching_finalize_owner",
+            grantedByUserId: auth.user.id,
+          },
+        });
+      }
 
       await Promise.all(
         affectedUserIds.map((userId) =>
