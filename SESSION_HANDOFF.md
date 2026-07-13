@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 00:23 UTC
+Stand: 2026-07-13 00:34 UTC
 
 ## Aktueller Nachtrag: Message Admin Free Targets And Reopen
 
@@ -11,7 +11,13 @@ Stand: 2026-07-13 00:23 UTC
     - Eine Antwort auf eine geschlossene Meldung soll den Thread automatisch wieder auf offen setzen.
 - CR:
   - `docs/cr/2026-07-13-message-admin-free-targets-and-reopen.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commits:
+    - `2f2754e Add message compose popups and drafts`
+    - `92c16d1 Add admin message targets and reopen replies`
+  - Production Deploy: `dpl_EUkVf6NsqXbpb1qwbFzPV9F2wey9`
+  - Deployment URL: `https://s5-evo-portal-hasgiaj0p-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/api/messages/admin-targets/route.ts`
   - `app/api/messages/conversations/[id]/messages/route.ts`
   - `app/components/message-center.tsx`
@@ -28,12 +34,16 @@ Stand: 2026-07-13 00:23 UTC
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Naechster Schritt:
-  - Commit erstellen.
-  - Danach auf Sebastian-Go beide lokalen Messenger-Commits pushen und Production deployen:
-    - `2f2754e Add message compose popups and drafts`
-    - neuer Admin-Targets/Reopen-Commit
-  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401, `/api/messages/admin-targets` ohne Session: 401.
+- Post-Deploy Smoke:
+  - `https://portal.s5evo.de`: 200
+  - `https://portal.s5evo.de/nachrichten`: 200
+  - `npm run smoke:public`: gruen
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+  - `GET /api/messages/admin-targets` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Als Admin `/nachrichten` oeffnen, Orga-Send-Icon pruefen und einen verknuepften User auswaehlen.
+  - Geschlossenen Thread als Teilnehmer:in und Admin beantworten und Reopen pruefen.
 
 ## Aktueller Nachtrag: Message Compose Popup Drafts
 
@@ -45,7 +55,11 @@ Stand: 2026-07-13 00:23 UTC
     - Loesung soll ressourcenschonend bleiben.
 - CR:
   - `docs/cr/2026-07-13-message-compose-popup-drafts.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `2f2754e Add message compose popups and drafts`
+  - Production Deploy: `dpl_EUkVf6NsqXbpb1qwbFzPV9F2wey9`
+  - Deployment URL: `https://s5-evo-portal-hasgiaj0p-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/components/message-center.tsx`
 - Geaendert:
   - Persoenlicher Composer rendert jetzt als Dialog/Popup statt als Karte am Seitenende.
@@ -62,9 +76,13 @@ Stand: 2026-07-13 00:23 UTC
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Naechster Schritt:
-  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
-  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
+- Post-Deploy Smoke:
+  - `https://portal.s5evo.de`: 200
+  - `https://portal.s5evo.de/nachrichten`: 200
+  - `npm run smoke:public`: gruen
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+  - `GET /api/messages/admin-targets` ohne Session: 401
 
 ## Aktueller Nachtrag: Message Status Multi Filter Persistence
 
@@ -77,7 +95,11 @@ Stand: 2026-07-13 00:23 UTC
     - Loesung soll ressourcenschonend bleiben.
 - CR:
   - `docs/cr/2026-07-12-message-status-multi-filter.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `01c4478 Add persisted message status filters`
+  - Production Deploy: `dpl_DuGJ5sQrFNvL8j5EGhLFLGZwdW8o`
+  - Deployment URL: `https://s5-evo-portal-7b8xdpi26-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/components/message-center.tsx`
 - Geaendert:
   - Statusfilter ist jetzt eine kombinierbare Mehrfachauswahl.
@@ -90,9 +112,12 @@ Stand: 2026-07-13 00:23 UTC
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Naechster Schritt:
-  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
-  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
+- Post-Deploy Smoke:
+  - `https://portal.s5evo.de`: 200
+  - `https://portal.s5evo.de/nachrichten`: 200
+  - `npm run smoke:public`: gruen
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
 
 ## Aktueller Nachtrag: Message Theme Sparkle And Portal Badges
 

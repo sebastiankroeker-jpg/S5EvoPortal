@@ -142,16 +142,22 @@ Sebastian meldete nach dem Messenger-Filter-Deploy:
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_EUkVf6NsqXbpb1qwbFzPV9F2wey9`
+- Deployment URL: `https://s5-evo-portal-hasgiaj0p-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-13 00:34 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `https://portal.s5evo.de`: 200
+  - `https://portal.s5evo.de/nachrichten`: 200
+  - `npm run smoke:public`: gruen
 - API checks:
-- Result:
+  - `GET /api/messages/conversations` ohne Session: 401
+  - `POST /api/messages/admin-conversations` ohne Session: 401
+  - `GET /api/messages/admin-targets` ohne Session: 401
+- Result: gruen
 
 ## Follow-Ups
 
