@@ -1,6 +1,37 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-12 23:55 UTC
+Stand: 2026-07-13 00:08 UTC
+
+## Aktueller Nachtrag: Message Compose Popup Drafts
+
+- Ausloeser:
+  - Sebastian meldete:
+    - Im Orga-Postfach ist der Button zum Mail verfassen verloren gegangen.
+    - Auch im persoenlichen Postfach soll `Neue Nachricht` als Popup erscheinen.
+    - Geschriebene Nachrichten sollen gemerkt werden, wenn man zwischenzeitlich woanders hin navigiert.
+    - Loesung soll ressourcenschonend bleiben.
+- CR:
+  - `docs/cr/2026-07-13-message-compose-popup-drafts.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - Persoenlicher Composer rendert jetzt als Dialog/Popup statt als Karte am Seitenende.
+  - Admin-Composer rendert ebenfalls als Dialog/Popup.
+  - Header-Send-Button in `Mein Postfach` oeffnet den Orga-Composer direkt.
+  - Header-Send-Button in `Orga-Team` ist wieder vorhanden, wenn ein fachlicher Kontakt aus dem aktiv selektierten Thread ableitbar ist.
+  - Orga-Button erstellt einen Admin-Compose fuer den Kontakt des aktiven Threads; keine freie Empfaengersuche.
+  - Persoenliche Drafts werden clientseitig in `localStorage` unter `s5evo.messages.composeDraft.v1` gespeichert.
+  - Admin-Drafts werden clientseitig pro Zielperson/Kontext unter `s5evo.messages.adminComposeDrafts.v1` gespeichert.
+  - `Abbrechen` schliesst nur das Popup; erfolgreicher Versand loescht den passenden lokalen Entwurf.
+  - Keine API-/DB-Aenderung; keine zusaetzliche Serverlast.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
+  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
 
 ## Aktueller Nachtrag: Message Status Multi Filter Persistence
 

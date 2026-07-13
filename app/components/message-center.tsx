@@ -24,6 +24,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { openUserDashboard } from "@/lib/admin-routing";
@@ -106,9 +114,20 @@ type MessageFilterState = {
   sortMode?: unknown;
   sortDirection?: unknown;
 };
+type PersonalComposeDraft = {
+  subject?: unknown;
+  body?: unknown;
+  contextId?: unknown;
+};
+type AdminComposeDraft = {
+  subject?: unknown;
+  body?: unknown;
+};
 
 const MESSAGE_LIST_COLUMNS_STORAGE_KEY = "s5evo.messages.visibleColumns.v1";
 const MESSAGE_FILTERS_STORAGE_KEY = "s5evo.messages.filters.v1";
+const MESSAGE_COMPOSE_DRAFT_STORAGE_KEY = "s5evo.messages.composeDraft.v1";
+const MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY = "s5evo.messages.adminComposeDrafts.v1";
 const MESSAGE_STATUS_FILTERS: Array<{ value: MessageStatusFilter; label: string }> = [
   { value: "OPEN", label: "Offen" },
   { value: "WAITING_FOR_ADMIN", label: "Wartet auf Admin" },
@@ -165,6 +184,39 @@ function sanitizeMessageFilterState(value: MessageFilterState): {
 function areStatusFiltersDefault(statuses: MessageStatusFilter[]) {
   return statuses.length === DEFAULT_MESSAGE_STATUS_FILTERS.length
     && DEFAULT_MESSAGE_STATUS_FILTERS.every((status) => statuses.includes(status));
+}
+
+function readJsonRecord(value: string | null): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function sanitizePersonalComposeDraft(value: PersonalComposeDraft) {
+  return {
+    subject: typeof value.subject === "string" ? value.subject : "",
+    body: typeof value.body === "string" ? value.body : "",
+    contextId: typeof value.contextId === "string" ? value.contextId : "",
+  };
+}
+
+function sanitizeAdminComposeDraft(value: AdminComposeDraft) {
+  return {
+    subject: typeof value.subject === "string" ? value.subject : "Nachricht vom Orga-Team",
+    body: typeof value.body === "string" ? value.body : "",
+  };
+}
+
+function adminComposeDraftKey(target: AdminComposeTarget) {
+  return [
+    target.userId,
+    target.teamId || "no-team",
+    target.participantId || "no-participant",
+  ].join(":");
 }
 
 function formatDateTime(value: string | null) {
@@ -342,6 +394,8 @@ export default function MessageCenter() {
   const [adminSubject, setAdminSubject] = useState("Nachricht vom Orga-Team");
   const [adminBody, setAdminBody] = useState("");
   const skipNextFilterPersistRef = useRef(false);
+  const skipNextPersonalDraftPersistRef = useRef(false);
+  const skipNextAdminDraftPersistRef = useRef(false);
 
   const adminTargetLabel = adminComposeTarget?.name || adminComposeTarget?.email || "Zielperson";
   const visibleColumnDefs = useMemo(
@@ -429,6 +483,64 @@ export default function MessageCenter() {
   }, [mode, searchQuery, sortDirection, sortMode, statusFilters, unreadOnly]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || contexts.length === 0) return;
+    const draft = sanitizePersonalComposeDraft(readJsonRecord(window.localStorage.getItem(MESSAGE_COMPOSE_DRAFT_STORAGE_KEY)));
+    const validContextId = draft.contextId && contexts.some((context) => `${context.type}:${context.id}` === draft.contextId)
+      ? draft.contextId
+      : `${contexts[0].type}:${contexts[0].id}`;
+    skipNextPersonalDraftPersistRef.current = true;
+    setSubject(draft.subject);
+    setBody(draft.body);
+    setContextId((current) => draft.contextId ? validContextId : current || validContextId);
+  }, [contexts]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (skipNextPersonalDraftPersistRef.current) {
+      skipNextPersonalDraftPersistRef.current = false;
+      return;
+    }
+    const hasDraft = subject.trim() || body.trim();
+    if (!hasDraft) {
+      window.localStorage.removeItem(MESSAGE_COMPOSE_DRAFT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(
+      MESSAGE_COMPOSE_DRAFT_STORAGE_KEY,
+      JSON.stringify({ subject, body, contextId }),
+    );
+  }, [body, contextId, subject]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !adminComposeTarget) return;
+    const drafts = readJsonRecord(window.localStorage.getItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY));
+    const draft = sanitizeAdminComposeDraft((drafts[adminComposeDraftKey(adminComposeTarget)] ?? {}) as AdminComposeDraft);
+    skipNextAdminDraftPersistRef.current = true;
+    setAdminSubject(draft.subject);
+    setAdminBody(draft.body);
+  }, [adminComposeTarget]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !adminComposeTarget) return;
+    if (skipNextAdminDraftPersistRef.current) {
+      skipNextAdminDraftPersistRef.current = false;
+      return;
+    }
+    const drafts = readJsonRecord(window.localStorage.getItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY));
+    const key = adminComposeDraftKey(adminComposeTarget);
+    if (!adminSubject.trim() && !adminBody.trim()) {
+      delete drafts[key];
+    } else {
+      drafts[key] = { subject: adminSubject, body: adminBody };
+    }
+    if (Object.keys(drafts).length === 0) {
+      window.localStorage.removeItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+  }, [adminBody, adminComposeTarget, adminSubject]);
+
+  useEffect(() => {
     if (!navigationBurst) return;
     const timeout = window.setTimeout(() => setNavigationBurst(null), 1300);
     return () => window.clearTimeout(timeout);
@@ -487,6 +599,15 @@ export default function MessageCenter() {
     ? selectedOwnerParticipant
     : selected?.participants.find((participant) => participant.user.id !== currentUserId && ["ADMIN", "MODERATOR"].includes(participant.role)) ?? selectedViewerParticipant ?? null;
   const selectedDialogIsOrgTeam = selectedDialogParticipant ? ["ADMIN", "MODERATOR"].includes(selectedDialogParticipant.role) : false;
+  const selectedAdminComposeTarget: AdminComposeTarget | null = selectedOwnerParticipant && selected
+    ? {
+        userId: selectedOwnerParticipant.user.id,
+        email: selectedOwnerParticipant.user.email,
+        name: selectedOwnerParticipant.user.name,
+        teamId: selected.context.team?.id ?? null,
+        participantId: selected.context.participant?.id ?? null,
+      }
+    : null;
   const selectedDialogRows: AccountLinkDialogRow[] = selectedDialogParticipant
     ? [
         {
@@ -536,6 +657,20 @@ export default function MessageCenter() {
   const listOptionsBadge = visibleColumns.length !== DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS.length || visibleColumnKey !== DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS.join("|")
     ? visibleColumns.length
     : null;
+
+  const openPersonalCompose = () => {
+    setComposeOpen(true);
+    setMobileThreadOpen(false);
+    triggerNavigationBurst("composer");
+  };
+
+  const openAdminComposeForSelectedThread = () => {
+    if (!selectedAdminComposeTarget) return;
+    setAdminComposeTarget(selectedAdminComposeTarget);
+    setMobileThreadOpen(false);
+    triggerNavigationBurst("composer");
+  };
+
   const messageStatsItems = [
     {
       key: "all",
@@ -674,6 +809,9 @@ export default function MessageCenter() {
       setSubject("");
       setBody("");
       setComposeOpen(false);
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(MESSAGE_COMPOSE_DRAFT_STORAGE_KEY);
+      }
       setMode("mine");
       await loadConversations("mine");
       if (data.conversation?.id) {
@@ -707,6 +845,15 @@ export default function MessageCenter() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Nachricht konnte nicht gesendet werden");
+      if (typeof window !== "undefined") {
+        const drafts = readJsonRecord(window.localStorage.getItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY));
+        delete drafts[adminComposeDraftKey(adminComposeTarget)];
+        if (Object.keys(drafts).length === 0) {
+          window.localStorage.removeItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY);
+        } else {
+          window.localStorage.setItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+        }
+      }
       setAdminBody("");
       setAdminSubject("Nachricht vom Orga-Team");
       setAdminComposeTarget(null);
@@ -727,8 +874,6 @@ export default function MessageCenter() {
 
   const cancelAdminCompose = () => {
     setAdminComposeTarget(null);
-    setAdminBody("");
-    setAdminSubject("Nachricht vom Orga-Team");
     window.history.replaceState({}, "", "/nachrichten");
   };
 
@@ -964,16 +1109,16 @@ export default function MessageCenter() {
         </div>
       )}
 
-      {canManageSupport && adminComposeTarget && (
-        <Card className="border-rose-500/30 bg-rose-500/5">
-          <CardHeader className="space-y-2 p-3 sm:p-4">
+      <Dialog open={canManageSupport && Boolean(adminComposeTarget)} onOpenChange={(open) => { if (!open) cancelAdminCompose(); }}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader className="space-y-2 pr-8">
             <div className="flex flex-wrap items-center gap-2">
-              <CardTitle className="text-base">Nachricht an {adminTargetLabel}</CardTitle>
+              <DialogTitle>Nachricht an {adminTargetLabel}</DialogTitle>
               {renderAdminTargetPortalBadge()}
             </div>
-            <CardDescription>
+            <DialogDescription>
               Admin-Nachricht als Support-Thread. Der Nachrichtentext wird nicht per Mail weitergeleitet.
-            </CardDescription>
+            </DialogDescription>
             <MessageMetaStrip
               items={[
                 { key: "status", label: "Status", value: "Entwurf" },
@@ -991,8 +1136,8 @@ export default function MessageCenter() {
                 { key: "date", label: "Datum & Uhrzeit", value: formatDateTime(new Date().toISOString()) },
               ]}
             />
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </DialogHeader>
+          <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Zielperson</label>
@@ -1014,18 +1159,18 @@ export default function MessageCenter() {
               rows={4}
               placeholder="Nachricht schreiben..."
             />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" disabled={sending} onClick={cancelAdminCompose}>
-                Abbrechen
-              </Button>
-              <Button type="button" disabled={sending || adminBody.trim().length < 2} onClick={createAdminThread}>
-                <Send className="mr-2 h-4 w-4" />
-                Nachricht senden
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={sending} onClick={cancelAdminCompose}>
+              Abbrechen
+            </Button>
+            <Button type="button" disabled={sending || adminBody.trim().length < 2} onClick={createAdminThread}>
+              <Send className="mr-2 h-4 w-4" />
+              Nachricht senden
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className={cn("grid gap-4", sidebarOpen ? "lg:grid-cols-[minmax(280px,360px)_1fr]" : "lg:grid-cols-[72px_1fr]")}>
         <Card className={cn("relative overflow-hidden transition-all", mobileThreadOpen && "hidden lg:block", !sidebarOpen && "lg:min-h-[520px]")}>
@@ -1044,14 +1189,22 @@ export default function MessageCenter() {
                         type="button"
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
-                          setComposeOpen((open) => !open);
-                          setMobileThreadOpen(false);
-                          triggerNavigationBurst("composer");
-                          window.setTimeout(() => document.getElementById("new-message-composer")?.scrollIntoView({ block: "start", behavior: "smooth" }), 0);
-                        }}
+                        onClick={openPersonalCompose}
                         aria-label="Neue Nachricht schreiben"
                         title="Neue Nachricht schreiben"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {mode === "admin" && canManageSupport && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={openAdminComposeForSelectedThread}
+                        disabled={!selectedAdminComposeTarget}
+                        aria-label="Nachricht an Thread-Kontakt schreiben"
+                        title={selectedAdminComposeTarget ? "Nachricht an Thread-Kontakt schreiben" : "Kein Thread-Kontakt auswählbar"}
                       >
                         <Send className="h-4 w-4" />
                       </Button>
@@ -1562,12 +1715,12 @@ export default function MessageCenter() {
         </Card>
       </div>
 
-      {contexts.length > 0 && composeOpen && (
-        <Card id="new-message-composer" className="relative">
+      <Dialog open={contexts.length > 0 && composeOpen} onOpenChange={setComposeOpen}>
+        <DialogContent id="new-message-composer" className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
           <NavigationSparkleBurst active={sparkleEnabled && navigationBurst?.target === "composer"} burstId={navigationBurst?.id} label="Composer" />
-          <CardHeader className="space-y-2 p-3 sm:p-4">
-            <CardTitle className="text-base">Neue Nachricht an das Orga-Team</CardTitle>
-            <CardDescription>Der Nachrichtentext wird nicht per Mail weitergeleitet, sondern bleibt im Portal.</CardDescription>
+          <DialogHeader className="space-y-2 pr-8">
+            <DialogTitle>Neue Nachricht an das Orga-Team</DialogTitle>
+            <DialogDescription>Der Nachrichtentext wird nicht per Mail weitergeleitet, sondern bleibt im Portal.</DialogDescription>
             <MessageMetaStrip
               items={[
                 { key: "status", label: "Status", value: "Entwurf" },
@@ -1585,8 +1738,8 @@ export default function MessageCenter() {
                 { key: "date", label: "Datum & Uhrzeit", value: formatDateTime(new Date().toISOString()) },
               ]}
             />
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </DialogHeader>
+          <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Kontext</label>
@@ -1613,18 +1766,18 @@ export default function MessageCenter() {
               rows={4}
               placeholder="Nachricht an das Orga-Team..."
             />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" disabled={sending} onClick={() => setComposeOpen(false)}>
-                Abbrechen
-              </Button>
-              <Button type="button" disabled={sending || body.trim().length < 2} onClick={createThread}>
-                <Send className="mr-2 h-4 w-4" />
-                Nachricht senden
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={sending} onClick={() => setComposeOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button type="button" disabled={sending || body.trim().length < 2} onClick={createThread}>
+              <Send className="mr-2 h-4 w-4" />
+              Nachricht senden
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
