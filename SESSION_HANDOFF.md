@@ -1,6 +1,39 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 00:08 UTC
+Stand: 2026-07-13 00:23 UTC
+
+## Aktueller Nachtrag: Message Admin Free Targets And Reopen
+
+- Ausloeser:
+  - Sebastian ergaenzte:
+    - Admins sollen selbst einen Thread mit beliebigen Empfaengern aus den verknuepften Usern erstellen koennen.
+    - Wenn eine Meldung geschlossen ist, sollen beide Adressaten dennoch antworten koennen.
+    - Eine Antwort auf eine geschlossene Meldung soll den Thread automatisch wieder auf offen setzen.
+- CR:
+  - `docs/cr/2026-07-13-message-admin-free-targets-and-reopen.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `app/api/messages/admin-targets/route.ts`
+  - `app/api/messages/conversations/[id]/messages/route.ts`
+  - `app/components/message-center.tsx`
+- Geaendert:
+  - Neue API `GET /api/messages/admin-targets` fuer Admin-/Moderator-Zielauswahl.
+  - Zielauswahl sammelt verknuepfte User aus Tenant-Rollen, verknuepften Teilnehmer:innen, Teamkontakten, Teamchef:innen und Team-Manager:innen.
+  - API gibt keine E-Mail-Adressen zurueck.
+  - Orga-Postfach Header-Send-Button oeffnet jetzt freie Empfaengerauswahl; der Kontakt des aktiven Threads bleibt Vorauswahl.
+  - Admin-Composer nutzt einen nativen Select fuer mobile Robustheit.
+  - Antworten auf geschlossene Threads werden fuer Teilnehmer:innen nicht mehr mit `409` geblockt.
+  - Jede Antwort setzt den Thread weiterhin auf `WAITING_FOR_ADMIN` oder `WAITING_FOR_USER` und entfernt `closedAt`/`closedById`.
+- Checks lokal gruen:
+  - `pnpm exec eslint app/components/message-center.tsx app/api/messages/admin-targets/route.ts app/api/messages/conversations/[id]/messages/route.ts`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Naechster Schritt:
+  - Commit erstellen.
+  - Danach auf Sebastian-Go beide lokalen Messenger-Commits pushen und Production deployen:
+    - `2f2754e Add message compose popups and drafts`
+    - neuer Admin-Targets/Reopen-Commit
+  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401, `/api/messages/admin-targets` ohne Session: 401.
 
 ## Aktueller Nachtrag: Message Compose Popup Drafts
 

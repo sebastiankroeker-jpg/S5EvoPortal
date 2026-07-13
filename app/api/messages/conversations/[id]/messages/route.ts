@@ -31,10 +31,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
   }
 
-  if (loaded.conversation.status === "CLOSED" && !loaded.canManage) {
-    return NextResponse.json({ error: "Diese Unterhaltung ist geschlossen" }, { status: 409 });
-  }
-
   const body = await request.json().catch(() => ({}));
   const messageBody = normalizeMessageBody(body.body);
   const senderDisplayMode = normalizeSenderDisplayMode(body.senderDisplayMode, loaded.canManage);

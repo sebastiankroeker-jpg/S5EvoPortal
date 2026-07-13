@@ -101,6 +101,10 @@ type AdminComposeTarget = {
   teamId: string | null;
   participantId: string | null;
 };
+type AdminMessageTarget = AdminComposeTarget & {
+  label: string;
+  description: string;
+};
 
 type SortDirection = "asc" | "desc";
 type MessageStatusFilter = ConversationSummary["status"];
@@ -211,12 +215,22 @@ function sanitizeAdminComposeDraft(value: AdminComposeDraft) {
   };
 }
 
-function adminComposeDraftKey(target: AdminComposeTarget) {
+function adminComposeDraftKey(target: Pick<AdminComposeTarget, "userId" | "teamId" | "participantId">) {
   return [
     target.userId,
     target.teamId || "no-team",
     target.participantId || "no-participant",
   ].join(":");
+}
+
+function adminTargetToComposeTarget(target: AdminMessageTarget): AdminComposeTarget {
+  return {
+    userId: target.userId,
+    email: null,
+    name: target.name || target.label,
+    teamId: target.teamId,
+    participantId: target.participantId,
+  };
 }
 
 function formatDateTime(value: string | null) {
@@ -380,6 +394,8 @@ export default function MessageCenter() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contexts, setContexts] = useState<SupportContext[]>([]);
+  const [adminTargets, setAdminTargets] = useState<AdminMessageTarget[]>([]);
+  const [adminTargetsLoading, setAdminTargetsLoading] = useState(false);
   const [canManageSupport, setCanManageSupport] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -608,6 +624,20 @@ export default function MessageCenter() {
         participantId: selected.context.participant?.id ?? null,
       }
     : null;
+  const adminTargetOptions = useMemo(() => {
+    const options = new Map<string, AdminMessageTarget>();
+    for (const target of adminTargets) {
+      options.set(adminComposeDraftKey(target), target);
+    }
+    if (adminComposeTarget && !options.has(adminComposeDraftKey(adminComposeTarget))) {
+      options.set(adminComposeDraftKey(adminComposeTarget), {
+        ...adminComposeTarget,
+        label: adminTargetLabel,
+        description: selected?.context.team?.name || "Aktueller Nachrichtenkontext",
+      });
+    }
+    return Array.from(options.values());
+  }, [adminComposeTarget, adminTargetLabel, adminTargets, selected?.context.team?.name]);
   const selectedDialogRows: AccountLinkDialogRow[] = selectedDialogParticipant
     ? [
         {
@@ -664,9 +694,14 @@ export default function MessageCenter() {
     triggerNavigationBurst("composer");
   };
 
-  const openAdminComposeForSelectedThread = () => {
-    if (!selectedAdminComposeTarget) return;
-    setAdminComposeTarget(selectedAdminComposeTarget);
+  const openAdminCompose = async () => {
+    const targets = adminTargets.length > 0 ? adminTargets : await loadAdminTargets();
+    const initialTarget = selectedAdminComposeTarget ?? (targets[0] ? adminTargetToComposeTarget(targets[0]) : null);
+    if (!initialTarget) {
+      setError("Keine verknüpften Empfänger gefunden");
+      return;
+    }
+    setAdminComposeTarget(initialTarget);
     setMobileThreadOpen(false);
     triggerNavigationBurst("composer");
   };
@@ -756,10 +791,33 @@ export default function MessageCenter() {
     } catch {}
   }, []);
 
+  const loadAdminTargets = useCallback(async () => {
+    setAdminTargetsLoading(true);
+    try {
+      const response = await fetch("/api/messages/admin-targets");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Empfänger konnten nicht geladen werden");
+      const entries = Array.isArray(data.targets) ? data.targets.filter(Boolean) as AdminMessageTarget[] : [];
+      setAdminTargets(entries);
+      return entries;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Empfänger konnten nicht geladen werden");
+      setAdminTargets([]);
+      return [];
+    } finally {
+      setAdminTargetsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadConversations(mode);
     void loadContexts();
   }, [loadContexts, loadConversations, mode]);
+
+  useEffect(() => {
+    if (!canManageSupport) return;
+    void loadAdminTargets();
+  }, [canManageSupport, loadAdminTargets]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1141,11 +1199,28 @@ export default function MessageCenter() {
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Zielperson</label>
-                <div className="rounded-md border border-border/60 bg-background px-3 py-2 text-sm">
-                  <div className="flex items-center gap-2 font-medium">
-                    <span>{adminTargetLabel}</span>
-                    {renderAdminTargetPortalBadge()}
-                  </div>
+                <select
+                  value={adminComposeTarget ? adminComposeDraftKey(adminComposeTarget) : ""}
+                  onChange={(event) => {
+                    const selectedTarget = adminTargetOptions.find((target) => adminComposeDraftKey(target) === event.target.value);
+                    if (selectedTarget) setAdminComposeTarget(adminTargetToComposeTarget(selectedTarget));
+                  }}
+                  disabled={adminTargetsLoading || adminTargetOptions.length === 0}
+                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+                >
+                  {adminTargetOptions.length === 0 ? (
+                    <option value="">Keine verknüpften Empfänger</option>
+                  ) : (
+                    adminTargetOptions.map((target) => (
+                      <option key={adminComposeDraftKey(target)} value={adminComposeDraftKey(target)}>
+                        {target.label} · {target.description}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {renderAdminTargetPortalBadge()}
+                  <span className="truncate">Nur verknüpfte Portal-User im aktuellen Mandanten.</span>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -1201,10 +1276,10 @@ export default function MessageCenter() {
                         type="button"
                         size="icon"
                         variant="ghost"
-                        onClick={openAdminComposeForSelectedThread}
-                        disabled={!selectedAdminComposeTarget}
-                        aria-label="Nachricht an Thread-Kontakt schreiben"
-                        title={selectedAdminComposeTarget ? "Nachricht an Thread-Kontakt schreiben" : "Kein Thread-Kontakt auswählbar"}
+                        onClick={openAdminCompose}
+                        disabled={adminTargetsLoading}
+                        aria-label="Neue Orga-Nachricht schreiben"
+                        title="Neue Orga-Nachricht schreiben"
                       >
                         <Send className="h-4 w-4" />
                       </Button>
@@ -1688,27 +1763,26 @@ export default function MessageCenter() {
               </CardContent>
 
               <div className="sticky bottom-0 z-10 border-t border-border/60 bg-card/95 p-3 backdrop-blur">
-                {selected.status === "CLOSED" && mode !== "admin" ? (
-                  <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                    Dieser Thread ist geschlossen. Das Orga-Team kann ihn bei Bedarf wieder öffnen.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={reply}
-                      onChange={(event) => setReply(event.target.value)}
-                      rows={2}
-                      placeholder="Antwort schreiben..."
-                      className="min-h-20 resize-none"
-                    />
-                    <div className="flex justify-end">
-                      <Button type="button" disabled={sending || reply.trim().length < 2} onClick={sendReply}>
-                        <Send className="mr-2 h-4 w-4" />
-                        Antwort senden
-                      </Button>
+                <div className="space-y-2">
+                  {selected.status === "CLOSED" && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                      Eine Antwort öffnet diesen Thread automatisch wieder.
                     </div>
+                  )}
+                  <Textarea
+                    value={reply}
+                    onChange={(event) => setReply(event.target.value)}
+                    rows={2}
+                    placeholder="Antwort schreiben..."
+                    className="min-h-20 resize-none"
+                  />
+                  <div className="flex justify-end">
+                    <Button type="button" disabled={sending || reply.trim().length < 2} onClick={sendReply}>
+                      <Send className="mr-2 h-4 w-4" />
+                      Antwort senden
+                    </Button>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           )}
