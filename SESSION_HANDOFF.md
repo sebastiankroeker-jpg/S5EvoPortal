@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 08:58 UTC
+Stand: 2026-07-13 09:00 UTC
 
 ## Aktueller Nachtrag: MTC Owner Finalisierung
 
@@ -9,7 +9,11 @@ Stand: 2026-07-13 08:58 UTC
   - Markus Huber ist der akute Praxisfall; wichtig war die Unterscheidung zwischen MTC-Owner-Vorzustand und regulaeren Teamchef-/Teammanager-Rechten.
 - CR:
   - `docs/cr/2026-07-13-mtc-owner-finalize.md`
-- Implementiert, noch nicht deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `85fd757 Allow MTC owners to finalize teams`
+  - Production Deploy: `dpl_5hkMD2RqyPZsUT3k5QprqCQiFxKG`
+  - Deployment URL: `https://s5-evo-portal-a0rh7smxt-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/api/admin/marketplace-matching/route.ts`
   - `app/api/teams/route.ts`
   - `app/api/teams/[id]/route.ts`
@@ -30,8 +34,14 @@ Stand: 2026-07-13 08:58 UTC
   - `npm run verify:account-link-status`
   - `git diff --check`
   - `npm run build`
-- Naechster Schritt:
-  - Commit und Deploy nach Sebastians Go; danach Real-Smoke mit Markus-Huber-Login oder Admin-Simulation.
+- Post-Deploy Smoke:
+  - `https://portal.s5evo.de/`: 200
+  - `https://portal.s5evo.de/sportlerboerse-dashboard`: 200
+  - `npm run smoke:public`: gruen
+  - `GET /api/teams` ohne Session: 401
+  - `GET /api/admin/marketplace-matching` ohne Session: 401
+- Naechster sinnvoller Real-Smoke:
+  - Mit Markus-Huber-Login oder Admin-Simulation pruefen, dass eigene vollstaendige MTC den Uebernehmen-Dialog zeigt und nach Finalisierung als regulaere Mannschaft mit Team-Manager-Recht erscheint.
 
 ## Aktueller Nachtrag: Message Admin Target Registered Search
 

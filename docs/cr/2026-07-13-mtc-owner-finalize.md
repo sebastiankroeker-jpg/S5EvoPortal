@@ -152,17 +152,22 @@ Use before model switch or subagent delegation.
 
 ## Deploy
 
-- Deployment needed: yes, after Sebastian approval
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: completed
+- Deployment ID: `dpl_5hkMD2RqyPZsUT3k5QprqCQiFxKG`
+- Deployment URL: `https://s5-evo-portal-a0rh7smxt-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-13 08:58 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `https://portal.s5evo.de/` -> 200
+  - `https://portal.s5evo.de/sportlerboerse-dashboard` -> 200
+  - `npm run smoke:public` -> green
 - API checks:
-- Result:
+  - `GET https://portal.s5evo.de/api/teams` without session -> 401
+  - `GET https://portal.s5evo.de/api/admin/marketplace-matching` without session -> 401
+- Result: Production deploy ready and public smoke green. Authenticated Markus-Huber real-smoke still recommended.
 
 ## Follow-Ups
 
