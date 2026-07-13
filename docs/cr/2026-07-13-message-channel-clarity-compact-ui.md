@@ -189,3 +189,19 @@ Rueckmeldungen:
 ## Follow-Ups
 
 - Optional Browser-Real-Smoke mit Admin-Login: persoenlich an User schreiben, Orga-Team an User schreiben, Empfaengeransicht Kanal pruefen.
+
+## Follow-Up 2026-07-13 12:55 UTC - Contact Email Visibility
+
+- Trigger: Screenshot aus Prod zeigt im Orga-Thread `Namens Aenderung` fuer `schusterkat78@gmail.com` nur Anzeigename `Schuster`, obwohl in Zielperson-/Kontaktanzeigen Name plus E-Mail sichtbar sein soll.
+- Production data read-only checked:
+  - User `Schuster <schusterkat78@gmail.com>` exists and has an active portal account.
+  - Team `De junga Rot Kreiz "Spez"-ialisten` is linked via both `ownerId` and `teamChiefId` to that user.
+  - Conversation `Namens Aenderung` exists, status `WAITING_FOR_ADMIN`, team context set, participant context null, latest user message says the team does not feel connected.
+  - Assessment: data linkage is correct; likely orientation/UX issue rather than missing ownership.
+- Intentional non-change:
+  - Claim links for same email across different users stay unchanged and must remain available.
+- Local code change:
+  - Messenger contact labels now use `Name · E-Mail` for real user contacts in thread list, thread header, message sender labels, and contact badges.
+  - `Orga-Team` labels remain mailbox labels without a personal E-Mail.
+- Verification:
+  - `npx eslint app/components/message-center.tsx` gruen.

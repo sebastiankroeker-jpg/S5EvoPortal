@@ -277,8 +277,13 @@ function statusClassName(status: ConversationSummary["status"]) {
   }
 }
 
-function senderLabel(message: { senderDisplayName?: string; sender: { name: string | null; email: string } }) {
-  return message.senderDisplayName || message.sender.name || message.sender.email;
+function senderLabel(message: {
+  senderDisplayMode?: MessageSenderDisplayMode;
+  senderDisplayName?: string;
+  sender: { name: string | null; email: string };
+}) {
+  if (message.senderDisplayMode === "ORG") return message.senderDisplayName || "Orga-Team";
+  return formatPersonWithEmail(message.sender);
 }
 
 function conversationParticipantName(conversation: ConversationSummary) {
@@ -302,7 +307,7 @@ function conversationPersonLabel(conversation: ConversationSummary, mode: "mine"
   const outgoing = isOutgoingConversation(conversation, mode, currentUserId);
   if (mode === "admin") {
     const owner = conversation.participants.find((participant) => ["OWNER", "MEMBER"].includes(participant.role));
-    const ownerName = owner?.user.name || owner?.user.email;
+    const ownerName = owner ? formatPersonWithEmail(owner.user) : "";
     if (outgoing) return ownerName || conversationParticipantName(conversation) || conversation.context.team?.name || "Empfänger";
     return conversation.lastMessage ? senderLabel(conversation.lastMessage) : ownerName || "Sender";
   }
@@ -1044,7 +1049,7 @@ export default function MessageCenter() {
 
   const renderAdminTargetPortalBadge = () => {
     if (!adminComposeTarget) return null;
-    const displayName = adminComposeTarget.name || adminComposeTarget.email || "Portal-Konto";
+    const displayName = formatPersonWithEmail(adminComposeTarget);
     const openTarget = () => openUserDashboard({
       userId: adminComposeTarget.userId,
       email: adminComposeTarget.email,
@@ -1117,7 +1122,7 @@ export default function MessageCenter() {
       );
     }
 
-    const displayName = contact.user.name || contact.user.email || "Portal-Konto";
+    const displayName = formatPersonWithEmail(contact.user);
     const openContact = () => openUserDashboard({ userId: contact.user.id, email: contact.user.email, teamId: conversation.context.team?.id });
 
     return (
@@ -1753,7 +1758,7 @@ export default function MessageCenter() {
                       compact
                       meta={{
                         status: selectedDialogIsOrgTeam ? "portal_account" : "linked",
-                        label: selectedDialogIsOrgTeam ? "Orga-Team" : selectedDialogParticipant.user.name || selectedDialogParticipant.user.email,
+                        label: selectedDialogIsOrgTeam ? "Orga-Team" : formatPersonWithEmail(selectedDialogParticipant.user),
                         className:
                           selectedDialogIsOrgTeam
                             ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
