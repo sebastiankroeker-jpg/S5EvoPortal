@@ -205,3 +205,22 @@ Rueckmeldungen:
   - `Orga-Team` labels remain mailbox labels without a personal E-Mail.
 - Verification:
   - `npx eslint app/components/message-center.tsx` gruen.
+
+## Follow-Up Deploy 2026-07-13 13:50 UTC - Contact Email Visibility
+
+- Commit deployed:
+  - `1a74c7e` - `Show email in message contact labels`
+- Deployment ID: `dpl_8HD7Qp23xpf24kx6xnQP37khwiSp`
+- Deployment URL: `https://s5-evo-portal-kemkvbs7g-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-13 13:50 UTC
+- Post-deploy smoke:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `npm run smoke:public` against `https://portal.s5evo.de` gruen
+  - `GET /api/messages/conversations` without session -> 401
+  - `GET /api/messages/admin-targets` without session -> 401
+  - `GET /api/messages/admin-conversations` -> 405 because route is POST-only
+  - `POST /api/messages/admin-conversations` without session -> 401
+- Result: gruen
