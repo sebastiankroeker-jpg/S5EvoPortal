@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 11:35 UTC
+Stand: 2026-07-14 12:22 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -26,10 +26,15 @@ Stand: 2026-07-14 11:35 UTC
   - Post-Deploy Smoke gruen: `npm run smoke:public`, `/sportlerboerse-dashboard` -> 200, `/api/teams` ohne Session -> 401.
 - Team-Edit-bis-Anmeldeschluss-Hotfix:
   - CR: `docs/cr/2026-07-14-team-edit-direct-until-registration-deadline.md`
-  - Status: lokal implementiert, noch nicht deployed.
+  - Status: deployed.
+  - Commit: `41ad486 Allow direct team edits before deadline`
+  - Production Deploy: `dpl_3HxpsrUmpz1ajiC7E6qMFf77R6fx`
+  - Deployment URL: `https://s5-evo-portal-5et0yhr1x-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - Ursache: Team-Manager:innen konnten vor Anmeldeschluss nicht alle Mannschaftsaenderungen direkt speichern; Identitaet/Geburtsdaten/Geschlecht/Disziplin liefen in PendingChange, obwohl fachlich bis Anmeldeschluss keine Genehmigung noetig ist.
   - Korrektur: `PUT /api/teams/[id]` nutzt fuer Team-Owner/Manager vor `competition.registrationDeadline` den bestehenden Direkt-Update-Pfad; nach Anmeldeschluss bleibt der Approval-Flow bestehen.
   - Checks lokal gruen: targeted ESLint, `npx tsc --noEmit`, `npm run verify:team-draft`, `git diff --check`, gezielte Deadline-Assertions.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`, `/anmeldung` -> 200, `/aenderungen` -> 200, `/sportlerboerse-dashboard` -> 200, `/api/teams` ohne Session -> 401.
 - Groessere Spaeter-Punkte bleiben: Glossar/Regelwerk fuer Rollen-/UI-Semantik, zentraler Audit-Helper, optional Team-Startnummern-UI/Doku.
 
 ## Aktueller Nachtrag: Team-Edit direkt bis Anmeldeschluss
@@ -38,7 +43,11 @@ Stand: 2026-07-14 11:35 UTC
   - Sebastian stellte klar: Bis zum Anmeldeschluss sind Aenderungen in der Mannschaft nicht genehmigungspflichtig.
 - CR:
   - `docs/cr/2026-07-14-team-edit-direct-until-registration-deadline.md`
-- Lokal implementiert, noch nicht deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `41ad486 Allow direct team edits before deadline`
+  - Production Deploy: `dpl_3HxpsrUmpz1ajiC7E6qMFf77R6fx`
+  - Deployment URL: `https://s5-evo-portal-5et0yhr1x-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `app/api/teams/[id]/route.ts`
   - `lib/registration-deadline.ts`
 - Geaendert:
@@ -53,8 +62,19 @@ Stand: 2026-07-14 11:35 UTC
   - `npx tsc --noEmit`
   - `npm run verify:team-draft`
   - `git diff --check`
+- Post-Deploy Smoke:
+  - `npm run smoke:public` gegen `https://portal.s5evo.de` gruen
+  - `GET /` -> 200
+  - `GET /login` -> 200
+  - `GET /anmeldung` -> 200
+  - `GET /aenderungen` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `GET /api/competition` -> 200
+  - `GET /api/results` -> 200
+  - `GET /api/teams` ohne Session -> 401
+  - `GET /api/admin/pending-changes` ohne Session -> 401
 - Naechster Schritt:
-  - Committen, dann nach Sebastian-Go Production-Deploy + Smoke.
+  - Authenticated Smoke mit Team-Owner/Manager-Session: vor Anmeldeschluss Mannschaft editieren und pruefen, dass kein PendingChange entsteht.
 
 ## Aktueller Nachtrag: MTC Owner Offline Visibility Hotfix
 

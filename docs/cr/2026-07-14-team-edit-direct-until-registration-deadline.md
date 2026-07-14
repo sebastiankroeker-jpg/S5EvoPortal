@@ -1,6 +1,6 @@
 # CR: Team edit direct until registration deadline
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-14
 Type: hotfix
 Risk: medium
@@ -134,21 +134,32 @@ Current behavior only stores some participant fields directly for team managers.
   - `npx tsx -e` assertions for `isRegistrationDeadlineOpen(...)` before/after deadline and missing deadline -> passed
   - `npm run verify:team-draft` -> passed
 - Manual smoke:
-  - Pending production deploy / authenticated smoke.
+  - Public production smoke passed.
+  - Authenticated team-owner edit smoke still needs a user session/cookie.
 
 ## Deploy
 
-- Deployment needed: yes, after explicit Go
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes
+- Deployment ID: `dpl_3HxpsrUmpz1ajiC7E6qMFf77R6fx`
+- Deployment URL: `https://s5-evo-portal-5et0yhr1x-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-14 12:16 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `GET /` -> 200
+  - `GET /login` -> 200
+  - `GET /anmeldung` -> 200
+  - `GET /aenderungen` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - legacy domain -> 308 to production
 - API checks:
-- Result:
+  - `GET /api/competition` -> 200
+  - `GET /api/results` -> 200
+  - `GET /api/teams` without session -> 401
+  - `GET /api/admin/pending-changes` without session -> 401
+- Result: passed
 
 ## Follow-Ups
 
