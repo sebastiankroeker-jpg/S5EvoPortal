@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 15:25 UTC
+Stand: 2026-07-14 18:20 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -20,6 +20,14 @@ Stand: 2026-07-14 15:25 UTC
 - Naechste aktive Arbeit liegt nicht in weiterem UI-Bau, sondern in Real-Smokes:
   1. Authenticated Messenger-Smoke: persoenlich an User, Orga-Team an User, Kanal-Anzeige in Empfaengeransicht, persoenliche Threads schliessen/wieder oeffnen, Reopen bei Antwort.
   2. Markus-Huber/MTC-Smoke: eigene vollstaendige MTC zeigt Uebernehmen-Dialog, Finalisierung klappt, danach regulaere Mannschaft mit Team-Manager-/Teamchef-Recht.
+- Neuer nicht deployter UI-Hotfix:
+  - CR: `docs/cr/2026-07-14-user-team-scope-class-badge.md`
+  - Commit: `1d5b1b9 Show class badges in user team scopes`
+  - Status: auf `origin/main` gepusht, noch nicht produktiv deployed.
+  - Ausloeser: Markus-Huber Useransicht zeigt `Huber Cars, Team 3` nach MTC-Ueberfuehrung als regulaere Mannschaft ohne Klassenkuerzel vor dem Teamnamen.
+  - Geaendert: `app/api/admin/users/route.ts` liefert `classificationCode` in `teamScopes[]`; `app/components/user-management.tsx` zeigt fuer regulaere Teams ein kompaktes Klassen-Badge (SA/SB/J/DA/DB/HA/HB/HC) vor dem Mannschaftsnamen. MTC-Scopes behalten `MTC x/5`.
+  - Checks gruen: `npx eslint app/api/admin/users/route.ts app/components/user-management.tsx`, `npx tsc --noEmit`, `git diff --check`.
+  - Naechster Schritt: nach Sebastian-Go Production deployen und `/orga`/Userverwaltung smoke pruefen.
 - Pending-Change-BirthDate-Hotfix:
   - CR: `docs/cr/2026-07-14-pending-change-birthdate-live-drift-hotfix.md`
   - Status: deployed.
