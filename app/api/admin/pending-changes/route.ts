@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
             firstName: true,
             lastName: true,
             birthYear: true,
+            birthDate: true,
             gender: true,
             disciplineCode: true,
             shirtSize: true,
@@ -196,6 +197,7 @@ export async function GET(request: NextRequest) {
           firstName: true,
           lastName: true,
           birthYear: true,
+          birthDate: true,
           gender: true,
           disciplineCode: true,
           shirtSize: true,
@@ -271,6 +273,7 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true,
               birthYear: true,
+              birthDate: true,
               gender: true,
               disciplineCode: true,
               shirtSize: true,
@@ -523,6 +526,7 @@ type ParticipantForApproval = {
   firstName: string;
   lastName: string;
   birthYear: number;
+  birthDate?: string | null;
   gender: string;
   disciplineCode: string;
   shirtSize?: string | null;

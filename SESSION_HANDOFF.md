@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 12:22 UTC
+Stand: 2026-07-14 12:42 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand vor diesem Handoff-Cleanup: `main...origin/main` synchron; lokal nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand vor diesem Handoff-Cleanup: `main` enthaelt lokal den Pending-Change-BirthDate-Hotfix; noch nicht gepusht/deployed. Zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Letzter funktionaler Code-Deploy:
   - Commit: `186b01d Allow personal message status updates`
@@ -14,6 +14,19 @@ Stand: 2026-07-14 12:22 UTC
 - Naechste aktive Arbeit liegt nicht in weiterem UI-Bau, sondern in Real-Smokes:
   1. Authenticated Messenger-Smoke: persoenlich an User, Orga-Team an User, Kanal-Anzeige in Empfaengeransicht, persoenliche Threads schliessen/wieder oeffnen, Reopen bei Antwort.
   2. Markus-Huber/MTC-Smoke: eigene vollstaendige MTC zeigt Uebernehmen-Dialog, Finalisierung klappt, danach regulaere Mannschaft mit Team-Manager-/Teamchef-Recht.
+- Pending-Change-BirthDate-Hotfix:
+  - CR: `docs/cr/2026-07-14-pending-change-birthdate-live-drift-hotfix.md`
+  - Status: lokal implementiert, geprueft, noch nicht gepusht/deployed.
+  - Ursache: Admin-Pending-Change-Readmodels selektierten `birthYear`, aber nicht `birthDate`; `toParticipantSnapshot()` interpretierte den Live-Stand dadurch als `birthDate=null`.
+  - Effekt in Prod: Die zwei offenen Markus/Huber-Antraege fuer `Huber Cars Team 4, Family Edition` zeigten false-positive `Live-Stand abweichend`, obwohl die Live-Teilnehmer Geburtstage haben.
+  - Geaendert:
+    - `app/api/admin/pending-changes/route.ts`: `birthDate` in Generic-/Legacy-/Direct-Participant-Selects und Typ ergaenzt.
+    - `app/api/admin/participant-change-bundles/[id]/route.ts`: `birthDate` im Participant-Select ergaenzt.
+  - Read-only Prod-Verifikation nach Fix-Logik:
+    - `cmrkkd0y5000dju04bg32e4ua`: live `2004-04-27`, Drift `[]`.
+    - `cmrkkbnuw0003ju040vpsvhls`: live `1993-10-14`, Drift `[]`.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit`, `git diff --check`.
+  - Naechster Schritt: Sebastian um Go fuer Push/Deploy bitten; danach `/aenderungen` reload/smoke.
 - Markus-Huber MTC-Owner-Offline-Hotfix:
   - Commit: `175835b Allow MTC owners to view offline drafts`
   - Production Deploy: `dpl_GACfAtJPip3eRjTpxqWnpv54WdBX`

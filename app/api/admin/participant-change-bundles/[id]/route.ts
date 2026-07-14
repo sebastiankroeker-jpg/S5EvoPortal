@@ -39,6 +39,7 @@ export async function GET(
           firstName: true,
           lastName: true,
           birthYear: true,
+          birthDate: true,
           gender: true,
           disciplineCode: true,
           shirtSize: true,
