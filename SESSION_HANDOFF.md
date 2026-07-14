@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 18:20 UTC
+Stand: 2026-07-14 19:55 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand nach BirthDate-Hotfix-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand nach User-Badge-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - PWA-/Stoppuhr-Konzept fuer spaeter:
   - Sebastian moechte das Stoppuhr-/manuelle-Zeitnahme-Projekt fuer spaeter merken.
@@ -12,22 +12,26 @@ Stand: 2026-07-14 18:20 UTC
   - Scope des CR: Portal installierbar machen, Manifest/Icons/konservativer Offline-Fallback; keine Stoppuhr-Umsetzung und keine breit gecachten Auth/Admin-Daten.
   - Stoppuhr bleibt spaeterer eigener CR: offlinefaehiges Zeitnahme-Modul mit lokalem Event-Log, Sync Queue, Konfliktbehandlung und Admin-Review.
 - Letzter funktionaler Code-Deploy:
-  - Commit: `5231bbf Fix pending change birthdate live drift`
-  - Production Deploy: `dpl_7fJ2g8rCEPhRisEQ7ihCVBUgD4ME`
-  - Deployment URL: `https://s5-evo-portal-qhry98nkm-sebastiankroeker-2781s-projects.vercel.app`
+  - Commits: `1d5b1b9 Show class badges in user team scopes`, `9112f40 Clarify portal account link badge`
+  - Production Deploy: `dpl_BvYpNXZGLh3f2xSaKVicKRvnFGoZ`
+  - Deployment URL: `https://s5-evo-portal-d79b1ldjt-sebastiankroeker-2781s-projects.vercel.app`
   - Alias: `https://portal.s5evo.de`
-  - Smoke gruen: `npm run smoke:public`, `/` -> 200, `/aenderungen` -> 200, `/api/admin/pending-changes` ohne Session -> 401, `/api/admin/participant-change-bundles` ohne Session/falsche Methode -> 405.
+  - Smoke gruen: `npm run smoke:public`, `/` -> 200, `/login` -> 200, `/anmeldung` -> 200, `/aenderungen` -> 200, `/api/competition` -> 200, `/api/results` -> 200, `/api/teams` ohne Session -> 401, `/api/admin/pending-changes` ohne Session -> 401, `/api/admin/users` ohne Session -> 401.
 - Naechste aktive Arbeit liegt nicht in weiterem UI-Bau, sondern in Real-Smokes:
   1. Authenticated Messenger-Smoke: persoenlich an User, Orga-Team an User, Kanal-Anzeige in Empfaengeransicht, persoenliche Threads schliessen/wieder oeffnen, Reopen bei Antwort.
   2. Markus-Huber/MTC-Smoke: eigene vollstaendige MTC zeigt Uebernehmen-Dialog, Finalisierung klappt, danach regulaere Mannschaft mit Team-Manager-/Teamchef-Recht.
-- Neuer nicht deployter UI-Hotfix:
+- User-Team-Scope-Class-Badge-Hotfix:
   - CR: `docs/cr/2026-07-14-user-team-scope-class-badge.md`
-  - Commit: `1d5b1b9 Show class badges in user team scopes`
-  - Status: auf `origin/main` gepusht, noch nicht produktiv deployed.
+  - Commits: `1d5b1b9 Show class badges in user team scopes`, `9112f40 Clarify portal account link badge`
+  - Status: deployed.
+  - Production Deploy: `dpl_BvYpNXZGLh3f2xSaKVicKRvnFGoZ`
+  - Deployment URL: `https://s5-evo-portal-d79b1ldjt-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - Ausloeser: Markus-Huber Useransicht zeigt `Huber Cars, Team 3` nach MTC-Ueberfuehrung als regulaere Mannschaft ohne Klassenkuerzel vor dem Teamnamen.
   - Geaendert: `app/api/admin/users/route.ts` liefert `classificationCode` in `teamScopes[]`; `app/components/user-management.tsx` zeigt fuer regulaere Teams ein kompaktes Klassen-Badge (SA/SB/J/DA/DB/HA/HB/HC) vor dem Mannschaftsnamen. MTC-Scopes behalten `MTC x/5`.
-  - Checks gruen: `npx eslint app/api/admin/users/route.ts app/components/user-management.tsx`, `npx tsc --noEmit`, `git diff --check`.
-  - Naechster Schritt: nach Sebastian-Go Production deployen und `/orga`/Userverwaltung smoke pruefen.
+  - Wording-Nachtrag: `Portal-Konto vorhanden` heisst jetzt `Portal-Konto ohne Link`, damit der Badge konsistent zum Filter `Konto ohne Link` ist.
+  - Checks gruen: `npx eslint app/api/admin/users/route.ts app/components/user-management.tsx`, `npx eslint lib/account-link-status.ts app/components/user-management.tsx`, `npx tsc --noEmit`, `git diff --check`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`, `/api/admin/users` ohne Session -> 401.
 - Pending-Change-BirthDate-Hotfix:
   - CR: `docs/cr/2026-07-14-pending-change-birthdate-live-drift-hotfix.md`
   - Status: deployed.

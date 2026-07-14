@@ -1,6 +1,6 @@
 # CR: User-Teamliste zeigt Klassenkuerzel
 
-Status: Implemented
+Status: Deployed
 Date: 2026-07-14
 Type: hotfix
 Risk: low
@@ -85,10 +85,12 @@ Sebastian zeigte die mobile Orga-Useransicht von Markus Huber. `Huber Cars, Team
 - Files changed:
   - `app/api/admin/users/route.ts`
   - `app/components/user-management.tsx`
+  - `lib/account-link-status.ts`
 - Important decisions during implementation:
   - `classificationCode` wird additiv in `teamScopes[]` geliefert.
   - MTC-/Marketplace-Scopes zeigen weiter nur das bestehende `MTC x/5`-Badge.
   - Regulaere Teams mit bekannter Klassifizierung zeigen ein kompaktes Kuerzel-Badge vor dem Teamnamen.
+  - Der Status `Portal-Konto vorhanden` wurde in `Portal-Konto ohne Link` umbenannt, damit der Badge konsistent zum Filter `Konto ohne Link` ist und nicht wie eine fertige Verknuepfung wirkt.
 
 ## Verification
 
@@ -105,16 +107,16 @@ Sebastian zeigte die mobile Orga-Useransicht von Markus Huber. `Huber Cars, Team
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_BvYpNXZGLh3f2xSaKVicKRvnFGoZ`
+- Deployment URL: `https://s5-evo-portal-d79b1ldjt-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-14T19:01:12Z
 
 ## Post-Deploy Smoke
 
-- Routes checked:
-- API checks:
-- Result:
+- Routes checked: `/`, `/login`, `/anmeldung`, `/aenderungen`
+- API checks: `/api/competition` -> 200, `/api/results` -> 200, `/api/teams` without session -> 401, `/api/admin/pending-changes` without session -> 401, `/api/admin/users` without session -> 401
+- Result: gruen (`npm run smoke:public` gegen `https://portal.s5evo.de`)
 
 ## Follow-Ups
 
