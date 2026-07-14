@@ -1,11 +1,16 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 12:46 UTC
+Stand: 2026-07-14 15:25 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
 - Git-Stand nach BirthDate-Hotfix-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
+- PWA-/Stoppuhr-Konzept fuer spaeter:
+  - Sebastian moechte das Stoppuhr-/manuelle-Zeitnahme-Projekt fuer spaeter merken.
+  - PWA-Basis-CR angelegt: `docs/cr/2026-07-14-pwa-foundation.md`.
+  - Scope des CR: Portal installierbar machen, Manifest/Icons/konservativer Offline-Fallback; keine Stoppuhr-Umsetzung und keine breit gecachten Auth/Admin-Daten.
+  - Stoppuhr bleibt spaeterer eigener CR: offlinefaehiges Zeitnahme-Modul mit lokalem Event-Log, Sync Queue, Konfliktbehandlung und Admin-Review.
 - Letzter funktionaler Code-Deploy:
   - Commit: `5231bbf Fix pending change birthdate live drift`
   - Production Deploy: `dpl_7fJ2g8rCEPhRisEQ7ihCVBUgD4ME`
