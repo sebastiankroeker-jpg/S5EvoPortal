@@ -1,6 +1,6 @@
 # CR: MTC-Owner koennen eigene Entwuerfe bearbeiten
 
-Status: Implemented
+Status: Deployed
 Date: 2026-07-14
 Type: hotfix
 Risk: low
@@ -90,6 +90,7 @@ Sebastian meldete, dass Markus Huber seinen MTC nicht selbststaendig bearbeiten 
 - Files changed:
   - `app/api/teams/[id]/mtc-edit-link/route.ts`
   - `app/components/dashboard.tsx`
+  - `SESSION_HANDOFF.md`
   - `docs/cr/2026-07-14-mtc-owner-edit-shortcut.md`
 - Important decisions during implementation:
   - Neuer API-Endpunkt erstellt frische MTC-Bearbeitungslinks nur fuer eigene offene MTC-Entwuerfe.
@@ -112,16 +113,16 @@ Sebastian meldete, dass Markus Huber seinen MTC nicht selbststaendig bearbeiten 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_3iFYRehRNNfU9F4scczSYvE4rgS4`
+- Deployment URL: `https://s5-evo-portal-fo4yfa9ut-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-14T20:24:21Z
 
 ## Post-Deploy Smoke
 
-- Routes checked:
-- API checks:
-- Result:
+- Routes checked: `/`, `/login`, `/anmeldung`, `/aenderungen`
+- API checks: `/api/competition` -> 200, `/api/results` -> 200, `/api/teams` without session -> 401, `/api/admin/pending-changes` without session -> 401, `/api/teams/nonexistent/mtc-edit-link` without session -> 401
+- Result: gruen (`npm run smoke:public` gegen `https://portal.s5evo.de`)
 
 ## Follow-Ups
 
