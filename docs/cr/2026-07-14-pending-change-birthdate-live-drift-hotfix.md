@@ -1,6 +1,6 @@
 # CR: Pending-Change BirthDate Live Drift Hotfix
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-14
 Type: hotfix
 Risk: low
@@ -38,7 +38,7 @@ Root cause: admin pending-change read models selected `birthYear` but not `birth
 - Auth/permission impact:
   - None.
 - Production/deploy impact:
-  - Requires normal deploy before visible on `portal.s5evo.de`.
+  - Deployed to `portal.s5evo.de`.
 
 ## Data / API Design
 
@@ -69,7 +69,7 @@ Root cause: admin pending-change read models selected `birthYear` but not `birth
 - Current decisions:
   - Fix the read model, not the drift comparator.
 - Open decisions:
-  - Production deploy approval.
+  - None.
 - Non-goals:
   - No DB writes.
   - No pending-change status changes.
@@ -97,7 +97,9 @@ Root cause: admin pending-change read models selected `birthYear` but not `birth
 - Gate needed: yes
 - Reason: Production deploy.
 - Approved by:
+  - Sebastian
 - Approval timestamp:
+  - 2026-07-14 12:35 UTC
 
 ## Implementation Notes
 
@@ -119,22 +121,30 @@ Root cause: admin pending-change read models selected `birthYear` but not `birth
   - Read-only production query for `cmrkkd0y5000dju04bg32e4ua`: `liveBirthDate=2004-04-27`, `drift=[]`.
   - Read-only production query for `cmrkkbnuw0003ju040vpsvhls`: `liveBirthDate=1993-10-14`, `drift=[]`.
 - Manual smoke:
-  - Pending production deploy.
+  - Production smoke passed.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
+- Deployment ID: `dpl_7fJ2g8rCEPhRisEQ7ihCVBUgD4ME`
+- Deployment URL: `https://s5-evo-portal-qhry98nkm-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at:
+- Deployed at: 2026-07-14 12:42 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/` -> 200
+  - `/aenderungen` -> 200
+  - `npm run smoke:public` -> passed
 - API checks:
-- Result:
+  - `/api/competition` -> 200
+  - `/api/results` -> 200
+  - `/api/teams` without session -> 401
+  - `/api/admin/pending-changes` without session -> 401
+  - `/api/admin/participant-change-bundles` without session/wrong method -> 405
+- Result: passed
 
 ## Follow-Ups
 
-- After deploy, reload `/aenderungen` and verify both Huber requests no longer show false `Live-Stand abweichend`.
+- Authenticated admin reload of `/aenderungen` can visually confirm both Huber requests no longer show false `Live-Stand abweichend`.
