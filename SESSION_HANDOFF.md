@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 21:51 UTC
+Stand: 2026-07-14 22:31 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -25,10 +25,14 @@ Stand: 2026-07-14 21:51 UTC
 - PWA-/Stoppuhr-Konzept fuer spaeter:
   - Sebastian moechte das Stoppuhr-/manuelle-Zeitnahme-Projekt fuer spaeter merken.
   - PWA-Basis-CR angelegt und nach neuer Methodik aktualisiert: `docs/cr/2026-07-14-pwa-foundation.md`.
-  - CR-Tier: `standard`, Risk: low, Status: Draft.
+  - CR-Tier: `standard`, Risk: low, Status: Implemented locally.
   - Scope des CR: Portal installierbar machen, Manifest/Icons/konservativer Offline-Fallback; keine Stoppuhr-Umsetzung und keine breit gecachten Auth/Admin-Daten.
   - Business-Invariant: PWA-Basis ist keine zweite Smartphone-App und kein gespiegelter Smartphone-Persistierungs-Layer; bestehende UI/Backend/Auth bleiben fuehrend.
-  - Naechster Schritt: Sebastian moechte vor Realisierung auf Codex umschalten. Codex soll CR + `SESSION_HANDOFF.md` lesen, lokal implementieren, Checks laufen lassen und funktionalen Push/Deploy erst nach explizitem Go machen.
+  - Lokal implementiert: Manifest/Metadata, PWA-Icons, Service-Worker-Registrierung, konservativer `/sw.js`, statischer Offline-Fallback `/offline.html`, normale `/offline`-Route.
+  - Wichtig: Service Worker cached keine `/api/*`- oder `/_next/*`-Requests; Navigation nutzt network-first und faellt nur auf statisches `/offline.html` zurueck.
+  - Lokale Checks gruen: targeted ESLint, `node --check public/sw.js`, `git diff --check`, `npx tsc --noEmit`, `npm run build`.
+  - Lokaler HTTP-Smoke auf `127.0.0.1:3100` gruen: `/manifest.webmanifest`, `/sw.js`, `/offline.html`, `/offline`, Icons -> 200; `/api/teams`, `/api/admin/users`, `/api/admin/pending-changes` ohne Session -> 401.
+  - Naechster Schritt: Diff reviewen. Funktionalen Push auf `origin/main` und Deploy erst nach explizitem Go von Sebastian.
   - Stoppuhr bleibt spaeterer eigener CR: offlinefaehiges Zeitnahme-Modul mit lokalem Event-Log, Sync Queue, Konfliktbehandlung und Admin-Review.
   - Event-Map/Event-Guide bleibt ebenfalls spaeterer eigener CR: MapLibre/GeoJSON/GPX-Layer fuer Veranstaltungsorte, Lauf/MTB/Rennrad, Hoehenprofile, POIs wie Bierzelt/Bar/Sponsoren, optionale PMTiles-Offline-Basemap, spaeter Timeline/Social Feeds. Nicht Teil der PWA-Basis.
 - Grafik-/Icon-Unterstuetzung:

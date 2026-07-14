@@ -1,6 +1,6 @@
 # CR: PWA Foundation
 
-Status: Draft
+Status: Implemented locally
 Date: 2026-07-14
 Type: feature
 Tier: standard
@@ -154,20 +154,52 @@ Use before model switch or subagent delegation.
 
 - Gate needed: yes
 - Reason: Implementation changes browser install/offline behavior and production deploy requires explicit approval. Functional push to auto-deploying `main` is deploy-relevant and also requires explicit approval.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian requested local Codex implementation in Telegram before sleeping.
+- Approval timestamp: 2026-07-14 22:20 UTC
+- Remaining gate: push to `origin/main` / production deploy still requires explicit Go.
 
 ## Implementation Notes
 
 - Files changed:
+  - `app/layout.tsx`
+  - `app/manifest.ts`
+  - `app/components/pwa-service-worker.tsx`
+  - `app/offline/page.tsx`
+  - `public/sw.js`
+  - `public/offline.html`
+  - `public/icon-192.png`
+  - `public/icon-512.png`
+  - `public/icon-maskable-512.png`
+  - `public/apple-touch-icon.png`
 - Important decisions during implementation:
+  - Used Next app-router metadata route `app/manifest.ts` for `/manifest.webmanifest`.
+  - Added app metadata/iOS metadata in `app/layout.tsx`.
+  - Added a tiny client component to register `/sw.js` only in secure contexts or localhost.
+  - Service worker is intentionally conservative:
+    - navigation requests use network-first and fall back to cached `/offline.html`;
+    - `/api/*` and `/_next/*` requests are not intercepted or cached;
+    - only manifest, icons and offline fallback are pre-cached.
+  - Added both a normal `/offline` route and a static `public/offline.html`; service worker uses the static file so offline fallback has no Next runtime dependency.
+  - Temporary generated PNG icons are in place until final designer assets are available.
 
 ## Verification
 
 - Local checks:
+  - `npx eslint app/layout.tsx app/manifest.ts app/components/pwa-service-worker.tsx app/offline/page.tsx` -> pass
+  - `node --check public/sw.js` -> pass
+  - `git diff --check` -> pass
+  - `npx tsc --noEmit` -> pass
 - Build:
+  - `npm run build` -> pass
 - Targeted verification:
+  - Local production server `next start --hostname 127.0.0.1 --port 3100`
+  - `/manifest.webmanifest` -> 200, valid JSON with `S5Evo Portal`, standalone display and PNG icons.
+  - `/sw.js` -> 200 and contains `/api/` / `/_next/` bypass.
+  - `/offline.html` -> 200 static fallback.
+  - `/offline` -> 200.
+  - `/icon-192.png`, `/icon-512.png`, `/icon-maskable-512.png`, `/apple-touch-icon.png` -> 200.
 - Manual smoke:
+  - Temporary icon visually inspected locally.
 
 ## Smoke Matrix
 
@@ -195,6 +227,7 @@ Use before model switch or subagent delegation.
 - Deployment URL:
 - Production alias: `https://portal.s5evo.de`
 - Deployed at:
+- Status: not deployed; not pushed to `origin/main`.
 
 ## Post-Deploy Smoke
 
