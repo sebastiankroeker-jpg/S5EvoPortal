@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 20:31 UTC
+Stand: 2026-07-14 20:53 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -23,6 +23,11 @@ Stand: 2026-07-14 20:31 UTC
   - PWA-Basis-CR angelegt: `docs/cr/2026-07-14-pwa-foundation.md`.
   - Scope des CR: Portal installierbar machen, Manifest/Icons/konservativer Offline-Fallback; keine Stoppuhr-Umsetzung und keine breit gecachten Auth/Admin-Daten.
   - Stoppuhr bleibt spaeterer eigener CR: offlinefaehiges Zeitnahme-Modul mit lokalem Event-Log, Sync Queue, Konfliktbehandlung und Admin-Review.
+- Grafik-/Icon-Unterstuetzung:
+  - Sebastian hat Kontakt zu einer Person, die kurzfristig Icons/Grafiken als PNG erstellen kann.
+  - Empfehlung an Designer: 5 einzelne transparente PNGs je Disziplin als 512x512-Master: `run.png` (Laufen), `bench.png` (Bankdruecken), `stock.png` (Stockschiessen), `road.png` (Rennrad), `mtb.png` (Mountainbike).
+  - Stilvorgaben: einheitliche klare Silhouette, bei 24-32 px noch lesbar, kein Text im Icon, Motiv zentriert mit ca. 10-15% Padding, gerne einfarbig Portal-Blau oder neutral dunkel; SVG/Quelldatei optional zusaetzlich hilfreich.
+  - Spaeter optional: PWA/App-Icon 512x512 und 192x192 sowie Social-/Preview-Grafik 1200x630.
 - Letzter funktionaler Code-Deploy:
   - Commits: `1d5b1b9 Show class badges in user team scopes`, `9112f40 Clarify portal account link badge`
   - Production Deploy: `dpl_BvYpNXZGLh3f2xSaKVicKRvnFGoZ`
