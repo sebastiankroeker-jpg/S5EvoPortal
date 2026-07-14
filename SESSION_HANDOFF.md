@@ -14,12 +14,16 @@ Stand: 2026-07-14 10:45 UTC
 - Naechste aktive Arbeit liegt nicht in weiterem UI-Bau, sondern in Real-Smokes:
   1. Authenticated Messenger-Smoke: persoenlich an User, Orga-Team an User, Kanal-Anzeige in Empfaengeransicht, persoenliche Threads schliessen/wieder oeffnen, Reopen bei Antwort.
   2. Markus-Huber/MTC-Smoke: eigene vollstaendige MTC zeigt Uebernehmen-Dialog, Finalisierung klappt, danach regulaere Mannschaft mit Team-Manager-/Teamchef-Recht.
-- Lokaler Hotfix nach Markus-Huber-Meldung:
-  - Commit/Deploy noch offen zum Zeitpunkt dieses Handoffs.
+- Markus-Huber MTC-Owner-Offline-Hotfix:
+  - Commit: `175835b Allow MTC owners to view offline drafts`
+  - Production Deploy: `dpl_GACfAtJPip3eRjTpxqWnpv54WdBX`
+  - Deployment URL: `https://s5-evo-portal-2xxnpdmkw-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - CR: `docs/cr/2026-07-14-mtc-owner-offline-visibility-hotfix.md`
   - Ursache: `marketplaceGlobalVisibility=OFFLINE` blendete auch eigene MTCs fuer Nicht-Admins aus.
-  - Lokale Korrektur: Owner eigener Marketplace-/MTC-Teams duerfen eigene Teams trotz global `OFFLINE` sehen; fremde/public Teams bleiben offline.
+  - Korrektur: Owner eigener Marketplace-/MTC-Teams duerfen eigene Teams trotz global `OFFLINE` sehen; fremde/public Teams bleiben offline.
   - Checks lokal gruen: targeted ESLint, `npx tsc --noEmit`, `git diff --check`, gezielte Sichtbarkeits-Assertions.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`, `/sportlerboerse-dashboard` -> 200, `/api/teams` ohne Session -> 401.
 - Groessere Spaeter-Punkte bleiben: Glossar/Regelwerk fuer Rollen-/UI-Semantik, zentraler Audit-Helper, optional Team-Startnummern-UI/Doku.
 
 ## Aktueller Nachtrag: MTC Owner Offline Visibility Hotfix
@@ -37,7 +41,11 @@ Stand: 2026-07-14 10:45 UTC
   - Dadurch wurden eigene MTC-Teams aus `/api/teams` und `/api/teams/[id]` ausgefiltert, bevor Owner-Sichtbarkeit greifen konnte.
 - CR:
   - `docs/cr/2026-07-14-mtc-owner-offline-visibility-hotfix.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `175835b Allow MTC owners to view offline drafts`
+  - Production Deploy: `dpl_GACfAtJPip3eRjTpxqWnpv54WdBX`
+  - Deployment URL: `https://s5-evo-portal-2xxnpdmkw-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - `lib/marketplace-visibility.ts`
   - `app/api/teams/route.ts`
   - `app/api/teams/[id]/route.ts`
@@ -51,9 +59,18 @@ Stand: 2026-07-14 10:45 UTC
   - `git diff --check`
   - gezielte `npx tsx` Sichtbarkeits-Assertions
   - read-only Markus-Datencheck: Team 1 und Team 3 waeren nach Fix sichtbar/finalisierbar, Team 2 sichtbar aber wegen 4/5 nicht finalisierbar.
+- Post-Deploy Smoke:
+  - `npm run smoke:public` gegen `https://portal.s5evo.de` gruen
+  - `GET /` -> 200
+  - `GET /login` -> 200
+  - `GET /anmeldung` -> 200
+  - `GET /aenderungen` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `GET /api/competition` -> 200
+  - `GET /api/results` -> 200
+  - `GET /api/teams` ohne Session -> 401
+  - `GET /api/admin/pending-changes` ohne Session -> 401
 - Naechster Schritt:
-  - Nach Sebastian-Go pushen/deployen.
-  - Post-Deploy Smoke: `/`, `/sportlerboerse-dashboard`, `/api/teams` ohne Session -> 401, `npm run smoke:public`.
   - Authenticated Smoke: Markus reload, `Huber Cars, Team 1` oder `Team 3` uebernehmen.
 
 ## Aktueller Nachtrag: Persoenliche Thread-Statusupdates und mobile Messenger-Kosmetik

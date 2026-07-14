@@ -1,6 +1,6 @@
 # CR: MTC Owner Offline Visibility Hotfix
 
-Status: Implemented locally, not deployed
+Status: Deployed
 Date: 2026-07-14
 Type: hotfix
 Risk: low
@@ -147,18 +147,28 @@ Root cause: marketplace visibility returned `false` for global `OFFLINE` before 
 
 ## Deploy
 
-- Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
+- Deployment needed: completed
+- Deployment ID: `dpl_GACfAtJPip3eRjTpxqWnpv54WdBX`
+- Deployment URL: `https://s5-evo-portal-2xxnpdmkw-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at:
+- Deployed at: 2026-07-14 11:04 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `GET /` -> 200
+  - `GET /login` -> 200
+  - `GET /anmeldung` -> 200
+  - `GET /aenderungen` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - legacy domain -> 308 to production
 - API checks:
-- Result:
+  - `GET /api/competition` -> 200
+  - `GET /api/results` -> 200
+  - `GET /api/teams` without session -> 401
+  - `GET /api/admin/pending-changes` without session -> 401
+- Result: Production deploy ready and public smoke green.
 
 ## Follow-Ups
 
-- After deploy: Markus should reload the dashboard and try Team 1 or Team 3 again.
+- Markus should reload the dashboard and try Team 1 or Team 3 again.
