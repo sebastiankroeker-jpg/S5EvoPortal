@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 21:26 UTC
+Stand: 2026-07-14 21:51 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -24,8 +24,11 @@ Stand: 2026-07-14 21:26 UTC
   - Post-Deploy Smoke gruen: `npm run smoke:public`, `/api/teams/nonexistent/mtc-edit-link` ohne Session -> 401, `/api/competition` -> 200.
 - PWA-/Stoppuhr-Konzept fuer spaeter:
   - Sebastian moechte das Stoppuhr-/manuelle-Zeitnahme-Projekt fuer spaeter merken.
-  - PWA-Basis-CR angelegt: `docs/cr/2026-07-14-pwa-foundation.md`.
+  - PWA-Basis-CR angelegt und nach neuer Methodik aktualisiert: `docs/cr/2026-07-14-pwa-foundation.md`.
+  - CR-Tier: `standard`, Risk: low, Status: Draft.
   - Scope des CR: Portal installierbar machen, Manifest/Icons/konservativer Offline-Fallback; keine Stoppuhr-Umsetzung und keine breit gecachten Auth/Admin-Daten.
+  - Business-Invariant: PWA-Basis ist keine zweite Smartphone-App und kein gespiegelter Smartphone-Persistierungs-Layer; bestehende UI/Backend/Auth bleiben fuehrend.
+  - Naechster Schritt: Sebastian moechte vor Realisierung auf Codex umschalten. Codex soll CR + `SESSION_HANDOFF.md` lesen, lokal implementieren, Checks laufen lassen und funktionalen Push/Deploy erst nach explizitem Go machen.
   - Stoppuhr bleibt spaeterer eigener CR: offlinefaehiges Zeitnahme-Modul mit lokalem Event-Log, Sync Queue, Konfliktbehandlung und Admin-Review.
   - Event-Map/Event-Guide bleibt ebenfalls spaeterer eigener CR: MapLibre/GeoJSON/GPX-Layer fuer Veranstaltungsorte, Lauf/MTB/Rennrad, Hoehenprofile, POIs wie Bierzelt/Bar/Sponsoren, optionale PMTiles-Offline-Basemap, spaeter Timeline/Social Feeds. Nicht Teil der PWA-Basis.
 - Grafik-/Icon-Unterstuetzung:

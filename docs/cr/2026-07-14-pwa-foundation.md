@@ -3,6 +3,7 @@
 Status: Draft
 Date: 2026-07-14
 Type: feature
+Tier: standard
 Risk: low
 Owner: S5Evo
 
@@ -87,6 +88,14 @@ Current code snapshot checked on 2026-07-14:
 - Offline behavior is predictable and does not show misleading stale application data.
 - Public smoke checks remain green after deploy.
 
+## Business Invariants
+
+- PWA foundation does not create a second mobile product surface; the installed app opens the existing portal experience.
+- Server remains the source of truth for authentication, registrations, teams, participants, admin data, and messages.
+- Authenticated/admin/API data remains online-first and must not be cached by the PWA foundation.
+- Offline UI must not imply that protected or mutable portal data is complete, current, or editable without connectivity.
+- Later offline modules such as stopwatch, event maps, route packs, or timelines require their own CRs and their own explicit local persistence strategy.
+
 ## Implementation Handoff
 
 Use before model switch or subagent delegation.
@@ -98,8 +107,12 @@ Use before model switch or subagent delegation.
   - Potential new files: `app/manifest.ts`, `public/icon-*.png`, `public/sw.js`, offline fallback route/page if needed.
 - Current decisions:
   - Treat this as PWA foundation only.
+  - Use the existing portal UI; no separate smartphone UI layer.
+  - Use the existing backend/database; no mirrored smartphone persistence layer.
   - Do not implement stopwatch/manual timing in this CR.
+  - Do not implement event-map/event-guide functionality in this CR.
   - Do not make authenticated/admin data offline-first.
+  - Default app name remains `S5Evo Portal` unless Sebastian changes it.
 - Open decisions:
   - Final app name.
   - Final icon/branding source.
@@ -109,12 +122,17 @@ Use before model switch or subagent delegation.
   - No production data mutation.
   - No timekeeping sync implementation.
 - Expected implementation steps:
+  - Inspect existing Next.js/app-router setup and public asset conventions.
   - Add manifest/metadata/icons.
-  - Add conservative offline handling if selected.
+  - Add conservative offline handling if selected; prefer a small, explicit strategy over broad runtime caching.
   - Verify installability and manifest output locally.
+  - Verify that protected API/auth routes are not cached.
   - Run build/type checks and public smoke.
-  - Deploy only after explicit approval.
+  - Commit locally after checks.
+  - Do not push functional code to auto-deploying `main` before Sebastian's explicit Go.
+  - Deploy only after explicit production approval.
 - Required checks:
+  - targeted lint for changed files
   - `npx tsc --noEmit`
   - `npm run build`
   - `git diff --check`
@@ -122,11 +140,12 @@ Use before model switch or subagent delegation.
 - Risks/assumptions:
   - Low application risk if caching remains conservative.
   - Medium UX risk if offline behavior overpromises; copy must make online requirement clear for authenticated work.
+  - Medium browser-compatibility risk around install prompts/iOS behavior; verify metadata rather than promising identical UX on all devices.
 
 ## Model / Subagent Plan
 
-- Model switch needed: no
-- Target model/role: current Codex implementation
+- Model switch needed: yes
+- Target model/role: Codex implementation
 - Subagent needed: no
 - Subagent role: n/a
 - Handoff source: this CR and `SESSION_HANDOFF.md`
@@ -134,7 +153,7 @@ Use before model switch or subagent delegation.
 ## Confirmation Gate
 
 - Gate needed: yes
-- Reason: Implementation changes production app behavior and requires deploy.
+- Reason: Implementation changes browser install/offline behavior and production deploy requires explicit approval. Functional push to auto-deploying `main` is deploy-relevant and also requires explicit approval.
 - Approved by:
 - Approval timestamp:
 
@@ -149,6 +168,25 @@ Use before model switch or subagent delegation.
 - Build:
 - Targeted verification:
 - Manual smoke:
+
+## Smoke Matrix
+
+- Public smoke:
+  - `npm run smoke:public`
+  - `/`, `/login`, `/anmeldung`, `/aenderungen`
+  - `/api/competition`, `/api/results`
+- Unauthenticated API smoke:
+  - Protected APIs should keep returning expected 401/403 responses, e.g. `/api/teams`, `/api/admin/users`, `/api/admin/pending-changes`.
+- Authenticated role smoke:
+  - Not required for PWA foundation unless implementation touches authenticated UI behavior.
+  - If unavailable, document as explicit gap rather than implying coverage through public smoke.
+- Manual/browser smoke:
+  - Inspect manifest output.
+  - Check installability in at least one Chromium browser.
+  - Check iOS metadata/icons as far as feasible.
+  - Simulate offline behavior and verify the fallback does not show stale protected data.
+- Gaps:
+  - Device-specific install prompt behavior can vary by browser/OS and may require Sebastian-side real-device confirmation.
 
 ## Deploy
 
