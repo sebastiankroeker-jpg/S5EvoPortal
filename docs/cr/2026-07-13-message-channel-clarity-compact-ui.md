@@ -1,6 +1,6 @@
 # CR: Messenger Channel Clarity And Compact UI
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-13
 Type: feature
 Risk: medium
@@ -225,7 +225,7 @@ Rueckmeldungen:
   - `POST /api/messages/admin-conversations` without session -> 401
 - Result: gruen
 
-## Follow-Up 2026-07-13 14:10 UTC - Personal Close And Mobile Cosmetics
+## Follow-Up 2026-07-13 14:10/20:26 UTC - Personal Close And Mobile Cosmetics
 
 - Trigger: Production screenshots show mobile message list/detail after contact e-mail rollout.
 - Cosmetic findings:
@@ -241,3 +241,16 @@ Rueckmeldungen:
   - The existing close/reopen control is shown whenever the current viewer can update the thread status, including personal mailbox OWNER/MEMBER users.
 - Verification:
   - `npx eslint app/components/message-center.tsx app/api/messages/conversations/[id]/route.ts` gruen.
+  - `npx tsc --noEmit` gruen.
+  - `git diff --check` gruen.
+- Commit deployed:
+  - `186b01d` - `Allow personal message status updates`
+- Deployment ID: `dpl_8FtFkpKUwDv7ncxFTXyzaND31MNM`
+- Deployment URL: `https://s5-evo-portal-dacwasdce-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Post-deploy smoke:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `npm run smoke:public` gruen
+  - Message-APIs ohne Session -> erwartete `401`/`405`.

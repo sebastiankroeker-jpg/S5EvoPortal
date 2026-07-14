@@ -1,6 +1,78 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-13 12:18 UTC
+Stand: 2026-07-14 10:45 UTC
+
+## Kurzzusammenfassung fuer naechste Session
+
+- Git-Stand vor diesem Handoff-Cleanup: `main...origin/main` synchron; lokal nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Production ist live unter `https://portal.s5evo.de`.
+- Letzter funktionaler Code-Deploy:
+  - Commit: `186b01d Allow personal message status updates`
+  - Production Deploy: `dpl_8FtFkpKUwDv7ncxFTXyzaND31MNM`
+  - Deployment URL: `https://s5-evo-portal-dacwasdce-sebastiankroeker-2781s-projects.vercel.app`
+  - Smoke gruen: `/`, `/nachrichten`, `/sportlerboerse-dashboard`, `npm run smoke:public`, Message-APIs ohne Session erwartungsgemaess `401` bzw. `405` fuer falsche Methode.
+- Naechste aktive Arbeit liegt nicht in weiterem UI-Bau, sondern in Real-Smokes:
+  1. Authenticated Messenger-Smoke: persoenlich an User, Orga-Team an User, Kanal-Anzeige in Empfaengeransicht, persoenliche Threads schliessen/wieder oeffnen, Reopen bei Antwort.
+  2. Markus-Huber/MTC-Smoke: eigene vollstaendige MTC zeigt Uebernehmen-Dialog, Finalisierung klappt, danach regulaere Mannschaft mit Team-Manager-/Teamchef-Recht.
+- Groessere Spaeter-Punkte bleiben: Glossar/Regelwerk fuer Rollen-/UI-Semantik, zentraler Audit-Helper, optional Team-Startnummern-UI/Doku.
+
+## Aktueller Nachtrag: Persoenliche Thread-Statusupdates und mobile Messenger-Kosmetik
+
+- Ausloeser:
+  - Sebastian zeigte mobile Messenger-Screenshots nach der E-Mail-Anzeige in Kontaktlabels.
+  - Gewuenscht: persoenliche Nachrichten sollen ebenfalls geschlossen werden koennen.
+- CR-Kontext:
+  - Nachtrag im Messenger-Kanal-/Kontaktanzeigen-Kontext: `docs/cr/2026-07-13-message-channel-clarity-compact-ui.md`
+- Implementiert und produktiv deployed:
+  - Commit: `186b01d Allow personal message status updates`
+  - Production Deploy: `dpl_8FtFkpKUwDv7ncxFTXyzaND31MNM`
+  - Deployment URL: `https://s5-evo-portal-dacwasdce-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+  - `app/components/message-center.tsx`
+  - `app/api/messages/conversations/[id]/route.ts`
+- Geaendert:
+  - Persoenliche Threads koennen jetzt geschlossen und wieder geoeffnet werden.
+  - Berechtigung: Orga/Admin wie bisher, zusaetzlich aktive `OWNER`/`MEMBER` des persoenlichen Threads.
+  - `READ_ONLY` und reine Admin-/Moderator-Teilnahme ohne Support-Recht duerfen nicht schliessen.
+  - Mobile Thread-Header: Kontakt-Badge mit Name/E-Mail liegt auf kleinen Screens in einer eigenen Zeile.
+  - Mobile Thread-Karten: Status/Richtung/Person, Kontakt+Datum und Betreff sind entzerrt.
+- Checks lokal gruen:
+  - `npx eslint app/components/message-center.tsx app/api/messages/conversations/[id]/route.ts`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+- Post-Deploy Smoke:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `npm run smoke:public` -> gruen
+  - `GET /api/messages/conversations` ohne Session -> 401
+  - `GET /api/messages/admin-targets` ohne Session -> 401
+  - `GET /api/messages/admin-conversations` -> 405 erwartbar, Route ist POST-only
+  - `POST /api/messages/admin-conversations` ohne Session -> 401
+
+## Aktueller Nachtrag: Contact Email Visibility
+
+- Ausloeser:
+  - Screenshot aus Prod zeigte im Orga-Thread `Namens Aenderung` fuer `schusterkat78@gmail.com` nur Anzeigename `Schuster`.
+  - Sebastian bestaetigte: Claim-Links bei gleicher E-Mail fuer unterschiedliche User sollen erhalten bleiben.
+- CR-Kontext:
+  - Nachtrag in `docs/cr/2026-07-13-message-channel-clarity-compact-ui.md`
+- Implementiert und produktiv deployed:
+  - Commit: `1a74c7e Show email in message contact labels`
+  - Production Deploy: `dpl_8HD7Qp23xpf24kx6xnQP37khwiSp`
+  - Deployment URL: `https://s5-evo-portal-kemkvbs7g-sebastiankroeker-2781s-projects.vercel.app`
+  - Doku-Nachtrag: `31bd8c3 Document contact email visibility deploy`
+  - Folge-Deploy Ready: `dpl_5RqdtVXkFnAFT5jymEa35SyMY4v5`
+- Geaendert:
+  - Messenger-Kontaktlabels zeigen echte User-Kontakte als `Name · E-Mail` in Threadliste, Threadkopf, Kontakt-Badge und Message-Senderzeile.
+  - `Orga-Team` bleibt bewusst Mailbox-Label ohne persoenliche E-Mail.
+  - Keine Aenderung an Claim-Link-Logik bei gleicher E-Mail.
+- Post-Deploy Smoke:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
+  - `GET /sportlerboerse-dashboard` -> 200
+  - `npm run smoke:public` -> gruen
+  - Message-APIs ohne Session -> erwartete Auth-/Methodenantworten.
 
 ## Aktueller Nachtrag: Messenger Kanal-Klarheit und persoenliche Admin-Threads
 
@@ -95,7 +167,11 @@ Stand: 2026-07-13 12:18 UTC
     - In der Empfaengerauswahl soll ein Suchfeld angeboten werden.
 - CR:
   - `docs/cr/2026-07-13-message-admin-target-registered-search.md`
-- Implementiert, noch nicht deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `6fd5d4c Restrict admin message targets to registered users`
+  - Production Deploy: `dpl_H15TXMsk2xEqRcvZfkKG2WaXBJGY`
+  - Deployment URL: `https://s5-evo-portal-8l3bezq9d-sebastiankroeker-2781s-projects.vercel.app`
+  - Spaeter durch `90c9619`, `1a74c7e` und `186b01d` im Messenger-Kontext erweitert/ueberbaut.
   - `app/api/messages/admin-targets/route.ts`
   - `app/api/messages/admin-conversations/route.ts`
   - `app/components/message-center.tsx`
@@ -105,14 +181,22 @@ Stand: 2026-07-13 12:18 UTC
   - Suchtext beruecksichtigt Name und Rollen-/Verknuepfungsbeschreibung; Team-/Teilnehmernamen werden in dieser Zielauswahl nicht ausgeliefert.
   - Der Admin-Composer nutzt jetzt ein Suchfeld plus scrollbare Trefferliste statt nativem Select.
   - `POST /api/messages/admin-conversations` lehnt unregistrierte Zieluser serverseitig mit `403` ab.
-  - Keine E-Mail-Adressen in der Zielauswahl; keine DB-Migration.
+  - Urspruenglich keine E-Mail-Adressen in der Zielauswahl; spaeter durch Kanal-Klarheit/Contact-Visibility bewusst auf Name plus E-Mail erweitert.
+  - Keine DB-Migration.
 - Checks lokal gruen:
   - `pnpm exec eslint app/components/message-center.tsx app/api/messages/admin-targets/route.ts app/api/messages/admin-conversations/route.ts`
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
+- Post-Deploy Smoke:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
+  - `npm run smoke:public` -> gruen
+  - `GET /api/messages/admin-targets` ohne Session -> 401
+  - `GET /api/messages/conversations` ohne Session -> 401
+  - `POST /api/messages/admin-conversations` ohne Session -> 401
 - Naechster Schritt:
-  - Commit pushen/deployen nach Sebastians Go.
+  - Kein Deploy offen; durch spaetere Messenger-Deploys produktiv enthalten.
 
 ## Aktueller Nachtrag: Message Admin Free Targets And Reopen
 
@@ -351,7 +435,11 @@ Stand: 2026-07-13 12:18 UTC
   - Ziel: Detail-Ebene deutlich mehr wie moderner Chat statt Portal-Formular.
 - CR:
   - `docs/cr/2026-07-12-message-detail-chat-refresh.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commits:
+    - `c4e6edf Refresh message detail chat UI`
+    - `ff33a5f Polish message mobile thread controls`
+  - Production Deploy: `dpl_564U12qyHP4HxJuRLAXjo9LNaxaL`
   - `app/components/message-center.tsx`
 - Geaendert:
   - Thread-Detailansicht nutzt jetzt einen kompakten sticky Chat-Header.
@@ -369,9 +457,11 @@ Stand: 2026-07-13 12:18 UTC
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
+- Post-Deploy Smoke:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
 - Naechster Schritt:
-  - Commit erstellen und auf Sebastian-Go fuer Production deployen.
-  - Post-Deploy Smoke: `/nachrichten`: 200, Message-APIs ohne Session: 401.
+  - Kein Deploy offen; Real-Smoke bleibt im zusammengefuehrten Messenger-Smoke oben.
 
 ## Aktueller Nachtrag: Message List Compact Columns
 
@@ -415,17 +505,24 @@ Stand: 2026-07-13 12:18 UTC
   - Unter `Kontext` erschien zusaetzlich eine Detail-Hilfszeile mit Kontextdaten.
 - CR:
   - Nachtrag in `docs/cr/2026-07-12-message-list-compact-columns.md`
-- Lokal implementiert, noch nicht produktiv deployed:
+- Implementiert und produktiv deployed:
+  - Commit: `9ba0822 Compact message compose metadata strip`
+  - Production Deploy: `dpl_2twbbCY233s29Cwzn22c8sotkgd4`
   - `app/components/message-center.tsx`
 - Geaendert:
   - `MessageMetaStrip` rendert jetzt als kompakte horizontale, wrap-faehige Metazeile.
   - Admin- und persoenliche Compose-Header haben weniger Padding/Spacing.
   - Die Kontext-Detail-Hilfszeile unter dem Kontext-Dropdown ist entfernt.
-- Checks lokal gruen:
-  - `pnpm exec eslint app/components/message-center.tsx`
-  - `npx tsc --noEmit`
+- Checks:
+  - `pnpm exec eslint app/components/message-center.tsx` gruen
+  - `npx tsc --noEmit` gruen
+  - `git diff --check` gruen
+  - `npm run build` gruen
+- Post-Deploy Smoke:
+  - `GET /` -> 200
+  - `GET /nachrichten` -> 200
 - Naechster Schritt:
-  - `git diff --check`, `npm run build`, Commit, dann Sebastian-Go fuer Production deployen.
+  - Kein Deploy offen; in aktuellem Production-Stand enthalten.
 
 ## Aktueller Nachtrag: Message Orga Context Privacy Hotfix
 

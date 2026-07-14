@@ -1,6 +1,6 @@
 # CR: MTC Owner Finalisierung
 
-Status: Implemented, not deployed
+Status: Deployed
 Date: 2026-07-13
 Type: feature
 Risk: medium
