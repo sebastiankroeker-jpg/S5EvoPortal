@@ -1,11 +1,19 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 19:55 UTC
+Stand: 2026-07-14 20:35 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
 - Git-Stand nach User-Badge-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
+- Neuer nicht deployter MTC-Owner-Hotfix:
+  - CR: `docs/cr/2026-07-14-mtc-owner-edit-shortcut.md`
+  - Status: implementiert, noch nicht produktiv deployed.
+  - Ausloeser: Markus Huber kann seinen eigenen MTC im Portal nicht selbststaendig bearbeiten. Ursache: MTC-Slot-Pflege im Portal-Dashboard war historisch Admin-Matching; die bestehende Selbstpflege-Maske haengt am vertraulichen `/mtc-anonym/[token]`-Link.
+  - Geaendert: neuer `POST /api/teams/[id]/mtc-edit-link` erzeugt fuer berechtigte Owner eigener offener `MARKETPLACE`/`MATCHING`-MTCs einen frischen Bearbeitungslink zur bestehenden MTC-Maske; Dashboard zeigt fuer eigene MTCs einen `MTC bearbeiten`-Shortcut.
+  - Nicht geaendert: Owner erhalten keine Admin-Suche nach fremden Sportlerboersen-Meldungen; Finalisierung bleibt bestehender Owner/Admin-Pfad.
+  - Checks gruen: `npx eslint app/components/dashboard.tsx app/api/teams/[id]/mtc-edit-link/route.ts`, `npx tsc --noEmit`, `git diff --check`.
+  - Naechster Schritt: nach Sebastian-Go Production deployen und `/api/teams/<mtc-id>/mtc-edit-link`/Dashboard-Smoke pruefen.
 - PWA-/Stoppuhr-Konzept fuer spaeter:
   - Sebastian moechte das Stoppuhr-/manuelle-Zeitnahme-Projekt fuer spaeter merken.
   - PWA-Basis-CR angelegt: `docs/cr/2026-07-14-pwa-foundation.md`.

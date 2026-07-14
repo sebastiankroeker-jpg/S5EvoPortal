@@ -1752,6 +1752,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [editingParticipant, setEditingParticipant] = useState<EditableParticipant | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [creatingMatchingDraft, setCreatingMatchingDraft] = useState(false);
+  const [openingMtcEditTeamId, setOpeningMtcEditTeamId] = useState<string | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const pendingFocusTeamIdRef = useRef<string | null>(null);
   const [expandedMarketplaceContainerTeam, setExpandedMarketplaceContainerTeam] = useState<string | null>(null);
@@ -2355,6 +2356,29 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         ...((Array.isArray(data?.classificationWarnings) ? data.classificationWarnings : []) as string[]),
       ].filter(Boolean).join("\n"),
     );
+  };
+
+  const handleOpenMtcOwnerEdit = async (teamId: string) => {
+    setOpeningMtcEditTeamId(teamId);
+    try {
+      const response = await fetch(`/api/teams/${teamId}/mtc-edit-link`, {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.mtcAnonymousUrl) {
+        throw new Error(data?.error || "MTC-Bearbeitungslink konnte nicht erstellt werden.");
+      }
+
+      window.location.href = data.mtcAnonymousUrl;
+    } catch (error) {
+      notifications.error(
+        "MTC kann nicht geöffnet werden",
+        error instanceof Error ? error.message : "Bitte versuche es erneut.",
+      );
+    } finally {
+      setOpeningMtcEditTeamId((current) => (current === teamId ? null : current));
+    }
   };
 
   const openParticipantDetails = (team: Team, participant?: Participant | null) => {
@@ -3943,6 +3967,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
                   const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
                   const canEditMarketplaceMatching = capabilities.canManageSlots || capabilities.canFinalizeMtcDraft;
+                  const canOpenOwnMtcEdit = isMarketplaceMatching && team.canCurrentUserEdit === true && !canEditAll;
                   const canDeleteTeam = team.canManageTeamManagers === true;
                   const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
 
@@ -4035,6 +4060,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   {capabilities.canManageSlots ? "Entwurf bearbeiten" : "Als Mannschaft übernehmen"}
                                 </Button>
                               )}
+                              {canOpenOwnMtcEdit && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenMtcOwnerEdit(team.id)}
+                                  disabled={openingMtcEditTeamId === team.id}
+                                  aria-busy={openingMtcEditTeamId === team.id}
+                                >
+                                  {openingMtcEditTeamId === team.id ? "Öffne..." : "MTC bearbeiten"}
+                                </Button>
+                              )}
                               {canEditMarketplaceParticipant && (
                                 <Button
                                   size="sm"
@@ -4102,6 +4138,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
               const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
               const canEditMarketplaceMatching = capabilities.canManageSlots || capabilities.canFinalizeMtcDraft;
+              const canOpenOwnMtcEdit = isMarketplaceMatching && team.canCurrentUserEdit === true && !canEditAll;
               const canDeleteTeam = team.canManageTeamManagers === true;
               const isMarketplaceContainerOpen = expandedMarketplaceContainerTeam === team.id;
               const marketplaceContainerMailMeta = getEmailInvitationMeta(team.contactEmail ? "none" : "missing_email");
@@ -4267,6 +4304,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           {showCompactActionColumn && (
                             <div className="flex items-start justify-end">
                               <div className="flex flex-col gap-1">
+                                {canOpenOwnMtcEdit && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 shrink-0 px-2 text-[11px]"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleOpenMtcOwnerEdit(team.id);
+                                    }}
+                                    disabled={openingMtcEditTeamId === team.id}
+                                    aria-busy={openingMtcEditTeamId === team.id}
+                                  >
+                                    {openingMtcEditTeamId === team.id ? "Öffne..." : "MTC"}
+                                  </Button>
+                                )}
                                 {canEditMarketplaceMatching && (
                                   <Button
                                     type="button"
@@ -4398,6 +4451,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   }}
                                 >
                                   {capabilities.canManageSlots ? "Entwurf" : "Übernehmen"}
+                                </Button>
+                              )}
+                              {canOpenOwnMtcEdit && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleOpenMtcOwnerEdit(team.id);
+                                  }}
+                                  disabled={openingMtcEditTeamId === team.id}
+                                  aria-busy={openingMtcEditTeamId === team.id}
+                                >
+                                  {openingMtcEditTeamId === team.id ? "Öffne..." : "MTC bearbeiten"}
                                 </Button>
                               )}
                               {canEditMarketplaceTeam && !isMarketplaceMatching && (
@@ -4868,6 +4935,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 className="flex-1"
                               >
                                 {capabilities.canManageSlots ? "Entwurf bearbeiten" : "Als Mannschaft übernehmen"}
+                              </Button>
+                            )}
+                            {canOpenOwnMtcEdit && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleOpenMtcOwnerEdit(team.id);
+                                }}
+                                disabled={openingMtcEditTeamId === team.id}
+                                aria-busy={openingMtcEditTeamId === team.id}
+                                className="flex-1"
+                              >
+                                {openingMtcEditTeamId === team.id ? "Öffne..." : "MTC bearbeiten"}
                               </Button>
                             )}
                             {canDeleteTeam && team.registrationMode === "MARKETPLACE" && (
