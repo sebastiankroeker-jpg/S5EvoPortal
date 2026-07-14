@@ -7,6 +7,7 @@ import { requireTenantRoles } from "@/lib/server-permissions";
 type TeamScope = {
   id: string;
   name: string;
+  classificationCode: string | null;
   registrationMode: string;
   marketplaceStatus: string | null;
   contactEmail: string | null;
@@ -40,6 +41,7 @@ type TeamScope = {
 const teamScopeSelect = {
   id: true,
   name: true,
+  classificationCode: true,
   registrationMode: true,
   marketplaceStatus: true,
   contactEmail: true,
@@ -141,6 +143,7 @@ export async function GET() {
         team: {
           id: string;
           name: string;
+          classificationCode: string | null;
           registrationMode: string;
           marketplaceStatus: string | null;
           contactEmail: string | null;
@@ -164,6 +167,7 @@ export async function GET() {
         const existing = teamScopes.get(team.id) ?? {
           id: team.id,
           name: team.name,
+          classificationCode: team.classificationCode,
           registrationMode: team.registrationMode,
           marketplaceStatus: team.marketplaceStatus,
           contactEmail: team.contactEmail,

@@ -54,6 +54,7 @@ interface UserEntry {
   teamScopes: Array<{
     id: string;
     name: string;
+    classificationCode: string | null;
     registrationMode: string;
     marketplaceStatus: string | null;
     contactEmail: string | null;
@@ -104,6 +105,16 @@ const ROLE_INFO: Record<string, { icon: string; label: string; color: string; de
   MODERATOR: { icon: "🛡️", label: "Moderator:in", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300", desc: "Ergebnisse & Teams" },
   TEAMCHEF: { icon: "📋", label: "Teamchef:in", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", desc: "Eigene Teams" },
   TEILNEHMER: { icon: "🏃", label: "Teilnehmer:in", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300", desc: "Eigene Daten" },
+};
+const TEAM_CLASS_BADGES: Record<string, { shortLabel: string; label: string; className: string }> = {
+  "schueler-a": { shortLabel: "SA", label: "Schüler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
+  "schueler-b": { shortLabel: "SB", label: "Schüler B", className: "border-cyan-300 bg-cyan-50 text-cyan-800" },
+  jugend: { shortLabel: "J", label: "Jugend", className: "border-violet-300 bg-violet-50 text-violet-800" },
+  "damen-a": { shortLabel: "DA", label: "Damen A", className: "border-pink-300 bg-pink-50 text-pink-800" },
+  "damen-b": { shortLabel: "DB", label: "Damen B", className: "border-rose-300 bg-rose-50 text-rose-800" },
+  jungsters: { shortLabel: "HA", label: "Jungsters", className: "border-yellow-300 bg-yellow-50 text-yellow-800" },
+  herren: { shortLabel: "HB", label: "Herren", className: "border-blue-300 bg-blue-50 text-blue-800" },
+  masters: { shortLabel: "HC", label: "Masters", className: "border-amber-300 bg-amber-50 text-amber-800" },
 };
 const USER_LINK_ATTENTION_STATUSES = new Set<AccountLinkStatusMeta["status"]>(["missing_email", "no_invitation", "expired", "revoked"]);
 
@@ -219,6 +230,15 @@ function getClaimStatus(token?: {
 
 function isMtcScope(team: UserEntry["teamScopes"][number]) {
   return team.registrationMode === "MARKETPLACE";
+}
+
+function getTeamClassBadgeMeta(classificationCode?: string | null) {
+  if (!classificationCode || classificationCode === "unclassified") return null;
+  return TEAM_CLASS_BADGES[classificationCode] ?? {
+    shortLabel: classificationCode,
+    label: classificationCode,
+    className: "border-muted text-muted-foreground",
+  };
 }
 
 function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][number]) {
@@ -946,6 +966,7 @@ export default function UserManagement() {
                             const isFixedManager = team.isOwner || team.isLegacyTeamChief;
                             const isUpdating = updatingTeamScopeKey === `${user.id}:${team.id}`;
                             const isMtc = isMtcScope(team);
+                            const classBadge = isMtc ? null : getTeamClassBadgeMeta(team.classificationCode);
 
                             return (
                               <div
@@ -965,6 +986,16 @@ export default function UserManagement() {
                                     {isMtc && (
                                       <Badge variant="outline" className="h-5 shrink-0 border-emerald-300 bg-emerald-50 px-1.5 text-[10px] text-emerald-800">
                                         MTC {team.participantCount}/5
+                                      </Badge>
+                                    )}
+                                    {classBadge && (
+                                      <Badge
+                                        variant="outline"
+                                        className={joinClasses("h-5 shrink-0 px-1.5 text-[10px] font-semibold", classBadge.className)}
+                                        title={`Klasse: ${classBadge.label}`}
+                                        aria-label={`Klasse: ${classBadge.label}`}
+                                      >
+                                        {classBadge.shortLabel}
                                       </Badge>
                                     )}
                                     <span className="block min-w-0 truncate font-medium">{team.name}</span>
