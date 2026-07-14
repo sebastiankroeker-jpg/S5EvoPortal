@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 21:07 UTC
+Stand: 2026-07-14 21:26 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -27,6 +27,7 @@ Stand: 2026-07-14 21:07 UTC
   - PWA-Basis-CR angelegt: `docs/cr/2026-07-14-pwa-foundation.md`.
   - Scope des CR: Portal installierbar machen, Manifest/Icons/konservativer Offline-Fallback; keine Stoppuhr-Umsetzung und keine breit gecachten Auth/Admin-Daten.
   - Stoppuhr bleibt spaeterer eigener CR: offlinefaehiges Zeitnahme-Modul mit lokalem Event-Log, Sync Queue, Konfliktbehandlung und Admin-Review.
+  - Event-Map/Event-Guide bleibt ebenfalls spaeterer eigener CR: MapLibre/GeoJSON/GPX-Layer fuer Veranstaltungsorte, Lauf/MTB/Rennrad, Hoehenprofile, POIs wie Bierzelt/Bar/Sponsoren, optionale PMTiles-Offline-Basemap, spaeter Timeline/Social Feeds. Nicht Teil der PWA-Basis.
 - Grafik-/Icon-Unterstuetzung:
   - Sebastian hat Kontakt zu einer Person, die kurzfristig Icons/Grafiken als PNG erstellen kann.
   - Empfehlung an Designer: 5 einzelne transparente PNGs je Disziplin als 512x512-Master: `run.png` (Laufen), `bench.png` (Bankdruecken), `stock.png` (Stockschiessen), `road.png` (Rennrad), `mtb.png` (Mountainbike).

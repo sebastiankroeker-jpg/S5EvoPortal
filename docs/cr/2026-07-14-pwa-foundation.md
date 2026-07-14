@@ -10,6 +10,8 @@ Owner: S5Evo
 
 Sebastian asked whether the S5Evo portal could reasonably be provided as a PWA and whether this would help a later manual stopwatch/timekeeping feature. The current direction is to keep the stopwatch/manual timing concept for later, but prepare the portal with a small installable PWA foundation.
 
+Later on 2026-07-14, Sebastian also raised a future event-map direction: maps for multiple venues, MTB/road/run routes, elevation profiles, beer tent/bar, sponsor locations, official announcement timeline, and optional social feeds. This is remembered as a later modular PWA/event-guide extension, not part of the PWA foundation scope.
+
 Current code snapshot checked on 2026-07-14:
 
 - No obvious PWA foundation exists yet.
@@ -28,6 +30,7 @@ Current code snapshot checked on 2026-07-14:
   - Document the PWA decisions and later stopwatch relationship.
 - Out of scope:
   - Building the manual stopwatch/timekeeping module.
+  - Building event maps, route layers, elevation profiles, POI management, announcement timelines, or social feed integrations.
   - Making the full portal offline-capable.
   - Caching authenticated admin data or sensitive API responses.
   - Implementing sync queues, IndexedDB event logs, conflict handling, or audit review.
@@ -164,3 +167,10 @@ Use before model switch or subagent delegation.
 ## Follow-Ups
 
 - Later CR: manual stopwatch/timekeeping as offline-capable PWA module with local event log, sync queue, conflict handling, and admin review.
+- Later CR: modular event-map/event-guide PWA extension:
+  - MapLibre foundation with route and POI layers.
+  - GPX/GeoJSON routes for Lauf, MTB, Rennrad.
+  - Optional elevation profiles when GPX height data or a DEM/elevation source is available.
+  - POIs for Bierzelt, Bar, Sponsoren, Start/Ziel, Parken, WC, Erste Hilfe.
+  - Offline strategy staged as app shell plus routes/POIs first; optional PMTiles/offline basemap later.
+  - Official announcement timeline as portal-owned feed; social integrations later and dependent on API accounts/keys or public RSS/Mastodon feeds.
