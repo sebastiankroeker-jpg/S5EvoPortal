@@ -49,7 +49,7 @@ export function deriveAccountLinkStatus(input: {
   if (input.hasPortalAccount) {
     return {
       status: "portal_account",
-      label: "Portal-Konto vorhanden",
+      label: "Portal-Konto ohne Link",
       className: "border-sky-300 bg-sky-50 text-sky-800",
       description: "Ein Portal-Konto mit dieser E-Mail existiert bereits, die fachliche Zuordnung ist aber noch nicht abgeschlossen.",
     } satisfies AccountLinkStatusMeta;
