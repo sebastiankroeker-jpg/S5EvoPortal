@@ -1,11 +1,15 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 20:53 UTC
+Stand: 2026-07-14 21:07 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
 - Git-Stand nach MTC-Owner-Hotfix-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
+- Change-Methodik/Skill wurde geschaerft:
+  - Skill `s5evo-change-request` wurde ueber Skill Workshop aktualisiert und angewendet.
+  - Neue Leitplanken: CR-Tiers (`micro`, `standard`, `high-risk`), Auto-Deploy-Awareness (`push origin main` bei Produktions-Auto-Deploy zaehlt als deploy-relevanter Schritt), Smoke-Matrix mit expliziten Authenticated-Gaps, Handoff-Topblock, Business-Invariants.
+  - Wichtig fuer kuenftige Arbeit: funktionalen Code nicht auf auto-deployendes `main` pushen, bevor Sebastian ein klares Go fuer den deploy-relevanten Schritt gegeben hat. Lokale Commits bleiben ok; fuer Pre-Go-Remote-Review Branch/PR nutzen, falls sinnvoll.
 - MTC-Owner-Hotfix:
   - CR: `docs/cr/2026-07-14-mtc-owner-edit-shortcut.md`
   - Commit: `6f36d94 Add MTC owner edit shortcut`
