@@ -620,13 +620,14 @@ export async function GET(request: NextRequest) {
             userEmail,
             canEditAllTeams: access.canEditAllTeams,
           });
+          const ownsMarketplaceTeam = teamAccess.canEditTeam || Boolean(user?.id && team.ownerId === user.id);
           if (
             team.registrationMode === "MARKETPLACE" &&
             !canViewerSeeMarketplaceTeam({
               globalVisibility: team.competition?.marketplaceGlobalVisibility ?? competition?.marketplaceGlobalVisibility,
               teamVisibility: team.marketplaceVisibility,
               isPrivilegedViewer: isPrivilegedMarketplaceViewer,
-              ownsMarketplaceTeam: teamAccess.canEditTeam,
+              ownsMarketplaceTeam,
               hasMarketplaceRegistration: viewerHasMarketplaceRegistration,
               isAuthenticated: Boolean(userEmail),
             })

@@ -14,7 +14,47 @@ Stand: 2026-07-14 10:45 UTC
 - Naechste aktive Arbeit liegt nicht in weiterem UI-Bau, sondern in Real-Smokes:
   1. Authenticated Messenger-Smoke: persoenlich an User, Orga-Team an User, Kanal-Anzeige in Empfaengeransicht, persoenliche Threads schliessen/wieder oeffnen, Reopen bei Antwort.
   2. Markus-Huber/MTC-Smoke: eigene vollstaendige MTC zeigt Uebernehmen-Dialog, Finalisierung klappt, danach regulaere Mannschaft mit Team-Manager-/Teamchef-Recht.
+- Lokaler Hotfix nach Markus-Huber-Meldung:
+  - Commit/Deploy noch offen zum Zeitpunkt dieses Handoffs.
+  - CR: `docs/cr/2026-07-14-mtc-owner-offline-visibility-hotfix.md`
+  - Ursache: `marketplaceGlobalVisibility=OFFLINE` blendete auch eigene MTCs fuer Nicht-Admins aus.
+  - Lokale Korrektur: Owner eigener Marketplace-/MTC-Teams duerfen eigene Teams trotz global `OFFLINE` sehen; fremde/public Teams bleiben offline.
+  - Checks lokal gruen: targeted ESLint, `npx tsc --noEmit`, `git diff --check`, gezielte Sichtbarkeits-Assertions.
 - Groessere Spaeter-Punkte bleiben: Glossar/Regelwerk fuer Rollen-/UI-Semantik, zentraler Audit-Helper, optional Team-Startnummern-UI/Doku.
+
+## Aktueller Nachtrag: MTC Owner Offline Visibility Hotfix
+
+- Ausloeser:
+  - Markus Huber meldete, dass er fertige MTC-Teams nicht in echte Anmeldungen umwandeln kann.
+- Prod-Daten read-only:
+  - `Huber Cars, Team 1`: `MARKETPLACE`, `MATCHING`, 5/5 Teilnehmer, vollstaendige Disziplinen, keine Blocking Errors.
+  - `Huber Cars, Team 3`: `MARKETPLACE`, `MATCHING`, 5/5 Teilnehmer, vollstaendige Disziplinen, keine Blocking Errors.
+  - `Huber Cars, Team 2`: 4/5 Teilnehmer, nicht finalisierbar.
+  - Markus hat aktiven Portal-Login und ist Owner der MTCs.
+  - Aktiver Wettkampf: `marketplaceGlobalVisibility = OFFLINE`.
+- Ursache:
+  - `canViewerSeeMarketplaceTeam()` gab fuer globale `OFFLINE`-Sichtbarkeit bei Nicht-Admins sofort `false` zurueck.
+  - Dadurch wurden eigene MTC-Teams aus `/api/teams` und `/api/teams/[id]` ausgefiltert, bevor Owner-Sichtbarkeit greifen konnte.
+- CR:
+  - `docs/cr/2026-07-14-mtc-owner-offline-visibility-hotfix.md`
+- Lokal implementiert, noch nicht produktiv deployed:
+  - `lib/marketplace-visibility.ts`
+  - `app/api/teams/route.ts`
+  - `app/api/teams/[id]/route.ts`
+- Geaendert:
+  - `ownsMarketplaceTeam` wird vor dem globalen `OFFLINE`-Block erlaubt.
+  - Teamliste und Teamdetail werten explizit `team.ownerId === currentUser.id` als eigene Marketplace-/MTC-Sichtbarkeit.
+  - Nicht-Owner ohne Privilegien sehen fremde Marketplace-Teams bei global `OFFLINE` weiterhin nicht.
+- Checks lokal gruen:
+  - `npx eslint lib/marketplace-visibility.ts app/api/teams/route.ts app/api/teams/[id]/route.ts`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - gezielte `npx tsx` Sichtbarkeits-Assertions
+  - read-only Markus-Datencheck: Team 1 und Team 3 waeren nach Fix sichtbar/finalisierbar, Team 2 sichtbar aber wegen 4/5 nicht finalisierbar.
+- Naechster Schritt:
+  - Nach Sebastian-Go pushen/deployen.
+  - Post-Deploy Smoke: `/`, `/sportlerboerse-dashboard`, `/api/teams` ohne Session -> 401, `npm run smoke:public`.
+  - Authenticated Smoke: Markus reload, `Huber Cars, Team 1` oder `Team 3` uebernehmen.
 
 ## Aktueller Nachtrag: Persoenliche Thread-Statusupdates und mobile Messenger-Kosmetik
 

@@ -24,13 +24,13 @@ export function canViewerSeeMarketplaceTeam(input: {
     return true;
   }
 
+  if (input.ownsMarketplaceTeam) {
+    return true;
+  }
+
   const globalVisibility = normalizeMarketplaceGlobalVisibility(input.globalVisibility);
   if (globalVisibility === "OFFLINE") {
     return false;
-  }
-
-  if (input.ownsMarketplaceTeam) {
-    return true;
   }
 
   switch (input.teamVisibility) {

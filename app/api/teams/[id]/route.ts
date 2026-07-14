@@ -639,7 +639,7 @@ export async function GET(
           globalVisibility: team.competition.marketplaceGlobalVisibility,
           teamVisibility: team.marketplaceVisibility,
           isPrivilegedViewer: isPrivilegedMarketplaceViewer,
-          ownsMarketplaceTeam: teamAccess.canEditTeam,
+          ownsMarketplaceTeam: teamAccess.canEditTeam || isCurrentUserOwner,
           hasMarketplaceRegistration: viewerHasMarketplaceRegistration,
           isAuthenticated: Boolean(userEmail),
         })
