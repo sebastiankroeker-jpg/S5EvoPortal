@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 10:45 UTC
+Stand: 2026-07-14 11:35 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -24,7 +24,37 @@ Stand: 2026-07-14 10:45 UTC
   - Korrektur: Owner eigener Marketplace-/MTC-Teams duerfen eigene Teams trotz global `OFFLINE` sehen; fremde/public Teams bleiben offline.
   - Checks lokal gruen: targeted ESLint, `npx tsc --noEmit`, `git diff --check`, gezielte Sichtbarkeits-Assertions.
   - Post-Deploy Smoke gruen: `npm run smoke:public`, `/sportlerboerse-dashboard` -> 200, `/api/teams` ohne Session -> 401.
+- Team-Edit-bis-Anmeldeschluss-Hotfix:
+  - CR: `docs/cr/2026-07-14-team-edit-direct-until-registration-deadline.md`
+  - Status: lokal implementiert, noch nicht deployed.
+  - Ursache: Team-Manager:innen konnten vor Anmeldeschluss nicht alle Mannschaftsaenderungen direkt speichern; Identitaet/Geburtsdaten/Geschlecht/Disziplin liefen in PendingChange, obwohl fachlich bis Anmeldeschluss keine Genehmigung noetig ist.
+  - Korrektur: `PUT /api/teams/[id]` nutzt fuer Team-Owner/Manager vor `competition.registrationDeadline` den bestehenden Direkt-Update-Pfad; nach Anmeldeschluss bleibt der Approval-Flow bestehen.
+  - Checks lokal gruen: targeted ESLint, `npx tsc --noEmit`, `npm run verify:team-draft`, `git diff --check`, gezielte Deadline-Assertions.
 - Groessere Spaeter-Punkte bleiben: Glossar/Regelwerk fuer Rollen-/UI-Semantik, zentraler Audit-Helper, optional Team-Startnummern-UI/Doku.
+
+## Aktueller Nachtrag: Team-Edit direkt bis Anmeldeschluss
+
+- Ausloeser:
+  - Sebastian stellte klar: Bis zum Anmeldeschluss sind Aenderungen in der Mannschaft nicht genehmigungspflichtig.
+- CR:
+  - `docs/cr/2026-07-14-team-edit-direct-until-registration-deadline.md`
+- Lokal implementiert, noch nicht deployed:
+  - `app/api/teams/[id]/route.ts`
+  - `lib/registration-deadline.ts`
+- Geaendert:
+  - Team-Owner/Manager mit bestehender Team-Edit-Berechtigung speichern gueltige komplette Mannschaftsaenderungen vor `registrationDeadline` direkt.
+  - Dazu zaehlen Teamname, Teilnehmer-Identitaet, Geburtsdaten, Geschlecht, Disziplin, T-Shirt, E-Mail, Moderationshinweis und Veroeffentlichung, solange die bestehende Teamvalidierung erfolgreich ist.
+  - Nach `registrationDeadline` bleibt der bestehende Pending-Change-/Genehmigungsfluss fuer Nicht-Admins aktiv.
+  - Admins bleiben unveraendert direkt.
+  - Bestehende offene Antraege, die durch einen direkten Vor-Deadline-Save ueberholt werden, werden wie beim Admin-Direktpfad abgelehnt, aber mit Self-Service-Fristgrund.
+- Checks lokal gruen:
+  - `npx eslint app/api/teams/[id]/route.ts lib/registration-deadline.ts`
+  - `npx tsx -e` Deadline-Assertions fuer offen/abgelaufen/fehlende Deadline
+  - `npx tsc --noEmit`
+  - `npm run verify:team-draft`
+  - `git diff --check`
+- Naechster Schritt:
+  - Committen, dann nach Sebastian-Go Production-Deploy + Smoke.
 
 ## Aktueller Nachtrag: MTC Owner Offline Visibility Hotfix
 

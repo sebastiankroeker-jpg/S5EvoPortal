@@ -42,6 +42,7 @@ import {
 import { canViewerSeeMarketplaceTeam } from '@/lib/marketplace-visibility';
 import { normalizeEmail, resolveCurrentUser } from '@/lib/current-user';
 import { prisma } from '@/lib/prisma';
+import { isRegistrationDeadlineOpen } from '@/lib/registration-deadline';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
 import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
 import { resolveTeamAccess } from '@/lib/team-manager-access';
@@ -60,18 +61,6 @@ function mapDiscipline(d: string): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | 
 
 function normalizeSubmittedText(value?: string | null) {
   return value?.normalize("NFC").trim() || "";
-}
-
-function isBeforeCompetitionStart(competition: { status?: string | null; date?: Date | null }) {
-  if (competition.status === "RUNNING" || competition.status === "CLOSED") {
-    return false;
-  }
-
-  if (competition.date && new Date() >= competition.date) {
-    return false;
-  }
-
-  return true;
 }
 
 function teamNameSnapshot(teamName: string) {
@@ -962,6 +951,12 @@ export async function PUT(
       }
 
       const canDirectEdit = access.canEditAllTeams;
+      const registrationDeadlineOpen = isRegistrationDeadlineOpen(existingTeam.competition.registrationDeadline);
+      const canApplyTeamUpdateDirectly = canDirectEdit || registrationDeadlineOpen;
+      const directEditActorLabel = canDirectEdit ? "Admin" : "Team Manager:in vor Anmeldeschluss";
+      const directEditObsoleteReviewComment = canDirectEdit
+        ? "Durch direkte Admin-Änderung überholt"
+        : "Durch direkte Änderung vor Anmeldeschluss überholt";
       const requestedTeamState = evaluateTeamDraft({
         mode: canDirectEdit ? "admin-edit" : "team-edit",
         teamName: teamData.teamName,
@@ -1001,7 +996,7 @@ export async function PUT(
         ? normalizedTeamName
         : existingTeam.name;
       const teamNameChanged = finalTeamName !== existingTeam.name;
-      const teamNameChangeIsDirect = canDirectEdit || isBeforeCompetitionStart(existingTeam.competition);
+      const teamNameChangeIsDirect = canApplyTeamUpdateDirectly;
       const effectiveTeamName = !canDirectEdit && teamNameChanged && !teamNameChangeIsDirect
         ? existingTeam.name
         : finalTeamName;
@@ -1054,14 +1049,14 @@ export async function PUT(
         ({ submittedParticipant }) => submittedParticipant.replaceParticipant === true,
       );
 
-      if (!canDirectEdit && replacementMatches.length > 0) {
+      if (!canApplyTeamUpdateDirectly && replacementMatches.length > 0) {
         return NextResponse.json(
           { error: 'Teilnehmer ersetzen ist nur fuer Orga/Admin-Direktbearbeitung freigegeben.' },
           { status: 403 },
         );
       }
 
-      if (!canDirectEdit) {
+      if (!canApplyTeamUpdateDirectly) {
         let createdRequests = 0;
         let updatedRequests = 0;
         let directlyAppliedParticipants = 0;
@@ -1168,11 +1163,11 @@ export async function PUT(
                 scopeId: existingTeam.id,
                 entityType: "TEAM",
                 entityId: existingTeam.id,
-                reason: "team_manager_pre_start_rename",
+                reason: "team_manager_pre_deadline_rename",
                 beforeData: beforeSnapshot,
                 afterData: requestedSnapshot,
                 meta: {
-                  source: "team_manager_pre_start",
+                  source: "team_manager_pre_deadline",
                   previousTeamName: existingTeam.name,
                   nextTeamName: finalTeamName,
                   sessionEmail: normalizedUserEmail,
@@ -1194,10 +1189,10 @@ export async function PUT(
               requestedSnapshot,
               metadata: {
                 field: "teamName",
-                directReason: "before_competition_start",
+                directReason: "before_registration_deadline",
               },
               actorId: user!.id,
-              message: "Mannschaftsname vor Wettkampfbeginn direkt durch Team Manager:in geaendert",
+              message: "Mannschaftsname vor Anmeldeschluss direkt durch Team Manager:in geaendert",
             });
           });
 
@@ -1972,7 +1967,7 @@ export async function PUT(
                 status: "REJECTED",
                 reviewedAt: new Date(),
                 reviewedById: user?.id ?? null,
-                reviewComment: "Durch direkte Admin-Änderung überholt",
+                reviewComment: directEditObsoleteReviewComment,
               },
             });
 
@@ -1997,7 +1992,7 @@ export async function PUT(
                 status: "REJECTED",
                 reviewedAt: new Date(),
                 reviewedById: user?.id ?? null,
-                reviewComment: "Durch direkte Admin-Änderung überholt",
+                reviewComment: directEditObsoleteReviewComment,
               },
             });
 
@@ -2009,7 +2004,7 @@ export async function PUT(
                   action: "REJECTED",
                   beforeData: changeRequest.requestedSnapshot as Prisma.InputJsonValue,
                   afterData: update.afterSnapshot,
-                  message: "Durch direkte Admin-Änderung überholt",
+                  message: directEditObsoleteReviewComment,
                 },
               });
             }
@@ -2023,7 +2018,7 @@ export async function PUT(
                 afterData: serializeSnapshot(update.afterSnapshot),
                 message: summarizeParticipantChanges(update.beforeSnapshot, update.afterSnapshot)
                   .map((change) => change.label)
-                  .join(", ") + " direkt durch Admin aktualisiert",
+                  .join(", ") + ` direkt durch ${directEditActorLabel} aktualisiert`,
               },
             });
           }
