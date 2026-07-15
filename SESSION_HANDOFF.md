@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-14 22:31 UTC
+Stand: 2026-07-15 06:12 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand nach MTC-Owner-Hotfix-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand nach PWA-Foundation-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Change-Methodik/Skill wurde geschaerft:
   - Skill `s5evo-change-request` wurde ueber Skill Workshop aktualisiert und angewendet.
@@ -25,14 +25,19 @@ Stand: 2026-07-14 22:31 UTC
 - PWA-/Stoppuhr-Konzept fuer spaeter:
   - Sebastian moechte das Stoppuhr-/manuelle-Zeitnahme-Projekt fuer spaeter merken.
   - PWA-Basis-CR angelegt und nach neuer Methodik aktualisiert: `docs/cr/2026-07-14-pwa-foundation.md`.
-  - CR-Tier: `standard`, Risk: low, Status: Implemented locally.
+  - CR-Tier: `standard`, Risk: low, Status: deployed.
   - Scope des CR: Portal installierbar machen, Manifest/Icons/konservativer Offline-Fallback; keine Stoppuhr-Umsetzung und keine breit gecachten Auth/Admin-Daten.
   - Business-Invariant: PWA-Basis ist keine zweite Smartphone-App und kein gespiegelter Smartphone-Persistierungs-Layer; bestehende UI/Backend/Auth bleiben fuehrend.
   - Lokal implementiert: Manifest/Metadata, PWA-Icons, Service-Worker-Registrierung, konservativer `/sw.js`, statischer Offline-Fallback `/offline.html`, normale `/offline`-Route.
   - Wichtig: Service Worker cached keine `/api/*`- oder `/_next/*`-Requests; Navigation nutzt network-first und faellt nur auf statisches `/offline.html` zurueck.
   - Lokale Checks gruen: targeted ESLint, `node --check public/sw.js`, `git diff --check`, `npx tsc --noEmit`, `npm run build`.
   - Lokaler HTTP-Smoke auf `127.0.0.1:3100` gruen: `/manifest.webmanifest`, `/sw.js`, `/offline.html`, `/offline`, Icons -> 200; `/api/teams`, `/api/admin/users`, `/api/admin/pending-changes` ohne Session -> 401.
-  - Naechster Schritt: Diff reviewen. Funktionalen Push auf `origin/main` und Deploy erst nach explizitem Go von Sebastian.
+  - Production Deploy: `dpl_7ZAAEVkh4A8YpwFL53QULKm5WMnY`
+  - Deployment URL: `https://s5-evo-portal-40zxpjoi7-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+  - Commit: `2c5eb29 Add PWA foundation`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`, `/manifest.webmanifest`, `/sw.js`, `/offline.html`, `/offline`, Icons -> 200; `/api/teams`, `/api/admin/users`, `/api/admin/pending-changes` ohne Session -> 401; `/sw.js` enthaelt `/api/`- und `/_next/`-Bypass.
+  - Sebastian-side optionaler Mini-Smoke: auf Handy einloggen, Installierbarkeit pruefen, installierte App starten, optional Flugmodus/Offline-Fallback testen.
   - Stoppuhr bleibt spaeterer eigener CR: offlinefaehiges Zeitnahme-Modul mit lokalem Event-Log, Sync Queue, Konfliktbehandlung und Admin-Review.
   - Event-Map/Event-Guide bleibt ebenfalls spaeterer eigener CR: MapLibre/GeoJSON/GPX-Layer fuer Veranstaltungsorte, Lauf/MTB/Rennrad, Hoehenprofile, POIs wie Bierzelt/Bar/Sponsoren, optionale PMTiles-Offline-Basemap, spaeter Timeline/Social Feeds. Nicht Teil der PWA-Basis.
 - Grafik-/Icon-Unterstuetzung:

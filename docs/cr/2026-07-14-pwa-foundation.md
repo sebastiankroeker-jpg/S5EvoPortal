@@ -1,6 +1,6 @@
 # CR: PWA Foundation
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-14
 Type: feature
 Tier: standard
@@ -223,17 +223,27 @@ Use before model switch or subagent delegation.
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
+- Deployment ID: `dpl_7ZAAEVkh4A8YpwFL53QULKm5WMnY`
+- Deployment URL: `https://s5-evo-portal-40zxpjoi7-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at:
-- Status: not deployed; not pushed to `origin/main`.
+- Deployed at: 2026-07-15 06:05 UTC
+- Status: deployed after Sebastian Go; commit `2c5eb29 Add PWA foundation` pushed to `origin/main`.
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` against `https://portal.s5evo.de` -> pass
+  - `/manifest.webmanifest` -> 200
+  - `/sw.js` -> 200
+  - `/offline.html` -> 200
+  - `/offline` -> 200
+  - `/icon-192.png`, `/icon-512.png`, `/icon-maskable-512.png`, `/apple-touch-icon.png` -> 200
 - API checks:
-- Result:
+  - `/api/teams` without session -> 401
+  - `/api/admin/users` without session -> 401
+  - `/api/admin/pending-changes` without session -> 401
+  - `/sw.js` contains `/api/` and `/_next/` bypass markers
+- Result: pass
 
 ## Follow-Ups
 
