@@ -125,6 +125,12 @@ const SORTS = [
   { id: "recordedDesc", label: "Neueste" },
   { id: "startNumber", label: "Startnr." },
   { id: "netTime", label: "Zeit" },
+  { id: "classification", label: "Klasse" },
+  { id: "firstName", label: "Vorname" },
+  { id: "lastName", label: "Name" },
+  { id: "teamName", label: "Team" },
+  { id: "status", label: "Status" },
+  { id: "assignment", label: "Zuordnung" },
 ] as const;
 
 type SortId = (typeof SORTS)[number]["id"];
@@ -280,6 +286,10 @@ function visibleEventStatus(event: TimekeepingEventState) {
   if (event.syncStatus === "local") return "Unsync";
   if (!event.startNumber && event.eventType === "FINISH") return "Offen";
   return "Ok";
+}
+
+function compareText(left: string | null | undefined, right: string | null | undefined) {
+  return String(left ?? "").localeCompare(String(right ?? ""), "de", { numeric: true, sensitivity: "base" });
 }
 
 function triggerCaptureFeedback() {
@@ -722,6 +732,8 @@ export default function TimekeepingPage() {
         ].some((value) => String(value ?? "").toLowerCase().includes(needle));
       })
       .sort((a, b) => {
+        const aStarter = findStarter(activeBlockStarters, a.startNumber) ?? findStarter(disciplineSnapshot?.starters ?? [], a.startNumber);
+        const bStarter = findStarter(activeBlockStarters, b.startNumber) ?? findStarter(disciplineSnapshot?.starters ?? [], b.startNumber);
         let result = 0;
         if (sort === "finishOrder") {
           result = (finishOrderById.get(a.clientEventId) ?? Number.MAX_SAFE_INTEGER) - (finishOrderById.get(b.clientEventId) ?? Number.MAX_SAFE_INTEGER);
@@ -733,12 +745,41 @@ export default function TimekeepingPage() {
             : normalizeStartNumber(a.startNumber).localeCompare(normalizeStartNumber(b.startNumber));
         } else if (sort === "netTime") {
           result = (a.netElapsedMs ?? Number.MAX_SAFE_INTEGER) - (b.netElapsedMs ?? Number.MAX_SAFE_INTEGER);
+        } else if (sort === "classification") {
+          result = compareText(aStarter?.classificationLabel, bStarter?.classificationLabel);
+        } else if (sort === "firstName") {
+          result = compareText(aStarter?.firstName, bStarter?.firstName);
+        } else if (sort === "lastName") {
+          result = compareText(aStarter?.lastName, bStarter?.lastName);
+        } else if (sort === "teamName") {
+          result = compareText(aStarter?.teamName, bStarter?.teamName);
+        } else if (sort === "status") {
+          result = compareText(visibleEventStatus(a), visibleEventStatus(b));
+        } else if (sort === "assignment") {
+          result = Number(Boolean(aStarter)) - Number(Boolean(bStarter));
         } else {
           result = new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime();
+        }
+        if (result === 0) {
+          result = (finishOrderById.get(a.clientEventId) ?? Number.MAX_SAFE_INTEGER) - (finishOrderById.get(b.clientEventId) ?? Number.MAX_SAFE_INTEGER);
         }
         return sortDirection === "asc" ? result : -result;
       });
   }, [activeBlockStarters, activeSession?.events, disciplineSnapshot?.starters, filter, finishOrderById, query, sort, sortDirection]);
+
+  const renderSortHeader = (nextSort: SortId, label: string) => (
+    <button
+      type="button"
+      onClick={() => toggleSort(nextSort)}
+      className={cn(
+        "flex items-center gap-1 text-left text-xs font-semibold",
+        sort === nextSort ? "text-primary" : "text-muted-foreground",
+      )}
+    >
+      {label}
+      <ArrowDownUp className="size-3.5" />
+    </button>
+  );
 
   if (status === "loading" || permissionsLoading || competitionLoading) {
     return (
@@ -1120,37 +1161,25 @@ export default function TimekeepingPage() {
                 <thead className="border-b border-border/60 bg-muted/30">
                   <tr>
                     <th className="w-20 px-2 py-2 text-left">
-                      <button type="button" onClick={() => toggleSort("finishOrder")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "finishOrder" ? "text-primary" : "text-muted-foreground")}>
-                        Reihenf.
-                        <ArrowDownUp className="size-3.5" />
-                      </button>
+                      {renderSortHeader("finishOrder", "Reihenf.")}
                     </th>
                     <th className="w-28 px-2 py-2 text-left">
-                      <button type="button" onClick={() => toggleSort("netTime")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "netTime" ? "text-primary" : "text-muted-foreground")}>
-                        Netto-Zeit
-                        <ArrowDownUp className="size-3.5" />
-                      </button>
+                      {renderSortHeader("netTime", "Netto-Zeit")}
                     </th>
                     <th className="w-32 px-2 py-2 text-left">
-                      <button type="button" onClick={() => toggleSort("startNumber")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "startNumber" ? "text-primary" : "text-muted-foreground")}>
-                        STRNR
-                        <ArrowDownUp className="size-3.5" />
-                      </button>
+                      {renderSortHeader("startNumber", "STRNR")}
                     </th>
-                    <th className="w-28 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Klasse</th>
-                    <th className="w-28 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Vorname</th>
-                    <th className="w-32 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Name</th>
-                    <th className="w-44 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Team</th>
+                    <th className="w-28 px-2 py-2 text-left">{renderSortHeader("classification", "Klasse")}</th>
+                    <th className="w-28 px-2 py-2 text-left">{renderSortHeader("firstName", "Vorname")}</th>
+                    <th className="w-32 px-2 py-2 text-left">{renderSortHeader("lastName", "Name")}</th>
+                    <th className="w-44 px-2 py-2 text-left">{renderSortHeader("teamName", "Team")}</th>
                     {helperColumns.recordedAt && (
                       <th className="w-24 px-2 py-2 text-left">
-                        <button type="button" onClick={() => toggleSort("recordedDesc")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "recordedDesc" ? "text-primary" : "text-muted-foreground")}>
-                          Uhrzeit
-                          <ArrowDownUp className="size-3.5" />
-                        </button>
+                        {renderSortHeader("recordedDesc", "Uhrzeit")}
                       </th>
                     )}
-                    {helperColumns.status && <th className="w-24 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Status</th>}
-                    {helperColumns.assignment && <th className="w-44 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Zuordnung</th>}
+                    {helperColumns.status && <th className="w-24 px-2 py-2 text-left">{renderSortHeader("status", "Status")}</th>}
+                    {helperColumns.assignment && <th className="w-44 px-2 py-2 text-left">{renderSortHeader("assignment", "Zuordnung")}</th>}
                   </tr>
                 </thead>
                 <tbody>
