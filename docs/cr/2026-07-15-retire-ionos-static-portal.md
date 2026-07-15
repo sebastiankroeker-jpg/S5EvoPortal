@@ -115,9 +115,14 @@ The production portal is deployed through Vercel and served via `https://portal.
   - `portal.s5evo.de` production remains Vercel; no app deploy was needed.
   - Local stale root `deploy.sh` and `build/` were moved into backup instead of deleted.
   - IONOS remote `./portal/` was backed up before clearing.
-  - Live skill files were not edited directly; Skill Workshop update proposals were created:
+  - Live skill files were not edited directly; Skill Workshop update/apply was used.
+  - Initial proposals were applied but were too proposal-like in the live skill content:
     - `s5evo-change-request-20260715-a57f0e768c`
     - `ionos-deploy-20260715-eb833dcb67`
+  - Follow-up repair proposals restored complete skill text and are the effective applied updates:
+    - `s5evo-change-request-20260715-4e65b087b0`
+    - `ionos-deploy-20260715-dd6874691e`
+  - Support-file proposal `ionos-deploy-20260715-3f2a8608e9` timed out during apply and remains pending; live skill text still contains the essential retired-target rule.
 
 ## Verification
 
@@ -152,6 +157,4 @@ The production portal is deployed through Vercel and served via `https://portal.
 
 ## Follow-Ups
 
-- Apply Skill Workshop proposals if Sebastian wants the durable skill files updated:
-  - `s5evo-change-request-20260715-a57f0e768c`
-  - `ionos-deploy-20260715-eb833dcb67`
+- Optional: decide what to do with pending support-file proposal `ionos-deploy-20260715-3f2a8608e9`; it is not required for the portal deploy rule because the live IONOS skill text now marks `portal.s5evo.de` retired.

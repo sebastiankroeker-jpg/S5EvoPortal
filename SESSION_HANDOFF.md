@@ -13,7 +13,10 @@ Stand: 2026-07-15 18:06 UTC
   - Alte lokale IONOS-Static-Artefakte `build/` und Root-`deploy.sh` wurden recoverable nach `backups/retired-ionos-static-20260715T1802Z/` verschoben.
   - Alter IONOS-Remote-Pfad `./portal/` wurde vor dem Clear nach `backups/retired-ionos-static-20260715T1802Z/remote-portal/` gesichert (69 Dateien, 2.3 MB) und danach geleert.
   - Verifikation danach: `https://portal.s5evo.de/zeitnahme` -> 200, `server: Vercel`; IONOS `./portal/` dry-run total size 0.
-  - Skill Workshop Proposals pending, nicht live angewendet: `s5evo-change-request-20260715-a57f0e768c`, `ionos-deploy-20260715-eb833dcb67`.
+  - Skill Workshop Updates angewendet:
+    - `s5evo-change-request-20260715-4e65b087b0` stellt den vollstaendigen CR-Skill wieder her und ergaenzt den Vercel-Deploy-Contract.
+    - `ionos-deploy-20260715-dd6874691e` stellt den IONOS-Skill-Text wieder her und markiert `portal.s5evo.de` als retired.
+    - Hinweis: die ersten Applied-Proposals (`s5evo-change-request-20260715-a57f0e768c`, `ionos-deploy-20260715-eb833dcb67`) waren zu proposal-artig; wurden durch die obigen Reparatur-Proposals ersetzt. Das Support-File-Proposal `ionos-deploy-20260715-3f2a8608e9` blieb wegen Tool-Timeout pending.
 - Zeitnahme V1:
   - CR: `docs/cr/2026-07-15-timekeeping-v1.md`
   - Commit: `8c854e6 Add timekeeping V1`
