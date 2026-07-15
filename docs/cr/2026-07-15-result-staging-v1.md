@@ -142,6 +142,10 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `ResultResetSnapshot` stores both preview and executed reset snapshots so destructive result maintenance can be audited.
   - `ResultDraft.timekeepingEventId` is stored as a plain reference for now; timekeeping events remain append-only and untouched.
   - Production backup before migration: `backups/db/s5evo-prod-before-result-staging-20260715T192343Z.dump` plus `.sha256`.
+  - Added read-only admin/moderator APIs:
+    - `GET /api/admin/result-staging/batches`
+    - `POST /api/admin/result-staging/reset/preview`
+  - Reset preview is intentionally non-destructive and does not persist preview snapshots yet.
 
 ## Verification
 
@@ -150,6 +154,7 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `npx prisma generate` passed.
   - `npx tsc --noEmit --incremental false` passed.
   - `git diff --check` passed.
+  - `npx eslint app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed.
 - Build:
   - `npm run build` passed.
 - Targeted verification:
@@ -187,3 +192,4 @@ Sebastian clarified that official results will come from multiple sources: legac
 - Build legacy import parser into `ResultDataBatch`/`ResultRawRecord`.
 - Build timekeeping-to-draft derivation from `TimekeepingEvent`.
 - Build explicit publish workflow into `DisciplineResult`.
+- Deploy/smoke the read-only preview APIs after separate Go.

@@ -22,7 +22,12 @@ Stand: 2026-07-15 18:06 UTC
   - Dateien: `prisma/schema.prisma`, `prisma/migrations/20260715190500_add_result_staging_foundation/migration.sql`, `lib/result-staging.ts`, CR, `SESSION_HANDOFF.md`.
   - Checks gruen: `npx prisma validate`, `npx prisma generate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`, `npm run smoke:public`.
   - Post-Deploy Checks: `/` -> 200, `/api/competition` -> active competition, `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` -> 200.
-  - Naechster Schritt: Preview-API/Admin-Reset-Preview bauen; noch kein Publish nach `DisciplineResult`.
+  - Lokaler Nachtrag nach Deploy: read-only Preview-APIs gebaut, noch nicht deployed:
+    - `GET /api/admin/result-staging/batches`
+    - `POST /api/admin/result-staging/reset/preview`
+    - Admin/Moderator-geschuetzt, nicht destruktiv, schreibt keine Preview-Snapshots.
+    - Lokale Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Naechster Schritt: Preview-APIs deployen/smoken nach separatem Go; danach Admin-UI fuer Preview/Reset-Plan bauen. Noch kein Publish nach `DisciplineResult`.
 - Deploy-Pfad fuer `portal.s5evo.de`:
   - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
   - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`
