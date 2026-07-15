@@ -6,6 +6,15 @@ Stand: 2026-07-15 18:06 UTC
 
 - Git-Stand: Zeitnahme V1 ist auf `main` gepusht und deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
+- Aktive lokale Arbeit: Result-Staging V1 Foundation.
+  - CR: `docs/cr/2026-07-15-result-staging-v1.md`
+  - Status: lokal implementiert, nicht deployed, keine Produktionsmigration ausgefuehrt.
+  - Scope: additive Prisma-Grundlage fuer `ResultDataBatch`, `ResultRawRecord`, `ResultDraft`, `ResultPublication`, `ResultPublicationItem`, `ResultResetSnapshot` plus Enums fuer Quelle/Zweck/Status/Reset-Scope.
+  - Zweck: Legacy-Ergebnisimport, Zeitnahme-Sync und manuelle Ergebnis-Pflege ueber gemeinsame Raw-/Draft-/Review-/Publish-/Reset-Logik konsolidieren.
+  - Produktionstest-Support: `ResultDataPurpose.PROD_TEST`/`DRY_RUN`, Batch-/Draft-/Publication-/Official-Result-Reset-Snapshots.
+  - Dateien: `prisma/schema.prisma`, `prisma/migrations/20260715190500_add_result_staging_foundation/migration.sql`, `lib/result-staging.ts`, CR.
+  - Checks lokal gruen: `npx prisma validate`, `npx prisma generate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Naechster Schritt: Commit lokal; vor Production-Deploy/Migration braucht es separates Go und vorher DB-Backup/Migration-Plan.
 - Deploy-Pfad fuer `portal.s5evo.de`:
   - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
   - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`

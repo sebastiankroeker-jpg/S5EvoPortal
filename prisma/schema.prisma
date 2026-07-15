@@ -91,6 +91,74 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum ResultDataSource {
+  LEGACY_IMPORT
+  TIMEKEEPING_SYNC
+  MANUAL_ADMIN
+  SYSTEM_RECALC
+}
+
+enum ResultDataPurpose {
+  PRODUCTION
+  PROD_TEST
+  DRY_RUN
+}
+
+enum ResultDataBatchStatus {
+  STAGED
+  VALIDATED
+  REVIEWED
+  PUBLISHED
+  DISCARDED
+  ERROR
+}
+
+enum ResultValidationStatus {
+  PENDING
+  VALID
+  WARNING
+  ERROR
+}
+
+enum ResultDraftStatus {
+  DRAFT
+  VALIDATED
+  CONFLICT
+  APPROVED
+  REJECTED
+  PUBLISHED
+  DISCARDED
+}
+
+enum ResultConflictStatus {
+  UNCHECKED
+  NONE
+  CONFLICT
+}
+
+enum ResultPublicationStatus {
+  PUBLISHED
+  REVERTED
+}
+
+enum ResultPublicationAction {
+  UPSERT
+  DELETE
+}
+
+enum ResultResetScope {
+  RAW_BATCH
+  DRAFTS
+  PUBLICATION
+  OFFICIAL_RESULTS
+  TEST_DATA
+}
+
+enum ResultResetMode {
+  PREVIEW
+  EXECUTED
+}
+
 enum ParticipantAuditAction {
   REQUEST_SUBMITTED
   REQUEST_UPDATED
@@ -275,15 +343,20 @@ model Tenant {
   updatedAt         DateTime @updatedAt
 
   // Relations
-  competitions   Competition[]
-  tenantRoles    TenantRole[]
-  changeRequests ChangeRequest[]
-  resetSnapshots CompetitionResetSnapshot[]
-  auditEvents    AuditEvent[]
-  dashboardLayouts DashboardLayout[]
-  conversations  Conversation[]
-  timekeepingSessions TimekeepingSession[]
-  timekeepingEvents   TimekeepingEvent[]
+  competitions         Competition[]
+  tenantRoles          TenantRole[]
+  changeRequests       ChangeRequest[]
+  resetSnapshots       CompetitionResetSnapshot[]
+  auditEvents          AuditEvent[]
+  dashboardLayouts     DashboardLayout[]
+  conversations        Conversation[]
+  timekeepingSessions  TimekeepingSession[]
+  timekeepingEvents    TimekeepingEvent[]
+  resultDataBatches    ResultDataBatch[]
+  resultRawRecords     ResultRawRecord[]
+  resultDrafts         ResultDraft[]
+  resultPublications   ResultPublication[]
+  resultResetSnapshots ResultResetSnapshot[]
 
   @@map("tenants")
 }
@@ -302,35 +375,39 @@ model User {
   deletedAt    DateTime?
 
   // Relations
-  tenantRoles               TenantRole[]
-  ownedTeams                Team[]                     @relation("TeamOwner")
-  chiefOfTeams              Team[]                     @relation("TeamChief")
-  teamMemberRoles           TeamMemberRole[]           @relation("TeamMemberRoleUser")
-  teamMemberRolesGranted    TeamMemberRole[]           @relation("TeamMemberRoleGrantedBy")
-  teamMemberRolesRevoked    TeamMemberRole[]           @relation("TeamMemberRoleRevokedBy")
-  linkedParticipants        Participant[]              @relation("ParticipantUser")
-  requestedChanges          PendingChange[]            @relation("ChangeRequester")
-  reviewedChanges           PendingChange[]            @relation("ChangeReviewer")
-  changeRequestsRequested   ChangeRequest[]            @relation("ChangeRequestRequester")
-  changeRequestsReviewed    ChangeRequest[]            @relation("ChangeRequestReviewer")
-  changeRequestsApplied     ChangeRequest[]            @relation("ChangeRequestApplier")
-  changeRequestAuditLogs    ChangeRequestAuditLog[]    @relation("ChangeRequestAuditActor")
-  participantAuditLogs      ParticipantAuditLog[]      @relation("ParticipantAuditActor")
-  changelogEntriesCreated   ChangelogEntry[]           @relation("EntryCreator")
-  changelogEntriesResolved  ChangelogEntry[]           @relation("EntryResolver")
-  claimedRegistrationTokens RegistrationClaimToken[]   @relation("ClaimedRegistrationTokens")
-  claimedParticipantTokens  ParticipantClaimToken[]    @relation("ClaimedParticipantTokens")
-  resetSnapshotsCreated     CompetitionResetSnapshot[] @relation("CompetitionResetSnapshotCreator")
-  auditEventsCreated        AuditEvent[]               @relation("AuditEventActor")
-  dashboardLayoutsOwned     DashboardLayout[]          @relation("DashboardLayoutOwner")
-  dashboardLayoutsCreated   DashboardLayout[]          @relation("DashboardLayoutCreator")
-  dashboardLayoutsUpdated   DashboardLayout[]          @relation("DashboardLayoutUpdater")
-  conversationsCreated      Conversation[]             @relation("ConversationCreator")
-  conversationsClosed       Conversation[]             @relation("ConversationCloser")
-  conversationParticipants  ConversationParticipant[]
-  messagesSent              Message[]                  @relation("MessageSender")
-  timekeepingSessionsCreated TimekeepingSession[]       @relation("TimekeepingSessionCreator")
-  timekeepingEventsCreated   TimekeepingEvent[]         @relation("TimekeepingEventActor")
+  tenantRoles                 TenantRole[]
+  ownedTeams                  Team[]                     @relation("TeamOwner")
+  chiefOfTeams                Team[]                     @relation("TeamChief")
+  teamMemberRoles             TeamMemberRole[]           @relation("TeamMemberRoleUser")
+  teamMemberRolesGranted      TeamMemberRole[]           @relation("TeamMemberRoleGrantedBy")
+  teamMemberRolesRevoked      TeamMemberRole[]           @relation("TeamMemberRoleRevokedBy")
+  linkedParticipants          Participant[]              @relation("ParticipantUser")
+  requestedChanges            PendingChange[]            @relation("ChangeRequester")
+  reviewedChanges             PendingChange[]            @relation("ChangeReviewer")
+  changeRequestsRequested     ChangeRequest[]            @relation("ChangeRequestRequester")
+  changeRequestsReviewed      ChangeRequest[]            @relation("ChangeRequestReviewer")
+  changeRequestsApplied       ChangeRequest[]            @relation("ChangeRequestApplier")
+  changeRequestAuditLogs      ChangeRequestAuditLog[]    @relation("ChangeRequestAuditActor")
+  participantAuditLogs        ParticipantAuditLog[]      @relation("ParticipantAuditActor")
+  changelogEntriesCreated     ChangelogEntry[]           @relation("EntryCreator")
+  changelogEntriesResolved    ChangelogEntry[]           @relation("EntryResolver")
+  claimedRegistrationTokens   RegistrationClaimToken[]   @relation("ClaimedRegistrationTokens")
+  claimedParticipantTokens    ParticipantClaimToken[]    @relation("ClaimedParticipantTokens")
+  resetSnapshotsCreated       CompetitionResetSnapshot[] @relation("CompetitionResetSnapshotCreator")
+  auditEventsCreated          AuditEvent[]               @relation("AuditEventActor")
+  dashboardLayoutsOwned       DashboardLayout[]          @relation("DashboardLayoutOwner")
+  dashboardLayoutsCreated     DashboardLayout[]          @relation("DashboardLayoutCreator")
+  dashboardLayoutsUpdated     DashboardLayout[]          @relation("DashboardLayoutUpdater")
+  conversationsCreated        Conversation[]             @relation("ConversationCreator")
+  conversationsClosed         Conversation[]             @relation("ConversationCloser")
+  conversationParticipants    ConversationParticipant[]
+  messagesSent                Message[]                  @relation("MessageSender")
+  timekeepingSessionsCreated  TimekeepingSession[]       @relation("TimekeepingSessionCreator")
+  timekeepingEventsCreated    TimekeepingEvent[]         @relation("TimekeepingEventActor")
+  resultDataBatchesCreated    ResultDataBatch[]          @relation("ResultDataBatchCreator")
+  resultDataBatchesReviewed   ResultDataBatch[]          @relation("ResultDataBatchReviewer")
+  resultPublicationsCreated   ResultPublication[]        @relation("ResultPublicationCreator")
+  resultResetSnapshotsCreated ResultResetSnapshot[]      @relation("ResultResetSnapshotCreator")
 
   @@index([lastSeenAt])
   @@map("users")
@@ -357,46 +434,51 @@ model TenantRole {
 // ==================== COMPETITION ====================
 
 model Competition {
-  id                                String               @id @default(cuid())
+  id                                String                      @id @default(cuid())
   name                              String
   year                              Int
   date                              DateTime?
   dateEnd                           DateTime?
   registrationDeadline              DateTime?
-  claimTokenExpiryMode              ClaimTokenExpiryMode @default(COMPETITION_END)
-  claimTokenTtlDays                 Int                  @default(7)
-  teamOwnerFilterVisibleForTeamchef Boolean              @default(false)
-  participantsCanViewAllTeams       Boolean              @default(false)
-  spectatorsCanViewAllTeams         Boolean              @default(false)
+  claimTokenExpiryMode              ClaimTokenExpiryMode        @default(COMPETITION_END)
+  claimTokenTtlDays                 Int                         @default(7)
+  teamOwnerFilterVisibleForTeamchef Boolean                     @default(false)
+  participantsCanViewAllTeams       Boolean                     @default(false)
+  spectatorsCanViewAllTeams         Boolean                     @default(false)
   marketplaceGlobalVisibility       MarketplaceGlobalVisibility @default(SELECTIVE)
   registrationNotificationEmail     String?
   shirtOrderDeadline                DateTime?
-  status                            CompetitionStatus    @default(DRAFT)
+  status                            CompetitionStatus           @default(DRAFT)
   maxTeams                          Int?
-  teamSize                          Int                  @default(5)
+  teamSize                          Int                         @default(5)
   ageReferenceDate                  DateTime?
-  benchPressTara                    Float                @default(20.0)
-  benchPressMode                    BenchPressMode       @default(GROSS)
-  stockShotsCount                   Int                  @default(11)
-  stockStrikeoutCount               Int                  @default(1)
+  benchPressTara                    Float                       @default(20.0)
+  benchPressMode                    BenchPressMode              @default(GROSS)
+  stockShotsCount                   Int                         @default(11)
+  stockStrikeoutCount               Int                         @default(1)
   location                          String?
-  publicResults                     Boolean              @default(true)
-  createdAt                         DateTime             @default(now())
-  updatedAt                         DateTime             @updatedAt
+  publicResults                     Boolean                     @default(true)
+  createdAt                         DateTime                    @default(now())
+  updatedAt                         DateTime                    @updatedAt
 
   // Relations
-  tenantId        String
-  tenant          Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  teams           Team[]
-  disciplines     Discipline[]
-  classifications Classification[]
-  changeRequests ChangeRequest[]
-  resetSnapshots  CompetitionResetSnapshot[]
-  auditEvents     AuditEvent[]
-  dashboardLayouts DashboardLayout[]
-  conversations   Conversation[]
-  timekeepingSessions TimekeepingSession[]
-  timekeepingEvents   TimekeepingEvent[]
+  tenantId             String
+  tenant               Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  teams                Team[]
+  disciplines          Discipline[]
+  classifications      Classification[]
+  changeRequests       ChangeRequest[]
+  resetSnapshots       CompetitionResetSnapshot[]
+  auditEvents          AuditEvent[]
+  dashboardLayouts     DashboardLayout[]
+  conversations        Conversation[]
+  timekeepingSessions  TimekeepingSession[]
+  timekeepingEvents    TimekeepingEvent[]
+  resultDataBatches    ResultDataBatch[]
+  resultRawRecords     ResultRawRecord[]
+  resultDrafts         ResultDraft[]
+  resultPublications   ResultPublication[]
+  resultResetSnapshots ResultResetSnapshot[]
 
   @@index([tenantId, status, year, createdAt])
   @@index([status, year, createdAt])
@@ -416,15 +498,15 @@ model DashboardLayout {
   deletedAt     DateTime?
 
   tenantId      String
-  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   competitionId String?
-  competition   Competition?         @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   ownerId       String?
-  owner         User?                @relation("DashboardLayoutOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner         User?        @relation("DashboardLayoutOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   createdById   String
-  createdBy     User                 @relation("DashboardLayoutCreator", fields: [createdById], references: [id])
+  createdBy     User         @relation("DashboardLayoutCreator", fields: [createdById], references: [id])
   updatedById   String?
-  updatedBy     User?                @relation("DashboardLayoutUpdater", fields: [updatedById], references: [id])
+  updatedBy     User?        @relation("DashboardLayoutUpdater", fields: [updatedById], references: [id])
 
   @@index([tenantId, dashboardKey, scope, deletedAt])
   @@index([ownerId, dashboardKey, deletedAt])
@@ -436,25 +518,25 @@ model DashboardLayout {
 // ==================== TEAM ====================
 
 model Team {
-  id                   String               @id @default(cuid())
-  name                 String
-  startNumber          String?
-  contactName          String?
-  contactEmail         String?
-  contactPhone         String?
-  clubName             String?
-  notes                String?
-  teamPublicationLevel TeamPublicationLevel @default(TEAM_ANONYM)
-  registrationMode     TeamRegistrationMode @default(TEAM)
+  id                    String                @id @default(cuid())
+  name                  String
+  startNumber           String?
+  contactName           String?
+  contactEmail          String?
+  contactPhone          String?
+  clubName              String?
+  notes                 String?
+  teamPublicationLevel  TeamPublicationLevel  @default(TEAM_ANONYM)
+  registrationMode      TeamRegistrationMode  @default(TEAM)
   marketplaceVisibility MarketplaceVisibility @default(ADMIN_MANAGEMENT_ONLY)
-  marketplaceStatus    MarketplaceStatus    @default(NEW)
-  marketplaceMessage   String?
-  approved             Boolean              @default(false)
-  totalAge             Int?
-  classificationCode   String?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  deletedAt            DateTime?
+  marketplaceStatus     MarketplaceStatus     @default(NEW)
+  marketplaceMessage    String?
+  approved              Boolean               @default(false)
+  totalAge              Int?
+  classificationCode    String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  deletedAt             DateTime?
 
   // Relations
   competitionId           String
@@ -639,8 +721,8 @@ model Participant {
 
 model Conversation {
   id            String             @id @default(cuid())
-  type          ConversationType    @default(SUPPORT)
-  status        ConversationStatus  @default(OPEN)
+  type          ConversationType   @default(SUPPORT)
+  status        ConversationStatus @default(OPEN)
   subject       String
   lastMessageAt DateTime?
   createdAt     DateTime           @default(now())
@@ -649,20 +731,20 @@ model Conversation {
   deletedAt     DateTime?
 
   tenantId      String
-  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   competitionId String?
-  competition   Competition?       @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
   teamId        String?
-  team          Team?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  team          Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
   participantId String?
-  participant   Participant?       @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
   createdById   String
-  createdBy     User               @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy     User         @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
   closedById    String?
-  closedBy      User?              @relation("ConversationCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  closedBy      User?        @relation("ConversationCloser", fields: [closedById], references: [id], onDelete: SetNull)
 
-  participants  ConversationParticipant[]
-  messages      Message[]
+  participants ConversationParticipant[]
+  messages     Message[]
 
   @@index([tenantId, type, status, lastMessageAt])
   @@index([competitionId, type, status])
@@ -673,17 +755,17 @@ model Conversation {
 }
 
 model ConversationParticipant {
-  id             String                      @id @default(cuid())
-  role           ConversationParticipantRole @default(MEMBER)
-  joinedAt       DateTime                    @default(now())
-  leftAt         DateTime?
-  lastReadAt     DateTime?
-  mutedAt        DateTime?
+  id         String                      @id @default(cuid())
+  role       ConversationParticipantRole @default(MEMBER)
+  joinedAt   DateTime                    @default(now())
+  leftAt     DateTime?
+  lastReadAt DateTime?
+  mutedAt    DateTime?
 
   conversationId String
-  conversation   Conversation                @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
-  user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
   @@index([userId, leftAt])
@@ -692,22 +774,22 @@ model ConversationParticipant {
 }
 
 model Message {
-  id                String               @id @default(cuid())
-  contentFormat     MessageContentFormat @default(PLAIN)
+  id                String                   @id @default(cuid())
+  contentFormat     MessageContentFormat     @default(PLAIN)
   senderDisplayMode MessageSenderDisplayMode @default(PERSONAL)
   body              String?
   bodyCiphertext    String?
   bodyPreview       String?
   encryptionVersion Int?
   keyId             String?
-  createdAt         DateTime             @default(now())
+  createdAt         DateTime                 @default(now())
   editedAt          DateTime?
   deletedAt         DateTime?
 
-  conversationId    String
-  conversation      Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderId          String
-  sender            User                 @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
   @@index([senderId, createdAt])
@@ -813,15 +895,15 @@ model CompetitionRanking {
 // ==================== PENDING CHANGE (Approval-Workflow) ====================
 
 model PendingChange {
-  id            String         @id @default(cuid())
+  id            String                     @id @default(cuid())
   changeData    String
   beforeData    String?
-  status        ApprovalStatus @default(DRAFT)
+  status        ApprovalStatus             @default(DRAFT)
   bundleId      String?
   bundleType    PendingChangeBundleType?
   bundleStatus  PendingChangeBundleStatus?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
   reviewedAt    DateTime?
   reviewComment String?
 
@@ -985,11 +1067,11 @@ model TimekeepingSession {
   updatedAt            DateTime       @updatedAt
 
   tenantId      String
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   competitionId String
-  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  competition   Competition        @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   createdById   String?
-  createdBy     User?       @relation("TimekeepingSessionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy     User?              @relation("TimekeepingSessionCreator", fields: [createdById], references: [id], onDelete: SetNull)
   events        TimekeepingEvent[]
 
   @@index([tenantId, competitionId, disciplineCode, status])
@@ -1024,6 +1106,193 @@ model TimekeepingEvent {
   @@index([competitionId, eventType, recordedAt])
   @@index([startNumber])
   @@map("timekeeping_events")
+}
+
+model ResultDataBatch {
+  id                String                @id @default(cuid())
+  source            ResultDataSource
+  purpose           ResultDataPurpose     @default(PRODUCTION)
+  status            ResultDataBatchStatus @default(STAGED)
+  label             String?
+  externalRef       String?
+  sourceVersion     String?
+  payload           Json?
+  summary           Json?
+  validationSummary Json?
+  stagedAt          DateTime              @default(now())
+  reviewedAt        DateTime?
+  publishedAt       DateTime?
+  discardedAt       DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  createdById   String?
+  createdBy     User?       @relation("ResultDataBatchCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewedById  String?
+  reviewedBy    User?       @relation("ResultDataBatchReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  rawRecords     ResultRawRecord[]
+  drafts         ResultDraft[]
+  publications   ResultPublication[]
+  resetSnapshots ResultResetSnapshot[]
+
+  @@index([tenantId, competitionId, source, status])
+  @@index([competitionId, purpose, status, createdAt])
+  @@index([externalRef])
+  @@map("result_data_batches")
+}
+
+model ResultRawRecord {
+  id                 String                 @id @default(cuid())
+  rowKey             String
+  disciplineCode     DisciplineCode?
+  startNumber        String?
+  participantId      String?
+  teamId             String?
+  rawValue           Float?
+  rawValueText       String?
+  recordedAt         DateTime?
+  payload            Json
+  validationStatus   ResultValidationStatus @default(PENDING)
+  validationMessages Json?
+  createdAt          DateTime               @default(now())
+
+  batchId       String
+  batch         ResultDataBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition     @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  drafts ResultDraft[]
+
+  @@unique([batchId, rowKey])
+  @@index([tenantId, competitionId, disciplineCode])
+  @@index([competitionId, startNumber])
+  @@index([participantId])
+  @@map("result_raw_records")
+}
+
+model ResultDraft {
+  id                     String               @id @default(cuid())
+  status                 ResultDraftStatus    @default(DRAFT)
+  conflictStatus         ResultConflictStatus @default(UNCHECKED)
+  disciplineCode         DisciplineCode
+  participantId          String?
+  teamId                 String?
+  startNumber            String?
+  rawValue               Float?
+  rawValueText           String?
+  normalizedValue        Float?
+  netElapsedMs           Int?
+  timekeepingEventId     String?
+  currentResultSnapshot  Json?
+  proposedResultSnapshot Json?
+  validationMessages     Json?
+  reviewedAt             DateTime?
+  publishedAt            DateTime?
+  discardedAt            DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  batchId           String
+  batch             ResultDataBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sourceRawRecordId String?
+  sourceRawRecord   ResultRawRecord? @relation(fields: [sourceRawRecordId], references: [id], onDelete: SetNull)
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId     String
+  competition       Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  publicationItems ResultPublicationItem[]
+
+  @@index([tenantId, competitionId, status, conflictStatus])
+  @@index([competitionId, disciplineCode, participantId])
+  @@index([competitionId, startNumber])
+  @@index([timekeepingEventId])
+  @@map("result_drafts")
+}
+
+model ResultPublication {
+  id          String                  @id @default(cuid())
+  version     Int
+  status      ResultPublicationStatus @default(PUBLISHED)
+  label       String?
+  summary     Json?
+  publishedAt DateTime                @default(now())
+  revertedAt  DateTime?
+  createdAt   DateTime                @default(now())
+
+  tenantId      String
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  sourceBatchId String?
+  sourceBatch   ResultDataBatch? @relation(fields: [sourceBatchId], references: [id], onDelete: SetNull)
+  createdById   String?
+  createdBy     User?            @relation("ResultPublicationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  items          ResultPublicationItem[]
+  resetSnapshots ResultResetSnapshot[]
+
+  @@unique([competitionId, version])
+  @@index([tenantId, competitionId, status, publishedAt])
+  @@map("result_publications")
+}
+
+model ResultPublicationItem {
+  id             String                  @id @default(cuid())
+  action         ResultPublicationAction
+  disciplineCode DisciplineCode
+  participantId  String?
+  teamId         String?
+  startNumber    String?
+  resultId       String?
+  beforeData     Json?
+  afterData      Json?
+  createdAt      DateTime                @default(now())
+
+  publicationId String
+  publication   ResultPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  draftId       String?
+  draft         ResultDraft?      @relation(fields: [draftId], references: [id], onDelete: SetNull)
+
+  @@index([publicationId, disciplineCode])
+  @@index([participantId])
+  @@index([resultId])
+  @@map("result_publication_items")
+}
+
+model ResultResetSnapshot {
+  id          String           @id @default(cuid())
+  scope       ResultResetScope
+  mode        ResultResetMode  @default(PREVIEW)
+  reason      String
+  scopeFilter Json?
+  summary     Json
+  snapshot    Json
+  executedAt  DateTime?
+  createdAt   DateTime         @default(now())
+
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition        @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  batchId       String?
+  batch         ResultDataBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  publicationId String?
+  publication   ResultPublication? @relation(fields: [publicationId], references: [id], onDelete: SetNull)
+  createdById   String?
+  createdBy     User?              @relation("ResultResetSnapshotCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, competitionId, scope, createdAt])
+  @@index([batchId])
+  @@index([publicationId])
+  @@map("result_reset_snapshots")
 }
 
 // ==================== CHANGELOG ENTRY ====================
