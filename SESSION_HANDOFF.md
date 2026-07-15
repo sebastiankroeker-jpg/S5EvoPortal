@@ -6,15 +6,23 @@ Stand: 2026-07-15 18:06 UTC
 
 - Git-Stand: Zeitnahme V1 ist auf `main` gepusht und deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
-- Aktive lokale Arbeit: Result-Staging V1 Foundation.
+- Result-Staging V1 Foundation:
   - CR: `docs/cr/2026-07-15-result-staging-v1.md`
-  - Status: lokal implementiert, nicht deployed, keine Produktionsmigration ausgefuehrt.
+  - Status: deployed.
+  - Commit: `ef76a9c Add result staging foundation`
+  - Production Deploy: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
+  - Deployment URL: `https://s5-evo-portal-n2awz16wk-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
   - Scope: additive Prisma-Grundlage fuer `ResultDataBatch`, `ResultRawRecord`, `ResultDraft`, `ResultPublication`, `ResultPublicationItem`, `ResultResetSnapshot` plus Enums fuer Quelle/Zweck/Status/Reset-Scope.
   - Zweck: Legacy-Ergebnisimport, Zeitnahme-Sync und manuelle Ergebnis-Pflege ueber gemeinsame Raw-/Draft-/Review-/Publish-/Reset-Logik konsolidieren.
   - Produktionstest-Support: `ResultDataPurpose.PROD_TEST`/`DRY_RUN`, Batch-/Draft-/Publication-/Official-Result-Reset-Snapshots.
-  - Dateien: `prisma/schema.prisma`, `prisma/migrations/20260715190500_add_result_staging_foundation/migration.sql`, `lib/result-staging.ts`, CR.
-  - Checks lokal gruen: `npx prisma validate`, `npx prisma generate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
-  - Naechster Schritt: Commit lokal; vor Production-Deploy/Migration braucht es separates Go und vorher DB-Backup/Migration-Plan.
+  - DB-Backup vor Migration: `backups/db/s5evo-prod-before-result-staging-20260715T192343Z.dump` plus `.sha256`.
+  - Production-Migration angewendet: `20260715190500_add_result_staging_foundation`; `npx prisma migrate status` danach up to date.
+  - Neue Tabellen nach Migration leer verifiziert: `result_data_batches`, `result_raw_records`, `result_drafts`, `result_publications`, `result_publication_items`, `result_reset_snapshots` jeweils `0`.
+  - Dateien: `prisma/schema.prisma`, `prisma/migrations/20260715190500_add_result_staging_foundation/migration.sql`, `lib/result-staging.ts`, CR, `SESSION_HANDOFF.md`.
+  - Checks gruen: `npx prisma validate`, `npx prisma generate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`, `npm run smoke:public`.
+  - Post-Deploy Checks: `/` -> 200, `/api/competition` -> active competition, `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` -> 200.
+  - Naechster Schritt: Preview-API/Admin-Reset-Preview bauen; noch kein Publish nach `DisciplineResult`.
 - Deploy-Pfad fuer `portal.s5evo.de`:
   - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
   - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`

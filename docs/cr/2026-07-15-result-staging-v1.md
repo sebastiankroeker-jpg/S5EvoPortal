@@ -1,6 +1,6 @@
 # CR: Result Staging V1
 
-Status: Implemented local
+Status: Deployed
 Date: 2026-07-15
 Type: schema
 Risk: high
@@ -141,6 +141,7 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `ResultDataPurpose.PROD_TEST` and `DRY_RUN` explicitly support production test packages.
   - `ResultResetSnapshot` stores both preview and executed reset snapshots so destructive result maintenance can be audited.
   - `ResultDraft.timekeepingEventId` is stored as a plain reference for now; timekeeping events remain append-only and untouched.
+  - Production backup before migration: `backups/db/s5evo-prod-before-result-staging-20260715T192343Z.dump` plus `.sha256`.
 
 ## Verification
 
@@ -153,22 +154,32 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `npm run build` passed.
 - Targeted verification:
   - Prisma schema validation passed after formatting.
+  - `npx prisma migrate deploy` applied `20260715190500_add_result_staging_foundation`.
+  - `npx prisma migrate status` reported database schema up to date after deploy.
+  - New result staging tables verified empty after migration: all six new tables count `0`.
 - Manual smoke:
   - Not applicable before UI/API.
 
 ## Deploy
 
-- Deployment needed: yes, later
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes
+- Deployment ID: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
+- Deployment URL: `https://s5-evo-portal-n2awz16wk-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-15 19:27 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` passed against `https://portal.s5evo.de`.
+  - `/` returned 200.
 - API checks:
+  - `/api/competition` returned active competition data.
+  - `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` returned 200.
+  - Public smoke confirmed protected APIs still return 401 without session.
 - Result:
+  - Deployment and additive migration verified.
+  - No result staging data was created by the migration.
 
 ## Follow-Ups
 
