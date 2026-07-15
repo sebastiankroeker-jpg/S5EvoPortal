@@ -120,10 +120,19 @@ const FILTERS = [
 ] as const;
 
 const SORTS = [
+  { id: "finishOrder", label: "Reihenfolge" },
   { id: "recordedDesc", label: "Neueste" },
   { id: "startNumber", label: "Startnr." },
   { id: "netTime", label: "Zeit" },
 ] as const;
+
+type HelperColumn = "recordedAt" | "status" | "assignment";
+
+const HELPER_COLUMNS: { id: HelperColumn; label: string }[] = [
+  { id: "recordedAt", label: "Uhrzeit" },
+  { id: "status", label: "Sync-Status" },
+  { id: "assignment", label: "Zuordnung" },
+];
 
 function storageKey(competitionId: string) {
   return `s5evo-timekeeping-v1:${competitionId}`;
@@ -138,12 +147,12 @@ function createId(prefix: string) {
 
 function formatDuration(ms: number | null) {
   if (ms === null || !Number.isFinite(ms)) return "—";
-  const totalTenths = Math.max(0, Math.round(ms / 100));
-  const tenths = totalTenths % 10;
-  const totalSeconds = Math.floor(totalTenths / 10);
+  const totalHundredths = Math.max(0, Math.round(ms / 10));
+  const hundredths = totalHundredths % 100;
+  const totalSeconds = Math.floor(totalHundredths / 100);
   const seconds = totalSeconds % 60;
   const minutes = Math.floor(totalSeconds / 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}.${tenths}`;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}.${hundredths.toString().padStart(2, "0")}`;
 }
 
 function formatClock(iso: string | null) {
@@ -275,18 +284,24 @@ export default function TimekeepingPage() {
   const [startNumberInput, setStartNumberInput] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
-  const [sort, setSort] = useState<(typeof SORTS)[number]["id"]>("recordedDesc");
+  const [sort, setSort] = useState<(typeof SORTS)[number]["id"]>("finishOrder");
   const [assigningEventId, setAssigningEventId] = useState<string | null>(null);
   const [assignValue, setAssignValue] = useState("");
   const [activeTab, setActiveTab] = useState<"clock" | "config">("clock");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const [helperColumns, setHelperColumns] = useState<Record<HelperColumn, boolean>>({
+    recordedAt: false,
+    status: false,
+    assignment: false,
+  });
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const startNumberInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setNow(Date.now()), 250);
+    const interval = window.setInterval(() => setNow(Date.now()), 50);
     return () => window.clearInterval(interval);
   }, []);
 
@@ -353,6 +368,15 @@ export default function TimekeepingPage() {
   const runningElapsedMs = activeSession?.manualStartedAt
     ? new Date(activeSession.manualStoppedAt ?? now).getTime() - new Date(activeSession.manualStartedAt).getTime()
     : null;
+  const finishOrderById = useMemo(() => {
+    const order = new Map<string, number>();
+    (activeSession?.events ?? [])
+      .filter((event) => event.eventType === "FINISH")
+      .slice()
+      .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+      .forEach((event, index) => order.set(event.clientEventId, index + 1));
+    return order;
+  }, [activeSession?.events]);
 
   const updateSession = useCallback((updater: (session: TimekeepingSessionState) => TimekeepingSessionState) => {
     setState((current) => {
@@ -393,12 +417,20 @@ export default function TimekeepingPage() {
   const removeActiveStartBlock = () => {
     if (!state || !activeSession) return;
     const disciplineSessions = state.sessions.filter((session) => session.disciplineCode === activeDiscipline);
-    if (disciplineSessions.length <= 1 || activeSession.events.length > 0 || activeSession.manualStartedAt) return;
+    if (disciplineSessions.length <= 1) return;
+    const hasLocalBlockData = activeSession.events.length > 0 || Boolean(activeSession.manualStartedAt);
+    if (hasLocalBlockData) {
+      const confirmed = window.confirm("Startblock inklusive lokaler Zeiten und Uhr-Status löschen?");
+      if (!confirmed) return;
+    }
     const remainingSessions = state.sessions.filter((session) => session.id !== activeSession.id);
     const nextSession = remainingSessions.find((session) => session.disciplineCode === activeDiscipline) ?? remainingSessions[0] ?? null;
     setState({ ...state, sessions: remainingSessions });
     setActiveSessionId(nextSession?.id ?? null);
     setActiveDiscipline(nextSession?.disciplineCode ?? activeDiscipline);
+    setAssigningEventId(null);
+    setAssignValue("");
+    setStartNumberInput("");
   };
 
   const toggleActiveSessionClassification = (classificationCode: string) => {
@@ -601,9 +633,16 @@ export default function TimekeepingPage() {
           event.note,
           formatClock(event.recordedAt),
           formatDuration(event.netElapsedMs),
+          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.classificationLabel,
+          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.firstName,
+          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.lastName,
+          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.teamName,
         ].some((value) => String(value ?? "").toLowerCase().includes(needle));
       })
       .sort((a, b) => {
+        if (sort === "finishOrder") {
+          return (finishOrderById.get(a.clientEventId) ?? Number.MAX_SAFE_INTEGER) - (finishOrderById.get(b.clientEventId) ?? Number.MAX_SAFE_INTEGER);
+        }
         if (sort === "startNumber") {
           return Number(a.startNumber ?? Number.MAX_SAFE_INTEGER) - Number(b.startNumber ?? Number.MAX_SAFE_INTEGER);
         }
@@ -612,7 +651,7 @@ export default function TimekeepingPage() {
         }
         return new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime();
       });
-  }, [activeSession?.events, filter, query, sort]);
+  }, [activeBlockStarters, activeSession?.events, filter, finishOrderById, query, sort]);
 
   if (status === "loading" || permissionsLoading || competitionLoading) {
     return (
@@ -724,7 +763,7 @@ export default function TimekeepingPage() {
                   {state?.sessions.filter((session) => session.disciplineCode === activeDiscipline).map((session) => (
                     <Button
                       key={session.id}
-                      variant={activeSessionId === session.id ? "secondary" : "outline"}
+                      variant={activeSessionId === session.id ? "default" : "outline"}
                       size="sm"
                       className="shrink-0"
                       onClick={() => setActiveSessionId(session.id)}
@@ -753,7 +792,7 @@ export default function TimekeepingPage() {
                     variant="ghost"
                     className="h-9 gap-1.5 text-muted-foreground"
                     onClick={removeActiveStartBlock}
-                    disabled={!activeSession || (state?.sessions.filter((session) => session.disciplineCode === activeDiscipline).length ?? 0) <= 1 || activeSession.events.length > 0 || Boolean(activeSession.manualStartedAt)}
+                    disabled={!activeSession || (state?.sessions.filter((session) => session.disciplineCode === activeDiscipline).length ?? 0) <= 1}
                   >
                     <Trash2 className="size-4" />
                     Entfernen
@@ -820,8 +859,8 @@ export default function TimekeepingPage() {
         )}
 
         {activeTab === "clock" && (
-          <section className="rounded-md border border-border/60 bg-card p-3 shadow-sm">
-            <div className="grid gap-3">
+          <section className="rounded-md border border-border/60 bg-card p-2 shadow-sm">
+            <div className="grid gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>
                   {activeSession ? `${DISCIPLINE_LABELS[activeSession.disciplineCode]} · ${activeSession.startBlockName}` : "Kein Block"}
@@ -833,20 +872,20 @@ export default function TimekeepingPage() {
                 </span>
               </div>
 
-              <div className="flex items-center justify-center rounded-md border border-border/60 bg-background px-3 py-4 font-mono text-5xl font-semibold tabular-nums">
+              <div className="flex items-center justify-center rounded-md border border-border/60 bg-background px-3 py-2 font-mono text-4xl font-semibold tabular-nums sm:text-5xl">
                 {formatDuration(runningElapsedMs)}
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <Button onClick={startBlock} className="h-11 gap-2" disabled={!activeSession || Boolean(activeSession.manualStartedAt)}>
+                <Button onClick={startBlock} className="h-10 gap-2" disabled={!activeSession || Boolean(activeSession.manualStartedAt)}>
                   <Play className="size-4" />
                   Start
                 </Button>
-                <Button onClick={stopBlock} className="h-11 gap-2" variant="secondary" disabled={!clockIsRunning}>
+                <Button onClick={stopBlock} className="h-10 gap-2" variant="secondary" disabled={!clockIsRunning}>
                   <Square className="size-4" />
                   Stop
                 </Button>
-                <Button onClick={resetClock} className="h-11 gap-2" variant="outline" disabled={!activeSession?.manualStartedAt}>
+                <Button onClick={resetClock} className="h-10 gap-2" variant="outline" disabled={!activeSession?.manualStartedAt}>
                   <RefreshCcw className="size-4" />
                   Reset
                 </Button>
@@ -854,7 +893,7 @@ export default function TimekeepingPage() {
 
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                 <div className="relative">
-                  <Timer className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Timer className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     ref={startNumberInputRef}
                     inputMode="numeric"
@@ -869,13 +908,13 @@ export default function TimekeepingPage() {
                         captureFinish();
                       }
                     }}
-                    className="h-12 pl-9 text-lg"
+                    className="h-24 pl-12 text-2xl"
                     disabled={!clockIsRunning}
                   />
                 </div>
                 <Button
                   type="button"
-                  className="h-12 gap-2"
+                  className="h-24 gap-2 text-lg"
                   disabled={!clockIsRunning}
                   onPointerDown={(event) => event.preventDefault()}
                   onClick={captureFinish}
@@ -888,16 +927,20 @@ export default function TimekeepingPage() {
           </section>
         )}
 
-        <section className="rounded-md border border-border/60 bg-card shadow-sm">
+        <section className="overflow-hidden rounded-md border border-border/60 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 p-2">
             <div className="min-w-0">
               <p className="text-sm font-medium leading-tight">Zeiten</p>
               <p className="text-xs text-muted-foreground">{filteredEvents.length} sichtbar · {unsyncedCount} offen</p>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-end gap-1">
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setFiltersOpen((open) => !open)}>
                 <SlidersHorizontal className="size-4" />
                 Filter
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setLayoutOpen((open) => !open)}>
+                <Settings2 className="size-4" />
+                Layout
               </Button>
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={resetLocalData} disabled={syncing || unsyncedCount === 0}>
                 <Trash2 className="size-4" />
@@ -931,65 +974,137 @@ export default function TimekeepingPage() {
             </div>
           )}
 
-          <div className="divide-y divide-border/50">
+          {layoutOpen && (
+            <div className="border-b border-border/60 p-2">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Zusatzspalten</p>
+              <div className="flex flex-wrap gap-2">
+                {HELPER_COLUMNS.map((column) => (
+                  <label key={column.id} className="inline-flex h-8 items-center gap-2 rounded-md border border-border/60 bg-background px-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={helperColumns[column.id]}
+                      onChange={(event) => setHelperColumns((current) => ({ ...current, [column.id]: event.target.checked }))}
+                    />
+                    {column.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
             {filteredEvents.length === 0 ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Keine Zeiten in der aktuellen Ansicht.</div>
-            ) : filteredEvents.map((event) => {
-              const starter = activeBlockStarters.find((item) => item.startNumber === event.startNumber)
-                ?? disciplineSnapshot?.starters.find((item) => item.startNumber === event.startNumber)
-                ?? null;
-              const isAssigning = assigningEventId === event.clientEventId;
-              return (
-                <div key={event.clientEventId} className="grid gap-2 p-3 sm:grid-cols-[72px_1fr_auto] sm:items-center">
-                  <div className="font-mono text-sm">{formatClock(event.recordedAt)}</div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn(
-                        "inline-flex min-w-14 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold",
-                        event.startNumber ? "bg-primary/10 text-primary" : "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
-                      )}>
-                        {event.startNumber ?? "ohne"}
-                      </span>
-                      <span className="font-mono text-base font-semibold">{formatDuration(event.netElapsedMs)}</span>
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{visibleEventStatus(event)}</span>
-                    </div>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {starter ? `${starter.firstName} ${starter.lastName} · ${starter.teamName}` : "Keine lokale Zuordnung"}
-                    </p>
-                    {isAssigning && (
-                      <div className="mt-2 flex max-w-sm gap-2">
-                        <Input
-                          inputMode="numeric"
-                          value={assignValue}
-                          onChange={(inputEvent) => setAssignValue(inputEvent.target.value)}
-                          onKeyDown={(keyboardEvent) => {
-                            if (keyboardEvent.key === "Enter") assignStartNumber(event.clientEventId);
-                          }}
-                          className="h-8"
-                          autoFocus
-                        />
-                        <Button size="sm" className="h-8" onClick={() => assignStartNumber(event.clientEventId)}>
-                          <Check className="size-4" />
-                        </Button>
-                      </div>
+            ) : (
+              <table className="w-full min-w-[820px] table-fixed text-sm">
+                <thead className="border-b border-border/60 bg-muted/30">
+                  <tr>
+                    <th className="w-20 px-2 py-2 text-left">
+                      <button type="button" onClick={() => setSort("finishOrder")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "finishOrder" ? "text-primary" : "text-muted-foreground")}>
+                        Reihenf.
+                        <ArrowDownUp className="size-3.5" />
+                      </button>
+                    </th>
+                    <th className="w-28 px-2 py-2 text-left">
+                      <button type="button" onClick={() => setSort("netTime")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "netTime" ? "text-primary" : "text-muted-foreground")}>
+                        Netto-Zeit
+                        <ArrowDownUp className="size-3.5" />
+                      </button>
+                    </th>
+                    <th className="w-32 px-2 py-2 text-left">
+                      <button type="button" onClick={() => setSort("startNumber")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "startNumber" ? "text-primary" : "text-muted-foreground")}>
+                        STRNR
+                        <ArrowDownUp className="size-3.5" />
+                      </button>
+                    </th>
+                    <th className="w-28 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Klasse</th>
+                    <th className="w-28 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Vorname</th>
+                    <th className="w-32 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Name</th>
+                    <th className="w-44 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Team</th>
+                    {helperColumns.recordedAt && (
+                      <th className="w-24 px-2 py-2 text-left">
+                        <button type="button" onClick={() => setSort("recordedDesc")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "recordedDesc" ? "text-primary" : "text-muted-foreground")}>
+                          Uhrzeit
+                          <ArrowDownUp className="size-3.5" />
+                        </button>
+                      </th>
                     )}
-                  </div>
-                  {!event.startNumber && event.eventType === "FINISH" && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-8"
-                      onClick={() => {
-                        setAssigningEventId(event.clientEventId);
-                        setAssignValue("");
-                      }}
-                    >
-                      Startnr.
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
+                    {helperColumns.status && <th className="w-24 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Status</th>}
+                    {helperColumns.assignment && <th className="w-44 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Zuordnung</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEvents.map((event) => {
+                    const starter = activeBlockStarters.find((item) => item.startNumber === event.startNumber)
+                      ?? disciplineSnapshot?.starters.find((item) => item.startNumber === event.startNumber)
+                      ?? null;
+                    const isAssigning = assigningEventId === event.clientEventId;
+                    return (
+                      <tr key={event.clientEventId} className="border-b border-border/50 last:border-0">
+                        <td className="px-2 py-2 align-top font-mono text-muted-foreground">
+                          {finishOrderById.get(event.clientEventId) ?? "—"}
+                        </td>
+                        <td className="px-2 py-2 align-top font-mono text-base font-semibold tabular-nums">
+                          {formatDuration(event.netElapsedMs)}
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          {isAssigning ? (
+                            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_40px] gap-1">
+                              <Input
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                enterKeyHint="done"
+                                value={assignValue}
+                                onChange={(inputEvent) => setAssignValue(inputEvent.target.value)}
+                                onKeyDown={(keyboardEvent) => {
+                                  if (keyboardEvent.key === "Enter") assignStartNumber(event.clientEventId);
+                                }}
+                                className="h-10 min-w-0 text-base"
+                                autoFocus
+                              />
+                              <Button size="icon" className="h-10 w-10 shrink-0" onClick={() => assignStartNumber(event.clientEventId)} aria-label="Startnummer speichern">
+                                <Check className="size-4" />
+                              </Button>
+                            </div>
+                          ) : event.startNumber ? (
+                            <span className="inline-flex min-w-12 items-center justify-center rounded-md bg-primary/10 px-2 py-1 font-semibold text-primary">
+                              {event.startNumber}
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 w-full"
+                              onClick={() => {
+                                setAssigningEventId(event.clientEventId);
+                                setAssignValue("");
+                              }}
+                            >
+                              Startnr.
+                            </Button>
+                          )}
+                        </td>
+                        <td className="truncate px-2 py-2 align-top">{starter?.classificationLabel ?? "—"}</td>
+                        <td className="truncate px-2 py-2 align-top">{starter?.firstName ?? "—"}</td>
+                        <td className="truncate px-2 py-2 align-top">{starter?.lastName ?? "—"}</td>
+                        <td className="truncate px-2 py-2 align-top">{starter?.teamName ?? "—"}</td>
+                        {helperColumns.recordedAt && <td className="px-2 py-2 align-top font-mono text-muted-foreground">{formatClock(event.recordedAt)}</td>}
+                        {helperColumns.status && (
+                          <td className="px-2 py-2 align-top">
+                            <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{visibleEventStatus(event)}</span>
+                          </td>
+                        )}
+                        {helperColumns.assignment && (
+                          <td className="truncate px-2 py-2 align-top text-muted-foreground">
+                            {starter ? "lokal zugeordnet" : "Keine lokale Zuordnung"}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </section>
 
