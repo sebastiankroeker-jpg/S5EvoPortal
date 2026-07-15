@@ -1,11 +1,19 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-15 14:08 UTC
+Stand: 2026-07-15 18:06 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
 - Git-Stand: Zeitnahme V1 ist auf `main` gepusht und deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
+- Deploy-Pfad fuer `portal.s5evo.de`:
+  - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
+  - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`
+  - Grund: DNS/HTTP bestaetigt Vercel (`*.vercel-dns-017.com`, Header `server: Vercel`).
+  - Alte lokale IONOS-Static-Artefakte `build/` und Root-`deploy.sh` wurden recoverable nach `backups/retired-ionos-static-20260715T1802Z/` verschoben.
+  - Alter IONOS-Remote-Pfad `./portal/` wurde vor dem Clear nach `backups/retired-ionos-static-20260715T1802Z/remote-portal/` gesichert (69 Dateien, 2.3 MB) und danach geleert.
+  - Verifikation danach: `https://portal.s5evo.de/zeitnahme` -> 200, `server: Vercel`; IONOS `./portal/` dry-run total size 0.
+  - Skill Workshop Proposals pending, nicht live angewendet: `s5evo-change-request-20260715-a57f0e768c`, `ionos-deploy-20260715-eb833dcb67`.
 - Zeitnahme V1:
   - CR: `docs/cr/2026-07-15-timekeeping-v1.md`
   - Commit: `8c854e6 Add timekeeping V1`
