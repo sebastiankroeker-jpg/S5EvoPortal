@@ -102,6 +102,7 @@ type PersistedState = {
   deviceId: string;
   competitionId: string;
   snapshotVersion: string;
+  cachedSnapshot?: SnapshotResponse;
   sessions: TimekeepingSessionState[];
   lastSyncAt: string | null;
 };
@@ -125,6 +126,9 @@ const SORTS = [
   { id: "startNumber", label: "Startnr." },
   { id: "netTime", label: "Zeit" },
 ] as const;
+
+type SortId = (typeof SORTS)[number]["id"];
+type SortDirection = "asc" | "desc";
 
 type HelperColumn = "recordedAt" | "status" | "assignment";
 
@@ -166,6 +170,19 @@ function formatClock(iso: string | null) {
 
 function toInputNumber(value: number | null) {
   return value === null ? "" : String(value);
+}
+
+function normalizeStartNumber(startNumber: string | null) {
+  const trimmed = startNumber?.trim();
+  if (!trimmed) return "";
+  if (/^\d+$/.test(trimmed)) return String(Number.parseInt(trimmed, 10));
+  return trimmed.toLowerCase();
+}
+
+function findStarter(starters: Starter[], startNumber: string | null) {
+  const normalized = normalizeStartNumber(startNumber);
+  if (!normalized) return null;
+  return starters.find((starter) => normalizeStartNumber(starter.startNumber) === normalized) ?? null;
 }
 
 function getFirstStartNumber(starters: Starter[], classificationCodes: string[]) {
@@ -284,12 +301,14 @@ export default function TimekeepingPage() {
   const [startNumberInput, setStartNumberInput] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
-  const [sort, setSort] = useState<(typeof SORTS)[number]["id"]>("finishOrder");
+  const [sort, setSort] = useState<SortId>("finishOrder");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [assigningEventId, setAssigningEventId] = useState<string | null>(null);
   const [assignValue, setAssignValue] = useState("");
   const [activeTab, setActiveTab] = useState<"clock" | "config">("clock");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [helperColumns, setHelperColumns] = useState<Record<HelperColumn, boolean>>({
     recordedAt: false,
     status: false,
@@ -325,6 +344,7 @@ export default function TimekeepingPage() {
           deviceId,
           competitionId: activeCompetition.id,
           snapshotVersion: data.snapshotVersion,
+          cachedSnapshot: data,
           sessions: buildDefaultSessions(data, parsed ? { ...parsed, deviceId } : null),
           lastSyncAt: parsed?.lastSyncAt ?? null,
         };
@@ -337,7 +357,23 @@ export default function TimekeepingPage() {
         setActiveDiscipline(firstSession?.disciplineCode ?? "RUN");
         setActiveSessionId(firstSession?.id ?? null);
       } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Zeitnahme konnte nicht geladen werden");
+        if (!cancelled) {
+          const key = storageKey(activeCompetition.id);
+          const persisted = window.localStorage.getItem(key);
+          const parsed = persisted ? JSON.parse(persisted) as PersistedState : null;
+          if (parsed?.cachedSnapshot) {
+            setSnapshot(parsed.cachedSnapshot);
+            setState(parsed);
+            const firstSession = parsed.sessions.find((session) => session.disciplineCode === activeDiscipline)
+              ?? parsed.sessions[0]
+              ?? null;
+            setActiveDiscipline(firstSession?.disciplineCode ?? "RUN");
+            setActiveSessionId(firstSession?.id ?? null);
+            setError("Server-Snapshot nicht erreichbar, lokaler Stand geladen.");
+            return;
+          }
+          setError(loadError instanceof Error ? loadError.message : "Zeitnahme konnte nicht geladen werden");
+        }
       }
     };
 
@@ -377,6 +413,51 @@ export default function TimekeepingPage() {
       .forEach((event, index) => order.set(event.clientEventId, index + 1));
     return order;
   }, [activeSession?.events]);
+  const duplicateStartNumbers = useMemo(() => {
+    const counts = new Map<string, number>();
+    (activeSession?.events ?? [])
+      .filter((event) => event.eventType === "FINISH")
+      .forEach((event) => {
+        const normalized = normalizeStartNumber(event.startNumber);
+        if (!normalized) return;
+        counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+      });
+    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([startNumber]) => startNumber));
+  }, [activeSession?.events]);
+  const timekeepingStats = useMemo(() => {
+    const finishedStartNumbers = new Set<string>();
+    let missingAssignments = 0;
+    (activeSession?.events ?? [])
+      .filter((event) => event.eventType === "FINISH")
+      .forEach((event) => {
+        const normalized = normalizeStartNumber(event.startNumber);
+        if (normalized) {
+          finishedStartNumbers.add(normalized);
+        } else {
+          missingAssignments += 1;
+        }
+      });
+    const startersInBlock = activeBlockStarters.length;
+    const finishedKnownInBlock = activeBlockStarters.filter((starter) => finishedStartNumbers.has(normalizeStartNumber(starter.startNumber))).length;
+    return {
+      startersInBlock,
+      finishedKnownInBlock,
+      onCourse: Math.max(0, startersInBlock - finishedKnownInBlock),
+      missingAssignments,
+      duplicateCount: duplicateStartNumbers.size,
+    };
+  }, [activeBlockStarters, activeSession?.events, duplicateStartNumbers]);
+
+  const toggleSort = (nextSort: SortId) => {
+    setSort((currentSort) => {
+      if (currentSort === nextSort) {
+        setSortDirection((currentDirection) => currentDirection === "asc" ? "desc" : "asc");
+        return currentSort;
+      }
+      setSortDirection(nextSort === "recordedDesc" ? "desc" : "asc");
+      return nextSort;
+    });
+  };
 
   const updateSession = useCallback((updater: (session: TimekeepingSessionState) => TimekeepingSessionState) => {
     setState((current) => {
@@ -539,8 +620,8 @@ export default function TimekeepingPage() {
   };
 
   const assignStartNumber = (eventId: string) => {
-    const nextStartNumber = assignValue.trim();
-    if (!activeSession || !nextStartNumber) return;
+    const nextStartNumber = assignValue.trim() || null;
+    if (!activeSession) return;
     const target = activeSession.events.find((event) => event.clientEventId === eventId);
     if (!target) return;
     const { rawElapsedMs, netElapsedMs } = calculateNetMs(activeSession, nextStartNumber, new Date(target.recordedAt));
@@ -619,39 +700,45 @@ export default function TimekeepingPage() {
   const filteredEvents = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (activeSession?.events ?? [])
-      .filter((event) => event.eventType !== "BLOCK_START")
+      .filter((event) => event.eventType === "FINISH")
       .filter((event) => {
-        if (filter === "missing") return event.eventType === "FINISH" && !event.startNumber;
+        if (filter === "missing") return !event.startNumber;
         if (filter === "unsynced") return event.syncStatus !== "synced";
         if (filter === "conflict") return event.syncStatus === "conflict";
         return true;
       })
       .filter((event) => {
         if (!needle) return true;
+        const starter = findStarter(activeBlockStarters, event.startNumber) ?? findStarter(disciplineSnapshot?.starters ?? [], event.startNumber);
         return [
           event.startNumber,
           event.note,
           formatClock(event.recordedAt),
           formatDuration(event.netElapsedMs),
-          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.classificationLabel,
-          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.firstName,
-          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.lastName,
-          activeBlockStarters.find((starter) => starter.startNumber === event.startNumber)?.teamName,
+          starter?.classificationLabel,
+          starter?.firstName,
+          starter?.lastName,
+          starter?.teamName,
         ].some((value) => String(value ?? "").toLowerCase().includes(needle));
       })
       .sort((a, b) => {
+        let result = 0;
         if (sort === "finishOrder") {
-          return (finishOrderById.get(a.clientEventId) ?? Number.MAX_SAFE_INTEGER) - (finishOrderById.get(b.clientEventId) ?? Number.MAX_SAFE_INTEGER);
+          result = (finishOrderById.get(a.clientEventId) ?? Number.MAX_SAFE_INTEGER) - (finishOrderById.get(b.clientEventId) ?? Number.MAX_SAFE_INTEGER);
+        } else if (sort === "startNumber") {
+          const aNumber = Number(normalizeStartNumber(a.startNumber) || Number.MAX_SAFE_INTEGER);
+          const bNumber = Number(normalizeStartNumber(b.startNumber) || Number.MAX_SAFE_INTEGER);
+          result = Number.isFinite(aNumber) && Number.isFinite(bNumber)
+            ? aNumber - bNumber
+            : normalizeStartNumber(a.startNumber).localeCompare(normalizeStartNumber(b.startNumber));
+        } else if (sort === "netTime") {
+          result = (a.netElapsedMs ?? Number.MAX_SAFE_INTEGER) - (b.netElapsedMs ?? Number.MAX_SAFE_INTEGER);
+        } else {
+          result = new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime();
         }
-        if (sort === "startNumber") {
-          return Number(a.startNumber ?? Number.MAX_SAFE_INTEGER) - Number(b.startNumber ?? Number.MAX_SAFE_INTEGER);
-        }
-        if (sort === "netTime") {
-          return (a.netElapsedMs ?? Number.MAX_SAFE_INTEGER) - (b.netElapsedMs ?? Number.MAX_SAFE_INTEGER);
-        }
-        return new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime();
+        return sortDirection === "asc" ? result : -result;
       });
-  }, [activeBlockStarters, activeSession?.events, filter, finishOrderById, query, sort]);
+  }, [activeBlockStarters, activeSession?.events, disciplineSnapshot?.starters, filter, finishOrderById, query, sort, sortDirection]);
 
   if (status === "loading" || permissionsLoading || competitionLoading) {
     return (
@@ -942,6 +1029,10 @@ export default function TimekeepingPage() {
                 <Settings2 className="size-4" />
                 Layout
               </Button>
+              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setStatsOpen((open) => !open)}>
+                <Timer className="size-4" />
+                Stats
+              </Button>
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={resetLocalData} disabled={syncing || unsyncedCount === 0}>
                 <Trash2 className="size-4" />
                 Reset
@@ -967,7 +1058,15 @@ export default function TimekeepingPage() {
               </label>
               <label className="flex items-center gap-1 text-xs text-muted-foreground">
                 <ArrowDownUp className="size-4" />
-                <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground">
+                <select
+                  value={sort}
+                  onChange={(event) => {
+                    const nextSort = event.target.value as SortId;
+                    setSort(nextSort);
+                    setSortDirection(nextSort === "recordedDesc" ? "desc" : "asc");
+                  }}
+                  className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground"
+                >
                   {SORTS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
@@ -992,6 +1091,27 @@ export default function TimekeepingPage() {
             </div>
           )}
 
+          {statsOpen && (
+            <div className="grid grid-cols-2 gap-2 border-b border-border/60 p-2 sm:grid-cols-4">
+              <div className="rounded-md bg-muted/40 px-2 py-2">
+                <p className="text-[11px] font-medium text-muted-foreground">Im Ziel</p>
+                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.finishedKnownInBlock}</p>
+              </div>
+              <div className="rounded-md bg-muted/40 px-2 py-2">
+                <p className="text-[11px] font-medium text-muted-foreground">Auf Strecke</p>
+                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.onCourse}</p>
+              </div>
+              <div className={cn("rounded-md px-2 py-2", timekeepingStats.missingAssignments > 0 ? "bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200" : "bg-muted/40")}>
+                <p className="text-[11px] font-medium text-muted-foreground">Ohne STRNR</p>
+                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.missingAssignments}</p>
+              </div>
+              <div className={cn("rounded-md px-2 py-2", timekeepingStats.duplicateCount > 0 ? "bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200" : "bg-muted/40")}>
+                <p className="text-[11px] font-medium text-muted-foreground">Doppelt</p>
+                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.duplicateCount}</p>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             {filteredEvents.length === 0 ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Keine Zeiten in der aktuellen Ansicht.</div>
@@ -1000,19 +1120,19 @@ export default function TimekeepingPage() {
                 <thead className="border-b border-border/60 bg-muted/30">
                   <tr>
                     <th className="w-20 px-2 py-2 text-left">
-                      <button type="button" onClick={() => setSort("finishOrder")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "finishOrder" ? "text-primary" : "text-muted-foreground")}>
+                      <button type="button" onClick={() => toggleSort("finishOrder")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "finishOrder" ? "text-primary" : "text-muted-foreground")}>
                         Reihenf.
                         <ArrowDownUp className="size-3.5" />
                       </button>
                     </th>
                     <th className="w-28 px-2 py-2 text-left">
-                      <button type="button" onClick={() => setSort("netTime")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "netTime" ? "text-primary" : "text-muted-foreground")}>
+                      <button type="button" onClick={() => toggleSort("netTime")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "netTime" ? "text-primary" : "text-muted-foreground")}>
                         Netto-Zeit
                         <ArrowDownUp className="size-3.5" />
                       </button>
                     </th>
                     <th className="w-32 px-2 py-2 text-left">
-                      <button type="button" onClick={() => setSort("startNumber")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "startNumber" ? "text-primary" : "text-muted-foreground")}>
+                      <button type="button" onClick={() => toggleSort("startNumber")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "startNumber" ? "text-primary" : "text-muted-foreground")}>
                         STRNR
                         <ArrowDownUp className="size-3.5" />
                       </button>
@@ -1023,7 +1143,7 @@ export default function TimekeepingPage() {
                     <th className="w-44 px-2 py-2 text-left text-xs font-semibold text-muted-foreground">Team</th>
                     {helperColumns.recordedAt && (
                       <th className="w-24 px-2 py-2 text-left">
-                        <button type="button" onClick={() => setSort("recordedDesc")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "recordedDesc" ? "text-primary" : "text-muted-foreground")}>
+                        <button type="button" onClick={() => toggleSort("recordedDesc")} className={cn("flex items-center gap-1 text-left text-xs font-semibold", sort === "recordedDesc" ? "text-primary" : "text-muted-foreground")}>
                           Uhrzeit
                           <ArrowDownUp className="size-3.5" />
                         </button>
@@ -1035,12 +1155,19 @@ export default function TimekeepingPage() {
                 </thead>
                 <tbody>
                   {filteredEvents.map((event) => {
-                    const starter = activeBlockStarters.find((item) => item.startNumber === event.startNumber)
-                      ?? disciplineSnapshot?.starters.find((item) => item.startNumber === event.startNumber)
-                      ?? null;
+                    const starter = findStarter(activeBlockStarters, event.startNumber)
+                      ?? findStarter(disciplineSnapshot?.starters ?? [], event.startNumber);
                     const isAssigning = assigningEventId === event.clientEventId;
+                    const normalizedStartNumber = normalizeStartNumber(event.startNumber);
+                    const hasWarning = event.syncStatus === "conflict" || !normalizedStartNumber || duplicateStartNumbers.has(normalizedStartNumber);
                     return (
-                      <tr key={event.clientEventId} className="border-b border-border/50 last:border-0">
+                      <tr
+                        key={event.clientEventId}
+                        className={cn(
+                          "border-b border-border/50 last:border-0",
+                          hasWarning && "bg-orange-50/70 dark:bg-orange-950/20",
+                        )}
+                      >
                         <td className="px-2 py-2 align-top font-mono text-muted-foreground">
                           {finishOrderById.get(event.clientEventId) ?? "—"}
                         </td>
@@ -1067,9 +1194,19 @@ export default function TimekeepingPage() {
                               </Button>
                             </div>
                           ) : event.startNumber ? (
-                            <span className="inline-flex min-w-12 items-center justify-center rounded-md bg-primary/10 px-2 py-1 font-semibold text-primary">
+                            <button
+                              type="button"
+                              className={cn(
+                                "inline-flex min-w-12 items-center justify-center rounded-md bg-primary/10 px-2 py-1 font-semibold text-primary",
+                                duplicateStartNumbers.has(normalizedStartNumber) && "bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100",
+                              )}
+                              onClick={() => {
+                                setAssigningEventId(event.clientEventId);
+                                setAssignValue(event.startNumber ?? "");
+                              }}
+                            >
                               {event.startNumber}
-                            </span>
+                            </button>
                           ) : (
                             <Button
                               size="sm"
