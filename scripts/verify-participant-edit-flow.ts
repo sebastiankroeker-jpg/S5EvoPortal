@@ -127,6 +127,17 @@ assert.equal(
     ownsMarketplaceTeam: true,
     hasMarketplaceRegistration: true,
   }),
+  true,
+);
+assert.equal(
+  canViewerSeeMarketplaceTeam({
+    globalVisibility: "OFFLINE",
+    teamVisibility: "PUBLIC",
+    isPrivilegedViewer: false,
+    isAuthenticated: true,
+    ownsMarketplaceTeam: false,
+    hasMarketplaceRegistration: true,
+  }),
   false,
 );
 assert.equal(
