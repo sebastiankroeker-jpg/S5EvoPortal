@@ -1817,6 +1817,89 @@ export async function PUT(
           },
         });
 
+        if (teamNameChanged) {
+          const beforeSnapshot = teamNameSnapshot(existingTeam.name);
+          const requestedSnapshot = teamNameSnapshot(finalTeamName);
+          const overriddenTeamNameRequests = await tx.changeRequest.findMany({
+            where: {
+              targetType: "TEAM",
+              targetId: existingTeam.id,
+              changeType: "UPDATE",
+              status: "PENDING",
+            },
+            select: { id: true, requestedSnapshot: true },
+          });
+
+          await tx.changeRequest.updateMany({
+            where: {
+              targetType: "TEAM",
+              targetId: existingTeam.id,
+              changeType: "UPDATE",
+              status: "PENDING",
+            },
+            data: {
+              status: "REJECTED",
+              reviewedAt: now,
+              reviewedById: user?.id ?? null,
+              reviewComment: directEditObsoleteReviewComment,
+            },
+          });
+
+          for (const changeRequest of overriddenTeamNameRequests) {
+            await tx.changeRequestAuditLog.create({
+              data: {
+                changeRequestId: changeRequest.id,
+                actorId: user?.id ?? null,
+                action: "REJECTED",
+                beforeData: changeRequest.requestedSnapshot as Prisma.InputJsonValue,
+                afterData: requestedSnapshot,
+                message: directEditObsoleteReviewComment,
+              },
+            });
+          }
+
+          await tx.auditEvent.create({
+            data: {
+              action: "TEAM_NAME_CHANGED",
+              scopeType: "TEAM",
+              scopeId: existingTeam.id,
+              entityType: "TEAM",
+              entityId: existingTeam.id,
+              reason: canDirectEdit ? "admin_rename" : "team_manager_pre_deadline_rename",
+              beforeData: beforeSnapshot,
+              afterData: requestedSnapshot,
+              meta: {
+                source: canDirectEdit ? "admin" : "team_manager_pre_deadline",
+                previousTeamName: existingTeam.name,
+                nextTeamName: finalTeamName,
+                sessionEmail: normalizedUserEmail,
+              },
+              tenantId: existingTeam.competition.tenantId,
+              competitionId: existingTeam.competitionId,
+              actorId: user?.id ?? null,
+            },
+          });
+
+          await recordAppliedChangeRequest(tx, {
+            tenantId: existingTeam.competition.tenantId,
+            competitionId: existingTeam.competitionId,
+            targetType: "TEAM",
+            targetId: existingTeam.id,
+            changeType: "UPDATE",
+            source: canDirectEdit ? "ADMIN" : "SELF_SERVICE",
+            beforeSnapshot,
+            requestedSnapshot,
+            metadata: {
+              field: "teamName",
+              directReason: canDirectEdit ? "admin_direct_edit" : "before_registration_deadline",
+            },
+            actorId: user!.id,
+            message: canDirectEdit
+              ? "Mannschaftsname direkt durch Admin geaendert"
+              : "Mannschaftsname vor Anmeldeschluss direkt durch Team Manager:in geaendert",
+          });
+        }
+
         const disciplineSwaps = participantUpdates.filter(
           (update) => !update.replaceParticipant && update.currentDisciplineCode !== update.nextDisciplineCode,
         );

@@ -4293,7 +4293,16 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   </Badge>
                                 )}
                                 {showAdminDashboardInfo && pendingChangeCount > 0 && (
-                                  <Badge variant="outline" className="h-5 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                                  <Badge
+                                    variant="outline"
+                                    className="h-5 cursor-pointer gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openChangesDashboard({ teamId: team.id, status: "PENDING" });
+                                    }}
+                                    role="link"
+                                    title="Zum Änderungsdashboard"
+                                  >
                                     <ClipboardList className="size-3" />
                                     {pendingChangeCount} Änderung(en)
                                   </Badge>
@@ -4542,12 +4551,21 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   {disciplineMeta.label}
                                 </Badge>
                               )}
-                              {showAdminDashboardInfo && pendingChangeCount > 0 && (
-                                <Badge variant="outline" className="h-5 gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
-                                  <ClipboardList className="size-3" />
-                                  {pendingChangeCount} Änderung(en)
-                                </Badge>
-                              )}
+                            {showAdminDashboardInfo && pendingChangeCount > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 cursor-pointer gap-1 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openChangesDashboard({ teamId: team.id, status: "PENDING" });
+                                }}
+                                role="link"
+                                title="Zum Änderungsdashboard"
+                              >
+                                <ClipboardList className="size-3" />
+                                {pendingChangeCount} Änderung(en)
+                              </Badge>
+                            )}
                             </div>
                           )}
 

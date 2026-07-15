@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, SlidersHorizontal, XCircle } from "lucide-react";
+import { RefreshCw, SlidersHorizontal, UserRound, UsersRound, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -268,8 +268,8 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [comments, setComments] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [updatedOnly, setUpdatedOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "DIRECT" | "ALL">(dashboardMode ? "ALL" : "PENDING");
-  const [sortMode, setSortMode] = useState<"priority" | "latest" | "oldest" | "participant" | "team" | "fieldCount">("priority");
+  const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "DIRECT" | "ALL">("PENDING");
+  const [sortMode, setSortMode] = useState<"priority" | "latest" | "oldest" | "participant" | "team" | "fieldCount">("latest");
   const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
   const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -317,6 +317,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       const query = params.get("q");
       const participantId = params.get("participantId");
       const teamId = params.get("teamId");
+      const sort = params.get("sort");
 
       if (status === "PENDING" || status === "APPROVED" || status === "REJECTED" || status === "DIRECT" || status === "ALL") {
         setStatusFilter(status);
@@ -324,6 +325,9 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       if (query) setSearchQuery(query);
       if (participantId) setParticipantFilterId(participantId);
       if (teamId) setTeamFilterId(teamId);
+      if (sort === "priority" || sort === "latest" || sort === "oldest" || sort === "participant" || sort === "team" || sort === "fieldCount") {
+        setSortMode(sort);
+      }
     }
     void fetchChanges();
   }, []);
@@ -470,15 +474,16 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     };
   }, [decoratedChanges]);
 
-  const defaultStatusFilter = dashboardMode ? "ALL" : "PENDING";
-  const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== defaultStatusFilter || updatedOnly || sortMode !== "priority");
+  const defaultStatusFilter = "PENDING";
+  const defaultSortMode = "latest";
+  const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== defaultStatusFilter || updatedOnly || sortMode !== defaultSortMode);
   const activeFilterCount = [
     Boolean(participantFilterId),
     Boolean(teamFilterId),
     searchQuery.trim() !== "",
     statusFilter !== defaultStatusFilter,
     updatedOnly,
-    sortMode !== "priority",
+    sortMode !== defaultSortMode,
   ].filter(Boolean).length;
 
   const statsItems = [
@@ -556,7 +561,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     if (teamFilterId) labels.push("Team: " + (teamName || "Auswahl"));
     if (statusFilter !== defaultStatusFilter) labels.push("Status: " + getStatusFilterLabel(statusFilter));
     if (updatedOnly) labels.push("nur aktualisierte Anträge");
-    if (sortMode !== "priority") labels.push("Sortierung: " + {
+    if (sortMode !== defaultSortMode) labels.push("Sortierung: " + {
       latest: "letzte Aktivität",
       oldest: "älteste zuerst",
       participant: "Teilnehmer A-Z",
@@ -567,7 +572,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     if (searchQuery.trim()) labels.push("Suche: " + searchQuery.trim());
 
     return labels.join(" · ");
-  }, [decoratedChanges, defaultStatusFilter, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly]);
+  }, [decoratedChanges, defaultSortMode, defaultStatusFilter, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly]);
 
   const resetDashboardFilters = () => {
     setParticipantFilterId(null);
@@ -575,7 +580,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     setSearchQuery("");
     setStatusFilter(defaultStatusFilter);
     setUpdatedOnly(false);
-    setSortMode("priority");
+    setSortMode(defaultSortMode);
     window.history.replaceState(null, "", "/aenderungen");
   };
 
@@ -1135,7 +1140,18 @@ function ChangeList({
                         {change.participant.team.name}
                       </button>
                       <span>·</span>
-                      <span>{isDirectChange(change) ? "Geändert von" : "Antrag von"} {change.requesterLabel}</span>
+                      <button
+                        type="button"
+                        className={canUseAdminLinks ? "inline-flex min-w-0 items-center gap-1 truncate hover:text-primary" : "inline-flex min-w-0 items-center gap-1 truncate"}
+                        onClick={() => {
+                          if (canUseAdminLinks) openUserDashboard({ email: change.requestedBy.email, teamId: change.participant.team.id });
+                        }}
+                        disabled={!canUseAdminLinks}
+                        title={canUseAdminLinks ? "Benutzerverwaltung öffnen" : undefined}
+                      >
+                        <UserRound className="size-3" />
+                        {isDirectChange(change) ? "Geändert von" : "Antrag von"} {change.requesterLabel}
+                      </button>
                       <span>·</span>
                       <span>{formatDateTime(change.updatedAt)}</span>
                     </div>
@@ -1387,7 +1403,19 @@ function ChangeList({
                     <div className="hidden gap-1 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground lg:grid lg:min-w-56">
                       <button
                         type="button"
-                        className={canUseAdminLinks && change.participant.email ? "truncate text-left hover:text-primary" : "truncate text-left"}
+                        className={canUseAdminLinks ? "inline-flex min-w-0 items-center gap-1 truncate text-left hover:text-primary" : "inline-flex min-w-0 items-center gap-1 truncate text-left"}
+                        onClick={() => {
+                          if (canUseAdminLinks) openTeamDashboard({ teamId: change.participant.team.id });
+                        }}
+                        disabled={!canUseAdminLinks}
+                        title={canUseAdminLinks ? "Mannschaft öffnen" : undefined}
+                      >
+                        <UsersRound className="size-3" />
+                        {change.participant.team.name}
+                      </button>
+                      <button
+                        type="button"
+                        className={canUseAdminLinks && change.participant.email ? "inline-flex min-w-0 items-center gap-1 truncate text-left hover:text-primary" : "inline-flex min-w-0 items-center gap-1 truncate text-left"}
                         onClick={() => {
                           if (canUseAdminLinks && change.participant.email) {
                             openUserDashboard({ email: change.participant.email, teamId: change.participant.team.id });
@@ -1396,6 +1424,7 @@ function ChangeList({
                         disabled={!canUseAdminLinks || !change.participant.email}
                         title={canUseAdminLinks && change.participant.email ? "Teilnehmerkonto suchen" : undefined}
                       >
+                        <UserRound className="size-3" />
                         {change.participant.email || "Keine Teilnehmer-Mail"}
                       </button>
                       <div className="truncate">{change.participant.team.contactEmail || "Keine Team-Mail"}</div>

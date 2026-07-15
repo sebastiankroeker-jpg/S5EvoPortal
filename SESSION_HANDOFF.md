@@ -1,11 +1,17 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-15 06:12 UTC
+Stand: 2026-07-15 08:55 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand nach PWA-Foundation-Deploy: `main` ist mit `origin/main` synchron; zusaetzlich nur bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand: lokaler Implementierungsstand fuer Change-Dashboard-Follow-up ist noch nicht gepusht/deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
+- Aktive lokale Arbeit:
+  - CR: `docs/cr/2026-07-15-change-dashboard-navigation-and-teamname-direct.md`
+  - Scope: `/aenderungen` Default `PENDING` + letzte Aktivitaet, Admin-Navigation von Antragsteller/Team, klickbare Mannschafts-Dashboard-Aenderungsbadges, direkter TeamName-Pfad ueberholt alte offene TeamName-Antraege vor Anmeldeschluss.
+  - Lokal geaendert: `app/components/approval-queue.tsx`, `app/components/dashboard.tsx`, `app/api/teams/[id]/route.ts`, CR, `SESSION_HANDOFF.md`.
+  - Checks gruen: targeted ESLint (nur bestehende Hook-Warnung in `approval-queue`), `npx tsc --noEmit`, `npm run verify:team-draft`, `git diff --check`.
+  - Noch offen: lokaler Commit/Push/Deploy nur nach Sebastian-Go. Bereits vorhandener Veloass-Pending-Antrag in Prod wurde nicht automatisch mutiert; ggf. nach Deploy gezielt read-only pruefen und manuell/administrativ entscheiden.
 - Change-Methodik/Skill wurde geschaerft:
   - Skill `s5evo-change-request` wurde ueber Skill Workshop aktualisiert und angewendet.
   - Neue Leitplanken: CR-Tiers (`micro`, `standard`, `high-risk`), Auto-Deploy-Awareness (`push origin main` bei Produktions-Auto-Deploy zaehlt als deploy-relevanter Schritt), Smoke-Matrix mit expliziten Authenticated-Gaps, Handoff-Topblock, Business-Invariants.
