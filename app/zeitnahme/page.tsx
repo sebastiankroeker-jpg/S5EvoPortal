@@ -14,8 +14,12 @@ import {
   Play,
   RefreshCcw,
   Save,
+  Settings2,
   Search,
+  SlidersHorizontal,
+  Square,
   Timer,
+  Trash2,
 } from "lucide-react";
 
 import NavBar from "@/app/components/nav-bar";
@@ -63,6 +67,7 @@ type TimekeepingSessionState = {
   firstStartNumber: number | null;
   startIntervalSeconds: number;
   manualStartedAt: string | null;
+  manualStoppedAt: string | null;
   events: TimekeepingEventState[];
 };
 
@@ -148,7 +153,7 @@ function buildDefaultSessions(snapshot: SnapshotResponse, existing?: PersistedSt
       const existingSession = existingSessions.find(
         (session) => session.disciplineCode === discipline.code && session.startBlockName === startBlockName,
       );
-      if (existingSession) return existingSession;
+      if (existingSession) return { ...existingSession, manualStoppedAt: existingSession.manualStoppedAt ?? null };
       return {
         id: createId("tks"),
         deviceId: existing?.deviceId ?? createId("device"),
@@ -157,6 +162,7 @@ function buildDefaultSessions(snapshot: SnapshotResponse, existing?: PersistedSt
         firstStartNumber: discipline.firstStartNumber,
         startIntervalSeconds: discipline.defaultStartIntervalSeconds,
         manualStartedAt: null,
+        manualStoppedAt: null,
         events: [],
       };
     });
@@ -204,6 +210,8 @@ export default function TimekeepingPage() {
   const [sort, setSort] = useState<(typeof SORTS)[number]["id"]>("recordedDesc");
   const [assigningEventId, setAssigningEventId] = useState<string | null>(null);
   const [assignValue, setAssignValue] = useState("");
+  const [activeTab, setActiveTab] = useState<"clock" | "config">("clock");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -267,7 +275,10 @@ export default function TimekeepingPage() {
   const disciplineSnapshot = snapshot?.disciplines.find((discipline) => discipline.code === activeDiscipline) ?? null;
   const unsyncedCount = activeSession?.events.filter((event) => event.syncStatus !== "synced").length ?? 0;
   const missingStartNumbers = activeSession?.events.filter((event) => event.eventType === "FINISH" && !event.startNumber).length ?? 0;
-  const runningElapsedMs = activeSession?.manualStartedAt ? now - new Date(activeSession.manualStartedAt).getTime() : null;
+  const clockIsRunning = Boolean(activeSession?.manualStartedAt && !activeSession.manualStoppedAt);
+  const runningElapsedMs = activeSession?.manualStartedAt
+    ? new Date(activeSession.manualStoppedAt ?? now).getTime() - new Date(activeSession.manualStartedAt).getTime()
+    : null;
 
   const updateSession = useCallback((updater: (session: TimekeepingSessionState) => TimekeepingSessionState) => {
     setState((current) => {
@@ -295,15 +306,54 @@ export default function TimekeepingPage() {
       return {
         ...session,
         manualStartedAt: recordedAt.toISOString(),
+        manualStoppedAt: null,
         events: [startEvent, ...session.events],
       };
     });
   };
 
-  const captureFinish = (withoutStartNumber = false) => {
-    if (!activeSession?.manualStartedAt) return;
+  const stopBlock = () => {
+    if (!clockIsRunning) return;
+    updateSession((session) => ({ ...session, manualStoppedAt: new Date().toISOString() }));
+  };
+
+  const resetClock = () => {
+    updateSession((session) => {
+      const hasCapturedLocalTimes = session.events.some((event) => event.eventType === "FINISH" && event.syncStatus !== "synced");
+      return {
+        ...session,
+        manualStartedAt: null,
+        manualStoppedAt: null,
+        events: hasCapturedLocalTimes
+          ? session.events
+          : session.events.filter((event) => event.eventType !== "BLOCK_START" || event.syncStatus === "synced"),
+      };
+    });
+    setStartNumberInput("");
+  };
+
+  const resetLocalData = () => {
+    if (!activeSession || unsyncedCount === 0) return;
+    const confirmed = window.confirm("Ungesyncte Zeiten dieses Blocks lokal löschen?");
+    if (!confirmed) return;
+    updateSession((session) => {
+      const remainingEvents = session.events.filter((event) => event.syncStatus === "synced");
+      return {
+        ...session,
+        manualStartedAt: remainingEvents.length > 0 ? session.manualStartedAt : null,
+        manualStoppedAt: remainingEvents.length > 0 ? session.manualStoppedAt : null,
+        events: remainingEvents,
+      };
+    });
+    setAssigningEventId(null);
+    setAssignValue("");
+    setStartNumberInput("");
+  };
+
+  const captureFinish = () => {
+    if (!activeSession?.manualStartedAt || activeSession.manualStoppedAt) return;
     const recordedAt = new Date();
-    const startNumber = withoutStartNumber ? null : startNumberInput.trim() || null;
+    const startNumber = startNumberInput.trim() || null;
     const { rawElapsedMs, netElapsedMs } = calculateNetMs(activeSession, startNumber, recordedAt);
     const finishEvent: TimekeepingEventState = {
       clientEventId: createId("evt"),
@@ -315,7 +365,7 @@ export default function TimekeepingPage() {
       syncStatus: "local",
     };
     updateSession((session) => ({ ...session, events: [finishEvent, ...session.events] }));
-    if (!withoutStartNumber) setStartNumberInput("");
+    setStartNumberInput("");
   };
 
   const assignStartNumber = (eventId: string) => {
@@ -482,130 +532,195 @@ export default function TimekeepingPage() {
           </div>
         )}
 
-        <div className="flex gap-1 overflow-x-auto rounded-md border border-border/60 bg-card p-1">
-          {(snapshot?.disciplines ?? []).map((discipline) => (
-            <Button
-              key={discipline.code}
-              variant={activeDiscipline === discipline.code ? "default" : "ghost"}
-              size="sm"
-              className="shrink-0"
-              onClick={() => {
-                setActiveDiscipline(discipline.code);
-                setActiveSessionId(state?.sessions.find((session) => session.disciplineCode === discipline.code)?.id ?? null);
-              }}
-            >
-              {DISCIPLINE_LABELS[discipline.code]}
-            </Button>
-          ))}
+        <div className="flex gap-1 rounded-md border border-border/60 bg-card p-1">
+          <Button
+            variant={activeTab === "clock" ? "default" : "ghost"}
+            size="sm"
+            className="flex-1 gap-2"
+            onClick={() => setActiveTab("clock")}
+          >
+            <Timer className="size-4" />
+            Uhr
+          </Button>
+          <Button
+            variant={activeTab === "config" ? "default" : "ghost"}
+            size="sm"
+            className="flex-1 gap-2"
+            onClick={() => setActiveTab("config")}
+          >
+            <Settings2 className="size-4" />
+            Konfiguration
+          </Button>
         </div>
 
-        {activeDiscipline === "ROAD" && (
-          <div className="flex gap-1 overflow-x-auto">
-            {state?.sessions.filter((session) => session.disciplineCode === "ROAD").map((session) => (
-              <Button
-                key={session.id}
-                variant={activeSessionId === session.id ? "secondary" : "outline"}
-                size="sm"
-                className="shrink-0"
-                onClick={() => setActiveSessionId(session.id)}
-              >
-                {session.startBlockName}
-              </Button>
-            ))}
-          </div>
-        )}
-
-        <section className="rounded-md border border-border/60 bg-card p-3 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <label className="grid gap-1 text-xs font-medium">
-                Erste Startnr.
-                <Input
-                  inputMode="numeric"
-                  value={toInputNumber(activeSession?.firstStartNumber ?? null)}
-                  onChange={(event) => updateSession((session) => ({
-                    ...session,
-                    firstStartNumber: event.target.value ? Number.parseInt(event.target.value, 10) : null,
-                  }))}
-                  className="h-9"
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-medium">
-                Abstand s
-                <Input
-                  inputMode="numeric"
-                  value={toInputNumber(activeSession?.startIntervalSeconds ?? 0)}
-                  onChange={(event) => updateSession((session) => ({
-                    ...session,
-                    startIntervalSeconds: event.target.value ? Number.parseInt(event.target.value, 10) : 0,
-                  }))}
-                  className="h-9"
-                  disabled={activeSession?.disciplineCode !== "ROAD"}
-                />
-              </label>
-              <div className="grid gap-1 text-xs font-medium">
-                Blockzeit
-                <div className="flex h-9 items-center rounded-md border border-border/60 bg-background px-3 font-mono text-lg">
-                  {formatDuration(runningElapsedMs)}
+        {activeTab === "config" && (
+          <section className="rounded-md border border-border/60 bg-card p-3 shadow-sm">
+            <div className="grid gap-3">
+              <div className="grid gap-2">
+                <p className="text-xs font-semibold text-muted-foreground">Disziplin</p>
+                <div className="flex gap-1 overflow-x-auto">
+                  {(snapshot?.disciplines ?? []).map((discipline) => (
+                    <Button
+                      key={discipline.code}
+                      variant={activeDiscipline === discipline.code ? "default" : "outline"}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => {
+                        setActiveDiscipline(discipline.code);
+                        setActiveSessionId(state?.sessions.find((session) => session.disciplineCode === discipline.code)?.id ?? null);
+                      }}
+                    >
+                      {DISCIPLINE_LABELS[discipline.code]}
+                    </Button>
+                  ))}
                 </div>
               </div>
-            </div>
-            <Button onClick={startBlock} className="h-10 gap-2">
-              <Play className="size-4" />
-              Start
-            </Button>
-          </div>
-        </section>
 
-        <section className="rounded-md border border-border/60 bg-card p-3 shadow-sm">
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-            <div className="relative">
-              <Timer className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                inputMode="numeric"
-                placeholder="Startnummer"
-                value={startNumberInput}
-                onChange={(event) => setStartNumberInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") captureFinish(false);
-                }}
-                className="h-12 pl-9 text-lg"
-                disabled={!activeSession?.manualStartedAt}
-              />
+              <div className="grid gap-2">
+                <p className="text-xs font-semibold text-muted-foreground">Startblock</p>
+                <div className="flex gap-1 overflow-x-auto">
+                  {state?.sessions.filter((session) => session.disciplineCode === activeDiscipline).map((session) => (
+                    <Button
+                      key={session.id}
+                      variant={activeSessionId === session.id ? "secondary" : "outline"}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setActiveSessionId(session.id)}
+                    >
+                      {session.startBlockName}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="grid gap-1 text-xs font-medium">
+                  Erste Startnr.
+                  <Input
+                    inputMode="numeric"
+                    value={toInputNumber(activeSession?.firstStartNumber ?? null)}
+                    onChange={(event) => updateSession((session) => ({
+                      ...session,
+                      firstStartNumber: event.target.value ? Number.parseInt(event.target.value, 10) : null,
+                    }))}
+                    className="h-9"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-medium">
+                  Start-Abstand Sekunden
+                  <Input
+                    inputMode="numeric"
+                    value={toInputNumber(activeSession?.startIntervalSeconds ?? 0)}
+                    onChange={(event) => updateSession((session) => ({
+                      ...session,
+                      startIntervalSeconds: event.target.value ? Number.parseInt(event.target.value, 10) : 0,
+                    }))}
+                    className="h-9"
+                    disabled={activeSession?.disciplineCode !== "ROAD"}
+                  />
+                </label>
+              </div>
             </div>
-            <Button className="h-12 gap-2" disabled={!activeSession?.manualStartedAt} onClick={() => captureFinish(false)}>
-              <Clock3 className="size-4" />
-              Zeit
-            </Button>
-            <Button className="h-12" variant="secondary" disabled={!activeSession?.manualStartedAt} onClick={() => captureFinish(true)}>
-              Ohne Nr.
-            </Button>
-          </div>
-        </section>
+          </section>
+        )}
+
+        {activeTab === "clock" && (
+          <section className="rounded-md border border-border/60 bg-card p-3 shadow-sm">
+            <div className="grid gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  {activeSession ? `${DISCIPLINE_LABELS[activeSession.disciplineCode]} · ${activeSession.startBlockName}` : "Kein Block"}
+                </span>
+                <span>
+                  Startnr. ab {activeSession?.firstStartNumber ?? "—"} · Abstand {activeSession?.startIntervalSeconds ?? 0}s
+                </span>
+              </div>
+
+              <div className="flex items-center justify-center rounded-md border border-border/60 bg-background px-3 py-4 font-mono text-5xl font-semibold tabular-nums">
+                {formatDuration(runningElapsedMs)}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <Button onClick={startBlock} className="h-11 gap-2" disabled={!activeSession || Boolean(activeSession.manualStartedAt)}>
+                  <Play className="size-4" />
+                  Start
+                </Button>
+                <Button onClick={stopBlock} className="h-11 gap-2" variant="secondary" disabled={!clockIsRunning}>
+                  <Square className="size-4" />
+                  Stop
+                </Button>
+                <Button onClick={resetClock} className="h-11 gap-2" variant="outline" disabled={!activeSession?.manualStartedAt}>
+                  <RefreshCcw className="size-4" />
+                  Reset
+                </Button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <div className="relative">
+                  <Timer className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    inputMode="numeric"
+                    placeholder="Startnummer optional"
+                    value={startNumberInput}
+                    onChange={(event) => setStartNumberInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") captureFinish();
+                    }}
+                    className="h-12 pl-9 text-lg"
+                    disabled={!clockIsRunning}
+                  />
+                </div>
+                <Button className="h-12 gap-2" disabled={!clockIsRunning} onClick={captureFinish}>
+                  <Clock3 className="size-4" />
+                  Zieleinlauf
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="rounded-md border border-border/60 bg-card shadow-sm">
-          <div className="grid gap-2 border-b border-border/60 p-3 md:grid-cols-[1fr_auto_auto_auto]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Suche" className="h-9 pl-9" />
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 p-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium leading-tight">Zeiten</p>
+              <p className="text-xs text-muted-foreground">{filteredEvents.length} sichtbar · {unsyncedCount} offen</p>
             </div>
-            <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Filter className="size-4" />
-              <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground">
-                {FILTERS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              <ArrowDownUp className="size-4" />
-              <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground">
-                {SORTS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-            </label>
-            <Button size="sm" className="h-9 gap-2" onClick={syncEvents} disabled={syncing || unsyncedCount === 0}>
-              {syncing ? <RefreshCcw className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Sync
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setFiltersOpen((open) => !open)}>
+                <SlidersHorizontal className="size-4" />
+                Filter
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={resetLocalData} disabled={syncing || unsyncedCount === 0}>
+                <Trash2 className="size-4" />
+                Reset
+              </Button>
+              <Button size="sm" className="h-8 gap-1.5 px-2" onClick={syncEvents} disabled={syncing || unsyncedCount === 0}>
+                {syncing ? <RefreshCcw className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Sync
+              </Button>
+            </div>
           </div>
+
+          {filtersOpen && (
+            <div className="grid gap-2 border-b border-border/60 p-2 md:grid-cols-[1fr_auto_auto]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Suche" className="h-9 pl-9" />
+              </div>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Filter className="size-4" />
+                <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground">
+                  {FILTERS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <ArrowDownUp className="size-4" />
+                <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground">
+                  {SORTS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
 
           <div className="divide-y divide-border/50">
             {filteredEvents.length === 0 ? (
