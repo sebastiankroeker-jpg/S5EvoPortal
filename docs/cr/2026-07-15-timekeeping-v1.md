@@ -1,6 +1,6 @@
 # CR: Zeitnahme V1
 
-Status: In Progress
+Status: Deployed
 Date: 2026-07-15
 Type: schema
 Risk: high
@@ -122,38 +122,65 @@ Sebastian wants a first live-testable PWA stopwatch for manual timekeeping. The 
 ## Implementation Notes
 
 - Files changed:
-  - Pending final list after deploy.
+  - `app/zeitnahme/page.tsx`
+  - `app/api/timekeeping/snapshot/route.ts`
+  - `app/api/timekeeping/events/route.ts`
+  - `prisma/schema.prisma`
+  - `prisma/migrations/20260715111500_add_timekeeping_foundation/migration.sql`
+  - `lib/permissions.ts`
+  - `lib/server-permissions.ts`
+  - `lib/team-access-config.ts`
+  - `app/api/admin/users/[id]/roles/route.ts`
+  - `app/components/bottom-tab-bar.tsx`
+  - `app/components/nav-bar.tsx`
+  - `app/components/role-simulation-banner.tsx`
+  - `app/components/sidebar.tsx`
+  - `app/components/user-management.tsx`
+  - `app/page.tsx`
+  - `app/changelog/page.tsx`
 - Important decisions during implementation:
   - Production rollback is via previous Vercel deployment or redeploy of prior commit.
   - DB restore requires a real DB dump; CSV export is useful but not a full database backup.
+  - Pre-migration DB dump created at `backups/db/s5evo-prod-before-timekeeping-20260715T135817Z.dump` with sidecar SHA256.
+  - Previous production rollback point before deploy: `dpl_5XAKJRkWhDz3opiCLpwuUDvDLCQM`.
 
 ## Verification
 
 - Local checks:
-  - Pending.
+  - `npx tsc --noEmit --incremental false` passed.
+  - `git diff --check` passed.
+  - Targeted ESLint for timekeeping, role, navigation, and permission files passed.
 - Build:
-  - Pending.
+  - `npm run build` passed.
 - Targeted verification:
-  - Pending.
+  - `npx prisma migrate status` after deploy reported schema up to date.
+  - Production DB timekeeping tables verified empty immediately after migration: `sessions=0`, `events=0`.
 - Manual smoke:
   - Pending Sebastian iPhone check.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
+- Deployment ID: `dpl_2BCfRS4pNu4rDYw5jVLCpB3beYDj`
+- Deployment URL: `https://s5-evo-portal-m0yaq1wwb-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at:
+- Deployed at: 2026-07-15 14:02 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
-  - Pending.
+  - `npm run smoke:public`: `/`, `/login`, `/anmeldung`, `/aenderungen` all 200.
+  - `/zeitnahme` returned 200 from production alias and included expected Next CSS/JS assets.
 - API checks:
-  - Pending.
+  - `/api/competition` -> 200.
+  - `/api/results` -> 200.
+  - `/api/teams` without session -> 401.
+  - `/api/admin/pending-changes` without session -> 401.
+  - `/api/timekeeping/snapshot?competitionId=...` without session -> 401.
+  - `/api/timekeeping/events` with GET -> 405.
 - Result:
-  - Pending.
+  - Automated public/unauthenticated smoke passed.
+  - Authenticated mobile/timekeeper smoke remains manual.
 
 ## Follow-Ups
 

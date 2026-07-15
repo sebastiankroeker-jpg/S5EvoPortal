@@ -1,11 +1,25 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-15 08:55 UTC
+Stand: 2026-07-15 14:08 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand: Change-Dashboard-Follow-up ist auf `main` gepusht und deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand: Zeitnahme V1 ist auf `main` gepusht und deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
+- Zeitnahme V1:
+  - CR: `docs/cr/2026-07-15-timekeeping-v1.md`
+  - Commit: `8c854e6 Add timekeeping V1`
+  - Status: deployed.
+  - Production Deploy: `dpl_2BCfRS4pNu4rDYw5jVLCpB3beYDj`
+  - Deployment URL: `https://s5-evo-portal-m0yaq1wwb-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+  - Scope: neue Rolle `ZEITNAHME`, `/zeitnahme`, Snapshot-API, lokales Browser-Eventlog, append-only Sync in `timekeeping_sessions`/`timekeeping_events`, Navigation fuer berechtigte Rollen.
+  - DB-Migration: `20260715111500_add_timekeeping_foundation` wurde auf Prod angewendet; Migration ist additiv (`ZEITNAHME` enum value, neue Tabellen) und mutiert keine bestehenden Team-/Teilnehmer-/Ergebnisdaten.
+  - Backup vor Migration: `backups/db/s5evo-prod-before-timekeeping-20260715T135817Z.dump` plus `.sha256`; dafuer wurde lokal ein PostgreSQL-17-Client unter `tools/postgres17/` extrahiert, weil System-`pg_dump` 16 gegen Server 17 abbricht.
+  - Rollbackpunkt vor Deploy: `dpl_5XAKJRkWhDz3opiCLpwuUDvDLCQM`.
+  - Checks gruen: `npx tsc --noEmit --incremental false`, `npm run build`, targeted ESLint, `git diff --check`, `npx prisma migrate status`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/zeitnahme` -> 200; `/api/timekeeping/snapshot?competitionId=...` ohne Session -> 401; `/api/timekeeping/events` mit GET -> 405.
+  - Bekannte Luecke: kein authentifizierter iPhone-/Zeitnehmer-Smoke durch Agent; Sebastian soll live pruefen, ob `/zeitnahme` in Safari/Home-Screen hydratisiert, Snapshot laedt, lokale Zeitnahme klappt und Sync-Status sauber wird.
 - Change-Dashboard-Follow-up:
   - CR: `docs/cr/2026-07-15-change-dashboard-navigation-and-teamname-direct.md`
   - Commit: `fb25fe1 Improve change dashboard navigation`
