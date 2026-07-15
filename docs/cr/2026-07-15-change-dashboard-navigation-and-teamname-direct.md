@@ -1,6 +1,6 @@
 # CR: Change dashboard navigation and team-name direct edits
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-15
 Type: hotfix
 Risk: medium
@@ -113,6 +113,7 @@ Sebastian requested follow-ups in the change dashboard:
   - Change cards keep direct team navigation and add explicit requester/user navigation in compact mode.
   - Existing team-card pending-change badges now call `openChangesDashboard({ teamId, status: "PENDING" })`.
   - The direct team update path now records a direct team-name `ChangeRequest(APPLIED)` and rejects stale `TEAM/UPDATE/PENDING` requests for the same team with the direct-edit obsolete reason.
+  - Functional commit: `fb25fe1 Improve change dashboard navigation`.
 
 ## Verification
 
@@ -131,16 +132,25 @@ Sebastian requested follow-ups in the change dashboard:
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_7GzShqBrev6veN3ZKjHXsQZ3eXck`
+- Deployment URL: `https://s5-evo-portal-5ig6qroyw-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-15 08:48 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `GET /` -> 200
+  - `GET /login` -> 200
+  - `GET /anmeldung` -> 200
+  - `GET /aenderungen` -> 200
+  - legacy domain -> 308 to production
 - API checks:
-- Result:
+  - `GET /api/competition` -> 200
+  - `GET /api/results` -> 200
+  - `GET /api/teams` without session -> 401
+  - `GET /api/admin/pending-changes` without session -> 401
+- Result: passed
 
 ## Follow-Ups
 
