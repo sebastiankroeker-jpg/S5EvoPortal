@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveCurrentUser } from "@/lib/current-user";
 
-export type AppRole = "ADMIN" | "MODERATOR" | "TEAMCHEF" | "TEILNEHMER";
+export type AppRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER";
 type ResolvedUser = NonNullable<Awaited<ReturnType<typeof resolveCurrentUser>>["user"]>;
 
 export async function getTenantRoleFlagsForUserId(userId: string, tenantId: string) {
@@ -19,11 +19,13 @@ export async function getTenantRoleFlagsForUserId(userId: string, tenantId: stri
   const roleSet = new Set<AppRole>(roles);
   const isAdmin = roleSet.has("ADMIN");
   const isModerator = roleSet.has("MODERATOR");
+  const isTimekeeper = roleSet.has("ZEITNAHME");
 
   return {
     roles,
     isAdmin,
     isModerator,
+    isTimekeeper,
     canViewAllTeams: isAdmin || isModerator,
     canEditAllTeams: isAdmin || isModerator,
   };
@@ -54,6 +56,7 @@ export async function getScopedRoleFlags(
         roles: [] as AppRole[],
         isAdmin: false,
         isModerator: false,
+        isTimekeeper: false,
         canViewAllTeams: false,
         canEditAllTeams: false,
       };
@@ -80,6 +83,7 @@ type RequireTenantRolesSuccess = {
   roles: AppRole[];
   isAdmin: boolean;
   isModerator: boolean;
+  isTimekeeper: boolean;
   canViewAllTeams: boolean;
   canEditAllTeams: boolean;
 };

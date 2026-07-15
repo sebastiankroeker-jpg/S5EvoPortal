@@ -1,4 +1,4 @@
-export type TeamScopeRole = "ADMIN" | "MODERATOR" | "TEAMCHEF" | "TEILNEHMER" | "ZUSCHAUER";
+export type TeamScopeRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER" | "ZUSCHAUER";
 
 export type CompetitionTeamAccessConfig = {
   teamOwnerFilterVisibleForTeamchef: boolean;
@@ -33,6 +33,8 @@ export function canRoleViewAllTeams(
     case "ADMIN":
     case "MODERATOR":
       return true;
+    case "ZEITNAHME":
+      return false;
     case "TEAMCHEF":
       return normalized.participantsCanViewAllTeams;
     case "TEILNEHMER":
@@ -54,6 +56,8 @@ export function isOwnerFilterVisibleForRole(
     case "ADMIN":
     case "MODERATOR":
       return true;
+    case "ZEITNAHME":
+      return false;
     case "TEAMCHEF":
       return normalized.teamOwnerFilterVisibleForTeamchef;
     default:

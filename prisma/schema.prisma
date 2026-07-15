@@ -16,6 +16,7 @@ datasource db {
 enum Role {
   ADMIN
   MODERATOR
+  ZEITNAHME
   TEAMCHEF
   TEILNEHMER
 }
@@ -281,6 +282,8 @@ model Tenant {
   auditEvents    AuditEvent[]
   dashboardLayouts DashboardLayout[]
   conversations  Conversation[]
+  timekeepingSessions TimekeepingSession[]
+  timekeepingEvents   TimekeepingEvent[]
 
   @@map("tenants")
 }
@@ -326,6 +329,8 @@ model User {
   conversationsClosed       Conversation[]             @relation("ConversationCloser")
   conversationParticipants  ConversationParticipant[]
   messagesSent              Message[]                  @relation("MessageSender")
+  timekeepingSessionsCreated TimekeepingSession[]       @relation("TimekeepingSessionCreator")
+  timekeepingEventsCreated   TimekeepingEvent[]         @relation("TimekeepingEventActor")
 
   @@index([lastSeenAt])
   @@map("users")
@@ -390,6 +395,8 @@ model Competition {
   auditEvents     AuditEvent[]
   dashboardLayouts DashboardLayout[]
   conversations   Conversation[]
+  timekeepingSessions TimekeepingSession[]
+  timekeepingEvents   TimekeepingEvent[]
 
   @@index([tenantId, status, year, createdAt])
   @@index([status, year, createdAt])
@@ -963,6 +970,60 @@ model AuditEvent {
   @@index([scopeType, scopeId, createdAt])
   @@index([action, createdAt])
   @@map("audit_events")
+}
+
+model TimekeepingSession {
+  id                   String         @id @default(cuid())
+  deviceId             String
+  disciplineCode       DisciplineCode
+  startBlockName       String
+  firstStartNumber     Int?
+  startIntervalSeconds Int            @default(30)
+  manualStartedAt      DateTime?
+  status               String         @default("ACTIVE")
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  createdById   String?
+  createdBy     User?       @relation("TimekeepingSessionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  events        TimekeepingEvent[]
+
+  @@index([tenantId, competitionId, disciplineCode, status])
+  @@index([deviceId, updatedAt])
+  @@map("timekeeping_sessions")
+}
+
+model TimekeepingEvent {
+  id            String   @id @default(cuid())
+  clientEventId String
+  eventType     String
+  recordedAt    DateTime
+  capturedAt    DateTime @default(now())
+  startNumber   String?
+  rawElapsedMs  Int?
+  netElapsedMs  Int?
+  note          String?
+  payload       Json?
+  createdAt     DateTime @default(now())
+
+  sessionId     String
+  session       TimekeepingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition        @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  actorId       String?
+  actor         User?              @relation("TimekeepingEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, clientEventId])
+  @@index([tenantId, competitionId, recordedAt])
+  @@index([competitionId, eventType, recordedAt])
+  @@index([startNumber])
+  @@map("timekeeping_events")
 }
 
 // ==================== CHANGELOG ENTRY ====================

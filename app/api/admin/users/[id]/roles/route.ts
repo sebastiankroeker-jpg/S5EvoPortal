@@ -5,7 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
-const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "TEILNEHMER"];
+const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "ZEITNAHME", "TEILNEHMER"];
 
 // PUT /api/admin/users/[id]/roles — Rollen eines Users setzen
 export async function PUT(

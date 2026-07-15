@@ -27,6 +27,10 @@ const TABS: Tab[] = [
     id: "live", icon: "🏆", label: "Live",
     show: () => true,
   },
+  {
+    id: "timekeeping", icon: "⏱️", label: "Zeit",
+    show: ({ can }) => can("timekeeping.use"),
+  },
   { 
     id: "profile", icon: "👤", label: "Profil",
     show: ({ authenticated }) => authenticated,
@@ -80,6 +84,11 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
   const handleTabClick = (tabId: string) => {
     if (tabId === "profile") {
       router.push("/profile");
+      return;
+    }
+
+    if (tabId === "timekeeping") {
+      router.push("/zeitnahme");
       return;
     }
 

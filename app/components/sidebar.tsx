@@ -94,6 +94,7 @@ export default function Sidebar() {
   });
   const isClaimPath = isClaimNavigationPath(pathname);
   const showOrgaSection = !isClaimPath && (can("team.view.all") || can("results.edit"));
+  const showTimekeepingSection = !isClaimPath && can("timekeeping.use");
   const participantCanBrowseTeams = canRoleViewAllTeams(activeRole, activeCompetition);
   const teamLabel = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "Mein Team" : "Mannschaften";
   const teamIcon = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "🏃" : "📋";
@@ -214,6 +215,9 @@ export default function Sidebar() {
         <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} isCollapsed={isCollapsed} />
         <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} isCollapsed={isCollapsed} />
         <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} isCollapsed={isCollapsed} />
+        {showTimekeepingSection && (
+          <SidebarItem icon="⏱️" label="Zeitnahme" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} isCollapsed={isCollapsed} />
+        )}
         <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
         <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
 
@@ -231,7 +235,7 @@ export default function Sidebar() {
               <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} isCollapsed={isCollapsed} />
             )}
             {can("results.edit") && (
-              <SidebarItem icon="✏️" label="Erfassung" onClick={() => {}} isCollapsed={isCollapsed} />
+              <SidebarItem icon="✏️" label="Erfassung" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} isCollapsed={isCollapsed} />
             )}
             {can("config.edit") && (
               <>

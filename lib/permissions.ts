@@ -1,5 +1,5 @@
 // Rollen
-export type Role = "ADMIN" | "MODERATOR" | "TEAMCHEF" | "TEILNEHMER" | "ZUSCHAUER";
+export type Role = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER" | "ZUSCHAUER";
 
 // Permission strings
 export type Permission = string; // z.B. "team.create", "team.delete", "config.edit" etc.
@@ -12,8 +12,15 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "team.edit.all",
     "results.view", 
     "results.edit",
+    "timekeeping.use",
+    "timekeeping.review",
     "participant.view.all",
     "ranking.view",
+  ],
+  ZEITNAHME: [
+    "results.view",
+    "ranking.view",
+    "timekeeping.use",
   ],
   TEAMCHEF: [
     "team.create", 
@@ -42,6 +49,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 const ROLE_HIERARCHY: Record<Role, number> = {
   ADMIN: 5,
   MODERATOR: 4,
+  ZEITNAHME: 3.5,
   TEAMCHEF: 3,
   TEILNEHMER: 2,
   ZUSCHAUER: 1,
@@ -88,9 +96,11 @@ export function can(roles: Role[], permission: Permission): boolean {
 export function getSimulatableRoles(role: Role): Role[] {
   switch (role) {
     case "ADMIN":
-      return ["ADMIN", "MODERATOR", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
+      return ["ADMIN", "MODERATOR", "ZEITNAHME", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
     case "MODERATOR":
-      return ["MODERATOR", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
+      return ["MODERATOR", "ZEITNAHME", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
+    case "ZEITNAHME":
+      return ["ZEITNAHME", "ZUSCHAUER"];
     case "TEAMCHEF":
       return ["TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"];
     default:

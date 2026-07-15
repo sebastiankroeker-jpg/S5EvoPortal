@@ -73,6 +73,7 @@ export default function Home() {
   const canViewOwnTeams = can("team.view.own");
   const canViewAllTeams = can("team.view.all");
   const canEditResults = can("results.edit");
+  const canUseTimekeeping = can("timekeeping.use");
   const [orgaSummary, setOrgaSummary] = useState<OrgaSummary | null>(null);
   const [orgaSummaryLoading, setOrgaSummaryLoading] = useState(false);
   const pendingSwitchTabDetail = useRef<SwitchTabDetail | null>(null);
@@ -256,11 +257,11 @@ export default function Home() {
                       <p className="text-xs text-muted-foreground">Übernahmelinks erzeugen und Supportfälle klären</p>
                     </button>
                   )}
-                  {canEditResults && (
-                    <button className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1 opacity-60">
-                      <span className="text-lg">✏️</span>
-                      <p className="font-medium text-sm">Ergebnis-Erfassung</p>
-                      <p className="text-xs text-muted-foreground">Demnächst verfügbar</p>
+                  {canUseTimekeeping && (
+                    <button onClick={() => router.push('/zeitnahme')} className="p-4 rounded-md border border-border/40 shadow-sm bg-card hover:bg-accent transition-colors text-left space-y-1">
+                      <span className="text-lg">⏱️</span>
+                      <p className="font-medium text-sm">Zeitnahme</p>
+                      <p className="text-xs text-muted-foreground">Offline-Stoppuhr, Rohzeiten und Sync-Status</p>
                     </button>
                   )}
                   {can("config.edit") && (
