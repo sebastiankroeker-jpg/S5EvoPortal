@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { CLASSIFICATION_DISPLAY_ORDER, CLASSIFICATIONS } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
 const TIMEKEEPING_ROLES = ["ADMIN", "MODERATOR", "ZEITNAHME"] as const;
 const TIMEKEEPING_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
+const DEFAULT_START_BLOCKS = [
+  { name: "Schüler", classificationCodes: ["schueler-a", "schueler-b"] },
+  { name: "Jugend & Damen", classificationCodes: ["jugend", "damen-a", "damen-b"] },
+  { name: "Herren", classificationCodes: ["jungsters", "herren", "masters"] },
+] as const;
 
 function toStartNumberValue(startNumber: string | null) {
   if (!startNumber) return null;
@@ -57,6 +63,7 @@ export async function GET(request: NextRequest) {
     select: {
       id: true,
       name: true,
+      classificationCode: true,
       startNumber: true,
       participants: {
         where: {
@@ -81,6 +88,8 @@ export async function GET(request: NextRequest) {
       participantId: participant.id,
       teamId: team.id,
       teamName: team.name,
+      classificationCode: team.classificationCode ?? "unclassified",
+      classificationLabel: CLASSIFICATIONS[team.classificationCode ?? "unclassified"]?.label ?? team.classificationCode ?? "Unklassifiziert",
       startNumber: team.startNumber,
       startNumberValue,
       firstName: participant.firstName,
@@ -103,8 +112,12 @@ export async function GET(request: NextRequest) {
       code,
       name: competition.disciplines.find((discipline) => discipline.code === code)?.name ?? code,
       defaultStartIntervalSeconds: code === "ROAD" ? 30 : 0,
-      defaultBlockCount: code === "ROAD" ? 2 : 1,
+      defaultStartBlocks: DEFAULT_START_BLOCKS,
       firstStartNumber,
+      classifications: CLASSIFICATION_DISPLAY_ORDER.map((classificationCode) => ({
+        code: classificationCode,
+        label: CLASSIFICATIONS[classificationCode]?.label ?? classificationCode,
+      })),
       starters: disciplineStarters,
     };
   });
