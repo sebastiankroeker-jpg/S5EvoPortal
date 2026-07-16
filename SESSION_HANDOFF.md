@@ -15,10 +15,10 @@ Stand: 2026-07-16 18:32 UTC
   - Wenn aktiv: `/api/competition` liefert oeffentlich `teamCount: null`, Home laedt keine Team-/Teilnehmer-/Klassenstatistik, `/api/teams?scope=all` ist fuer Teamchef/Teilnehmer gesperrt, eigene Teams bleiben per Owner/Teamchef/Manager/Participant-Link oder Participant-Mail sichtbar.
   - Admin/Moderator behalten Vollsicht.
   - Lokale Checks gruen: `npx prisma generate`, `npx prisma migrate deploy`, `npx tsc --noEmit`, targeted ESLint, `git diff --check`, `npm run build`.
-  - Production Deploy: `dpl_fmF9DYSfbEmRePk1fN4jHGnG7tgP`.
-  - Deployment URL: `https://s5-evo-portal-ravqr2ynv-sebastiankroeker-2781s-projects.vercel.app`.
+  - Production Deploy: `dpl_CWrZFbfDXfxp8bTJxLvKqU2qxxZD` (auto-deploy after push; supersedes manual deploy `dpl_fmF9DYSfbEmRePk1fN4jHGnG7tgP`).
+  - Deployment URL: `https://s5-evo-portal-jhkhhgc5c-sebastiankroeker-2781s-projects.vercel.app`.
   - Alias: `https://portal.s5evo.de`.
-  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/admin` HEAD -> 200; `/api/teams?competitionId=...&scope=all` ohne Session -> 401; `/api/admin/competition?id=...` ohne Session -> 401; `/api/competition` -> `hideForeignTeams=false`, `teamCount=43`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/admin` -> 200; `/api/teams?competitionId=...&scope=all` ohne Session -> 401; `/api/admin/competition?id=...` ohne Session -> 401; `/api/competition` -> `hideForeignTeams=false`, `teamCount=43`.
   - Test-Gap: kein authentifizierter Admin-/Teamchef-/Teilnehmer-Smoke mangels Session-Cookies; Logikfunktion lokal geprueft.
 - Result-Staging V1 Foundation:
   - CR: `docs/cr/2026-07-15-result-staging-v1.md`

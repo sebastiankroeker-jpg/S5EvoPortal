@@ -84,14 +84,14 @@ Use before model switch or subagent delegation.
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID: `dpl_fmF9DYSfbEmRePk1fN4jHGnG7tgP`
-- Deployment URL: `https://s5-evo-portal-ravqr2ynv-sebastiankroeker-2781s-projects.vercel.app`
+- Deployment ID: `dpl_CWrZFbfDXfxp8bTJxLvKqU2qxxZD`
+- Deployment URL: `https://s5-evo-portal-jhkhhgc5c-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: 2026-07-16T18:33Z
+- Deployed at: 2026-07-16T18:40Z
 
 ## Post-Deploy Smoke
 
-- Routes checked: `npm run smoke:public` (`/`, `/login`, `/anmeldung`, `/aenderungen`, `/api/competition`, `/api/results`, protected API 401 checks), `/admin` HEAD -> 200.
+- Routes checked: `npm run smoke:public` (`/`, `/login`, `/anmeldung`, `/aenderungen`, `/api/competition`, `/api/results`, protected API 401 checks), `/admin` -> 200.
 - API checks: `/api/competition` -> OPEN competition with `hideForeignTeams=false` and `teamCount=43`; `/api/teams?competitionId=...&scope=all` without session -> 401; `/api/admin/competition?id=...` without session -> 401.
 - Result: production alias healthy. The active 2026 competition remains open-visible until an admin turns the new switch on.
 
