@@ -555,6 +555,7 @@ export async function GET(
               teamOwnerFilterVisibleForTeamchef: true,
               participantsCanViewAllTeams: true,
               spectatorsCanViewAllTeams: true,
+              hideForeignTeams: true,
               marketplaceGlobalVisibility: true,
             },
           },
@@ -619,7 +620,14 @@ export async function GET(
             }) > 0;
 
       const isCurrentUserOwner = Boolean(user?.id && team.ownerId === user.id);
-      if (!canViewRequestedScope && !teamAccess.canEditTeam && !isCurrentUserOwner) {
+      const isCurrentUserParticipantTeam = team.participants.some((participant) => {
+        const normalizedParticipantEmail = normalizeEmail(participant.email);
+        return (
+          (!!user?.id && participant.userId === user.id) ||
+          (!!normalizedUserEmail && normalizedParticipantEmail === normalizedUserEmail)
+        );
+      });
+      if (!canViewRequestedScope && !teamAccess.canEditTeam && !isCurrentUserOwner && !isCurrentUserParticipantTeam) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       if (

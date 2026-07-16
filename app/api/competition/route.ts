@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
       teamOwnerFilterVisibleForTeamchef: true,
       participantsCanViewAllTeams: true,
       spectatorsCanViewAllTeams: true,
+      hideForeignTeams: true,
       marketplaceGlobalVisibility: true,
       shirtOrderDeadline: true,
       maxTeams: true,
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
       competition: {
         ...competition,
         ...normalizeCompetitionTeamAccessConfig(competition),
-        teamCount,
+        teamCount: competition.hideForeignTeams ? null : teamCount,
       },
     });
   } catch (error) {

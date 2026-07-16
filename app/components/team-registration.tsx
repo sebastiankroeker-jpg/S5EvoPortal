@@ -111,7 +111,7 @@ type PublicCompetitionInfo = {
   maxTeams: number | null;
   teamSize: number;
   location: string | null;
-  teamCount: number;
+  teamCount: number | null;
 };
 
 function isRegistrationDeadlineReached(deadline?: string | null) {
@@ -130,7 +130,7 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
 
   const deadlineReached = isRegistrationDeadlineReached(competition.registrationDeadline);
   const teamLimitReached = Boolean(
-    competition.maxTeams && competition.maxTeams > 0 && competition.teamCount >= competition.maxTeams,
+    competition.maxTeams && competition.maxTeams > 0 && (competition.teamCount ?? 0) >= competition.maxTeams,
   );
   const statusAllowsRegistration = competition.status === "DRAFT" || competition.status === "OPEN";
 

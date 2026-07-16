@@ -17,6 +17,7 @@ interface CompetitionInfo {
   date: string;
   dateEnd: string | null;
   status: string;
+  hideForeignTeams?: boolean;
 }
 
 interface TeamStats {
@@ -242,7 +243,7 @@ export default function HomeScreen() {
           setCompetitionInfo(null);
         }
 
-        if (activeCompetition?.id && canViewAllTeams) {
+        if (activeCompetition?.id && canViewAllTeams && !activeCompetition.hideForeignTeams) {
           const params = new URLSearchParams({
             competitionId: activeCompetition.id,
             scope: 'all',
@@ -271,7 +272,7 @@ export default function HomeScreen() {
     };
 
     loadData();
-  }, [activeCompetition?.id, canViewAllTeams, competitionLoading, status]);
+  }, [activeCompetition?.hideForeignTeams, activeCompetition?.id, canViewAllTeams, competitionLoading, status]);
 
   const handleQuickAction = (tabId: string, additionalData?: Record<string, string | null | undefined>) => {
     const detail = tabId === "registration"

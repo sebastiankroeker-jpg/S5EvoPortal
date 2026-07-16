@@ -4,12 +4,14 @@ export type CompetitionTeamAccessConfig = {
   teamOwnerFilterVisibleForTeamchef: boolean;
   participantsCanViewAllTeams: boolean;
   spectatorsCanViewAllTeams: boolean;
+  hideForeignTeams: boolean;
 };
 
 export const DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG: CompetitionTeamAccessConfig = {
   teamOwnerFilterVisibleForTeamchef: false,
   participantsCanViewAllTeams: false,
   spectatorsCanViewAllTeams: false,
+  hideForeignTeams: false,
 };
 
 export function normalizeCompetitionTeamAccessConfig(
@@ -18,8 +20,12 @@ export function normalizeCompetitionTeamAccessConfig(
   return {
     teamOwnerFilterVisibleForTeamchef:
       input?.teamOwnerFilterVisibleForTeamchef ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.teamOwnerFilterVisibleForTeamchef,
-    participantsCanViewAllTeams: true,
-    spectatorsCanViewAllTeams: false,
+    participantsCanViewAllTeams: input?.hideForeignTeams === true ? false : true,
+    spectatorsCanViewAllTeams:
+      input?.hideForeignTeams === true
+        ? false
+        : input?.spectatorsCanViewAllTeams ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.spectatorsCanViewAllTeams,
+    hideForeignTeams: input?.hideForeignTeams ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.hideForeignTeams,
   };
 }
 
@@ -38,7 +44,7 @@ export function canRoleViewAllTeams(
     case "TEAMCHEF":
       return normalized.participantsCanViewAllTeams;
     case "TEILNEHMER":
-      return true;
+      return normalized.participantsCanViewAllTeams;
     case "ZUSCHAUER":
       return false;
     default:

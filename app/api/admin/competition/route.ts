@@ -129,6 +129,7 @@ export async function PUT(request: NextRequest) {
             teamOwnerFilterVisibleForTeamchef: Boolean(body.teamOwnerFilterVisibleForTeamchef),
             participantsCanViewAllTeams: Boolean(body.participantsCanViewAllTeams),
             spectatorsCanViewAllTeams: Boolean(body.spectatorsCanViewAllTeams),
+            hideForeignTeams: Boolean(body.hideForeignTeams),
             marketplaceGlobalVisibility,
             registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
@@ -166,6 +167,9 @@ export async function PUT(request: NextRequest) {
             spectatorsCanViewAllTeams: body.spectatorsCanViewAllTeams !== undefined
               ? Boolean(body.spectatorsCanViewAllTeams)
               : competition.spectatorsCanViewAllTeams,
+            hideForeignTeams: body.hideForeignTeams !== undefined
+              ? Boolean(body.hideForeignTeams)
+              : competition.hideForeignTeams,
             marketplaceGlobalVisibility: body.marketplaceGlobalVisibility !== undefined
               ? marketplaceGlobalVisibility
               : competition.marketplaceGlobalVisibility,

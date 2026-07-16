@@ -44,6 +44,7 @@ type CompetitionConfig = {
   teamOwnerFilterVisibleForTeamchef: boolean;
   participantsCanViewAllTeams: boolean;
   spectatorsCanViewAllTeams: boolean;
+  hideForeignTeams: boolean;
   marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
   registrationNotificationEmail: string;
   shirtOrderDeadline: string;
@@ -355,6 +356,7 @@ export default function AdminPage() {
     teamOwnerFilterVisibleForTeamchef: false,
     participantsCanViewAllTeams: false,
     spectatorsCanViewAllTeams: false,
+    hideForeignTeams: false,
     marketplaceGlobalVisibility: "SELECTIVE",
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
@@ -432,6 +434,7 @@ export default function AdminPage() {
           teamOwnerFilterVisibleForTeamchef: comp.teamOwnerFilterVisibleForTeamchef === true,
           participantsCanViewAllTeams: comp.participantsCanViewAllTeams === true,
           spectatorsCanViewAllTeams: comp.spectatorsCanViewAllTeams === true,
+          hideForeignTeams: comp.hideForeignTeams === true,
           marketplaceGlobalVisibility: comp.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
           registrationNotificationEmail: comp.registrationNotificationEmail || "",
           shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
@@ -1283,9 +1286,38 @@ export default function AdminPage() {
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      label="Fremde Mannschaften verbergen"
+                      hint="Blendet fremde Teams und oeffentliche Team-/Teilnehmerzahlen fuer normale Nutzer und Zuschauer serverseitig aus."
+                    >
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCompetition({
+                              ...competition,
+                              hideForeignTeams: !competition.hideForeignTeams,
+                            })
+                          }
+                          className={`relative h-6 w-12 rounded-full transition-colors ${
+                            competition.hideForeignTeams ? "bg-primary" : "bg-muted"
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                              competition.hideForeignTeams ? "translate-x-6" : ""
+                            }`}
+                          />
+                        </button>
+                        <span className="text-sm text-muted-foreground">
+                          {competition.hideForeignTeams ? "Privat" : "Offen"}
+                        </span>
+                      </div>
+                    </FormField>
                     <FormField label="Teamchef:in sieht Anleger-Filter">
                       <div className="flex items-center gap-3 pt-2">
                         <button
+                          type="button"
                           onClick={() =>
                             setCompetition({
                               ...competition,
@@ -1309,14 +1341,16 @@ export default function AdminPage() {
                     </FormField>
                     <FormField label="Teilnehmer:innen sehen Konkurrenz">
                       <div className="flex items-center gap-3 pt-2">
-                        <div className="relative h-6 w-12 rounded-full bg-primary">
-                          <span className="absolute left-0.5 top-0.5 h-5 w-5 translate-x-6 rounded-full bg-white" />
+                        <div className={`relative h-6 w-12 rounded-full ${competition.hideForeignTeams ? "bg-muted" : "bg-primary"}`}>
+                          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white ${competition.hideForeignTeams ? "" : "translate-x-6"}`} />
                         </div>
                         <span className="text-sm text-muted-foreground">
-                          Privacy-gefiltert sichtbar
+                          {competition.hideForeignTeams ? "Nur eigene Teams" : "Privacy-gefiltert sichtbar"}
                         </span>
                       </div>
                     </FormField>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField label="Zuschauer:innen sehen Konkurrenz">
                       <div className="flex items-center gap-3 pt-2">
                         <div className="relative h-6 w-12 rounded-full bg-muted">

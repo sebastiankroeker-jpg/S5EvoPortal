@@ -445,6 +445,7 @@ model Competition {
   teamOwnerFilterVisibleForTeamchef Boolean                     @default(false)
   participantsCanViewAllTeams       Boolean                     @default(false)
   spectatorsCanViewAllTeams         Boolean                     @default(false)
+  hideForeignTeams                  Boolean                     @default(false)
   marketplaceGlobalVisibility       MarketplaceGlobalVisibility @default(SELECTIVE)
   registrationNotificationEmail     String?
   shirtOrderDeadline                DateTime?

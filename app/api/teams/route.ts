@@ -407,6 +407,7 @@ export async function GET(request: NextRequest) {
               teamOwnerFilterVisibleForTeamchef: true,
               participantsCanViewAllTeams: true,
               spectatorsCanViewAllTeams: true,
+              hideForeignTeams: true,
               marketplaceGlobalVisibility: true,
             },
           })
@@ -469,6 +470,19 @@ export async function GET(request: NextRequest) {
                     participants: {
                       some: {
                         userId: user.id,
+                        deletedAt: null,
+                      },
+                    },
+                  }]
+                : []),
+              ...(normalizedUserEmail
+                ? [{
+                    participants: {
+                      some: {
+                        email: {
+                          equals: normalizedUserEmail,
+                          mode: 'insensitive' as const,
+                        },
                         deletedAt: null,
                       },
                     },
@@ -586,7 +600,7 @@ export async function GET(request: NextRequest) {
             select: { userId: true, revokedAt: true },
           },
           competition: {
-            select: { marketplaceGlobalVisibility: true },
+            select: { marketplaceGlobalVisibility: true, hideForeignTeams: true },
           },
         }
       });
