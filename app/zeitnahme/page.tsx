@@ -45,6 +45,7 @@ type Starter = {
   firstName: string;
   lastName: string;
   disciplineCode: DisciplineCode;
+  isTestStartNumber?: boolean;
 };
 
 type ClassificationOption = {
@@ -71,6 +72,10 @@ type SnapshotResponse = {
   snapshotVersion: string;
   competition: { id: string; name: string; year: number; status: string };
   disciplines: DisciplineSnapshot[];
+  testStartNumbers?: {
+    enabled: boolean;
+    count: number;
+  };
 };
 
 type TimekeepingSessionState = {
@@ -146,6 +151,10 @@ const HELPER_COLUMNS: { id: HelperColumn; label: string }[] = [
 
 function storageKey(competitionId: string) {
   return `s5evo-timekeeping-v1:${competitionId}`;
+}
+
+function testStartNumbersStorageKey(competitionId: string) {
+  return `s5evo-timekeeping-test-start-numbers-v1:${competitionId}`;
 }
 
 function createId(prefix: string) {
@@ -319,6 +328,7 @@ export default function TimekeepingPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [testStartNumbers, setTestStartNumbers] = useState(false);
   const [helperColumns, setHelperColumns] = useState<Record<HelperColumn, boolean>>({
     recordedAt: false,
     status: false,
@@ -335,13 +345,23 @@ export default function TimekeepingPage() {
   }, []);
 
   useEffect(() => {
+    if (!activeCompetition?.id) return;
+    const stored = window.localStorage.getItem(testStartNumbersStorageKey(activeCompetition.id));
+    setTestStartNumbers(stored === "1");
+  }, [activeCompetition?.id]);
+
+  useEffect(() => {
     if (!activeCompetition?.id || status !== "authenticated" || !hasAccess) return;
 
     let cancelled = false;
     const loadSnapshot = async () => {
       setError(null);
       try {
-        const response = await fetch(`/api/timekeeping/snapshot?competitionId=${encodeURIComponent(activeCompetition.id)}`);
+        const params = new URLSearchParams({
+          competitionId: activeCompetition.id,
+        });
+        if (testStartNumbers) params.set("testStartNumbers", "1");
+        const response = await fetch(`/api/timekeeping/snapshot?${params.toString()}`);
         if (!response.ok) throw new Error("Snapshot konnte nicht geladen werden");
         const data = await response.json() as SnapshotResponse;
         if (cancelled) return;
@@ -391,12 +411,17 @@ export default function TimekeepingPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeCompetition?.id, activeDiscipline, hasAccess, status]);
+  }, [activeCompetition?.id, activeDiscipline, hasAccess, status, testStartNumbers]);
 
   useEffect(() => {
     if (!state?.competitionId) return;
     window.localStorage.setItem(storageKey(state.competitionId), JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    if (!activeCompetition?.id) return;
+    window.localStorage.setItem(testStartNumbersStorageKey(activeCompetition.id), testStartNumbers ? "1" : "0");
+  }, [activeCompetition?.id, testStartNumbers]);
 
   const activeSession = useMemo(
     () => state?.sessions.find((session) => session.id === activeSessionId) ?? null,
@@ -408,6 +433,10 @@ export default function TimekeepingPage() {
     const classifications = new Set(activeSession.classificationCodes);
     return disciplineSnapshot.starters.filter((starter) => classifications.has(starter.classificationCode));
   }, [activeSession, disciplineSnapshot]);
+  const startNumberPreviewStarter = useMemo(() => {
+    if (!startNumberInput.trim()) return null;
+    return findStarter(activeBlockStarters, startNumberInput) ?? findStarter(disciplineSnapshot?.starters ?? [], startNumberInput);
+  }, [activeBlockStarters, disciplineSnapshot?.starters, startNumberInput]);
   const unsyncedCount = activeSession?.events.filter((event) => event.syncStatus !== "synced").length ?? 0;
   const missingStartNumbers = activeSession?.events.filter((event) => event.eventType === "FINISH" && !event.startNumber).length ?? 0;
   const clockIsRunning = Boolean(activeSession?.manualStartedAt && !activeSession.manualStoppedAt);
@@ -838,6 +867,12 @@ export default function TimekeepingPage() {
           </div>
         )}
 
+        {snapshot?.testStartNumbers?.enabled && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            Test-Startnummern aktiv: {snapshot.testStartNumbers.count} Team(s) ohne offizielle Startnummer werden nur in dieser Zeitnahme-Ansicht mit 9001 ff. simuliert.
+          </div>
+        )}
+
         <div className="flex gap-1 rounded-md border border-border/60 bg-card p-1">
           <Button
             variant={activeTab === "clock" ? "default" : "ghost"}
@@ -878,6 +913,21 @@ export default function TimekeepingPage() {
                   ))}
                 </div>
               </div>
+
+              <label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={testStartNumbers}
+                  onChange={(event) => setTestStartNumbers(event.target.checked)}
+                />
+                <span>
+                  <span className="block font-medium">Test-Startnummern für Teams ohne offizielle Nummer</span>
+                  <span className="block text-xs text-amber-900/80 dark:text-amber-100/75">
+                    Erzeugt lokal im Snapshot 9001 ff. für Tests. Es werden keine Stammdaten gespeichert.
+                  </span>
+                </span>
+              </label>
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-2">
@@ -950,6 +1000,29 @@ export default function TimekeepingPage() {
                     {activeBlockStarters.length} Starter im aktuellen Block
                   </p>
                 </div>
+                {activeBlockStarters.length > 0 && (
+                  <div className="rounded-md border border-border/60 bg-background">
+                    <div className="border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                      Starter im Block
+                    </div>
+                    <div className="max-h-48 overflow-auto">
+                      {activeBlockStarters.slice(0, 30).map((starter) => (
+                        <div
+                          key={`${starter.participantId}-${starter.startNumber}`}
+                          className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-0"
+                        >
+                          <span className="font-mono font-semibold tabular-nums">
+                            {starter.startNumber}
+                            {starter.isTestStartNumber && <span className="ml-1 text-[10px] text-amber-700">Test</span>}
+                          </span>
+                          <span className="min-w-0 truncate">
+                            {starter.firstName} {starter.lastName} · {starter.teamName} · {starter.classificationLabel}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {activeDiscipline === "ROAD" && (
@@ -1051,6 +1124,33 @@ export default function TimekeepingPage() {
                   Zieleinlauf
                 </Button>
               </div>
+              {startNumberInput.trim() && (
+                <div className={cn(
+                  "rounded-md border px-3 py-2 text-sm",
+                  startNumberPreviewStarter
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100"
+                    : "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100",
+                )}>
+                  {startNumberPreviewStarter ? (
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-medium">
+                        {startNumberPreviewStarter.firstName} {startNumberPreviewStarter.lastName}
+                      </span>
+                      <span className="text-muted-foreground">·</span>
+                      <span>{startNumberPreviewStarter.teamName}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span>{startNumberPreviewStarter.classificationLabel}</span>
+                      {startNumberPreviewStarter.isTestStartNumber && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
+                          Test-Startnr.
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span>Keine lokale Zuordnung für Startnummer {startNumberInput.trim()}.</span>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         )}

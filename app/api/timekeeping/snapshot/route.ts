@@ -20,8 +20,13 @@ function toStartNumberValue(startNumber: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function buildTestStartNumber(index: number) {
+  return String(9001 + index);
+}
+
 export async function GET(request: NextRequest) {
   const competitionId = request.nextUrl.searchParams.get("competitionId");
+  const includeTestStartNumbers = request.nextUrl.searchParams.get("testStartNumbers") === "1";
   if (!competitionId) {
     return NextResponse.json({ error: "competitionId required" }, { status: 400 });
   }
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
       competitionId,
       deletedAt: null,
       approved: true,
-      startNumber: { not: null },
+      ...(includeTestStartNumbers ? {} : { startNumber: { not: null } }),
     },
     select: {
       id: true,
@@ -82,19 +87,27 @@ export async function GET(request: NextRequest) {
     orderBy: [{ startNumber: "asc" }, { name: "asc" }],
   });
 
+  const testStartNumberByTeamId = new Map(
+    teams
+      .filter((team) => !team.startNumber)
+      .map((team, index) => [team.id, buildTestStartNumber(index)] as const),
+  );
+
   const starters = teams.flatMap((team) => {
-    const startNumberValue = toStartNumberValue(team.startNumber);
+    const effectiveStartNumber = team.startNumber ?? testStartNumberByTeamId.get(team.id) ?? null;
+    const startNumberValue = toStartNumberValue(effectiveStartNumber);
     return team.participants.map((participant) => ({
       participantId: participant.id,
       teamId: team.id,
       teamName: team.name,
       classificationCode: team.classificationCode ?? "unclassified",
       classificationLabel: CLASSIFICATIONS[team.classificationCode ?? "unclassified"]?.label ?? team.classificationCode ?? "Unklassifiziert",
-      startNumber: team.startNumber,
+      startNumber: effectiveStartNumber,
       startNumberValue,
       firstName: participant.firstName,
       lastName: participant.lastName,
       disciplineCode: participant.disciplineCode,
+      isTestStartNumber: !team.startNumber && Boolean(effectiveStartNumber),
     }));
   });
 
@@ -131,6 +144,10 @@ export async function GET(request: NextRequest) {
       status: competition.status,
     },
     role: auth.roles.includes("ZEITNAHME") ? "ZEITNAHME" : auth.isAdmin ? "ADMIN" : "MODERATOR",
+    testStartNumbers: {
+      enabled: includeTestStartNumbers,
+      count: testStartNumberByTeamId.size,
+    },
     disciplines: disciplineSummaries,
   });
 }
