@@ -175,11 +175,14 @@ Sebastian clarified that official results will come from multiple sources: legac
 - Deployment needed: done
 - Initial foundation deployment ID: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
 - Initial foundation deployment URL: `https://s5-evo-portal-n2awz16wk-sebastiankroeker-2781s-projects.vercel.app`
-- Latest result-staging UI/API deployment ID: `dpl_AoTiw3GL7Trcox2Q7LoH3HSq8AZw`
-- Latest result-staging UI/API deployment URL: `https://s5-evo-portal-fp4nqzxs9-sebastiankroeker-2781s-projects.vercel.app`
+- Manual result-staging UI/API deployment ID: `dpl_AoTiw3GL7Trcox2Q7LoH3HSq8AZw`
+- Manual result-staging UI/API deployment URL: `https://s5-evo-portal-fp4nqzxs9-sebastiankroeker-2781s-projects.vercel.app`
+- Latest origin-sync deployment ID: `dpl_2qfjziTrj4TBaTdSw9vvPVTyiQXW`
+- Latest origin-sync deployment URL: `https://s5-evo-portal-1q23xile0-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
 - Initial foundation deployed at: 2026-07-15 19:27 UTC
-- Latest UI/API deployed at: 2026-07-16 04:50 UTC
+- Manual UI/API deployed at: 2026-07-16 04:50 UTC
+- Origin-sync deploy after `git push origin main` at: 2026-07-16 05:00 UTC
 
 ## Post-Deploy Smoke
 

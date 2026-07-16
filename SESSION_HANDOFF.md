@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-16 04:51 UTC
+Stand: 2026-07-16 05:01 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand: `main` ist lokal 9 Commits vor `origin/main`; Result-Staging UI/API ist produktiv deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand: `main` wurde nach `origin/main` gepusht; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Result-Staging V1 Foundation:
   - CR: `docs/cr/2026-07-15-result-staging-v1.md`
@@ -13,8 +13,9 @@ Stand: 2026-07-16 04:51 UTC
     - `ef76a9c Add result staging foundation`
     - `9df19c9 Add result staging preview APIs`
     - `33f5126 Add result staging admin preview UI`
-  - Latest Production Deploy: `dpl_AoTiw3GL7Trcox2Q7LoH3HSq8AZw`
-  - Latest Deployment URL: `https://s5-evo-portal-fp4nqzxs9-sebastiankroeker-2781s-projects.vercel.app`
+  - Latest Production Deploy: `dpl_2qfjziTrj4TBaTdSw9vvPVTyiQXW`
+  - Latest Deployment URL: `https://s5-evo-portal-1q23xile0-sebastiankroeker-2781s-projects.vercel.app`
+  - Manual pre-push deployment: `dpl_AoTiw3GL7Trcox2Q7LoH3HSq8AZw`
   - Initial foundation deployment: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
   - Alias: `https://portal.s5evo.de`
   - Scope: additive Prisma-Grundlage fuer `ResultDataBatch`, `ResultRawRecord`, `ResultDraft`, `ResultPublication`, `ResultPublicationItem`, `ResultResetSnapshot` plus Enums fuer Quelle/Zweck/Status/Reset-Scope.
