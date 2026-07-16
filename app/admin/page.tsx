@@ -111,6 +111,45 @@ type ResetAuditEntry = {
   } | null;
 };
 
+type ResultStagingBatch = {
+  id: string;
+  source: string;
+  sourceLabel: string;
+  purpose: string;
+  purposeLabel: string;
+  status: string;
+  statusLabel: string;
+  label: string | null;
+  externalRef: string | null;
+  createdAt: string;
+  counts: {
+    rawRecords: number;
+    drafts: number;
+    publications: number;
+    resetSnapshots: number;
+  };
+};
+
+type ResultResetScope = "RAW_BATCH" | "DRAFTS" | "PUBLICATION" | "OFFICIAL_RESULTS" | "TEST_DATA";
+
+type ResultResetPreview = {
+  mode: "PREVIEW";
+  destructive: boolean;
+  scope: ResultResetScope;
+  scopeLabel: string;
+  scopeEntity: Record<string, unknown> | null;
+  filter: {
+    batchId: string | null;
+    publicationId: string | null;
+    disciplineCode: string | null;
+    participantId: string | null;
+    startNumber: string | null;
+  };
+  counts: Record<string, number>;
+  warnings: string[];
+  requiresSnapshotBeforeExecution: boolean;
+};
+
 type InlineFeedback = {
   type: "success" | "error";
   text: string;
@@ -157,6 +196,21 @@ const STATUS_OPTIONS = ["DRAFT", "OPEN", "RUNNING", "CLOSED"];
 const THEME_OPTIONS = ["LIGHT", "DARK", "ESV"];
 const BENCH_MODES = ["GROSS", "NETTO"];
 const CLAIM_TOKEN_EXPIRY_MODES = ["COMPETITION_END", "REGISTRATION_DEADLINE", "FIXED_DAYS"];
+const RESULT_RESET_SCOPE_OPTIONS: Array<{ value: ResultResetScope; label: string }> = [
+  { value: "RAW_BATCH", label: "Raw-Paket" },
+  { value: "DRAFTS", label: "Drafts" },
+  { value: "PUBLICATION", label: "Publikation" },
+  { value: "OFFICIAL_RESULTS", label: "Offizielle Ergebnisse" },
+  { value: "TEST_DATA", label: "Testdaten" },
+];
+const RESULT_DISCIPLINE_OPTIONS = [
+  { value: "", label: "Alle Disziplinen" },
+  { value: "RUN", label: "Laufen" },
+  { value: "BENCH", label: "Bankdrücken" },
+  { value: "STOCK", label: "Stockschießen" },
+  { value: "ROAD", label: "Rennrad" },
+  { value: "MTB", label: "Mountainbike" },
+];
 
 function formatDateTime(value: string) {
   const parsed = new Date(value);
@@ -240,6 +294,24 @@ function renderResetCounts(counts: ResetCounts) {
   ].join(" • ");
 }
 
+function renderCountMap(counts: Record<string, number>) {
+  const labels: Record<string, string> = {
+    batches: "Pakete",
+    rawRecords: "Raw Records",
+    drafts: "Drafts",
+    approvedDrafts: "Freigegebene Drafts",
+    publishedDrafts: "Publizierte Drafts",
+    publications: "Publikationen",
+    publicationItems: "Publikationszeilen",
+    resetSnapshots: "Reset-Snapshots",
+    officialResults: "Offizielle Ergebnisse",
+  };
+
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return "Keine betroffenen Datensätze.";
+  return entries.map(([key, value]) => `${labels[key] || key}: ${value}`).join(" • ");
+}
+
 function FormField({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <div className="space-y-1.5">
@@ -304,6 +376,16 @@ export default function AdminPage() {
   const [resetDryRunSummary, setResetDryRunSummary] = useState<ResetSummary | null>(null);
   const [resetSnapshots, setResetSnapshots] = useState<ResetSnapshotEntry[]>([]);
   const [resetAuditEvents, setResetAuditEvents] = useState<ResetAuditEntry[]>([]);
+  const [resultStagingBatches, setResultStagingBatches] = useState<ResultStagingBatch[]>([]);
+  const [loadingResultStaging, setLoadingResultStaging] = useState(false);
+  const [resultResetScope, setResultResetScope] = useState<ResultResetScope>("TEST_DATA");
+  const [resultResetBatchId, setResultResetBatchId] = useState("");
+  const [resultResetPublicationId, setResultResetPublicationId] = useState("");
+  const [resultResetDisciplineCode, setResultResetDisciplineCode] = useState("");
+  const [resultResetParticipantId, setResultResetParticipantId] = useState("");
+  const [resultResetStartNumber, setResultResetStartNumber] = useState("");
+  const [resultResetPreview, setResultResetPreview] = useState<ResultResetPreview | null>(null);
+  const [resultStagingFeedback, setResultStagingFeedback] = useState<InlineFeedback | null>(null);
   const [opsLifecycleMailFailures, setOpsLifecycleMailFailures] = useState(0);
   const [opsSuspiciousClaimEvents, setOpsSuspiciousClaimEvents] = useState<OpsClaimAuditEvent[]>([]);
   const [participantDirectAuditEvents, setParticipantDirectAuditEvents] = useState<ParticipantDirectAuditEntry[]>([]);
@@ -381,6 +463,27 @@ export default function AdminPage() {
       );
     } finally {
       setLoadingResetMeta(false);
+    }
+  }, [notifications]);
+
+  const loadResultStagingBatches = useCallback(async (compId: string) => {
+    setLoadingResultStaging(true);
+    try {
+      const res = await fetch(`/api/admin/result-staging/batches?competitionId=${encodeURIComponent(compId)}&limit=25`);
+      const data = await res.json().catch(() => ({ batches: [] }));
+      if (!res.ok) {
+        throw new Error(data.error || "Ergebnis-Staging konnte nicht geladen werden");
+      }
+      setResultStagingBatches(Array.isArray(data.batches) ? data.batches : []);
+    } catch (error) {
+      console.error("Failed to load result staging batches:", error);
+      setResultStagingBatches([]);
+      notifications.error(
+        "Ergebnis-Staging konnte nicht geladen werden",
+        error instanceof Error ? error.message : "Bitte später erneut versuchen.",
+      );
+    } finally {
+      setLoadingResultStaging(false);
     }
   }, [notifications]);
 
@@ -471,13 +574,16 @@ export default function AdminPage() {
     if (hasAdminAccess && activeCompetition?.id) {
       void loadCompetitionDetails(activeCompetition.id);
       void loadResetMetadata(activeCompetition.id);
+      void loadResultStagingBatches(activeCompetition.id);
       void loadOpsSummary(activeCompetition.id);
       setResetDryRunSummary(null);
       setResetConfirmationText("");
       setResetForce(false);
       setResetFeedback(null);
+      setResultResetPreview(null);
+      setResultStagingFeedback(null);
     }
-  }, [activeCompetition?.id, hasAdminAccess, loadCompetitionDetails, loadOpsSummary, loadResetMetadata]);
+  }, [activeCompetition?.id, hasAdminAccess, loadCompetitionDetails, loadOpsSummary, loadResetMetadata, loadResultStagingBatches]);
 
   const handleSaveTenant = async () => {
     setSaving('tenant');
@@ -620,6 +726,50 @@ export default function AdminPage() {
         text: error instanceof Error ? error.message : "Competition Reset fehlgeschlagen",
       });
       notifications.error(error instanceof Error ? error.message : "Competition Reset fehlgeschlagen");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleResultResetPreview = async () => {
+    if (!activeCompetition?.id) {
+      setResultStagingFeedback({ type: "error", text: "Kein aktiver Wettkampf ausgewählt." });
+      notifications.error("Kein aktiver Wettkampf ausgewählt");
+      return;
+    }
+
+    setSaving("result-reset-preview");
+    setResultStagingFeedback(null);
+    setResultResetPreview(null);
+    try {
+      const response = await fetch("/api/admin/result-staging/reset/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          scope: resultResetScope,
+          batchId: resultResetBatchId || undefined,
+          publicationId: resultResetPublicationId || undefined,
+          disciplineCode: resultResetDisciplineCode || undefined,
+          participantId: resultResetParticipantId || undefined,
+          startNumber: resultResetStartNumber || undefined,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Reset-Preview konnte nicht berechnet werden");
+      }
+
+      setResultResetPreview(data);
+      setResultStagingFeedback({ type: "success", text: "Preview berechnet. Es wurden keine Daten verändert." });
+    } catch (error) {
+      console.error("Result reset preview failed:", error);
+      setResultStagingFeedback({
+        type: "error",
+        text: error instanceof Error ? error.message : "Reset-Preview konnte nicht berechnet werden",
+      });
+      notifications.error(error instanceof Error ? error.message : "Reset-Preview konnte nicht berechnet werden");
     } finally {
       setSaving(null);
     }
@@ -1353,6 +1503,216 @@ export default function AdminPage() {
                       </p>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Ergebnis-Staging & Reset-Preview</CardTitle>
+                  <CardDescription>
+                    Read-only Sicht auf Import-/Sync-Pakete und sichere Preview für Ergebnis-Reset-Szenarien.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Staging-Pakete</p>
+                      <p className="text-lg font-semibold">{resultStagingBatches.length}</p>
+                    </div>
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Raw Records</p>
+                      <p className="text-lg font-semibold">
+                        {resultStagingBatches.reduce((sum, batch) => sum + batch.counts.rawRecords, 0)}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Drafts</p>
+                      <p className="text-lg font-semibold">
+                        {resultStagingBatches.reduce((sum, batch) => sum + batch.counts.drafts, 0)}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-border/50 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Publikationen</p>
+                      <p className="text-lg font-semibold">
+                        {resultStagingBatches.reduce((sum, batch) => sum + batch.counts.publications, 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {loadingResultStaging ? (
+                    <div className="text-sm text-muted-foreground">Lade Ergebnis-Staging...</div>
+                  ) : resultStagingBatches.length === 0 ? (
+                    <div className="rounded-md border border-border/50 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                      Für diesen Wettkampf gibt es noch keine Ergebnis-Staging-Pakete.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium">Letzte Pakete</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => activeCompetition?.id && void loadResultStagingBatches(activeCompetition.id)}
+                          disabled={loadingResultStaging}
+                        >
+                          Aktualisieren
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {resultStagingBatches.slice(0, 5).map((batch) => (
+                          <div key={batch.id} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-sm">
+                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                              <div>
+                                <p className="font-medium">{batch.label || batch.externalRef || batch.id}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {batch.sourceLabel} • {batch.purposeLabel} • {formatDateTime(batch.createdAt)}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge variant="secondary">{batch.statusLabel}</Badge>
+                                <Badge variant="outline">
+                                  {batch.counts.rawRecords}/{batch.counts.drafts}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <FormField label="Reset-Scope">
+                        <select
+                          value={resultResetScope}
+                          onChange={(e) => {
+                            setResultResetScope(e.target.value as ResultResetScope);
+                            setResultResetPreview(null);
+                            setResultStagingFeedback(null);
+                          }}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          {RESULT_RESET_SCOPE_OPTIONS.map((scope) => (
+                            <option key={scope.value} value={scope.value}>{scope.label}</option>
+                          ))}
+                        </select>
+                      </FormField>
+                      <FormField label="Batch">
+                        <select
+                          value={resultResetBatchId}
+                          onChange={(e) => {
+                            setResultResetBatchId(e.target.value);
+                            setResultResetPreview(null);
+                          }}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">Kein Batch-Filter</option>
+                          {resultStagingBatches.map((batch) => (
+                            <option key={batch.id} value={batch.id}>
+                              {batch.label || batch.externalRef || batch.id}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <FormField label="Disziplin">
+                        <select
+                          value={resultResetDisciplineCode}
+                          onChange={(e) => {
+                            setResultResetDisciplineCode(e.target.value);
+                            setResultResetPreview(null);
+                          }}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          {RESULT_DISCIPLINE_OPTIONS.map((option) => (
+                            <option key={option.value || "all"} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </FormField>
+                      <FormField label="Startnummer">
+                        <Input
+                          value={resultResetStartNumber}
+                          onChange={(e) => {
+                            setResultResetStartNumber(e.target.value);
+                            setResultResetPreview(null);
+                          }}
+                          placeholder="Optional"
+                        />
+                      </FormField>
+                      <FormField label="Teilnehmer-ID">
+                        <Input
+                          value={resultResetParticipantId}
+                          onChange={(e) => {
+                            setResultResetParticipantId(e.target.value);
+                            setResultResetPreview(null);
+                          }}
+                          placeholder="Optional"
+                          className="font-mono"
+                        />
+                      </FormField>
+                    </div>
+
+                    <FormField label="Publikations-ID" hint="Nur für Scope Publikation erforderlich. Offizielle Reset-Ausführung bleibt gesperrt.">
+                      <Input
+                        value={resultResetPublicationId}
+                        onChange={(e) => {
+                          setResultResetPublicationId(e.target.value);
+                          setResultResetPreview(null);
+                        }}
+                        placeholder="Optional"
+                        className="font-mono"
+                      />
+                    </FormField>
+
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => void handleResultResetPreview()}
+                        disabled={saving === "result-reset-preview" || !activeCompetition?.id}
+                      >
+                        {saving === "result-reset-preview" ? "Berechne..." : "Reset-Preview berechnen"}
+                      </Button>
+                    </div>
+
+                    {resultStagingFeedback && (
+                      <div
+                        className={`rounded-lg border px-4 py-3 text-sm ${
+                          resultStagingFeedback.type === "success"
+                            ? "border-green-200 bg-green-50 text-green-800"
+                            : "border-red-200 bg-red-50 text-red-800"
+                        }`}
+                      >
+                        {resultStagingFeedback.type === "success" ? "✓" : "✗"} {resultStagingFeedback.text}
+                      </div>
+                    )}
+
+                    {resultResetPreview && (
+                      <div className="rounded-lg border border-border/60 bg-background p-4 text-sm space-y-3">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="font-medium">{resultResetPreview.scopeLabel}</p>
+                            <p className="text-muted-foreground">
+                              {renderCountMap(resultResetPreview.counts)}
+                            </p>
+                          </div>
+                          <Badge variant={resultResetPreview.requiresSnapshotBeforeExecution ? "destructive" : "secondary"}>
+                            {resultResetPreview.requiresSnapshotBeforeExecution ? "Snapshot nötig" : "Preview"}
+                          </Badge>
+                        </div>
+                        {resultResetPreview.warnings.length > 0 && (
+                          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                            {resultResetPreview.warnings.join(" ")}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Destruktive Ausführung ist in dieser Oberfläche noch nicht freigeschaltet.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 

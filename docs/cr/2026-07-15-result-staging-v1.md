@@ -146,6 +146,10 @@ Sebastian clarified that official results will come from multiple sources: legac
     - `GET /api/admin/result-staging/batches`
     - `POST /api/admin/result-staging/reset/preview`
   - Reset preview is intentionally non-destructive and does not persist preview snapshots yet.
+  - Added the first admin UI surface under `/admin?tab=competition`:
+    - shows recent result-staging batches and aggregate raw/draft/publication counts.
+    - calls reset preview by scope, batch, publication, discipline, participant, or start number.
+    - keeps destructive reset execution disabled in the UI.
 
 ## Verification
 
@@ -155,6 +159,7 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `npx tsc --noEmit --incremental false` passed.
   - `git diff --check` passed.
   - `npx eslint app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed.
+  - `npx eslint app/admin/page.tsx app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed after adding the admin UI.
 - Build:
   - `npm run build` passed.
 - Targeted verification:
@@ -188,7 +193,7 @@ Sebastian clarified that official results will come from multiple sources: legac
 
 ## Follow-Ups
 
-- Build admin review/reset UI.
+- Build destructive result reset execution with snapshot/export guard.
 - Build legacy import parser into `ResultDataBatch`/`ResultRawRecord`.
 - Build timekeeping-to-draft derivation from `TimekeepingEvent`.
 - Build explicit publish workflow into `DisciplineResult`.
