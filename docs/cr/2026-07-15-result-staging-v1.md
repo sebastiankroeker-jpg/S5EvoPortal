@@ -158,6 +158,13 @@ Sebastian clarified that official results will come from multiple sources: legac
     - execution requires a reason and exact confirmation text from the latest preview.
     - execution writes `ResultResetSnapshot(mode=EXECUTED)` before deleting and emits `RESULT_STAGING_RESET_EXECUTED`.
     - admin UI now enables execution only after an executable preview.
+  - Added the first dedicated result-data workbench locally:
+    - route: `/admin/ergebnisse`
+    - navigation entries in sidebar, search overlay, and command palette.
+    - workflow tabs: `Überblick`, `Pakete`, `Zuordnung & Validierung`.
+    - global filters for discipline, source, purpose, status, and search.
+    - uses existing `GET /api/admin/result-staging/batches` for package summaries.
+    - intentionally does not implement publish or raw-row editing yet.
 
 ## Verification
 
@@ -169,6 +176,7 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `npx eslint app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed.
   - `npx eslint app/admin/page.tsx app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed after adding the admin UI.
   - `npx eslint app/admin/page.tsx app/api/admin/audit-events/route.ts app/api/admin/result-staging/reset/preview/route.ts app/api/admin/result-staging/reset/route.ts lib/result-staging-reset.ts lib/result-staging.ts` passed after adding reset execution.
+  - `npx eslint app/admin/ergebnisse/page.tsx app/components/sidebar.tsx app/components/search-overlay.tsx app/components/command-pill.tsx lib/navigation-menu.ts` passed after adding the workbench.
 - Build:
   - `npm run build` passed.
 - Targeted verification:
@@ -217,6 +225,7 @@ Sebastian clarified that official results will come from multiple sources: legac
 ## Follow-Ups
 
 - Deploy/smoke guarded Result Reset Execution V1 after separate Go.
+- Deploy/smoke `/admin/ergebnisse` workbench after separate Go.
 - Build legacy import parser into `ResultDataBatch`/`ResultRawRecord`.
 - Build timekeeping-to-draft derivation from `TimekeepingEvent`.
 - Build explicit publish workflow into `DisciplineResult`.

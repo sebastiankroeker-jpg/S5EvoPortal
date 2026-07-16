@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-16 05:47 UTC
+Stand: 2026-07-16 08:27 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand: Result Reset Execution V1 ist lokal gebaut/geprueft und committed, aber noch nicht deployed/gepusht; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand: Ergebnisdaten-Workbench ist lokal gebaut/geprueft und committed, aber noch nicht deployed/gepusht; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Result-Staging V1 Foundation:
   - CR: `docs/cr/2026-07-15-result-staging-v1.md`
@@ -37,14 +37,20 @@ Stand: 2026-07-16 05:47 UTC
     - `/admin?tab=competition` zeigt Ergebnis-Staging-Pakete, Aggregat-Zaehler und Reset-Preview-Form.
     - Destruktive Reset-Ausfuehrung bleibt gesperrt.
   - Lokaler Nachtrag nach Deploy:
-    - Result Reset Execution V1 gebaut, noch nicht deployed.
+    - Result Reset Execution V1 gebaut und inzwischen deployed (`dpl_ACTRDSxg1DCn3EgJFtWeGwV9dJyT`), Smoke gruen: `/admin` 200, neue Reset-Routen ohne Session 401.
     - Neue Route: `POST /api/admin/result-staging/reset`.
     - Neuer Helper: `lib/result-staging-reset.ts` fuer gemeinsame Preview-/Execute-Filter, Counts und Blocker.
     - Ausfuehrbar nur fuer `RAW_BATCH`, `DRAFTS`, `TEST_DATA`; `PUBLICATION` und `OFFICIAL_RESULTS` bleiben serverseitig blockiert.
     - Ausfuehrung braucht Begruendung + exakten Preview-Bestaetigungstext, schreibt `ResultResetSnapshot(mode=EXECUTED)` vor Delete und `RESULT_STAGING_RESET_EXECUTED` Audit.
     - Admin UI kann nach ausfuehrbarer Preview den Reset starten; loescht noch keine offiziellen `DisciplineResult`.
+    - Ergebnisdaten-Workbench lokal gebaut, noch nicht deployed:
+      - Route: `/admin/ergebnisse`.
+      - Navigation: Sidebar, Search Overlay, Command Palette.
+      - Workflow-Tabs: `Ueberblick`, `Pakete`, `Zuordnung & Validierung`.
+      - Filter: Disziplin, Quelle, Zweck, Status, Suche.
+      - Datenbasis: vorhandenes `GET /api/admin/result-staging/batches`; noch kein Publish, kein Raw-Row-Editing.
     - Lokale Checks gruen: targeted ESLint, `npx prisma validate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
-  - Naechster Schritt: Result Reset Execution V1 nach separatem Go deployen/smoken; danach Legacy-Import und Timekeeping-Draft-Ableitung. Noch kein Publish nach `DisciplineResult`.
+  - Naechster Schritt: Ergebnisdaten-Workbench nach separatem Go deployen/smoken; danach Legacy-Import und Timekeeping-Draft-Ableitung. Noch kein Publish nach `DisciplineResult`.
 - Deploy-Pfad fuer `portal.s5evo.de`:
   - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
   - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`
