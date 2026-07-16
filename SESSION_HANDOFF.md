@@ -1,17 +1,21 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-15 18:06 UTC
+Stand: 2026-07-16 04:51 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand: Zeitnahme V1 ist auf `main` gepusht und deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand: `main` ist lokal 9 Commits vor `origin/main`; Result-Staging UI/API ist produktiv deployed; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Result-Staging V1 Foundation:
   - CR: `docs/cr/2026-07-15-result-staging-v1.md`
   - Status: deployed.
-  - Commit: `ef76a9c Add result staging foundation`
-  - Production Deploy: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
-  - Deployment URL: `https://s5-evo-portal-n2awz16wk-sebastiankroeker-2781s-projects.vercel.app`
+  - Commits:
+    - `ef76a9c Add result staging foundation`
+    - `9df19c9 Add result staging preview APIs`
+    - `33f5126 Add result staging admin preview UI`
+  - Latest Production Deploy: `dpl_AoTiw3GL7Trcox2Q7LoH3HSq8AZw`
+  - Latest Deployment URL: `https://s5-evo-portal-fp4nqzxs9-sebastiankroeker-2781s-projects.vercel.app`
+  - Initial foundation deployment: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
   - Alias: `https://portal.s5evo.de`
   - Scope: additive Prisma-Grundlage fuer `ResultDataBatch`, `ResultRawRecord`, `ResultDraft`, `ResultPublication`, `ResultPublicationItem`, `ResultResetSnapshot` plus Enums fuer Quelle/Zweck/Status/Reset-Scope.
   - Zweck: Legacy-Ergebnisimport, Zeitnahme-Sync und manuelle Ergebnis-Pflege ueber gemeinsame Raw-/Draft-/Review-/Publish-/Reset-Logik konsolidieren.
@@ -19,15 +23,18 @@ Stand: 2026-07-15 18:06 UTC
   - DB-Backup vor Migration: `backups/db/s5evo-prod-before-result-staging-20260715T192343Z.dump` plus `.sha256`.
   - Production-Migration angewendet: `20260715190500_add_result_staging_foundation`; `npx prisma migrate status` danach up to date.
   - Neue Tabellen nach Migration leer verifiziert: `result_data_batches`, `result_raw_records`, `result_drafts`, `result_publications`, `result_publication_items`, `result_reset_snapshots` jeweils `0`.
-  - Dateien: `prisma/schema.prisma`, `prisma/migrations/20260715190500_add_result_staging_foundation/migration.sql`, `lib/result-staging.ts`, CR, `SESSION_HANDOFF.md`.
+  - Dateien: `prisma/schema.prisma`, `prisma/migrations/20260715190500_add_result_staging_foundation/migration.sql`, `lib/result-staging.ts`, `app/api/admin/result-staging/batches/route.ts`, `app/api/admin/result-staging/reset/preview/route.ts`, `app/admin/page.tsx`, CR, `SESSION_HANDOFF.md`.
   - Checks gruen: `npx prisma validate`, `npx prisma generate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`, `npm run smoke:public`.
   - Post-Deploy Checks: `/` -> 200, `/api/competition` -> active competition, `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` -> 200.
-  - Lokaler Nachtrag nach Deploy: read-only Preview-APIs gebaut, noch nicht deployed:
+  - Read-only Preview-APIs deployed:
     - `GET /api/admin/result-staging/batches`
     - `POST /api/admin/result-staging/reset/preview`
     - Admin/Moderator-geschuetzt, nicht destruktiv, schreibt keine Preview-Snapshots.
-    - Lokale Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
-  - Naechster Schritt: Preview-APIs deployen/smoken nach separatem Go; danach Admin-UI fuer Preview/Reset-Plan bauen. Noch kein Publish nach `DisciplineResult`.
+    - Unauthenticated smoke: beide neuen APIs geben ohne Session 401.
+  - Admin UI deployed:
+    - `/admin?tab=competition` zeigt Ergebnis-Staging-Pakete, Aggregat-Zaehler und Reset-Preview-Form.
+    - Destruktive Reset-Ausfuehrung bleibt gesperrt.
+  - Naechster Schritt: destruktiven Ergebnis-Reset nur mit Snapshot/Export-Guard bauen; danach Legacy-Import und Timekeeping-Draft-Ableitung. Noch kein Publish nach `DisciplineResult`.
 - Deploy-Pfad fuer `portal.s5evo.de`:
   - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
   - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`

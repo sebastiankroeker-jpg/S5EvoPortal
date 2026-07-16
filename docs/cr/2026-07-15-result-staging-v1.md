@@ -172,11 +172,14 @@ Sebastian clarified that official results will come from multiple sources: legac
 
 ## Deploy
 
-- Deployment needed: yes
-- Deployment ID: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
-- Deployment URL: `https://s5-evo-portal-n2awz16wk-sebastiankroeker-2781s-projects.vercel.app`
+- Deployment needed: done
+- Initial foundation deployment ID: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
+- Initial foundation deployment URL: `https://s5-evo-portal-n2awz16wk-sebastiankroeker-2781s-projects.vercel.app`
+- Latest result-staging UI/API deployment ID: `dpl_AoTiw3GL7Trcox2Q7LoH3HSq8AZw`
+- Latest result-staging UI/API deployment URL: `https://s5-evo-portal-fp4nqzxs9-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: 2026-07-15 19:27 UTC
+- Initial foundation deployed at: 2026-07-15 19:27 UTC
+- Latest UI/API deployed at: 2026-07-16 04:50 UTC
 
 ## Post-Deploy Smoke
 
@@ -190,6 +193,10 @@ Sebastian clarified that official results will come from multiple sources: legac
 - Result:
   - Deployment and additive migration verified.
   - No result staging data was created by the migration.
+  - Latest UI/API deploy verified the `/admin` page returns 200.
+  - New protected result-staging APIs return 401 without session:
+    - `GET /api/admin/result-staging/batches`
+    - `POST /api/admin/result-staging/reset/preview`
 
 ## Follow-Ups
 
@@ -197,4 +204,3 @@ Sebastian clarified that official results will come from multiple sources: legac
 - Build legacy import parser into `ResultDataBatch`/`ResultRawRecord`.
 - Build timekeeping-to-draft derivation from `TimekeepingEvent`.
 - Build explicit publish workflow into `DisciplineResult`.
-- Deploy/smoke the read-only preview APIs after separate Go.
