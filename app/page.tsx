@@ -1,11 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
+import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
 import NavBar from "./components/nav-bar";
 import HomeScreen from "./components/home-screen";
 import TeamScreen from "./components/team-screen";
@@ -262,6 +264,24 @@ export default function Home() {
                       <span className="text-lg">⏱️</span>
                       <p className="font-medium text-sm">Zeitnahme</p>
                       <p className="text-xs text-muted-foreground">Offline-Stoppuhr, Rohzeiten und Sync-Status</p>
+                    </button>
+                  )}
+                  {can("config.edit") && (
+                    <button onClick={() => router.push('/admin/ergebnisse')} className="overflow-hidden rounded-md border border-border/40 bg-card text-left shadow-sm transition-colors hover:bg-accent">
+                      <div className="relative h-24">
+                        <Image
+                          src={FIVE_KAMPF_BRAND.banner}
+                          alt=""
+                          fill
+                          sizes="(min-width: 640px) 50vw, 100vw"
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/68 via-black/38 to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 p-3 text-white">
+                          <p className="text-sm font-semibold">Ergebnisdaten</p>
+                          <p className="mt-0.5 text-xs text-white/80">Pakete prüfen, Uhr-Sync übernehmen und Staging kontrollieren</p>
+                        </div>
+                      </div>
                     </button>
                   )}
                   {can("config.edit") && (

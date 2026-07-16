@@ -28,6 +28,7 @@ import {
 import { evaluateTeamState } from "@/lib/domain/classification";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
 import type { EditParticipantResult } from "@/lib/participant-edit-result";
+import { DisciplineBrandBadge } from "./discipline-brand";
 
 type TeamParticipantSnapshot = {
   id?: string;
@@ -131,7 +132,7 @@ function normalizeComparableText(value?: string | null) {
 function getDisciplineLabel(value?: string | null) {
   if (!value || value === "TBD") return "Noch offen";
   const discipline = DISCIPLINES.find((entry) => entry.id === value);
-  return discipline ? `${discipline.icon} ${discipline.label}` : value;
+  return discipline ? discipline.label : value;
 }
 
 function getParticipantDisplayName(participant?: Pick<TeamParticipantSnapshot, "firstName" | "lastName"> | null, fallback = "Teilnehmer:in") {
@@ -1101,8 +1102,14 @@ export default function ParticipantEditDialog({
 
                     return (
                       <SelectItem key={d.id} value={d.id}>
-                        {d.icon} {d.label}
-                        {isSwapTarget && occupiedParticipant ? ` - tauschen mit ${getParticipantDisplayName(occupiedParticipant)}` : ""}
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <DisciplineBrandBadge code={d.id} label={d.label} />
+                          {isSwapTarget && occupiedParticipant && (
+                            <span className="text-muted-foreground">
+                              - tauschen mit {getParticipantDisplayName(occupiedParticipant)}
+                            </span>
+                          )}
+                        </span>
                       </SelectItem>
                     );
                   })}

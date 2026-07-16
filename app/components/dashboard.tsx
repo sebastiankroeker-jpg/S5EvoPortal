@@ -52,6 +52,7 @@ import {
   type AccountLinkClaimStatus,
 } from "@/lib/account-link-status";
 import { DASHBOARD_SCOPE_STORAGE_KEY, getStoredDashboardScope, setStoredDashboardScope } from "@/lib/dashboard-navigation";
+import { DisciplineBrandBadge, DisciplineBrandIcon } from "./discipline-brand";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -211,7 +212,7 @@ type MarketplaceMatchingFinalizePayload = {
 function getDisciplineLabel(value?: string | null) {
   if (!value || value === "TBD") return "Noch offen";
   const discipline = DISCIPLINES.find((entry) => entry.id === value);
-  return discipline ? `${discipline.icon} ${discipline.label}` : value;
+  return discipline ? discipline.label : value;
 }
 
 type EditableParticipant = Omit<Participant, "id"> & { id: string };
@@ -1432,7 +1433,7 @@ function MarketplacePersonSummary({
             )}
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
-            <span>{discipline ? `${discipline.icon} ${discipline.label}` : "Disziplin offen"}</span>
+            <DisciplineBrandBadge code={disciplineCode} label={discipline?.label || "Disziplin offen"} />
             {participant?.birthDate && <span>{participant.birthDate}</span>}
             {participant?.email && <span>{participant.email}</span>}
           </div>
@@ -4253,7 +4254,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                         }
                                       }}
                                     >
-                                      <span className="shrink-0 text-sm" aria-hidden="true">{discipline.icon}</span>
+                                      <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-6 rounded" />
                                       <span className="min-w-0 truncate text-xs font-medium leading-5 text-foreground">
                                         {participantLabel}
                                       </span>
@@ -4732,12 +4733,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                       }}
                                     >
                                       <div className="flex min-w-0 items-center gap-2">
-                                        <span
-                                          className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-base"
-                                          title={discipline.label}
-                                        >
-                                          {discipline.icon}
-                                        </span>
+                                        <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-8" />
                                         <div className="min-w-0 flex-1">
                                           <p className="truncate text-[10px] font-medium uppercase text-muted-foreground" title={discipline.label}>
                                             {discipline.label}
@@ -5443,7 +5439,9 @@ function MarketplaceMatchingModal({
                       <div key={discipline.id} className="relative rounded-md border border-border/60 bg-background p-2">
                         <div className="flex min-h-12 items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-medium text-muted-foreground">{discipline.icon} {discipline.label}</p>
+                            <p className="text-xs font-medium text-muted-foreground">
+                              <DisciplineBrandBadge code={discipline.id} label={discipline.label} />
+                            </p>
                             {participant ? (
                               <>
                                 <p className="truncate text-sm font-medium">{getParticipantDisplayName(participant, participantIndex)}</p>
@@ -6404,8 +6402,14 @@ function EditTeamModal({
 
                             return (
                               <SelectItem key={discipline.id} value={discipline.id}>
-                                {discipline.icon} {discipline.label}
-                                {slotParticipant ? ` - tauschen mit ${getParticipantDisplayName(slotParticipant, slotParticipantIndex)}` : ""}
+                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                                  <DisciplineBrandBadge code={discipline.id} label={discipline.label} />
+                                  {slotParticipant && (
+                                    <span className="text-muted-foreground">
+                                      - tauschen mit {getParticipantDisplayName(slotParticipant, slotParticipantIndex)}
+                                    </span>
+                                  )}
+                                </span>
                               </SelectItem>
                             );
                           })}

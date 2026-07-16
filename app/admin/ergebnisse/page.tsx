@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
+import { FIVE_KAMPF_BRAND, type BrandDisciplineCode } from "@/lib/brand-assets";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 
@@ -134,6 +136,11 @@ const STATUS_FILTERS = [
   { value: "DISCARDED", label: "Verworfen" },
   { value: "ERROR", label: "Fehler" },
 ];
+
+const BRAND_DISCIPLINES = Object.entries(FIVE_KAMPF_BRAND.disciplines) as Array<[
+  BrandDisciplineCode,
+  (typeof FIVE_KAMPF_BRAND.disciplines)[BrandDisciplineCode],
+]>;
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
@@ -391,30 +398,43 @@ export default function ResultDataWorkbenchPage() {
     <div className="min-h-screen bg-background pb-24 lg:pb-0">
       <NavBar />
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">Ergebnisdaten</h1>
-            <p className="text-sm text-muted-foreground">
-              Raw Packages annehmen, Zuordnungen klären und Ergebnisdaten kontrolliert Richtung Veröffentlichung führen.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Aktiver Wettkampf: {activeCompetition?.name || "Kein Wettkampf ausgewählt"}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                void loadBatches();
-                void loadTimekeepingSessions();
-              }}
-              disabled={loading || loadingTimekeeping || !activeCompetition?.id}
-            >
-              {loading ? "Lade..." : "Aktualisieren"}
-            </Button>
-            <Link href="/admin?tab=competition">
-              <Button variant="outline">Wettkampf-Admin</Button>
-            </Link>
+        <div className="overflow-hidden rounded-md border border-border/60 bg-card">
+          <div className="relative min-h-[170px]">
+            <Image
+              src={FIVE_KAMPF_BRAND.banner}
+              alt=""
+              fill
+              sizes="(min-width: 1280px) 1184px, 100vw"
+              className="object-cover"
+              priority
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/72 via-black/42 to-black/10" />
+            <div className="relative flex min-h-[170px] flex-col justify-end gap-3 p-5 text-white md:flex-row md:items-end md:justify-between md:p-6">
+              <div className="max-w-2xl space-y-1">
+                <h1 className="text-3xl font-bold tracking-tight">Ergebnisdaten</h1>
+                <p className="text-sm text-white/85">
+                  Raw Packages annehmen, Zuordnungen klären und Ergebnisdaten kontrolliert Richtung Veröffentlichung führen.
+                </p>
+                <p className="text-xs text-white/75">
+                  Aktiver Wettkampf: {activeCompetition?.name || "Kein Wettkampf ausgewählt"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    void loadBatches();
+                    void loadTimekeepingSessions();
+                  }}
+                  disabled={loading || loadingTimekeeping || !activeCompetition?.id}
+                >
+                  {loading ? "Lade..." : "Aktualisieren"}
+                </Button>
+                <Link href="/admin?tab=competition">
+                  <Button variant="secondary">Wettkampf-Admin</Button>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -446,6 +466,39 @@ export default function ResultDataWorkbenchPage() {
                 ))}
               </select>
               <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Paket, Quelle, Ref suchen" />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <button
+                type="button"
+                onClick={() => setDiscipline("all")}
+                className={`flex h-20 items-center gap-3 rounded-md border px-3 text-left transition-colors ${
+                  discipline === "all"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background hover:bg-muted"
+                }`}
+              >
+                <span className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
+                  <Image src={FIVE_KAMPF_BRAND.mark} alt="" fill sizes="48px" className="object-cover" />
+                </span>
+                <span className="text-sm font-medium">Alle Disziplinen</span>
+              </button>
+              {BRAND_DISCIPLINES.map(([code, brandDiscipline]) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setDiscipline(code)}
+                  className={`flex h-20 items-center gap-3 rounded-md border px-3 text-left transition-colors ${
+                    discipline === code
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-muted"
+                  }`}
+                >
+                  <span className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
+                    <Image src={brandDiscipline.image} alt="" fill sizes="48px" className="object-cover" />
+                  </span>
+                  <span className="min-w-0 text-sm font-medium leading-tight">{brandDiscipline.label}</span>
+                </button>
+              ))}
             </div>
             <div className="flex flex-wrap gap-2">
               {WORKBENCH_TABS.map((tab) => (

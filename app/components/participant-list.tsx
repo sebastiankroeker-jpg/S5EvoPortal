@@ -10,6 +10,7 @@ import { Download, RefreshCw, SlidersHorizontal, XCircle } from "lucide-react";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { openChangesDashboard, openTeamDashboard } from "@/lib/admin-routing";
+import { DisciplineBrandBadge, DisciplineBrandIcon } from "./discipline-brand";
 import ParticipantEditDialog from "./participant-edit-dialog";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 import {
@@ -38,13 +39,13 @@ interface ParticipantEntry {
   hasPendingChange: boolean;
 }
 
-const DISCIPLINE_LABELS: Record<string, { icon: string; label: string }> = {
-  RUN: { icon: "🏃", label: "Laufen" },
-  BENCH: { icon: "🏋️", label: "Bankdrücken" },
-  STOCK: { icon: "🎯", label: "Stockschießen" },
-  ROAD: { icon: "🚴", label: "Rennrad" },
-  MTB: { icon: "🚵", label: "Mountainbike" },
-  TBD: { icon: "❓", label: "Offen" },
+const DISCIPLINE_LABELS: Record<string, { label: string }> = {
+  RUN: { label: "Laufen" },
+  BENCH: { label: "Bankdrücken" },
+  STOCK: { label: "Stockschießen" },
+  ROAD: { label: "Rennrad" },
+  MTB: { label: "Mountainbike" },
+  TBD: { label: "Offen" },
 };
 
 const GENDER_LABELS: Record<string, string> = {
@@ -241,7 +242,7 @@ export default function ParticipantList() {
     <div className="space-y-3 participant-list">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">
-          🏃 Teilnehmerübersicht ({filtered.length}/{participants.length})
+          Teilnehmerübersicht ({filtered.length}/{participants.length})
         </h3>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="outline" onClick={() => window.print()}>
@@ -333,7 +334,9 @@ export default function ParticipantList() {
                     <SelectContent>
                       <SelectItem value="all">Alle Disziplinen</SelectItem>
                       {Object.entries(DISCIPLINE_LABELS).map(([code, d]) => (
-                        <SelectItem key={code} value={code}>{d.icon} {d.label}</SelectItem>
+                        <SelectItem key={code} value={code}>
+                          <DisciplineBrandBadge code={code} label={d.label} />
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -371,7 +374,7 @@ export default function ParticipantList() {
                 >
                   <div className="grid gap-2 rounded-lg border border-border/30 p-2.5 transition-colors hover:bg-accent/50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                     <div className="flex min-w-0 items-start gap-3">
-                      <span className="mt-0.5 shrink-0 text-lg">{disc.icon}</span>
+                      <DisciplineBrandIcon code={p.disciplineCode} label={disc.label} className="mt-0.5 size-9" />
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                           <span className="min-w-0 truncate text-sm font-medium">
