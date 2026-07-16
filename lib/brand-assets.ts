@@ -18,11 +18,11 @@ export const FIVE_KAMPF_BRAND = {
     },
     ROAD: {
       label: "Rennrad",
-      image: "/brand/5kampf/road.webp",
+      image: "/brand/5kampf/mtb.webp",
     },
     MTB: {
       label: "Mountainbike",
-      image: "/brand/5kampf/mtb.webp",
+      image: "/brand/5kampf/road.webp",
     },
   } satisfies Record<BrandDisciplineCode, { label: string; image: string }>,
 } as const;
