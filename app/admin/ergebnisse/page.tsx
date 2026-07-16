@@ -55,6 +55,46 @@ type BatchesResponse = {
   error?: string;
 };
 
+type TimekeepingSessionSummary = {
+  id: string;
+  deviceId: string;
+  disciplineCode: string;
+  startBlockName: string;
+  status: string;
+  firstStartNumber: number | null;
+  startIntervalSeconds: number;
+  manualStartedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  counts: {
+    finishEvents: number;
+    finishWithStartNumber: number;
+    finishWithoutStartNumber: number;
+    withElapsed: number;
+    importedFinishEvents: number;
+    newFinishEvents: number;
+  };
+};
+
+type TimekeepingSessionsResponse = {
+  sessions?: TimekeepingSessionSummary[];
+  error?: string;
+};
+
+type TimekeepingImportResponse = {
+  batchId?: string;
+  label?: string | null;
+  counts?: {
+    finishEvents: number;
+    importedRecords: number;
+    skippedDuplicates: number;
+    missingStartNumber: number;
+    missingElapsed: number;
+    warnings: number;
+  };
+  error?: string;
+};
+
 const WORKBENCH_TABS: Array<{ id: WorkbenchTab; label: string; description: string }> = [
   { id: "overview", label: "Überblick", description: "Ampeln, offene Pakete und Konflikte pro Ergebnisfluss." },
   { id: "packages", label: "Pakete", description: "Raw Packages aus Uhr, Legacy-Import und manueller Pflege." },
@@ -112,6 +152,10 @@ function packageTitle(batch: ResultStagingBatch) {
   return batch.label || batch.externalRef || batch.id;
 }
 
+function timekeepingSessionTitle(timekeepingSession: TimekeepingSessionSummary) {
+  return `${timekeepingSession.disciplineCode} • ${timekeepingSession.startBlockName} • ${formatDateTime(timekeepingSession.updatedAt)}`;
+}
+
 function selectClassName() {
   return "h-10 rounded-md border border-border bg-background px-3 text-sm";
 }
@@ -138,8 +182,14 @@ export default function ResultDataWorkbenchPage() {
   const [batchStatus, setBatchStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingTimekeeping, setLoadingTimekeeping] = useState(false);
+  const [importingTimekeeping, setImportingTimekeeping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timekeepingFeedback, setTimekeepingFeedback] = useState<string | null>(null);
   const [batches, setBatches] = useState<ResultStagingBatch[]>([]);
+  const [timekeepingSessions, setTimekeepingSessions] = useState<TimekeepingSessionSummary[]>([]);
+  const [selectedTimekeepingSessionId, setSelectedTimekeepingSessionId] = useState("");
+  const [timekeepingPurpose, setTimekeepingPurpose] = useState("PROD_TEST");
 
   const hasAdminAccess = !!session && can("config.edit");
 
@@ -173,11 +223,85 @@ export default function ResultDataWorkbenchPage() {
     }
   }, [activeCompetition?.id, hasAdminAccess]);
 
+  const loadTimekeepingSessions = useCallback(async () => {
+    if (!activeCompetition?.id || !hasAdminAccess) return;
+
+    setLoadingTimekeeping(true);
+    try {
+      const params = new URLSearchParams({
+        competitionId: activeCompetition.id,
+      });
+      if (discipline !== "all" && ["RUN", "ROAD", "MTB"].includes(discipline)) {
+        params.set("disciplineCode", discipline);
+      }
+      const response = await fetch(`/api/admin/result-staging/timekeeping/sessions?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => ({}))) as TimekeepingSessionsResponse;
+      if (!response.ok) {
+        throw new Error(data.error || "Zeitnahme-Sessions konnten nicht geladen werden.");
+      }
+      const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      setTimekeepingSessions(sessions);
+      setSelectedTimekeepingSessionId((current) => (
+        current && sessions.some((timekeepingSession) => timekeepingSession.id === current)
+          ? current
+          : sessions[0]?.id || ""
+      ));
+    } catch (requestError) {
+      setTimekeepingSessions([]);
+      setSelectedTimekeepingSessionId("");
+      setError(requestError instanceof Error ? requestError.message : "Zeitnahme-Sessions konnten nicht geladen werden.");
+    } finally {
+      setLoadingTimekeeping(false);
+    }
+  }, [activeCompetition?.id, discipline, hasAdminAccess]);
+
   useEffect(() => {
     if (!permissionsLoading && hasAdminAccess) {
       void loadBatches();
+      void loadTimekeepingSessions();
     }
-  }, [hasAdminAccess, loadBatches, permissionsLoading]);
+  }, [hasAdminAccess, loadBatches, loadTimekeepingSessions, permissionsLoading]);
+
+  const selectedTimekeepingSession = useMemo(
+    () => timekeepingSessions.find((timekeepingSession) => timekeepingSession.id === selectedTimekeepingSessionId) || null,
+    [selectedTimekeepingSessionId, timekeepingSessions],
+  );
+
+  const importTimekeepingSession = async () => {
+    if (!activeCompetition?.id || !selectedTimekeepingSession || importingTimekeeping) return;
+
+    setImportingTimekeeping(true);
+    setError(null);
+    setTimekeepingFeedback(null);
+    try {
+      const response = await fetch("/api/admin/result-staging/timekeeping/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          sessionId: selectedTimekeepingSession.id,
+          purpose: timekeepingPurpose,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as TimekeepingImportResponse;
+      if (!response.ok) {
+        throw new Error(data.error || "Zeitnahme-Session konnte nicht uebernommen werden.");
+      }
+
+      setSource("TIMEKEEPING_SYNC");
+      setActiveTab("packages");
+      setTimekeepingFeedback(
+        `Paket ${data.label || data.batchId} erstellt: ${data.counts?.importedRecords ?? 0} Raw Records, ${data.counts?.warnings ?? 0} Warnungen.`,
+      );
+      await Promise.all([loadBatches(), loadTimekeepingSessions()]);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Zeitnahme-Session konnte nicht uebernommen werden.");
+    } finally {
+      setImportingTimekeeping(false);
+    }
+  };
 
   const filteredBatches = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -278,7 +402,14 @@ export default function ResultDataWorkbenchPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void loadBatches()} disabled={loading || !activeCompetition?.id}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void loadBatches();
+                void loadTimekeepingSessions();
+              }}
+              disabled={loading || loadingTimekeeping || !activeCompetition?.id}
+            >
               {loading ? "Lade..." : "Aktualisieren"}
             </Button>
             <Link href="/admin?tab=competition">
@@ -338,6 +469,12 @@ export default function ResultDataWorkbenchPage() {
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
+          </div>
+        )}
+
+        {timekeepingFeedback && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            {timekeepingFeedback}
           </div>
         )}
 
@@ -413,11 +550,96 @@ export default function ResultDataWorkbenchPage() {
               <CardTitle>Pakete</CardTitle>
               <CardDescription>{WORKBENCH_TABS.find((tab) => tab.id === activeTab)?.description}</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
+              <div className="rounded-md border border-border/60 bg-muted/20 px-4 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="space-y-1">
+                    <p className="font-medium">Zeitnahme-Sync übernehmen</p>
+                    <p className="text-sm text-muted-foreground">
+                      Zieleinlauf-Events aus einer Uhr-Session bewusst als Raw Package ins Ergebnis-Staging übernehmen.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => void loadTimekeepingSessions()}
+                    disabled={loadingTimekeeping || !activeCompetition?.id}
+                  >
+                    {loadingTimekeeping ? "Lade..." : "Sessions aktualisieren"}
+                  </Button>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(180px,220px)_auto]">
+                  <select
+                    value={selectedTimekeepingSessionId}
+                    onChange={(event) => setSelectedTimekeepingSessionId(event.target.value)}
+                    className={selectClassName()}
+                    disabled={loadingTimekeeping || timekeepingSessions.length === 0}
+                  >
+                    {timekeepingSessions.length === 0 ? (
+                      <option value="">Keine Zeitnahme-Session gefunden</option>
+                    ) : (
+                      timekeepingSessions.map((timekeepingSession) => (
+                        <option key={timekeepingSession.id} value={timekeepingSession.id}>
+                          {timekeepingSessionTitle(timekeepingSession)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <select
+                    value={timekeepingPurpose}
+                    onChange={(event) => setTimekeepingPurpose(event.target.value)}
+                    className={selectClassName()}
+                  >
+                    <option value="PROD_TEST">Produktionstest</option>
+                    <option value="PRODUCTION">Produktion</option>
+                    <option value="DRY_RUN">Dry Run</option>
+                  </select>
+                  <Button
+                    onClick={() => void importTimekeepingSession()}
+                    disabled={!selectedTimekeepingSession || selectedTimekeepingSession.counts.newFinishEvents === 0 || importingTimekeeping}
+                  >
+                    {importingTimekeeping ? "Übernehme..." : "Als Paket übernehmen"}
+                  </Button>
+                </div>
+
+                {selectedTimekeepingSession ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-6">
+                    <div className="rounded-md border border-border bg-background px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Finish</p>
+                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.finishEvents}</p>
+                    </div>
+                    <div className="rounded-md border border-border bg-background px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Neu</p>
+                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.newFinishEvents}</p>
+                    </div>
+                    <div className="rounded-md border border-border bg-background px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Bereits Paket</p>
+                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.importedFinishEvents}</p>
+                    </div>
+                    <div className="rounded-md border border-border bg-background px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Mit STRNR</p>
+                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.finishWithStartNumber}</p>
+                    </div>
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                      <p className="text-xs text-amber-900">Ohne STRNR</p>
+                      <p className="text-lg font-semibold text-amber-950">{selectedTimekeepingSession.counts.finishWithoutStartNumber}</p>
+                    </div>
+                    <div className="rounded-md border border-border bg-background px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Gerät</p>
+                      <p className="truncate text-sm font-medium">{selectedTimekeepingSession.deviceId}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Noch keine Uhr-Session im aktuellen Wettkampf/Disziplin-Filter gefunden.
+                  </p>
+                )}
+              </div>
+
               {filteredBatches.length === 0 ? (
                 <EmptyState
                   title="Keine Pakete gefunden."
-                  text="Der nächste Bauabschnitt ist der Legacy-Import in diese Paketliste. Danach können Pakete geöffnet, validiert und verworfen werden."
+                  text="Übernimm eine Zeitnahme-Session oder später einen Legacy-Import, damit hier Raw Packages zur Kontrolle erscheinen."
                 />
               ) : (
                 <div className="overflow-x-auto">

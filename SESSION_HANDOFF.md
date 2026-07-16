@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-16 08:27 UTC
+Stand: 2026-07-16 08:38 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand: Ergebnisdaten-Workbench ist lokal gebaut/geprueft und committed, aber noch nicht deployed/gepusht; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand: Timekeeping-to-Staging Intake ist lokal gebaut/geprueft, aber noch nicht committed/deployed/gepusht; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Result-Staging V1 Foundation:
   - CR: `docs/cr/2026-07-15-result-staging-v1.md`
@@ -43,14 +43,22 @@ Stand: 2026-07-16 08:27 UTC
     - Ausfuehrbar nur fuer `RAW_BATCH`, `DRAFTS`, `TEST_DATA`; `PUBLICATION` und `OFFICIAL_RESULTS` bleiben serverseitig blockiert.
     - Ausfuehrung braucht Begruendung + exakten Preview-Bestaetigungstext, schreibt `ResultResetSnapshot(mode=EXECUTED)` vor Delete und `RESULT_STAGING_RESET_EXECUTED` Audit.
     - Admin UI kann nach ausfuehrbarer Preview den Reset starten; loescht noch keine offiziellen `DisciplineResult`.
-    - Ergebnisdaten-Workbench lokal gebaut, noch nicht deployed:
+    - Ergebnisdaten-Workbench gebaut und deployed:
       - Route: `/admin/ergebnisse`.
       - Navigation: Sidebar, Search Overlay, Command Palette.
       - Workflow-Tabs: `Ueberblick`, `Pakete`, `Zuordnung & Validierung`.
       - Filter: Disziplin, Quelle, Zweck, Status, Suche.
       - Datenbasis: vorhandenes `GET /api/admin/result-staging/batches`; noch kein Publish, kein Raw-Row-Editing.
-    - Lokale Checks gruen: targeted ESLint, `npx prisma validate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
-  - Naechster Schritt: Ergebnisdaten-Workbench nach separatem Go deployen/smoken; danach Legacy-Import und Timekeeping-Draft-Ableitung. Noch kein Publish nach `DisciplineResult`.
+      - Production Deploy: `dpl_6PVaRGtjwPKVuz9JxyDuX8Mrd6Wi`; Smoke gruen: `/admin/ergebnisse` 200, public smoke gruen.
+    - Timekeeping-to-Staging Intake lokal gebaut:
+      - `GET /api/admin/result-staging/timekeeping/sessions` listet Uhr-Sessions mit Finish-/STRNR-/Import-Zaehlern.
+      - `POST /api/admin/result-staging/timekeeping/import` uebernimmt neue FINISH-Events bewusst als `TIMEKEEPING_SYNC`-Paket nach `ResultDataBatch`/`ResultRawRecord`.
+      - Workbench-Tab `Pakete` hat den Flow `Zeitnahme-Sync uebernehmen`: Session waehlen, Zweck `PROD_TEST`/`PRODUCTION`/`DRY_RUN` waehlen, Preview-Zaehler sehen, Paket erzeugen.
+      - Stable Row-Key `timekeeping:{eventId}` verhindert doppelte Uebernahme bereits gestagter Uhr-Events.
+      - Kein Publish nach `DisciplineResult`, keine Draft-Entscheidung; fehlende STRNR/Elapsed werden als Raw-Record-Warnungen markiert.
+      - Audit: `RESULT_TIMEKEEPING_SESSION_STAGED`.
+    - Lokale Checks fuer Intake bisher gruen: targeted ESLint, `npx tsc --noEmit --incremental false`.
+  - Naechster Schritt: Intake fertig verifizieren, committen; danach nach separatem Go deployen/smoken. Danach Paketdetail/Raw-Record-Ansicht, Legacy-Import und Timekeeping-Draft-Ableitung. Noch kein Publish nach `DisciplineResult`.
 - Deploy-Pfad fuer `portal.s5evo.de`:
   - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
   - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`

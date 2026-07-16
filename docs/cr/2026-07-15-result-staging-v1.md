@@ -165,6 +165,13 @@ Sebastian clarified that official results will come from multiple sources: legac
     - global filters for discipline, source, purpose, status, and search.
     - uses existing `GET /api/admin/result-staging/batches` for package summaries.
     - intentionally does not implement publish or raw-row editing yet.
+  - Added explicit timekeeping-to-staging intake locally:
+    - `GET /api/admin/result-staging/timekeeping/sessions` lists timekeeping sessions with finish-event preview counts.
+    - `POST /api/admin/result-staging/timekeeping/import` creates a `TIMEKEEPING_SYNC` `ResultDataBatch` plus `ResultRawRecord` rows from new `FINISH` events.
+    - Duplicate protection uses stable raw row keys: `timekeeping:{timekeepingEventId}` across existing staging rows.
+    - The `/admin/ergebnisse` `Pakete` tab now has a deliberate `Zeitnahme-Sync übernehmen` flow with session selection, purpose selection, preview counts, and import button.
+    - Missing start numbers and missing elapsed values are stored as raw-record warnings; no `DisciplineResult` writes and no publish/draft decision yet.
+    - Import emits audit action `RESULT_TIMEKEEPING_SESSION_STAGED`.
 
 ## Verification
 
@@ -177,6 +184,8 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `npx eslint app/admin/page.tsx app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed after adding the admin UI.
   - `npx eslint app/admin/page.tsx app/api/admin/audit-events/route.ts app/api/admin/result-staging/reset/preview/route.ts app/api/admin/result-staging/reset/route.ts lib/result-staging-reset.ts lib/result-staging.ts` passed after adding reset execution.
   - `npx eslint app/admin/ergebnisse/page.tsx app/components/sidebar.tsx app/components/search-overlay.tsx app/components/command-pill.tsx lib/navigation-menu.ts` passed after adding the workbench.
+  - `npx eslint app/admin/ergebnisse/page.tsx app/api/admin/result-staging/timekeeping/sessions/route.ts app/api/admin/result-staging/timekeeping/import/route.ts app/api/admin/audit-events/route.ts` passed after adding timekeeping intake.
+  - `npx tsc --noEmit --incremental false` passed after adding timekeeping intake.
 - Build:
   - `npm run build` passed.
 - Targeted verification:
@@ -224,8 +233,8 @@ Sebastian clarified that official results will come from multiple sources: legac
 
 ## Follow-Ups
 
-- Deploy/smoke guarded Result Reset Execution V1 after separate Go.
-- Deploy/smoke `/admin/ergebnisse` workbench after separate Go.
+- Deploy/smoke explicit timekeeping-to-staging intake after separate Go.
+- Add package detail view with raw records.
 - Build legacy import parser into `ResultDataBatch`/`ResultRawRecord`.
 - Build timekeeping-to-draft derivation from `TimekeepingEvent`.
 - Build explicit publish workflow into `DisciplineResult`.
