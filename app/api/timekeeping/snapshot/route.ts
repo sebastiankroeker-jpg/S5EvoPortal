@@ -62,8 +62,12 @@ export async function GET(request: NextRequest) {
     where: {
       competitionId,
       deletedAt: null,
-      approved: true,
-      ...(includeTestStartNumbers ? {} : { startNumber: { not: null } }),
+      ...(includeTestStartNumbers
+        ? {}
+        : {
+            approved: true,
+            startNumber: { not: null },
+          }),
     },
     select: {
       id: true,

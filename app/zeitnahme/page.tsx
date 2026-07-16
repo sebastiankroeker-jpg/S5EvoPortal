@@ -801,7 +801,7 @@ export default function TimekeepingPage() {
       type="button"
       onClick={() => toggleSort(nextSort)}
       className={cn(
-        "flex items-center gap-1 text-left text-xs font-semibold",
+        "flex items-center gap-0.5 whitespace-nowrap text-left text-xs font-semibold",
         sort === nextSort ? "text-primary" : "text-muted-foreground",
       )}
     >
@@ -1257,29 +1257,29 @@ export default function TimekeepingPage() {
             {filteredEvents.length === 0 ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Keine Zeiten in der aktuellen Ansicht.</div>
             ) : (
-              <table className="w-full min-w-[820px] table-fixed text-sm">
+              <table className="w-full min-w-[650px] table-fixed text-sm">
                 <thead className="border-b border-border/60 bg-muted/30">
                   <tr>
-                    <th className="w-20 px-2 py-2 text-left">
-                      {renderSortHeader("finishOrder", "Reihenf.")}
+                    <th className="w-14 px-1.5 py-2 text-left">
+                      {renderSortHeader("finishOrder", "Reihe")}
                     </th>
-                    <th className="w-28 px-2 py-2 text-left">
-                      {renderSortHeader("netTime", "Netto-Zeit")}
+                    <th className="w-24 px-1.5 py-2 text-left">
+                      {renderSortHeader("netTime", "Zeit")}
                     </th>
-                    <th className="w-32 px-2 py-2 text-left">
+                    <th className="w-20 px-1.5 py-2 text-left">
                       {renderSortHeader("startNumber", "STRNR")}
                     </th>
-                    <th className="w-28 px-2 py-2 text-left">{renderSortHeader("classification", "Klasse")}</th>
-                    <th className="w-28 px-2 py-2 text-left">{renderSortHeader("firstName", "Vorname")}</th>
-                    <th className="w-32 px-2 py-2 text-left">{renderSortHeader("lastName", "Name")}</th>
-                    <th className="w-44 px-2 py-2 text-left">{renderSortHeader("teamName", "Team")}</th>
+                    <th className="w-20 px-1.5 py-2 text-left">{renderSortHeader("classification", "Klasse")}</th>
+                    <th className="w-24 px-1.5 py-2 text-left">{renderSortHeader("firstName", "Vorname")}</th>
+                    <th className="w-24 px-1.5 py-2 text-left">{renderSortHeader("lastName", "Name")}</th>
+                    <th className="w-28 px-1.5 py-2 text-left">{renderSortHeader("teamName", "Team")}</th>
                     {helperColumns.recordedAt && (
-                      <th className="w-24 px-2 py-2 text-left">
+                      <th className="w-20 px-1.5 py-2 text-left">
                         {renderSortHeader("recordedDesc", "Uhrzeit")}
                       </th>
                     )}
-                    {helperColumns.status && <th className="w-24 px-2 py-2 text-left">{renderSortHeader("status", "Status")}</th>}
-                    {helperColumns.assignment && <th className="w-44 px-2 py-2 text-left">{renderSortHeader("assignment", "Zuordnung")}</th>}
+                    {helperColumns.status && <th className="w-20 px-1.5 py-2 text-left">{renderSortHeader("status", "Status")}</th>}
+                    {helperColumns.assignment && <th className="w-32 px-1.5 py-2 text-left">{renderSortHeader("assignment", "Zuordnung")}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1297,13 +1297,13 @@ export default function TimekeepingPage() {
                           hasWarning && "bg-orange-50/70 dark:bg-orange-950/20",
                         )}
                       >
-                        <td className="px-2 py-2 align-top font-mono text-muted-foreground">
+                        <td className="px-1.5 py-2 align-top font-mono text-muted-foreground">
                           {finishOrderById.get(event.clientEventId) ?? "—"}
                         </td>
-                        <td className="px-2 py-2 align-top font-mono text-base font-semibold tabular-nums">
+                        <td className="px-1.5 py-2 align-top font-mono text-base font-semibold tabular-nums">
                           {formatDuration(event.netElapsedMs)}
                         </td>
-                        <td className="px-2 py-2 align-top">
+                        <td className="px-1.5 py-2 align-top">
                           {isAssigning ? (
                             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_40px] gap-1">
                               <Input
@@ -1350,18 +1350,18 @@ export default function TimekeepingPage() {
                             </Button>
                           )}
                         </td>
-                        <td className="truncate px-2 py-2 align-top">{starter?.classificationLabel ?? "—"}</td>
-                        <td className="truncate px-2 py-2 align-top">{starter?.firstName ?? "—"}</td>
-                        <td className="truncate px-2 py-2 align-top">{starter?.lastName ?? "—"}</td>
-                        <td className="truncate px-2 py-2 align-top">{starter?.teamName ?? "—"}</td>
-                        {helperColumns.recordedAt && <td className="px-2 py-2 align-top font-mono text-muted-foreground">{formatClock(event.recordedAt)}</td>}
+                        <td className="truncate px-1.5 py-2 align-top">{starter?.classificationLabel ?? "—"}</td>
+                        <td className="truncate px-1.5 py-2 align-top">{starter?.firstName ?? "—"}</td>
+                        <td className="truncate px-1.5 py-2 align-top">{starter?.lastName ?? "—"}</td>
+                        <td className="truncate px-1.5 py-2 align-top">{starter?.teamName ?? "—"}</td>
+                        {helperColumns.recordedAt && <td className="px-1.5 py-2 align-top font-mono text-muted-foreground">{formatClock(event.recordedAt)}</td>}
                         {helperColumns.status && (
-                          <td className="px-2 py-2 align-top">
+                          <td className="px-1.5 py-2 align-top">
                             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{visibleEventStatus(event)}</span>
                           </td>
                         )}
                         {helperColumns.assignment && (
-                          <td className="truncate px-2 py-2 align-top text-muted-foreground">
+                          <td className="truncate px-1.5 py-2 align-top text-muted-foreground">
                             {starter ? "lokal zugeordnet" : "Keine lokale Zuordnung"}
                           </td>
                         )}
