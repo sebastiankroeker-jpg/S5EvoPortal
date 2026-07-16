@@ -796,17 +796,19 @@ export default function TimekeepingPage() {
       });
   }, [activeBlockStarters, activeSession?.events, disciplineSnapshot?.starters, filter, finishOrderById, query, sort, sortDirection]);
 
-  const renderSortHeader = (nextSort: SortId, label: string) => (
+  const renderSortHeader = (nextSort: SortId, label: string, title = label) => (
     <button
       type="button"
+      title={title}
+      aria-label={`${title} sortieren`}
       onClick={() => toggleSort(nextSort)}
       className={cn(
-        "flex items-center gap-0.5 whitespace-nowrap text-left text-xs font-semibold",
+        "flex items-center gap-0.5 whitespace-nowrap text-left text-[11px] font-semibold sm:text-xs",
         sort === nextSort ? "text-primary" : "text-muted-foreground",
       )}
     >
       {label}
-      <ArrowDownUp className="size-3.5" />
+      <ArrowDownUp className="size-3 shrink-0 sm:size-3.5" />
     </button>
   );
 
@@ -1257,29 +1259,29 @@ export default function TimekeepingPage() {
             {filteredEvents.length === 0 ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Keine Zeiten in der aktuellen Ansicht.</div>
             ) : (
-              <table className="w-full min-w-[650px] table-fixed text-sm">
+              <table className="w-full min-w-[610px] table-fixed text-sm">
                 <thead className="border-b border-border/60 bg-muted/30">
                   <tr>
-                    <th className="w-14 px-1.5 py-2 text-left">
-                      {renderSortHeader("finishOrder", "Reihe")}
+                    <th className="w-12 px-1 py-2 text-left">
+                      {renderSortHeader("finishOrder", "R.", "Reihenfolge")}
                     </th>
-                    <th className="w-24 px-1.5 py-2 text-left">
-                      {renderSortHeader("netTime", "Zeit")}
+                    <th className="w-24 px-1 py-2 text-left">
+                      {renderSortHeader("netTime", "Zeit", "Netto-Zeit")}
                     </th>
-                    <th className="w-20 px-1.5 py-2 text-left">
-                      {renderSortHeader("startNumber", "STRNR")}
+                    <th className="w-28 px-1 py-2 text-left">
+                      {renderSortHeader("startNumber", "Nr.", "Startnummer")}
                     </th>
-                    <th className="w-20 px-1.5 py-2 text-left">{renderSortHeader("classification", "Klasse")}</th>
-                    <th className="w-24 px-1.5 py-2 text-left">{renderSortHeader("firstName", "Vorname")}</th>
-                    <th className="w-24 px-1.5 py-2 text-left">{renderSortHeader("lastName", "Name")}</th>
-                    <th className="w-28 px-1.5 py-2 text-left">{renderSortHeader("teamName", "Team")}</th>
+                    <th className="w-16 px-1 py-2 text-left">{renderSortHeader("classification", "Kl.", "Klasse")}</th>
+                    <th className="w-20 px-1 py-2 text-left">{renderSortHeader("firstName", "Vor.", "Vorname")}</th>
+                    <th className="w-20 px-1 py-2 text-left">{renderSortHeader("lastName", "Name", "Nachname")}</th>
+                    <th className="w-24 px-1 py-2 text-left">{renderSortHeader("teamName", "Team", "Team")}</th>
                     {helperColumns.recordedAt && (
-                      <th className="w-20 px-1.5 py-2 text-left">
-                        {renderSortHeader("recordedDesc", "Uhrzeit")}
+                      <th className="w-16 px-1 py-2 text-left">
+                        {renderSortHeader("recordedDesc", "Uhr", "Uhrzeit")}
                       </th>
                     )}
-                    {helperColumns.status && <th className="w-20 px-1.5 py-2 text-left">{renderSortHeader("status", "Status")}</th>}
-                    {helperColumns.assignment && <th className="w-32 px-1.5 py-2 text-left">{renderSortHeader("assignment", "Zuordnung")}</th>}
+                    {helperColumns.status && <th className="w-16 px-1 py-2 text-left">{renderSortHeader("status", "Stat.", "Sync-Status")}</th>}
+                    {helperColumns.assignment && <th className="w-28 px-1 py-2 text-left">{renderSortHeader("assignment", "Zuord.", "Zuordnung")}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1297,15 +1299,15 @@ export default function TimekeepingPage() {
                           hasWarning && "bg-orange-50/70 dark:bg-orange-950/20",
                         )}
                       >
-                        <td className="px-1.5 py-2 align-top font-mono text-muted-foreground">
+                        <td className="px-1 py-2 align-top font-mono text-muted-foreground">
                           {finishOrderById.get(event.clientEventId) ?? "—"}
                         </td>
-                        <td className="px-1.5 py-2 align-top font-mono text-base font-semibold tabular-nums">
+                        <td className="px-1 py-2 align-top font-mono text-base font-semibold tabular-nums">
                           {formatDuration(event.netElapsedMs)}
                         </td>
-                        <td className="px-1.5 py-2 align-top">
+                        <td className="px-1 py-2 align-top">
                           {isAssigning ? (
-                            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_40px] gap-1">
+                            <div className="grid min-w-0 grid-cols-[minmax(4.25rem,1fr)_44px] gap-1">
                               <Input
                                 inputMode="numeric"
                                 pattern="[0-9]*"
@@ -1315,10 +1317,10 @@ export default function TimekeepingPage() {
                                 onKeyDown={(keyboardEvent) => {
                                   if (keyboardEvent.key === "Enter") assignStartNumber(event.clientEventId);
                                 }}
-                                className="h-10 min-w-0 text-base"
+                                className="h-11 min-w-0 px-2 text-lg font-semibold tabular-nums"
                                 autoFocus
                               />
-                              <Button size="icon" className="h-10 w-10 shrink-0" onClick={() => assignStartNumber(event.clientEventId)} aria-label="Startnummer speichern">
+                              <Button size="icon" className="h-11 w-11 shrink-0" onClick={() => assignStartNumber(event.clientEventId)} aria-label="Startnummer speichern">
                                 <Check className="size-4" />
                               </Button>
                             </div>
@@ -1326,7 +1328,7 @@ export default function TimekeepingPage() {
                             <button
                               type="button"
                               className={cn(
-                                "inline-flex min-w-12 items-center justify-center rounded-md bg-primary/10 px-2 py-1 font-semibold text-primary",
+                                "inline-flex min-w-12 items-center justify-center rounded-md bg-primary/10 px-2 py-1 font-semibold text-primary tabular-nums",
                                 duplicateStartNumbers.has(normalizedStartNumber) && "bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100",
                               )}
                               onClick={() => {
@@ -1340,7 +1342,7 @@ export default function TimekeepingPage() {
                             <Button
                               size="sm"
                               variant="secondary"
-                              className="h-8 w-full"
+                              className="h-9 w-full px-1 text-xs"
                               onClick={() => {
                                 setAssigningEventId(event.clientEventId);
                                 setAssignValue("");
@@ -1350,18 +1352,18 @@ export default function TimekeepingPage() {
                             </Button>
                           )}
                         </td>
-                        <td className="truncate px-1.5 py-2 align-top">{starter?.classificationLabel ?? "—"}</td>
-                        <td className="truncate px-1.5 py-2 align-top">{starter?.firstName ?? "—"}</td>
-                        <td className="truncate px-1.5 py-2 align-top">{starter?.lastName ?? "—"}</td>
-                        <td className="truncate px-1.5 py-2 align-top">{starter?.teamName ?? "—"}</td>
-                        {helperColumns.recordedAt && <td className="px-1.5 py-2 align-top font-mono text-muted-foreground">{formatClock(event.recordedAt)}</td>}
+                        <td className="truncate px-1 py-2 align-top">{starter?.classificationLabel ?? "—"}</td>
+                        <td className="truncate px-1 py-2 align-top">{starter?.firstName ?? "—"}</td>
+                        <td className="truncate px-1 py-2 align-top">{starter?.lastName ?? "—"}</td>
+                        <td className="truncate px-1 py-2 align-top">{starter?.teamName ?? "—"}</td>
+                        {helperColumns.recordedAt && <td className="px-1 py-2 align-top font-mono text-muted-foreground">{formatClock(event.recordedAt)}</td>}
                         {helperColumns.status && (
-                          <td className="px-1.5 py-2 align-top">
+                          <td className="px-1 py-2 align-top">
                             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{visibleEventStatus(event)}</span>
                           </td>
                         )}
                         {helperColumns.assignment && (
-                          <td className="truncate px-1.5 py-2 align-top text-muted-foreground">
+                          <td className="truncate px-1 py-2 align-top text-muted-foreground">
                             {starter ? "lokal zugeordnet" : "Keine lokale Zuordnung"}
                           </td>
                         )}
