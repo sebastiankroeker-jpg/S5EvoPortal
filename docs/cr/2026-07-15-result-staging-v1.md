@@ -150,6 +150,14 @@ Sebastian clarified that official results will come from multiple sources: legac
     - shows recent result-staging batches and aggregate raw/draft/publication counts.
     - calls reset preview by scope, batch, publication, discipline, participant, or start number.
     - keeps destructive reset execution disabled in the UI.
+  - Added guarded Result Reset Execution V1 locally:
+    - `POST /api/admin/result-staging/reset`
+    - shared helper in `lib/result-staging-reset.ts` so preview and execution use the same filter/count/blocker logic.
+    - executable scopes are limited to `RAW_BATCH`, `DRAFTS`, and `TEST_DATA`.
+    - `PUBLICATION` and `OFFICIAL_RESULTS` remain server-side blocked in V1.
+    - execution requires a reason and exact confirmation text from the latest preview.
+    - execution writes `ResultResetSnapshot(mode=EXECUTED)` before deleting and emits `RESULT_STAGING_RESET_EXECUTED`.
+    - admin UI now enables execution only after an executable preview.
 
 ## Verification
 
@@ -160,6 +168,7 @@ Sebastian clarified that official results will come from multiple sources: legac
   - `git diff --check` passed.
   - `npx eslint app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed.
   - `npx eslint app/admin/page.tsx app/api/admin/result-staging/batches/route.ts app/api/admin/result-staging/reset/preview/route.ts lib/result-staging.ts` passed after adding the admin UI.
+  - `npx eslint app/admin/page.tsx app/api/admin/audit-events/route.ts app/api/admin/result-staging/reset/preview/route.ts app/api/admin/result-staging/reset/route.ts lib/result-staging-reset.ts lib/result-staging.ts` passed after adding reset execution.
 - Build:
   - `npm run build` passed.
 - Targeted verification:
@@ -179,10 +188,14 @@ Sebastian clarified that official results will come from multiple sources: legac
 - Manual result-staging UI/API deployment URL: `https://s5-evo-portal-fp4nqzxs9-sebastiankroeker-2781s-projects.vercel.app`
 - Latest origin-sync deployment ID: `dpl_2qfjziTrj4TBaTdSw9vvPVTyiQXW`
 - Latest origin-sync deployment URL: `https://s5-evo-portal-1q23xile0-sebastiankroeker-2781s-projects.vercel.app`
+- Latest doc-sync deployment ID: `dpl_GkPPtgvsGqefo7oTuK9fXT3JmqwN`
+- Latest doc-sync deployment URL: `https://s5-evo-portal-bq377v1q3-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
 - Initial foundation deployed at: 2026-07-15 19:27 UTC
 - Manual UI/API deployed at: 2026-07-16 04:50 UTC
 - Origin-sync deploy after `git push origin main` at: 2026-07-16 05:00 UTC
+- Doc-sync deploy after documentation push at: 2026-07-16 05:05 UTC
+- Result Reset Execution V1 deployment needed: yes, after separate Go.
 
 ## Post-Deploy Smoke
 
@@ -203,7 +216,7 @@ Sebastian clarified that official results will come from multiple sources: legac
 
 ## Follow-Ups
 
-- Build destructive result reset execution with snapshot/export guard.
+- Deploy/smoke guarded Result Reset Execution V1 after separate Go.
 - Build legacy import parser into `ResultDataBatch`/`ResultRawRecord`.
 - Build timekeeping-to-draft derivation from `TimekeepingEvent`.
 - Build explicit publish workflow into `DisciplineResult`.

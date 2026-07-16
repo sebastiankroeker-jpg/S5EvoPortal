@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { previewResultReset } from "@/lib/result-staging-reset";
+import { executeResultReset } from "@/lib/result-staging-reset";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ const DISCIPLINE_CODES = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"] as const;
 type ResetScope = (typeof RESET_SCOPES)[number];
 type DisciplineCode = (typeof DISCIPLINE_CODES)[number];
 
-type PreviewBody = {
+type ResetBody = {
   competitionId?: unknown;
   scope?: unknown;
   batchId?: unknown;
@@ -21,10 +21,12 @@ type PreviewBody = {
   disciplineCode?: unknown;
   participantId?: unknown;
   startNumber?: unknown;
+  reason?: unknown;
+  confirmationText?: unknown;
 };
 
-function normalizeBody(value: unknown): PreviewBody {
-  return value && typeof value === "object" ? value as PreviewBody : {};
+function normalizeBody(value: unknown): ResetBody {
+  return value && typeof value === "object" ? value as ResetBody : {};
 }
 
 function parseString(value: unknown) {
@@ -44,7 +46,7 @@ function parseDiscipline(value: unknown): DisciplineCode | null {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+    const auth = await requireTenantRoles(session, ["ADMIN"]);
     if ("error" in auth) return auth.error;
 
     const body = normalizeBody(await request.json().catch(() => ({})));
@@ -53,10 +55,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Ungueltiger Reset-Scope." }, { status: 400 });
     }
 
-    const result = await previewResultReset({
+    const reason = parseString(body.reason) || "";
+    if (reason.length < 10) {
+      return NextResponse.json(
+        { error: "Bitte gib eine aussagekraeftige Begruendung mit mindestens 10 Zeichen an." },
+        { status: 400 },
+      );
+    }
+
+    const result = await executeResultReset({
       tenantId: auth.tenantId,
       competitionId: parseString(body.competitionId),
+      actorId: auth.user.id,
       scope,
+      reason,
+      confirmationText: parseString(body.confirmationText),
       filter: {
         batchId: parseString(body.batchId),
         publicationId: parseString(body.publicationId),
@@ -65,13 +78,33 @@ export async function POST(request: NextRequest) {
         startNumber: parseString(body.startNumber),
       },
     });
+
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Failed to preview result staging reset:", error);
+    console.error("Result staging reset failed:", error);
+
     const message =
       error instanceof Error && error.message === "competition_not_found"
         ? "Kein Wettkampf gefunden."
-        : "Reset-Preview konnte nicht berechnet werden.";
-    return NextResponse.json({ error: message }, { status: error instanceof Error && error.message === "competition_not_found" ? 404 : 500 });
+        : error instanceof Error && error.message === "reset_reason_required"
+          ? "Begruendung ist erforderlich."
+          : error instanceof Error && error.message === "confirmation_mismatch"
+            ? "Bestaetigungstext stimmt nicht ueberein."
+            : error instanceof Error && error.message === "scope_not_executable"
+              ? "Dieser Reset-Scope ist in V1 nicht zur Ausfuehrung freigeschaltet."
+              : error instanceof Error && error.message === "reset_blocked"
+                ? "Reset ist durch Preview-Blocker gesperrt."
+                : "Result-Staging-Reset fehlgeschlagen.";
+
+    const status =
+      error instanceof Error && error.message === "competition_not_found"
+        ? 404
+        : error instanceof Error && ["confirmation_mismatch", "scope_not_executable", "reset_blocked"].includes(error.message)
+          ? 409
+          : error instanceof Error && error.message === "reset_reason_required"
+            ? 400
+            : 500;
+
+    return NextResponse.json({ error: message }, { status });
   }
 }

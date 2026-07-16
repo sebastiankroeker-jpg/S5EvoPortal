@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-16 05:01 UTC
+Stand: 2026-07-16 05:47 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Git-Stand: `main` wurde nach `origin/main` gepusht; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+- Git-Stand: Result Reset Execution V1 ist lokal gebaut/geprueft und committed, aber noch nicht deployed/gepusht; zusaetzlich bekannte untracked Workspace-Dateien (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Result-Staging V1 Foundation:
   - CR: `docs/cr/2026-07-15-result-staging-v1.md`
@@ -13,8 +13,9 @@ Stand: 2026-07-16 05:01 UTC
     - `ef76a9c Add result staging foundation`
     - `9df19c9 Add result staging preview APIs`
     - `33f5126 Add result staging admin preview UI`
-  - Latest Production Deploy: `dpl_2qfjziTrj4TBaTdSw9vvPVTyiQXW`
-  - Latest Deployment URL: `https://s5-evo-portal-1q23xile0-sebastiankroeker-2781s-projects.vercel.app`
+  - Latest Production Deploy: `dpl_GkPPtgvsGqefo7oTuK9fXT3JmqwN`
+  - Latest Deployment URL: `https://s5-evo-portal-bq377v1q3-sebastiankroeker-2781s-projects.vercel.app`
+  - Origin-sync deployment: `dpl_2qfjziTrj4TBaTdSw9vvPVTyiQXW`
   - Manual pre-push deployment: `dpl_AoTiw3GL7Trcox2Q7LoH3HSq8AZw`
   - Initial foundation deployment: `dpl_3QGsKAzXaDSVVc5CtRjRVSnSGZw1`
   - Alias: `https://portal.s5evo.de`
@@ -35,7 +36,15 @@ Stand: 2026-07-16 05:01 UTC
   - Admin UI deployed:
     - `/admin?tab=competition` zeigt Ergebnis-Staging-Pakete, Aggregat-Zaehler und Reset-Preview-Form.
     - Destruktive Reset-Ausfuehrung bleibt gesperrt.
-  - Naechster Schritt: destruktiven Ergebnis-Reset nur mit Snapshot/Export-Guard bauen; danach Legacy-Import und Timekeeping-Draft-Ableitung. Noch kein Publish nach `DisciplineResult`.
+  - Lokaler Nachtrag nach Deploy:
+    - Result Reset Execution V1 gebaut, noch nicht deployed.
+    - Neue Route: `POST /api/admin/result-staging/reset`.
+    - Neuer Helper: `lib/result-staging-reset.ts` fuer gemeinsame Preview-/Execute-Filter, Counts und Blocker.
+    - Ausfuehrbar nur fuer `RAW_BATCH`, `DRAFTS`, `TEST_DATA`; `PUBLICATION` und `OFFICIAL_RESULTS` bleiben serverseitig blockiert.
+    - Ausfuehrung braucht Begruendung + exakten Preview-Bestaetigungstext, schreibt `ResultResetSnapshot(mode=EXECUTED)` vor Delete und `RESULT_STAGING_RESET_EXECUTED` Audit.
+    - Admin UI kann nach ausfuehrbarer Preview den Reset starten; loescht noch keine offiziellen `DisciplineResult`.
+    - Lokale Checks gruen: targeted ESLint, `npx prisma validate`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Naechster Schritt: Result Reset Execution V1 nach separatem Go deployen/smoken; danach Legacy-Import und Timekeeping-Draft-Ableitung. Noch kein Publish nach `DisciplineResult`.
 - Deploy-Pfad fuer `portal.s5evo.de`:
   - Canonical ist Vercel (`vercel deploy --prod --yes`), nicht IONOS static.
   - CR: `docs/cr/2026-07-15-retire-ionos-static-portal.md`

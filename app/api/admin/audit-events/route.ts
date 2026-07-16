@@ -16,6 +16,7 @@ const ALLOWED_ACTIONS = new Set([
   "COMPETITION_RESET_DRY_RUN",
   "COMPETITION_RESET_STARTED",
   "COMPETITION_RESET_COMPLETED",
+  "RESULT_STAGING_RESET_EXECUTED",
 ]);
 
 export async function GET(request: NextRequest) {

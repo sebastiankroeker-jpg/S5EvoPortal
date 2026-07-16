@@ -147,6 +147,9 @@ type ResultResetPreview = {
   };
   counts: Record<string, number>;
   warnings: string[];
+  blockers: string[];
+  executable: boolean;
+  expectedConfirmationText: string;
   requiresSnapshotBeforeExecution: boolean;
 };
 
@@ -384,6 +387,8 @@ export default function AdminPage() {
   const [resultResetDisciplineCode, setResultResetDisciplineCode] = useState("");
   const [resultResetParticipantId, setResultResetParticipantId] = useState("");
   const [resultResetStartNumber, setResultResetStartNumber] = useState("");
+  const [resultResetReason, setResultResetReason] = useState("");
+  const [resultResetConfirmationText, setResultResetConfirmationText] = useState("");
   const [resultResetPreview, setResultResetPreview] = useState<ResultResetPreview | null>(null);
   const [resultStagingFeedback, setResultStagingFeedback] = useState<InlineFeedback | null>(null);
   const [opsLifecycleMailFailures, setOpsLifecycleMailFailures] = useState(0);
@@ -582,6 +587,7 @@ export default function AdminPage() {
       setResetFeedback(null);
       setResultResetPreview(null);
       setResultStagingFeedback(null);
+      setResultResetConfirmationText("");
     }
   }, [activeCompetition?.id, hasAdminAccess, loadCompetitionDetails, loadOpsSummary, loadResetMetadata, loadResultStagingBatches]);
 
@@ -762,6 +768,7 @@ export default function AdminPage() {
       }
 
       setResultResetPreview(data);
+      setResultResetConfirmationText("");
       setResultStagingFeedback({ type: "success", text: "Preview berechnet. Es wurden keine Daten verändert." });
     } catch (error) {
       console.error("Result reset preview failed:", error);
@@ -770,6 +777,71 @@ export default function AdminPage() {
         text: error instanceof Error ? error.message : "Reset-Preview konnte nicht berechnet werden",
       });
       notifications.error(error instanceof Error ? error.message : "Reset-Preview konnte nicht berechnet werden");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleResultResetExecute = async () => {
+    if (!activeCompetition?.id || !resultResetPreview) {
+      setResultStagingFeedback({ type: "error", text: "Bitte zuerst eine Reset-Preview berechnen." });
+      return;
+    }
+
+    if (!resultResetPreview.executable) {
+      setResultStagingFeedback({ type: "error", text: "Dieser Reset ist durch Blocker gesperrt." });
+      return;
+    }
+
+    if (resultResetReason.trim().length < 10) {
+      setResultStagingFeedback({ type: "error", text: "Bitte gib eine Begründung mit mindestens 10 Zeichen an." });
+      return;
+    }
+
+    if (resultResetConfirmationText !== resultResetPreview.expectedConfirmationText) {
+      setResultStagingFeedback({ type: "error", text: "Bestätigungstext stimmt nicht exakt überein." });
+      return;
+    }
+
+    setSaving("result-reset-execute");
+    setResultStagingFeedback(null);
+    try {
+      const response = await fetch("/api/admin/result-staging/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          scope: resultResetPreview.scope,
+          batchId: resultResetPreview.filter.batchId || undefined,
+          publicationId: resultResetPreview.filter.publicationId || undefined,
+          disciplineCode: resultResetPreview.filter.disciplineCode || undefined,
+          participantId: resultResetPreview.filter.participantId || undefined,
+          startNumber: resultResetPreview.filter.startNumber || undefined,
+          reason: resultResetReason.trim(),
+          confirmationText: resultResetConfirmationText,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Result-Staging-Reset fehlgeschlagen");
+      }
+
+      setResultStagingFeedback({
+        type: "success",
+        text: `Reset ausgeführt. Snapshot ${data.snapshotId} wurde erstellt.`,
+      });
+      notifications.success(`Result-Staging-Reset ausgeführt. Snapshot ${data.snapshotId} wurde erstellt.`);
+      setResultResetPreview(null);
+      setResultResetConfirmationText("");
+      await loadResultStagingBatches(activeCompetition.id);
+    } catch (error) {
+      console.error("Result staging reset execute failed:", error);
+      setResultStagingFeedback({
+        type: "error",
+        text: error instanceof Error ? error.message : "Result-Staging-Reset fehlgeschlagen",
+      });
+      notifications.error(error instanceof Error ? error.message : "Result-Staging-Reset fehlgeschlagen");
     } finally {
       setSaving(null);
     }
@@ -1589,6 +1661,7 @@ export default function AdminPage() {
                           onChange={(e) => {
                             setResultResetScope(e.target.value as ResultResetScope);
                             setResultResetPreview(null);
+                            setResultResetConfirmationText("");
                             setResultStagingFeedback(null);
                           }}
                           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
@@ -1604,6 +1677,7 @@ export default function AdminPage() {
                           onChange={(e) => {
                             setResultResetBatchId(e.target.value);
                             setResultResetPreview(null);
+                            setResultResetConfirmationText("");
                           }}
                           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                         >
@@ -1624,6 +1698,7 @@ export default function AdminPage() {
                           onChange={(e) => {
                             setResultResetDisciplineCode(e.target.value);
                             setResultResetPreview(null);
+                            setResultResetConfirmationText("");
                           }}
                           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                         >
@@ -1638,6 +1713,7 @@ export default function AdminPage() {
                           onChange={(e) => {
                             setResultResetStartNumber(e.target.value);
                             setResultResetPreview(null);
+                            setResultResetConfirmationText("");
                           }}
                           placeholder="Optional"
                         />
@@ -1648,6 +1724,7 @@ export default function AdminPage() {
                           onChange={(e) => {
                             setResultResetParticipantId(e.target.value);
                             setResultResetPreview(null);
+                            setResultResetConfirmationText("");
                           }}
                           placeholder="Optional"
                           className="font-mono"
@@ -1661,9 +1738,22 @@ export default function AdminPage() {
                         onChange={(e) => {
                           setResultResetPublicationId(e.target.value);
                           setResultResetPreview(null);
+                          setResultResetConfirmationText("");
                         }}
                         placeholder="Optional"
                         className="font-mono"
+                      />
+                    </FormField>
+
+                    <FormField label="Begründung" hint="Wird in Snapshot und Audit gespeichert. Mindestens 10 Zeichen.">
+                      <Textarea
+                        value={resultResetReason}
+                        onChange={(e) => {
+                          setResultResetReason(e.target.value);
+                          if (resultStagingFeedback?.type === "error") setResultStagingFeedback(null);
+                        }}
+                        placeholder="Warum wird dieser Ergebnis-Staging-Scope zurückgesetzt?"
+                        className="min-h-[88px]"
                       />
                     </FormField>
 
@@ -1671,7 +1761,7 @@ export default function AdminPage() {
                       <Button
                         variant="outline"
                         onClick={() => void handleResultResetPreview()}
-                        disabled={saving === "result-reset-preview" || !activeCompetition?.id}
+                        disabled={saving === "result-reset-preview" || saving === "result-reset-execute" || !activeCompetition?.id}
                       >
                         {saving === "result-reset-preview" ? "Berechne..." : "Reset-Preview berechnen"}
                       </Button>
@@ -1707,9 +1797,42 @@ export default function AdminPage() {
                             {resultResetPreview.warnings.join(" ")}
                           </div>
                         )}
-                        <p className="text-xs text-muted-foreground">
-                          Destruktive Ausführung ist in dieser Oberfläche noch nicht freigeschaltet.
-                        </p>
+                        {resultResetPreview.blockers.length > 0 && (
+                          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900">
+                            {resultResetPreview.blockers.join(" ")}
+                          </div>
+                        )}
+                        <FormField
+                          label="Bestätigung für Ausführung"
+                          hint={`Exakt eingeben: ${resultResetPreview.expectedConfirmationText}`}
+                        >
+                          <Input
+                            value={resultResetConfirmationText}
+                            onChange={(e) => {
+                              setResultResetConfirmationText(e.target.value);
+                              if (resultStagingFeedback?.type === "error") setResultStagingFeedback(null);
+                            }}
+                            placeholder={resultResetPreview.expectedConfirmationText}
+                          />
+                        </FormField>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Button
+                            variant="destructive"
+                            onClick={() => void handleResultResetExecute()}
+                            disabled={
+                              saving === "result-reset-preview" ||
+                              saving === "result-reset-execute" ||
+                              !resultResetPreview.executable ||
+                              resultResetReason.trim().length < 10 ||
+                              resultResetConfirmationText !== resultResetPreview.expectedConfirmationText
+                            }
+                          >
+                            {saving === "result-reset-execute" ? "Reset läuft..." : "Reset ausführen"}
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            Ausführung schreibt vorher einen ResultResetSnapshot und ein Audit-Event.
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
