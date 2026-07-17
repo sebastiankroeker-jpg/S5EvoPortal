@@ -1,6 +1,6 @@
 # CR: Zeitnahme nur mit Zeitnahme-Rolle
 
-Status: Local checks passed, pending deploy approval
+Status: Deployed
 Date: 2026-07-17
 Type: hotfix
 Risk: medium
@@ -102,6 +102,8 @@ Sebastian clarified that timekeeping functionality must not be shown or availabl
 - Reason: role/permission semantics and production deploy.
 - Approved by: Sebastian request in Telegram for local implementation
 - Approval timestamp: 2026-07-17 07:10 UTC
+- Production deploy approved by: Sebastian via Telegram "Go deploy"
+- Production deploy approval timestamp: 2026-07-17 07:20 UTC
 
 ## Implementation Notes
 
@@ -127,22 +129,27 @@ Sebastian clarified that timekeeping functionality must not be shown or availabl
 - Targeted verification:
   - Static code check confirms `/api/timekeeping/snapshot` and `/api/timekeeping/events` allow only `ZEITNAHME`.
 - Manual smoke:
-  - Not run locally; no authenticated browser session/cookies available.
+  - Authenticated browser smoke not run locally; no live session cookies available.
 
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID: pending
-- Deployment URL: pending
+- Commit: `5b9516c Restrict timekeeping to explicit role`
+- Deployment ID: `dpl_HxJJjXkwHC5q5CF6guN9hsqzphjb`
+- Deployment URL: `https://s5-evo-portal-bsfbqm5m4-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: pending
+- Deployed at: 2026-07-17 07:26 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` against `https://portal.s5evo.de`: passed.
+  - `GET /zeitnahme` via production alias: 200, `server: Vercel`.
 - API checks:
-- Result: pending
+  - `GET /api/timekeeping/snapshot?competitionId=cmn3a1piz0002l104372yx9yt` without session: 401.
+  - `POST /api/timekeeping/events` without session: 401.
+- Result: passed.
 
 ## Follow-Ups
 
-- Authenticated live smoke with one admin-only account and one `ZEITNAHME` account.
+- Authenticated live smoke with one admin-only account and one `ZEITNAHME` account remains recommended.
