@@ -17,6 +17,11 @@ Stand: 2026-07-17 07:27 UTC
   - Lokale Checks gruen: Permission-Assertion via `npx tsx -e`, targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
   - Post-Deploy Smoke gruen: `npm run smoke:public`; `/zeitnahme` -> 200; `/api/timekeeping/snapshot?...` ohne Session -> 401; `POST /api/timekeeping/events` ohne Session -> 401.
   - Test-Gap: kein authentifizierter Admin-only-/Zeitnahme-Role-Smoke mangels Session-Cookies.
+- Naechster PWA-Kandidat: Offline Read Model fuer Teilnehmer/Teamchefs.
+  - Sebastian bestaetigte am 2026-07-17 die Richtung: Fokus auf Mannschafts-Dashboard, Startlisten und Ergebnislisten.
+  - Zielbild: rollen-/privacy-bereinigtes read-only Offline-Paket pro Wettkampf/User-Sicht, lokal gespeichert mit Datenstand und Button `Daten aktualisieren`.
+  - In V1 keine Offline-Mannschaftsaenderungen und keine automatische spaetere Mutation; serverseitige Sichtbarkeit bleibt fuehrend, insbesondere bei `hideForeignTeams`.
+  - Umsetzungsidee fuer spaeteren CR: `/api/offline-package?competitionId=...&scope=participant`, IndexedDB-Persistenz, Offline-Badge, App-/Daten-Aktualisierungs-UX.
 - Git-Stand: Privacy-Hotfix fuer fremde Mannschaften ist gebaut, deployed und wird in dieser Session gepusht. Bekannte untracked Workspace-Dateien bleiben unveraendert (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Aktiver Hotfix: Wettkampf-Switch `hideForeignTeams`.
