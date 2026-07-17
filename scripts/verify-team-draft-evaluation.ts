@@ -5,6 +5,7 @@ import {
   type TeamDraftEvaluation,
   type TeamDraftParticipantInput,
 } from "@/lib/domain/classification";
+import { TeamRegistrationSchema } from "@/lib/domain/team";
 
 const disciplineCodes = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"] as const;
 
@@ -15,6 +16,22 @@ const validParticipants: TeamDraftParticipantInput[] = [
   { firstName: "Mia", lastName: "Demo", birthDate: "04.01.2017", gender: "W", discipline: "ROAD" },
   { firstName: "Leo", lastName: "Probe", birthDate: "05.01.2018", gender: "M", discipline: "MTB" },
 ];
+
+const validTeamRegistration = {
+  teamName: "Ammertaler Testteam",
+  contactFirstName: "Tina",
+  contactLastName: "Teamlead",
+  contactEmail: "teamlead@example.test",
+  contactPhone: "+49 170 1234567",
+  participants: validParticipants,
+};
+
+assert.equal(TeamRegistrationSchema.safeParse(validTeamRegistration).success, true);
+const missingTeamPhone = TeamRegistrationSchema.safeParse({
+  ...validTeamRegistration,
+  contactPhone: "",
+});
+assert.equal(missingTeamPhone.success, false);
 
 function comparableEvaluation(evaluation: TeamDraftEvaluation) {
   return {

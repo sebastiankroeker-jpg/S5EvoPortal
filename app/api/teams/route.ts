@@ -1188,10 +1188,11 @@ export async function POST(request: NextRequest) {
     const teamData = validation.data;
     const userEmail = normalizeEmail(sessionUserEmail || teamData.contactEmail?.trim());
     const userName = sessionUserName || teamData.contactName?.trim();
+    const contactPhone = teamData.contactPhone.trim();
     const userImage = sessionUserImage;
 
-    if (!userEmail || !userName) {
-      return NextResponse.json({ error: 'Kontaktname und Kontakt-E-Mail sind erforderlich.' }, { status: 400 });
+    if (!userEmail || !userName || !contactPhone) {
+      return NextResponse.json({ error: 'Kontaktname, Kontakt-E-Mail und Telefonnummer sind erforderlich.' }, { status: 400 });
     }
 
     const teamEvaluation = evaluateTeamDraft({
@@ -1340,6 +1341,7 @@ export async function POST(request: NextRequest) {
           teamPublicationLevel: teamData.teamPublicationLevel,
           contactName: userName || "",
           contactEmail: userEmail,
+          contactPhone,
           classificationCode: autoCategory,
           totalAge: totalAge || null,
           competitionId: competitionId,

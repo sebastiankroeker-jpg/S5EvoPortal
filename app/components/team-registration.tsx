@@ -446,8 +446,8 @@ export default function TeamRegistration({
     }
 
     const fieldsToValidate = isAnonymousRegistration
-      ? (["teamName", "contactFirstName", "contactLastName", "contactEmail"] as const)
-      : (["teamName"] as const);
+      ? (["teamName", "contactFirstName", "contactLastName", "contactEmail", "contactPhone"] as const)
+      : (["teamName", "contactPhone"] as const);
     const mtcFieldsToValidate = isAnonymousRegistration
       ? (["teamName", "contactFirstName", "contactLastName", "contactEmail", "contactPhone"] as const)
       : (["teamName", "contactPhone"] as const);
@@ -660,6 +660,7 @@ export default function TeamRegistration({
           ...values,
           contactName: effectiveContactName,
           contactEmail: effectiveContactEmail,
+          contactPhone: values.contactPhone.trim(),
         }),
       });
 
@@ -974,22 +975,20 @@ export default function TeamRegistration({
                             <p className="text-xs text-red-500 mt-1">{formState.errors.contactEmail.message}</p>
                           )}
                         </div>
-                        {(isMtcDraftPresentation || isMarketplaceRegistration) && (
-                          <div>
-                            <label htmlFor="contactPhone" className="text-sm font-medium">Telefonnummer</label>
-                            <input
-                              id="contactPhone"
-                              type="tel"
-                              {...register("contactPhone")}
-                              className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                              placeholder="+49 170 1234567"
-                            />
-                            <p className="mt-1 text-xs text-muted-foreground">Fuer kurzfristige Abstimmung falls es schnell gehen muss.</p>
-                            {formState.errors.contactPhone && (
-                              <p className="text-xs text-red-500 mt-1">{formState.errors.contactPhone.message}</p>
-                            )}
-                          </div>
-                        )}
+                        <div>
+                          <label htmlFor="contactPhone" className="text-sm font-medium">Telefonnummer</label>
+                          <input
+                            id="contactPhone"
+                            type="tel"
+                            {...register("contactPhone")}
+                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="+49 170 1234567"
+                          />
+                          <p className="mt-1 text-xs text-muted-foreground">Fuer kurzfristige Abstimmung falls es schnell gehen muss.</p>
+                          {formState.errors.contactPhone && (
+                            <p className="text-xs text-red-500 mt-1">{formState.errors.contactPhone.message}</p>
+                          )}
+                        </div>
                       </div>
                     </>
                   ) : isMarketplaceRegistration ? (
@@ -1029,22 +1028,20 @@ export default function TeamRegistration({
                         <label className="text-sm font-medium text-muted-foreground">E-Mail (aus deinem Konto)</label>
                         <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">{userEmail || "Nicht verfügbar"}</div>
                       </div>
-                      {isMtcDraftPresentation && (
-                        <div>
-                          <label htmlFor="contactPhone" className="text-sm font-medium">Telefonnummer</label>
-                          <input
-                            id="contactPhone"
-                            type="tel"
-                            {...register("contactPhone")}
-                            className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="+49 170 1234567"
-                          />
-                          <p className="mt-1 text-xs text-muted-foreground">Fuer kurzfristige Abstimmung falls es schnell gehen muss.</p>
-                          {formState.errors.contactPhone && (
-                            <p className="text-xs text-red-500 mt-1">{formState.errors.contactPhone.message}</p>
-                          )}
-                        </div>
-                      )}
+                      <div>
+                        <label htmlFor="contactPhone" className="text-sm font-medium">Telefonnummer</label>
+                        <input
+                          id="contactPhone"
+                          type="tel"
+                          {...register("contactPhone")}
+                          className="mt-1 w-full px-3 py-2 bg-background border border-input/60 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          placeholder="+49 170 1234567"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">Fuer kurzfristige Abstimmung falls es schnell gehen muss.</p>
+                        {formState.errors.contactPhone && (
+                          <p className="text-xs text-red-500 mt-1">{formState.errors.contactPhone.message}</p>
+                        )}
+                      </div>
                     </>
                   )}
                   {isMarketplaceRegistration ? (
@@ -1296,8 +1293,9 @@ export default function TeamRegistration({
                           marketplaceDiscipline === DISCIPLINE_PLACEHOLDER ||
                           !contactPhone?.trim() ||
                           (isAnonymousRegistration ? !contactFirstName || !contactLastName || !contactEmail : !effectiveContactName || !effectiveContactEmail)
-                        : (isAnonymousRegistration ? !teamName || !contactFirstName || !contactLastName || !contactEmail : !teamName))
-                      || (isMtcDraftPresentation ? !contactPhone?.trim() : false)
+                        : (isAnonymousRegistration
+                            ? !teamName || !contactFirstName || !contactLastName || !contactEmail || !contactPhone?.trim()
+                            : !teamName || !contactPhone?.trim()))
                     }
                     className="w-full"
                   >
