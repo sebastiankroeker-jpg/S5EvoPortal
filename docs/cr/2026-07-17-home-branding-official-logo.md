@@ -1,6 +1,6 @@
 # CR: Home Branding Official Logo
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-17
 Type: content
 Risk: low
@@ -112,8 +112,8 @@ Sebastian requested the browser tab title to match the new PWA name and asked fo
 - Gate needed: yes for production deploy only
 - Reason: visible production branding deploy.
 - Sensitive-data/production-data reason: none.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian (`Bitte ausliefern`)
+- Approval timestamp: 2026-07-17T23:43:21Z
 
 ## Implementation Notes
 
@@ -153,18 +153,26 @@ Sebastian requested the browser tab title to match the new PWA name and asked fo
 ## Deploy
 
 - Deployment needed: yes, after explicit Go.
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_D5dijDSZuadfHRBczpyGu1vuoNUq`
+- Deployment URL: `https://s5-evo-portal-q46fww3m8-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-17T23:46:02Z
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green
+  - `https://portal.s5evo.de/` -> 200, `<title>Soier 5Kampf</title>`
+  - `https://portal.s5evo.de/brand/5kampf/banner.webp` -> 200 `image/webp`
+  - `https://portal.s5evo.de/brand/5kampf/mark.webp` -> 200 `image/webp`
 - API checks:
+  - public smoke covered `/api/competition` -> 200 and `/api/results?...` -> 200
+  - protected API checks remain 401 without session: `/api/teams?...`, `/api/admin/pending-changes?...`
 - Sensitive-data/API leakage checks:
-- Result:
+  - no API, DB, serializer, mail, export, log, service worker, localStorage, or IndexedDB change
+  - protected routes remain unauthorized without session in public smoke
+- Result: green
 
 ## Follow-Ups
 
-- None
+- Sebastian will manually check logo sizing on device.
