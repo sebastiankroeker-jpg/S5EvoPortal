@@ -1,9 +1,20 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 19:10 UTC
+Stand: 2026-07-17 23:42 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller lokaler Content-CR: Home Branding Official Logo.
+  - CR: `docs/cr/2026-07-17-home-branding-official-logo.md`.
+  - Status: lokal implementiert, noch nicht deployed.
+  - Commit: `4490d5b Apply official home branding`.
+  - Ausloeser: Sebastian bat darum, Browser-Tab-Titel ebenfalls anzupassen, Header links oben Medaille + `S5Evo` durch offizielles Logo zu ersetzen, auf Home das offizielle Logo statt Pokal gross mittig zu zeigen, den Schriftzug `Bad Bayersoier Fünfkampf für Mannschaften 2026` gleich gross/fett zu setzen, Ort zu entfernen und Status ans Seitenende zu stellen.
+  - Geaendert: `app/layout.tsx` title `Soier 5Kampf`; `app/components/nav-bar.tsx` Top-Header-Logo; `app/components/sidebar.tsx` Desktop-Sidebar-Logo; `app/components/home-screen.tsx` Home-Brand-Header, Ort-Zeile entfernt, Status-Footer.
+  - Assets: nutzt bestehende `/brand/5kampf/banner.webp` und `/brand/5kampf/mark.webp`; keine neuen Assets.
+  - Bewusst unveraendert: keine API, DB, Auth, Service-Worker, Offline-Cache, Mail, Export oder Privacy-Aenderung; PWA Icons bleiben unveraendert.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`; lokaler `next start` Smoke: `/` title `Soier 5Kampf`, Banner/Mark Assets 200.
+  - Test-Gap: kein Playwright/Puppeteer im Workspace, daher kein Pixel-Screenshot; visueller Smoke nach Deploy im Browser empfohlen.
+  - Deploy: ausstehend; Production-Deploy nur nach explizitem Go.
 - Aktueller Content-CR: PWA Install Name Soier 5Kampf.
   - CR: `docs/cr/2026-07-17-pwa-install-name-soier-5kampf.md`.
   - Status: deployed.
