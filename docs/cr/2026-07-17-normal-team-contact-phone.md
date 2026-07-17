@@ -1,6 +1,6 @@
 # CR: Telefonnummer fuer normale Mannschaftsanmeldung
 
-Status: Deploying
+Status: Deployed
 Date: 2026-07-17
 Type: feature
 Risk: medium
@@ -143,16 +143,23 @@ Sebastian wants normal team registrations to collect a manager phone number as w
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Commit: `a8bc9a5 Require phone for team registrations`
+- Validation follow-up commit: `a98b61c Improve team phone validation message`
+- Superseded initial deployment ID: `dpl_988E5NxxAppx3A8w6RMy1mARSaD9`
+- Deployment ID: `dpl_DTB4QwNr3A8Gotj4Sz4PSAABuu63`
+- Deployment URL: `https://s5-evo-portal-rabkwy20o-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-17 12:04 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` against `https://portal.s5evo.de`: passed.
+  - `GET /anmeldung`: 200, `server: Vercel`.
 - API checks:
-- Result:
+  - `GET /api/teams` without session: 401.
+  - Non-mutating `POST /api/teams` with missing `contactPhone` and empty participants: 400 with `contactPhone` detail `Telefonnummer ist fuer Mannschaftsanmeldungen erforderlich.`
+- Result: passed.
 
 ## Follow-Ups
 

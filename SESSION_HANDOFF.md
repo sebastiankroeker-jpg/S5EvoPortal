@@ -6,11 +6,15 @@ Stand: 2026-07-17 11:18 UTC
 
 - Aktueller lokaler Feature-CR: Telefonnummer fuer normale Mannschaftsanmeldung.
   - CR: `docs/cr/2026-07-17-normal-team-contact-phone.md`.
-  - Status: lokal implementiert, noch nicht deployed.
+  - Status: deployed.
+  - Commits: `a8bc9a5 Require phone for team registrations`, `a98b61c Improve team phone validation message`.
+  - Production Deploy: `dpl_DTB4QwNr3A8Gotj4Sz4PSAABuu63` (supersedes initial deploy `dpl_988E5NxxAppx3A8w6RMy1mARSaD9`).
+  - Deployment URL: `https://s5-evo-portal-rabkwy20o-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
   - Geaendert: `TeamRegistrationSchema.contactPhone` ist fuer normale Mannschaftsanmeldungen Pflicht; `/anmeldung` zeigt das Telefonnummernfeld fuer anonyme und eingeloggte normale Team-Manager; `POST /api/teams` speichert den getrimmten Wert in `Team.contactPhone`.
   - Keine DB-Migration: Spalte `teams.contactPhone` existiert bereits und wird von MTC/Sportlerboerse genutzt.
   - Checks gruen: `npm run verify:team-draft`, targeted ESLint (nur bestehende Hook-Warnung in `team-registration.tsx`), `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
-  - Deployment offen: vor Push/Production-Deploy braucht es Sebastians klares Go.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/anmeldung` 200; `/api/teams` ohne Session 401; nicht-mutierender `POST /api/teams` ohne `contactPhone` -> 400 mit sauberer Telefon-Pflichtmeldung.
 - Aktueller lokaler Hardening-CR: Admin Competition Scope Guard.
   - CR: `docs/cr/2026-07-17-admin-competition-scope-guard.md`.
   - Ausloeser: Sebastian hatte kurz den 2026er Wettkampf nicht mehr in der Admin-Auswahl, weil sein User Admin in zwei Tenants ist und der alte Codepfad den 2024-Archiv-Tenant als Fallback-Kontext nahm.
