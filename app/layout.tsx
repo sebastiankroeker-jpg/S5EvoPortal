@@ -11,14 +11,14 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  applicationName: "S5Evo Portal",
+  applicationName: "Soier 5Kampf",
   title: "S5Evo Portal – Mannschaftsfünfkampf",
   description: "Mannschaftsfünfkampf Anmeldung, Verwaltung & Mission Control",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "S5Evo Portal",
+    title: "Soier 5Kampf",
   },
   formatDetection: {
     telephone: false,

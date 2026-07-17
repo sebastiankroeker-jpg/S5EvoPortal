@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "S5Evo Portal",
-    short_name: "S5Evo",
+    name: "Soier 5Kampf",
+    short_name: "Soier 5Kampf",
     description: "Mannschaftsfuenfkampf Anmeldung, Verwaltung und Mission Control.",
     start_url: "/",
     scope: "/",
