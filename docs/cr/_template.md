@@ -20,7 +20,23 @@ What triggered this change?
 - User/API/admin flows touched:
 - Data model impact:
 - Auth/permission impact:
+- Sensitive data impact:
+- Offline/cache/export/log/mail impact:
 - Production/deploy impact:
+
+## Privacy / Security Review
+
+Use for any CR touching birth dates, names tied to participants, e-mail, phone, claim tokens/links, account-link state, roles, audit trails, private marketplace/MTC data, exports, mails, logs, or offline caches.
+
+- Sensitive fields touched:
+- Purpose / data minimization:
+- Visibility by role/user/API/UI:
+- Persistence locations (DB, localStorage/IndexedDB, files, logs, audit, external services):
+- Offline/cache behavior, TTL/invalidation/logout clearing:
+- Logs/mails/exports/screenshots exposure:
+- Negative checks for unauthorized access or payload leakage:
+- Authenticated smoke plan or explicit gap:
+- Residual risk:
 
 ## Data / API Design
 
@@ -49,7 +65,12 @@ Use before model switch or subagent delegation.
 - Non-goals:
 - Expected implementation steps:
 - Required checks:
+- Privacy/security checks:
 - Risks/assumptions:
+- Context read before implementation:
+  - `SESSION_HANDOFF.md` top block:
+  - Relevant prior CR(s):
+  - Relevant source files:
 
 ## Model / Subagent Plan
 
@@ -63,6 +84,7 @@ Use before model switch or subagent delegation.
 
 - Gate needed: yes | no
 - Reason:
+- Sensitive-data/production-data reason:
 - Approved by:
 - Approval timestamp:
 
@@ -76,6 +98,8 @@ Use before model switch or subagent delegation.
 - Local checks:
 - Build:
 - Targeted verification:
+- Sensitive-data negative checks:
+- Authenticated role smoke:
 - Manual smoke:
 
 ## Deploy
@@ -90,6 +114,7 @@ Use before model switch or subagent delegation.
 
 - Routes checked:
 - API checks:
+- Sensitive-data/API leakage checks:
 - Result:
 
 ## Follow-Ups

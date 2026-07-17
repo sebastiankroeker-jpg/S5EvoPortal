@@ -4,6 +4,12 @@ Stand: 2026-07-17 11:18 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller Methodik-/Guardrail-Stand:
+  - Ausloeser: Sebastian fragte wegen Geburtsdatum, E-Mail, Telefonnummer und PWA-Offline-Daten nach Security-/Quality-Guardrails und Kontextverlust.
+  - Skill Workshop Proposal erstellt: `s5evo-change-request-20260717-3cf3ed0e22` (pending) fuer `s5evo-change-request`.
+  - Ziel des Proposals: PII/Privacy-Guardrails im CR-Skill explizit verankern: sensitive Felder, Offline-Caches, Exporte, Logs, Mails, Serializer/API-Leaks, negative Checks, Handoff-Lesepflicht.
+  - Lokaler Guardrail bereits aktiv im Repo: `docs/cr/_template.md` enthaelt jetzt `Privacy / Security Review`, sensitive-data impact, negative checks, authenticated-smoke gap und Kontext-Leseliste.
+  - Naechster Schritt: Wenn Sebastian das Skill-Update wirklich live anwenden will, Skill Workshop Proposal `s5evo-change-request-20260717-3cf3ed0e22` applyen.
 - Aktueller lokaler Feature-CR: Telefonnummer fuer normale Mannschaftsanmeldung.
   - CR: `docs/cr/2026-07-17-normal-team-contact-phone.md`.
   - Status: deployed.
