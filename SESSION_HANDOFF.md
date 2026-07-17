@@ -1,12 +1,16 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 18:43 UTC
+Stand: 2026-07-17 18:45 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Aktueller lokaler Hotfix: Admin Dashboard Tenant Scope.
+- Aktueller Hotfix: Admin Dashboard Tenant Scope.
   - CR: `docs/cr/2026-07-17-admin-dashboard-tenant-scope-hotfix.md`.
-  - Status: lokal implementiert, noch nicht deployed.
+  - Status: deployed.
+  - Commit: `f2419f6 Fix admin dashboard tenant scope`.
+  - Production Deploy: `dpl_FiwHpJBxynaLpynRBrzNcT6zJ3QT`.
+  - Deployment URL: `https://s5-evo-portal-9bibaqa67-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
   - Ausloeser: Sebastian meldete, dass nach Wechsel vom alten Tenant auf aktuellen Wettkampf keine Aenderungen mehr im Dashboard sichtbar seien und `Leonhard.Schwaiger@t-online.de` fehle.
   - Read-only-Fakten: Leonhard existiert als User im aktuellen Tenant `esv-bad-bayersoien` und als Teilnehmer im 2026-Team `5Kampf Orga`; im alten Tenant `esv-2024` ist er nicht. 2026 hat 25 ChangeRequests, 2024 hat 0.
   - Ursache/Codepfad: `/api/admin/pending-changes` und `/api/admin/users` nutzten `requireTenantRoles()` ohne aktiven `competitionId`-Scope und konnten bei Multi-Tenant-Admins auf den alten 2024-Fallback-Tenant fallen.
@@ -15,7 +19,8 @@ Stand: 2026-07-17 18:43 UTC
   - Keine Produktionsdaten-Mutation, keine DB-Migration, keine neuen Serializer-Felder.
   - Neuer Guard: `npm run verify:admin-dashboard-scope`.
   - Checks gruen: `npm run verify:admin-dashboard-scope`, `npm run verify:admin-competition-scope`, targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
-  - Deploy: ausstehend; wegen Auth/PII/Tenant-Scope nur nach explizitem Go.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200; `/aenderungen` 200; `/admin` 200; `/api/admin/pending-changes?competitionId=...&scope=all` ohne Session 401; `/api/admin/users?competitionId=...` ohne Session 401; `/api/teams?...&scope=all` ohne Session 401.
+  - Test-Gap: kein authentifizierter Admin-Browser-Smoke durch Agent; Sebastian soll live im 2026-Wettkampf Benutzerverwaltung nach Leonhard pruefen und im Aenderungsdashboard ggf. `Alle`/Historie nutzen, weil 2026 aktuell 20 applied und 5 rejected ChangeRequests, aber keine offenen 2024-Changes hat.
 - Aktueller Hotfix: PWA Watchlist Discoverability.
   - CR: `docs/cr/2026-07-17-pwa-watchlist-discoverability.md`.
   - Status: deployed.

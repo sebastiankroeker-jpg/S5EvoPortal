@@ -1,6 +1,6 @@
 # CR: Admin Dashboard Tenant Scope Hotfix
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-17
 Type: hotfix
 Risk: high
@@ -107,8 +107,8 @@ Read-only-Rekonstruktion:
 - Gate needed: yes
 - Reason: Auth/tenant-scope hotfix plus production deploy.
 - Sensitive-data/production-data reason: Admin-Dashboards zeigen PII und Rolleninformationen.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian (`Go`)
+- Approval timestamp: 2026-07-17T18:40:26Z
 
 ## Implementation Notes
 
@@ -145,24 +145,34 @@ Read-only-Rekonstruktion:
 - Sensitive-data negative checks:
   - No new serializer fields.
   - No data mutation performed during investigation or implementation.
-  - Unauthorized production API smoke still pending deploy; local code keeps existing session gates.
+  - Unauthorized production API smoke stays 401 for `/api/admin/pending-changes?competitionId=...&scope=all`.
+  - Unauthorized production API smoke stays 401 for `/api/admin/users?competitionId=...`.
 - Authenticated role smoke:
   - Gap: no authenticated Admin browser session in agent.
 
 ## Deploy
 
-- Deployment needed: pending explicit Go.
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes, completed after explicit Go.
+- Deployment ID: `dpl_FiwHpJBxynaLpynRBrzNcT6zJ3QT`
+- Deployment URL: `https://s5-evo-portal-9bibaqa67-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-17T18:43:56Z
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green
+  - `https://portal.s5evo.de/` -> 200
+  - `https://portal.s5evo.de/aenderungen` -> 200
+  - `https://portal.s5evo.de/admin` -> 200
 - API checks:
+  - `GET /api/admin/pending-changes?competitionId=cmn3a1piz0002l104372yx9yt&scope=all` without session -> 401
+  - `GET /api/admin/users?competitionId=cmn3a1piz0002l104372yx9yt` without session -> 401
+  - `GET /api/teams?competitionId=cmn3a1piz0002l104372yx9yt&scope=all` without session -> 401
 - Sensitive-data/API leakage checks:
-- Result:
+  - Admin endpoints stay session-protected without leaking user/change payloads.
+  - No new serializer fields, no production data mutation, no DB migration.
+- Result: deployed and public smoke green. Authenticated Admin browser smoke remains Sebastian/manual.
 
 ## Follow-Ups
 
