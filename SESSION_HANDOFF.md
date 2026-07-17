@@ -1,9 +1,17 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-16 18:32 UTC
+Stand: 2026-07-17 07:20 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktuelle lokale Arbeit: Zeitnahme nur noch mit expliziter Rolle `ZEITNAHME`.
+  - CR: `docs/cr/2026-07-17-timekeeping-role-only-hotfix.md` (wegen lokalem `.git/info/exclude` fuer `/docs/*` aktuell ignored; bei Commit mit `git add -f` aufnehmen).
+  - Status: lokal implementiert, Checks gruen, noch nicht committet/gepusht/deployed.
+  - Geaendert: `lib/permissions.ts`, `app/api/timekeeping/snapshot/route.ts`, `app/api/timekeeping/events/route.ts`, `app/components/sidebar.tsx`.
+  - Wirkung: `ADMIN`/`MODERATOR` erben `timekeeping.use`/`timekeeping.review` nicht mehr; `/api/timekeeping/snapshot` und `/api/timekeeping/events` akzeptieren nur noch `ZEITNAHME`; Sidebar-Erfassung nutzt denselben Zeitnahme-Gate.
+  - Bewusst unveraendert: Admin-Ergebnisdaten/Result-Staging bleibt Admin-gated; keine DB-Migration.
+  - Lokale Checks gruen: Permission-Assertion via `npx tsx -e`, targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Naechster Schritt: Sebastian um explizites Go fuer Commit/Push/Production-Deploy bitten; danach `git add -f docs/cr/2026-07-17-timekeeping-role-only-hotfix.md` plus geaenderte Dateien, committen, deployen via Vercel und smoke gegen `https://portal.s5evo.de`.
 - Git-Stand: Privacy-Hotfix fuer fremde Mannschaften ist gebaut, deployed und wird in dieser Session gepusht. Bekannte untracked Workspace-Dateien bleiben unveraendert (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
 - Production ist live unter `https://portal.s5evo.de`.
 - Aktiver Hotfix: Wettkampf-Switch `hideForeignTeams`.

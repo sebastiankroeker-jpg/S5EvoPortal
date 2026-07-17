@@ -12,8 +12,6 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "team.edit.all",
     "results.view", 
     "results.edit",
-    "timekeeping.use",
-    "timekeeping.review",
     "participant.view.all",
     "ranking.view",
   ],
@@ -21,6 +19,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "results.view",
     "ranking.view",
     "timekeeping.use",
+    "timekeeping.review",
   ],
   TEAMCHEF: [
     "team.create", 
@@ -55,6 +54,11 @@ const ROLE_HIERARCHY: Record<Role, number> = {
   ZUSCHAUER: 1,
 };
 
+const EXPLICIT_TIMEKEEPING_PERMISSIONS = new Set<Permission>([
+  "timekeeping.use",
+  "timekeeping.review",
+]);
+
 // Helper: hat die Rolle diese Permission?
 export function roleHasPermission(role: Role, permission: Permission): boolean {
   const permissions = ROLE_PERMISSIONS[role];
@@ -63,6 +67,10 @@ export function roleHasPermission(role: Role, permission: Permission): boolean {
 
 // Helper: hat irgendeine der Rollen diese Permission?
 export function hasPermission(roles: Role[], permission: Permission): boolean {
+  if (EXPLICIT_TIMEKEEPING_PERMISSIONS.has(permission)) {
+    return roles.includes("ZEITNAHME");
+  }
+
   return roles.some(role => roleHasPermission(role, permission));
 }
 

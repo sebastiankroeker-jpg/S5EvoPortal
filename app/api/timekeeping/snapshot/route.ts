@@ -6,7 +6,7 @@ import { CLASSIFICATION_DISPLAY_ORDER, CLASSIFICATIONS } from "@/lib/domain/clas
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
-const TIMEKEEPING_ROLES = ["ADMIN", "MODERATOR", "ZEITNAHME"] as const;
+const TIMEKEEPING_ROLES = ["ZEITNAHME"] as const;
 const TIMEKEEPING_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
 const DEFAULT_START_BLOCKS = [
   { name: "Schüler", classificationCodes: ["schueler-a", "schueler-b"] },
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
       year: competition.year,
       status: competition.status,
     },
-    role: auth.roles.includes("ZEITNAHME") ? "ZEITNAHME" : auth.isAdmin ? "ADMIN" : "MODERATOR",
+    role: "ZEITNAHME",
     testStartNumbers: {
       enabled: includeTestStartNumbers,
       count: testStartNumberByTeamId.size,

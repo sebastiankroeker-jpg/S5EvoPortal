@@ -6,7 +6,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
-const TIMEKEEPING_ROLES = ["ADMIN", "MODERATOR", "ZEITNAHME"] as const;
+const TIMEKEEPING_ROLES = ["ZEITNAHME"] as const;
 const TIMEKEEPING_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
 const EVENT_TYPES = new Set(["BLOCK_START", "FINISH", "ASSIGN_START_NUMBER", "NOTE"]);
 

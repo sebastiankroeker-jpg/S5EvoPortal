@@ -234,7 +234,7 @@ export default function Sidebar() {
             {can("team.view.all") && (
               <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} isCollapsed={isCollapsed} />
             )}
-            {can("results.edit") && (
+            {showTimekeepingSection && (
               <SidebarItem icon="✏️" label="Erfassung" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} isCollapsed={isCollapsed} />
             )}
             {can("config.edit") && (
