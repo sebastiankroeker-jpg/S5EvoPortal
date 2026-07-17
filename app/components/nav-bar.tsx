@@ -103,13 +103,13 @@ export default function NavBar() {
     >
       {/* Left: Logo + Theme + Version */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <Link href="/" className="relative block h-8 w-28 shrink-0 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:w-36">
+        <Link href="/" className="relative block size-8 shrink-0 overflow-hidden rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <Image
-            src={FIVE_KAMPF_BRAND.banner}
+            src={FIVE_KAMPF_BRAND.mark}
             alt="5Kampf Bad Bayersoien"
             fill
-            sizes="(min-width: 640px) 144px, 112px"
-            className="object-contain"
+            sizes="32px"
+            className="object-cover"
             priority
           />
         </Link>

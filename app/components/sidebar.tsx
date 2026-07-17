@@ -174,13 +174,13 @@ export default function Sidebar() {
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-2 border-b border-border/30">
         {!isCollapsed ? (
-          <Link href="/" className="relative block h-8 w-32 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+          <Link href="/" className="relative block size-8 overflow-hidden rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
             <Image
-              src={FIVE_KAMPF_BRAND.banner}
+              src={FIVE_KAMPF_BRAND.mark}
               alt="5Kampf Bad Bayersoien"
               fill
-              sizes="128px"
-              className="object-contain"
+              sizes="32px"
+              className="object-cover"
               priority
             />
           </Link>

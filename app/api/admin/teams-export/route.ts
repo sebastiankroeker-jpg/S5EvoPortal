@@ -10,20 +10,20 @@ import {
   loadCompetitionsForDailyExport,
   loadTeamStartNumbersForCompetition,
 } from "@/lib/team-csv-export";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 import { z } from "zod";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const competitionId = request.nextUrl.searchParams.get("competitionId")?.trim();
   if (!competitionId) {
     return NextResponse.json({ error: "competitionId fehlt" }, { status: 400 });
   }
+
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  if ("error" in auth) return auth.error;
 
   try {
     const competitions = await loadCompetitionsForDailyExport({
@@ -61,10 +61,6 @@ const layoutExportSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const body = await request.json().catch(() => null);
   const parsed = layoutExportSchema.safeParse(body);
   if (!parsed.success) {
@@ -72,6 +68,10 @@ export async function POST(request: NextRequest) {
   }
 
   const { competitionId, layoutId, teamIds } = parsed.data;
+
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  if ("error" in auth) return auth.error;
 
   try {
     const competitions = await loadCompetitionsForDailyExport({

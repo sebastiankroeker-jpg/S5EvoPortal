@@ -80,6 +80,7 @@ type RequireTenantRolesError = {
 type RequireTenantRolesSuccess = {
   user: ResolvedUser;
   tenantId: string;
+  competitionId?: string;
   roles: AppRole[];
   isAdmin: boolean;
   isModerator: boolean;
@@ -138,6 +139,59 @@ export async function requireTenantRoles(
   return {
     user,
     tenantId,
+    ...roleFlags,
+  };
+}
+
+export async function requireCompetitionTenantRoles(
+  session: Session | null,
+  allowedRoles: AppRole[],
+  competitionId: string | null | undefined,
+  options: RequireTenantRolesOptions = {},
+): Promise<RequireTenantRolesError | RequireTenantRolesSuccess> {
+  const normalizedCompetitionId = competitionId?.trim() || null;
+  if (!normalizedCompetitionId) {
+    return requireTenantRoles(session, allowedRoles, options);
+  }
+
+  if (!session?.user?.email) {
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  const { user } = await resolveCurrentUser(session, {
+    createIfMissing: options.createIfMissing ?? false,
+  });
+
+  if (!user) {
+    return {
+      error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }),
+    };
+  }
+
+  const competition = await prisma.competition.findUnique({
+    where: { id: normalizedCompetitionId },
+    select: { id: true, tenantId: true },
+  });
+
+  if (!competition) {
+    return {
+      error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }),
+    };
+  }
+
+  const roleFlags = await getTenantRoleFlagsForUserId(user.id, competition.tenantId);
+  if (!allowedRoles.some((role) => roleFlags.roles.includes(role))) {
+    return {
+      error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }),
+    };
+  }
+
+  return {
+    user,
+    tenantId: competition.tenantId,
+    competitionId: competition.id,
     ...roleFlags,
   };
 }

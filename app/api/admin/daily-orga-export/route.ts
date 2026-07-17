@@ -4,13 +4,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { sendDailyCompetitionExportEmail } from "@/lib/mail/daily-orga-export";
 import { loadCompetitionsForDailyExport } from "@/lib/team-csv-export";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const body = await request.json().catch(() => ({}));
   const competitionId =
     typeof body.competitionId === "string" && body.competitionId.trim().length > 0
@@ -20,6 +16,10 @@ export async function POST(request: NextRequest) {
   if (!competitionId) {
     return NextResponse.json({ error: "competitionId fehlt" }, { status: 400 });
   }
+
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  if ("error" in auth) return auth.error;
 
   try {
     const competitions = await loadCompetitionsForDailyExport({

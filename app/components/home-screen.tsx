@@ -100,13 +100,13 @@ function formatCompetitionDate(competitionInfo: CompetitionInfo | null) {
 function HomeBrandHeader({ dateLabel }: { dateLabel?: string }) {
   return (
     <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
-      <div className="relative h-28 w-full max-w-sm sm:h-36 sm:max-w-xl">
+      <div className="relative size-32 overflow-hidden rounded-full sm:size-40">
         <Image
-          src={FIVE_KAMPF_BRAND.banner}
+          src={FIVE_KAMPF_BRAND.mark}
           alt="5Kampf Bad Bayersoien"
           fill
-          sizes="(min-width: 640px) 36rem, 90vw"
-          className="object-contain"
+          sizes="(min-width: 640px) 160px, 128px"
+          className="object-cover"
           priority
         />
       </div>

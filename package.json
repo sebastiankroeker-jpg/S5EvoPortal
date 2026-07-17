@@ -12,6 +12,7 @@
     "verify:recovery-guardrails": "node scripts/verify-recovery-guardrails.mjs",
     "verify:account-link-status": "tsx scripts/verify-account-link-status.ts",
     "verify:admin-dashboard-scope": "tsx scripts/verify-admin-dashboard-scope.ts",
+    "verify:admin-csv-export-scope": "tsx scripts/verify-admin-csv-export-scope.ts",
     "verify:admin-competition-scope": "tsx scripts/verify-admin-competition-scope.ts",
     "verify:team-draft": "tsx scripts/verify-team-draft-evaluation.ts",
     "verify:participant-edit-flow": "tsx scripts/verify-participant-edit-flow.ts",
