@@ -1,9 +1,22 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 11:18 UTC
+Stand: 2026-07-17 13:31 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller lokaler Feature-CR: PWA Watchlist V1.
+  - CR: `docs/cr/2026-07-17-pwa-watchlist-v1.md`.
+  - Status: lokal implementiert, noch nicht deployed.
+  - Scope: Team-Watchlist fuer Live/PWA, lokal pro Wettkampf gespeichert; Watchlist-Segment in Live, Stern-Button an Teams, Ergebnisliste kann auf Watchlist-Teams filtern.
+  - Privacy-Entscheidung: neuer Watchlist-Store persistiert nur Team-IDs in `localStorage` (`s5evo.watchlist.teams.v1.${competitionId}`), keine Teamnamen, Teilnehmerdaten, Geburtstage, E-Mails, Telefonnummern, Claim-Links oder Rollen.
+  - Keine API-/DB-/Serializer-/Service-Worker-Aenderung; bestehende Rollen-/Sichtbarkeitslogik bleibt fuehrend.
+  - Dateien: `lib/pwa-watchlist.ts`, `app/components/live-screen.tsx`, `app/components/results-view.tsx`, CR.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`, gezielter Store-Negativcheck gegen PII-Felder.
+  - Test-Gap: kein authentifizierter Browser-/Handy-Smoke durch Agent; vor/nach Deploy manuell testen: Team sternen, Reload, Watchlist-Tab, Ergebnisfilter.
+  - Deploy: nur nach explizitem Go.
+- Feature-Brainstorm Zuschauer/Teilnehmer fuer spaeter gemerkt:
+  - Prioritaet PWA/MVP+: 1) lokale Watchlist/Favoriten, 2) Watchlist-Start-/Ergebnisansicht, 3) Heute-Zeitplan/naechste Starts, 4) offizieller Live-Ticker, 5) Event Map light.
+  - Weitere Ideen: Results Story, QR-Teamkarte, spaetere Push/In-App-Notifications, Heute-Timeline, WhatsApp-Share-Karte, Public-Follow-Modus ohne Login.
 - Aktueller Methodik-/Guardrail-Stand:
   - Ausloeser: Sebastian fragte wegen Geburtsdatum, E-Mail, Telefonnummer und PWA-Offline-Daten nach Security-/Quality-Guardrails und Kontextverlust.
   - Skill Workshop Proposal `s5evo-change-request-20260717-3cf3ed0e22` wurde applied fuer `s5evo-change-request`.

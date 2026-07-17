@@ -12,10 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { compareClassificationCodes } from "@/lib/domain/classification";
+import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
+import { Star } from "lucide-react";
 import ResultsView from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 
-const SEGMENTS = ["teams", "start", "ergebnis"] as const;
+const SEGMENTS = ["watchlist", "teams", "start", "ergebnis"] as const;
 type Segment = typeof SEGMENTS[number];
 
 interface Team {
@@ -76,6 +78,7 @@ export default function LiveScreen() {
   const [cacheState, setCacheState] = useState<{ storedAt: string | null; fallback: boolean } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [watchedTeamIds, setWatchedTeamIds] = useState<string[]>([]);
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const canViewTeamLists = canRoleViewAllTeams(activeRole, activeCompetition);
@@ -87,6 +90,15 @@ export default function LiveScreen() {
     () => canViewTeamLists ? [...SEGMENTS] : ["ergebnis"],
     [canViewTeamLists],
   );
+  const watchedTeamIdSet = useMemo(() => new Set(watchedTeamIds), [watchedTeamIds]);
+  const watchedTeams = useMemo(
+    () => teams.filter((team) => watchedTeamIdSet.has(team.id)),
+    [teams, watchedTeamIdSet],
+  );
+
+  useEffect(() => {
+    setWatchedTeamIds(activeCompetition?.id ? readTeamWatchlist(activeCompetition.id) : []);
+  }, [activeCompetition?.id]);
 
   // Fetch teams data
   const fetchTeams = useCallback(async (mode: "initial" | "refresh" = "initial") => {
@@ -139,6 +151,17 @@ export default function LiveScreen() {
   // Toggle section expansion
   const toggleSection = (key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleWatchedTeam = (teamId: string) => {
+    if (!activeCompetition?.id) return;
+
+    setWatchedTeamIds((current) => {
+      const next = current.includes(teamId)
+        ? current.filter((id) => id !== teamId)
+        : [...current, teamId];
+      return writeTeamWatchlist(activeCompetition.id, next);
+    });
   };
 
   // Segment content rendering
@@ -217,6 +240,19 @@ export default function LiveScreen() {
                                 {team.participants?.length || 0}/5
                               </span>
                               {(team.participants?.length || 0) === 5 ? "✅" : "⏳"}
+                              <Button
+                                type="button"
+                                variant={watchedTeamIdSet.has(team.id) ? "secondary" : "ghost"}
+                                size="icon-sm"
+                                title={watchedTeamIdSet.has(team.id) ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}
+                                aria-label={watchedTeamIdSet.has(team.id) ? `${team.name} von Watchlist entfernen` : `${team.name} zur Watchlist hinzufügen`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleWatchedTeam(team.id);
+                                }}
+                              >
+                                <Star className={watchedTeamIdSet.has(team.id) ? "fill-current" : ""} />
+                              </Button>
                             </div>
                           </div>
                           
@@ -271,7 +307,7 @@ export default function LiveScreen() {
     );
   };
 
-  const renderStartSegment = () => {
+  const renderStartSegment = (sourceTeams: Team[] = teams) => {
     // Group participants by discipline, then by class
     const disciplineGroups = DISCIPLINES.reduce((groups, discipline) => {
       groups[discipline.id] = {};
@@ -279,7 +315,7 @@ export default function LiveScreen() {
     }, {} as Record<string, Record<string, Array<{ participant: Participant; teamName: string }>>>);
 
     // Populate groups
-    teams.forEach(team => {
+    sourceTeams.forEach(team => {
       team.participants?.forEach(participant => {
         const disciplineCode = participant.discipline || "TBD";
         if (!disciplineGroups[disciplineCode]) disciplineGroups[disciplineCode] = {};
@@ -390,6 +426,76 @@ export default function LiveScreen() {
     );
   };
 
+  const renderWatchlistSegment = () => {
+    if (watchedTeamIds.length === 0) {
+      return (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Star className="mx-auto mb-3 size-8 text-muted-foreground" />
+            <p className="font-medium">Noch keine Mannschaften auf der Watchlist.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Markiere Teams mit dem Stern, dann hast du Starts und Ergebnisse schneller im Blick.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (watchedTeams.length === 0) {
+      return (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Star className="mx-auto mb-3 size-8 fill-current text-muted-foreground" />
+            <p className="font-medium">Watchlist gespeichert.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Die gemerkten Teams sind in den aktuell geladenen Live-Daten nicht sichtbar.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm">
+          <p className="font-medium">{watchedTeams.length} Watchlist-Team{watchedTeams.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-muted-foreground">
+            Lokal in dieser PWA gespeichert. Ergebnisse kannst du im Tab Ergebnis auf die Watchlist filtern.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {watchedTeams.map((team) => (
+            <Card key={team.id}>
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{team.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {categoryLabels[team.category] || team.category} · {team.participants?.length || 0}/5 Starter:innen
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon-sm"
+                    title="Von Watchlist entfernen"
+                    aria-label={`${team.name} von Watchlist entfernen`}
+                    onClick={() => toggleWatchedTeam(team.id)}
+                  >
+                    <Star className="fill-current" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {renderStartSegment(watchedTeams)}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <Card>
@@ -421,7 +527,12 @@ export default function LiveScreen() {
       <div className="flex space-x-1 bg-muted/50 p-1 rounded-lg">
         {availableSegments.map((segment) => {
           const isActive = activeSegment === segment;
-          const labels = { teams: "📋 Teams", start: "🏁 Start", ergebnis: "🏆 Ergebnis" };
+          const labels: Record<Segment, string> = {
+            watchlist: `⭐ Watchlist${watchedTeamIds.length > 0 ? ` (${watchedTeamIds.length})` : ""}`,
+            teams: "📋 Teams",
+            start: "🏁 Start",
+            ergebnis: "🏆 Ergebnis",
+          };
           
           return (
             <button
@@ -448,9 +559,10 @@ export default function LiveScreen() {
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.2 }}
         >
+          {activeSegment === "watchlist" && renderWatchlistSegment()}
           {activeSegment === "teams" && renderTeamsSegment()}
           {activeSegment === "start" && renderStartSegment()}
-          {activeSegment === "ergebnis" && <ResultsView />}
+          {activeSegment === "ergebnis" && <ResultsView watchlistTeamIds={watchedTeamIds} />}
         </motion.div>
       </AnimatePresence>
     </div>

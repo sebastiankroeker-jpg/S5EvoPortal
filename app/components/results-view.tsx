@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCompetition } from "@/lib/competition-context";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import { motion, AnimatePresence } from "framer-motion";
+import { Star } from "lucide-react";
 
 type DisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
 
@@ -86,13 +87,18 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-export default function ResultsView() {
+interface ResultsViewProps {
+  watchlistTeamIds?: string[];
+}
+
+export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps) {
   const { active: activeCompetition } = useCompetition();
   const [data, setData] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cacheState, setCacheState] = useState<{ storedAt: string | null; fallback: boolean } | null>(null);
   const [selectedClass, setSelectedClass] = useState<string>("all");
+  const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
   const [detailView, setDetailView] = useState<{ classCode: string; discipline: DisciplineCode } | null>(null);
   const cacheKey = useMemo(
@@ -163,9 +169,26 @@ export default function ResultsView() {
     );
   }
 
-  const filteredResults = selectedClass === "all"
+  const watchlistTeamIdSet = new Set(watchlistTeamIds);
+  const canFilterWatchlist = watchlistTeamIds.length > 0;
+  const classFilteredResults = selectedClass === "all"
     ? data.results
     : data.results.filter((r) => r.classCode === selectedClass);
+  const filteredResults = watchlistOnly && canFilterWatchlist
+    ? classFilteredResults
+        .map((classResult) => ({
+          ...classResult,
+          teamScores: classResult.teamScores.filter((team) => watchlistTeamIdSet.has(team.teamId)),
+          disciplineRankings: (Object.fromEntries(
+            (Object.entries(classResult.disciplineRankings) as Array<[DisciplineCode, RankedEntry[]]>)
+              .map(([discipline, entries]) => [
+                discipline,
+                entries.filter((entry) => watchlistTeamIdSet.has(entry.teamId)),
+              ]),
+          ) as Record<DisciplineCode, RankedEntry[]>),
+        }))
+        .filter((classResult) => classResult.teamScores.length > 0)
+    : classFilteredResults;
 
   const toggleClass = (code: string) => {
     setExpandedClasses((prev) => ({ ...prev, [code]: !prev[code] }));
@@ -225,6 +248,17 @@ export default function ResultsView() {
           </p>
         </div>
         <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+          {canFilterWatchlist && (
+            <Button
+              type="button"
+              variant={watchlistOnly ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setWatchlistOnly((value) => !value)}
+            >
+              <Star className={watchlistOnly ? "fill-current" : ""} />
+              {watchlistOnly ? "Watchlist aktiv" : "Nur Watchlist"}
+            </Button>
+          )}
           <Button type="button" variant="outline" size="sm" onClick={() => void loadResults("refresh")} disabled={refreshing}>
             {refreshing ? "Aktualisiere..." : "Daten aktualisieren"}
           </Button>
@@ -243,6 +277,18 @@ export default function ResultsView() {
           </Select>
         </div>
       </div>
+
+      {watchlistOnly && filteredResults.length === 0 && (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Star className="mx-auto mb-3 size-8 fill-current text-muted-foreground" />
+            <p className="font-medium">Keine Watchlist-Ergebnisse gefunden.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Fuer deine gemerkten Teams sind in der aktuellen Ergebnisliste noch keine Daten sichtbar.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Class Results */}
       <AnimatePresence mode="popLayout">
@@ -302,12 +348,20 @@ export default function ResultsView() {
                         </tr>
                       </thead>
                       <tbody>
-                        {classResult.teamScores.map((team) => (
+                        {classResult.teamScores.map((team) => {
+                          const watched = watchlistTeamIdSet.has(team.teamId);
+
+                          return (
                           <tr key={team.teamId} className="border-b border-border/30 hover:bg-muted/30 transition-colors">
                             <td className="py-2 pr-2">
                               <RankBadge rank={team.rank} />
                             </td>
-                            <td className="py-2 font-medium truncate max-w-[150px]">{team.teamName}</td>
+                            <td className="py-2 font-medium truncate max-w-[150px]">
+                              <span className="inline-flex min-w-0 items-center gap-1.5">
+                                {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Watchlist-Team" />}
+                                <span className="truncate">{team.teamName}</span>
+                              </span>
+                            </td>
                             {(Object.keys(DISC_SHORT) as DisciplineCode[]).map((d) => (
                               <td key={d} className="text-center py-2 px-1 tabular-nums text-muted-foreground">
                                 {team.disciplinePoints[d] || "–"}
@@ -317,7 +371,8 @@ export default function ResultsView() {
                               {team.totalPoints}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
