@@ -1,18 +1,23 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 09:45 UTC
+Stand: 2026-07-17 10:27 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Aktuelle lokale Arbeit: PWA Offline Read Model V1.
+- Aktueller Deploy: PWA Offline Read Model V1.
   - CR: `docs/cr/2026-07-17-pwa-offline-read-model-v1.md`.
-  - Status: lokal implementiert, Checks gruen, noch nicht committet/gepusht/deployed.
+  - Commit: `a0c4870 Add PWA offline read model`.
+  - Production Deploy: `dpl_CjYJX8kALKjxpYeZXVhGuvMyw95s`.
+  - Deployment URL: `https://s5-evo-portal-ezcxb3l20-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Status: committet, gepusht, deployed.
   - Geaendert: `lib/pwa-offline-cache.ts`, `app/components/dashboard.tsx`, `app/components/live-screen.tsx`, `app/components/results-view.tsx`, `app/components/pwa-service-worker.tsx`, `public/sw.js`.
   - Wirkung: Dashboard, Live/Startlisten und Ergebnisse speichern erfolgreiche Online-Antworten lokal, zeigen Datenstand, haben `Daten aktualisieren` und fallen bei Ladefehlern auf lokalen Stand zurueck.
   - App-Update: Service Worker kann neue Version signalisieren; PWA zeigt Banner `Neue App-Version verfuegbar` mit `App aktualisieren`.
   - Bewusst unveraendert: keine Offline-Mutationen, kein API-Caching im Service Worker, keine DB-Migration, kein neues Server-API.
   - Lokale Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
-  - Naechster Schritt: lokal committen; danach fuer Push/Production-Deploy explizites Sebastian-Go einholen, Vercel deployen und smoke gegen `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200; `/zeitnahme` 200; `/manifest.webmanifest` 200; `/sw.js` 200; `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200; `/api/teams?...` ohne Session 401; SW enthaelt weiter `/api/`-/`/_next/`-Bypass plus `SKIP_WAITING`.
+  - Test-Gap: kein authentifizierter Browser-Smoke fuer echten lokalen Cache-Fallback mangels Session-Cookies; bitte PWA auf Handy einmal online laden, Daten aktualisieren, danach Offline-/Flugmodus pruefen.
 - Aktueller Hotfix deployed: Zeitnahme nur noch mit expliziter Rolle `ZEITNAHME`.
   - CR: `docs/cr/2026-07-17-timekeeping-role-only-hotfix.md`.
   - Commit: `5b9516c Restrict timekeeping to explicit role`.

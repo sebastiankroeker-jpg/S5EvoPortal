@@ -1,6 +1,6 @@
 # CR: PWA Offline Read Model V1
 
-Status: Local checks passed, pending deploy approval
+Status: Deployed
 Date: 2026-07-17
 Type: feature
 Risk: medium
@@ -125,7 +125,8 @@ Sebastian wants the PWA to be useful for participants and team managers when mob
 - Local implementation approved by: Sebastian via Telegram "Bitte CR draus machen und umsetzen"
 - Local implementation approval timestamp: 2026-07-17 09:25 UTC
 - Production deploy approved by:
-- Production deploy approval timestamp:
+- Production deploy approved by: Sebastian via Telegram "Go"
+- Production deploy approval timestamp: 2026-07-17 10:20 UTC
 
 ## Implementation Notes
 
@@ -162,16 +163,26 @@ Sebastian wants the PWA to be useful for participants and team managers when mob
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
+- Commit: `a0c4870 Add PWA offline read model`
+- Deployment ID: `dpl_CjYJX8kALKjxpYeZXVhGuvMyw95s`
+- Deployment URL: `https://s5-evo-portal-ezcxb3l20-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at:
+- Deployed at: 2026-07-17 10:26 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` against `https://portal.s5evo.de`: passed.
+  - `GET /`: 200.
+  - `GET /zeitnahme`: 200.
+  - `GET /manifest.webmanifest`: 200.
+  - `GET /sw.js`: 200.
 - API checks:
-- Result:
+  - `GET /api/results` without `competitionId`: 400 as expected.
+  - `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt`: 200.
+  - `GET /api/teams?competitionId=cmn3a1piz0002l104372yx9yt` without session: 401.
+  - `public/sw.js` still bypasses `/api/*` and `/_next/*`, and includes `SKIP_WAITING`.
+- Result: passed.
 
 ## Follow-Ups
 
