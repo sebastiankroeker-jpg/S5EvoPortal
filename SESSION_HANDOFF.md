@@ -1,9 +1,18 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 18:45 UTC
+Stand: 2026-07-17 19:03 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller lokaler Content-CR: PWA Install Name Soier 5Kampf.
+  - CR: `docs/cr/2026-07-17-pwa-install-name-soier-5kampf.md`.
+  - Status: lokal implementiert, noch nicht deployed.
+  - Commit: `0775970 Update PWA install name`.
+  - Ausloeser: Sebastian bat darum, beim Installieren der App den Default-Text `Soier 5Kampf` zu verwenden.
+  - Geaendert: `app/manifest.ts` setzt `name` und `short_name` auf `Soier 5Kampf`; `app/layout.tsx` setzt `metadata.applicationName` und `appleWebApp.title` auf `Soier 5Kampf`.
+  - Bewusst unveraendert: Browser-Tab-Titel bleibt `S5Evo Portal – Mannschaftsfünfkampf`; keine API, DB, Service-Worker, Offline-Cache, Mail, Export oder Privacy-Aenderung.
+  - Checks gruen: `npx eslint app/manifest.ts app/layout.tsx`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`; gebautes Manifest enthaelt `name:"Soier 5Kampf"` und `short_name:"Soier 5Kampf"`.
+  - Deploy: ausstehend; Production-Deploy nur nach explizitem Go. Nach Deploy `/manifest.webmanifest` gegen `https://portal.s5evo.de` pruefen.
 - Aktueller Hotfix: Admin Dashboard Tenant Scope.
   - CR: `docs/cr/2026-07-17-admin-dashboard-tenant-scope-hotfix.md`.
   - Status: deployed.
