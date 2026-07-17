@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
@@ -14,6 +15,7 @@ import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
 import { Check, EllipsisVertical, FlaskConical, LogOut, MessageCircle, Search, Sparkles, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
+import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admin",
@@ -101,9 +103,15 @@ export default function NavBar() {
     >
       {/* Left: Logo + Theme + Version */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <Link href="/" className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-          <span className="text-lg">🏅</span>
-          <span className="font-semibold text-sm">S5Evo</span>
+        <Link href="/" className="relative block h-8 w-28 shrink-0 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:w-36">
+          <Image
+            src={FIVE_KAMPF_BRAND.banner}
+            alt="5Kampf Bad Bayersoien"
+            fill
+            sizes="(min-width: 640px) 144px, 112px"
+            className="object-contain"
+            priority
+          />
         </Link>
         <div className="relative flex items-center">
           <button

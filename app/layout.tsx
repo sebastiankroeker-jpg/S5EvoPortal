@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   applicationName: "Soier 5Kampf",
-  title: "S5Evo Portal – Mannschaftsfünfkampf",
+  title: "Soier 5Kampf",
   description: "Mannschaftsfünfkampf Anmeldung, Verwaltung & Mission Control",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
@@ -13,6 +14,7 @@ import SearchOverlay from "./search-overlay";
 import { isClaimNavigationPath } from "@/lib/navigation-menu";
 import { useCompetition } from "@/lib/competition-context";
 import { canRoleViewAllTeams } from "@/lib/team-access-config";
+import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
@@ -172,13 +174,26 @@ export default function Sidebar() {
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-2 border-b border-border/30">
         {!isCollapsed ? (
-          <Link href="/" className="flex items-center gap-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-            <span className="text-base">🏅</span>
-            <span className="font-semibold text-sm">S5Evo</span>
+          <Link href="/" className="relative block h-8 w-32 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            <Image
+              src={FIVE_KAMPF_BRAND.banner}
+              alt="5Kampf Bad Bayersoien"
+              fill
+              sizes="128px"
+              className="object-contain"
+              priority
+            />
           </Link>
         ) : (
-          <Link href="/" className="mx-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-            <span className="text-base">🏅</span>
+          <Link href="/" className="relative mx-auto block size-7 overflow-hidden rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            <Image
+              src={FIVE_KAMPF_BRAND.mark}
+              alt="5Kampf"
+              fill
+              sizes="28px"
+              className="object-cover"
+              priority
+            />
           </Link>
         )}
         <Button variant="ghost" size="sm" onClick={toggleCollapsed} className="h-6 w-6 p-0">

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { useCompetition } from "@/lib/competition-context";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/permissions-context";
 import { useTheme } from "@/lib/theme-context";
 import { startPortalLogin, startPortalRegistration } from "@/lib/auth-flow";
+import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
 
 interface CompetitionInfo {
   name: string;
@@ -30,6 +32,8 @@ type TeamStatsSource = {
   category?: string | null;
   participants?: unknown[];
 };
+
+const HOME_TITLE = "Bad Bayersoier Fünfkampf für Mannschaften 2026";
 
 const FLYER_INFO_2026 = {
   registrationDeadline: "22.07.2026",
@@ -80,6 +84,53 @@ const FLYER_INFO_2026 = {
   ],
 };
 
+function formatCompetitionDate(competitionInfo: CompetitionInfo | null) {
+  if (!competitionInfo?.date) return "Termin wird noch bekanntgegeben";
+
+  const d1 = new Date(competitionInfo.date);
+  const f1 = d1.toLocaleDateString("de-DE", { weekday: "short", day: "numeric" });
+  if (competitionInfo.dateEnd) {
+    const d2 = new Date(competitionInfo.dateEnd);
+    const f2 = d2.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+    return `${f1}. - ${f2}`;
+  }
+  return d1.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+}
+
+function HomeBrandHeader({ dateLabel }: { dateLabel?: string }) {
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
+      <div className="relative h-28 w-full max-w-sm sm:h-36 sm:max-w-xl">
+        <Image
+          src={FIVE_KAMPF_BRAND.banner}
+          alt="5Kampf Bad Bayersoien"
+          fill
+          sizes="(min-width: 640px) 36rem, 90vw"
+          className="object-contain"
+          priority
+        />
+      </div>
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold sm:text-3xl">{HOME_TITLE}</h1>
+        {dateLabel && <p className="text-muted-foreground">{dateLabel}</p>}
+      </div>
+    </div>
+  );
+}
+
+function CompetitionStatusFooter({ status }: { status?: string | null }) {
+  if (!status) return null;
+
+  return (
+    <div className="border-t border-border/50 pt-4 text-center text-sm text-muted-foreground">
+      Status:{" "}
+      <span className={status === "OPEN" ? "font-medium text-green-600" : "font-medium text-muted-foreground"}>
+        {status}
+      </span>
+    </div>
+  );
+}
+
 function FlyerInfoCard({
   onRegisterClick,
   onMarketplaceClick,
@@ -97,7 +148,6 @@ function FlyerInfoCard({
           <p className="text-base font-semibold">33. Bayersoier Fünfkampf für Mannschaften</p>
           <div className="space-y-1 text-muted-foreground">
             <p><span className="font-medium text-foreground">📅 Termin:</span> 24. + 25.07.2026</p>
-            <p><span className="font-medium text-foreground">📍 Ort:</span> Bad Bayersoien</p>
             <p><span className="font-medium text-foreground">📝 Anmeldung bis:</span> {FLYER_INFO_2026.registrationDeadline}</p>
             <p><span className="font-medium text-foreground">🌐 Anmeldung:</span> {FLYER_INFO_2026.registrationUrl}</p>
           </div>
@@ -294,11 +344,7 @@ export default function HomeScreen() {
         animate={{ opacity: 1, scale: 1 }}
         className="text-center space-y-8 py-8"
       >
-        <div className="space-y-4">
-          <span className="text-6xl">🏆</span>
-          <h1 className="text-2xl font-bold">33. Bad Bayersoier Fünfkampf für Mannschaften</h1>
-          <p className="text-muted-foreground">24. + 25.07.2026</p>
-        </div>
+        <HomeBrandHeader dateLabel="24. + 25.07.2026" />
 
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
           <CardContent className="space-y-4 pt-6">
@@ -383,33 +429,7 @@ export default function HomeScreen() {
       className="space-y-6 py-4"
     >
       {/* Competition Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl font-bold flex items-center justify-center gap-2">
-          🏆 {competitionInfo?.name || "Mannschafts-Fünfkampf"}
-        </h1>
-        <p className="text-lg text-muted-foreground">{competitionInfo?.year || ""}</p>
-        <div className="space-y-1 text-sm text-muted-foreground">
-          {competitionInfo?.location && <p>📍 {competitionInfo.location}</p>}
-          {competitionInfo?.date ? (
-            <p>📅 {(() => {
-              const d1 = new Date(competitionInfo.date);
-              const f1 = d1.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
-              if (competitionInfo.dateEnd) {
-                const d2 = new Date(competitionInfo.dateEnd);
-                const f2 = d2.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
-                return `${f1}. - ${f2}`;
-              }
-              return d1.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
-            })()}
-            </p>
-          ) : (
-            <p>📅 Termin wird noch bekanntgegeben</p>
-          )}
-          <p className="font-medium">
-            📊 Status: <span className={competitionInfo?.status === "OPEN" ? "text-green-600" : "text-muted-foreground"}>{competitionInfo?.status || "..."}</span>
-          </p>
-        </div>
-      </div>
+      <HomeBrandHeader dateLabel={formatCompetitionDate(competitionInfo)} />
 
       <FlyerInfoCard
         onRegisterClick={() => handleQuickAction("registration")}
@@ -455,6 +475,8 @@ export default function HomeScreen() {
           </Button>
         )}
       </div>
+
+      <CompetitionStatusFooter status={competitionInfo?.status} />
     </motion.div>
   );
 }
