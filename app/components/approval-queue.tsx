@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, SlidersHorizontal, UserRound, UsersRound, XCircle } from "lucide-react";
 
@@ -18,6 +18,7 @@ import {
   DashboardToolbarButton,
 } from "./dashboard-controls";
 import { openTeamDashboard, openUserDashboard } from "@/lib/admin-routing";
+import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 
 interface PendingChange {
@@ -260,6 +261,7 @@ function isDirectChange(change: Pick<PendingChange, "status" | "source">) {
 
 export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueueProps) {
   const { activeRole } = usePermissions();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const dashboardMode = variant === "page";
   const [changes, setChanges] = useState<PendingChange[]>([]);
   const [loading, setLoading] = useState(true);
@@ -278,7 +280,9 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
 
   const canUseAdminLinks = activeRole === "ADMIN";
 
-  const fetchChanges = async (mode: "initial" | "refresh" = "initial") => {
+  const fetchChanges = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (competitionLoading) return;
+
     if (mode === "refresh") {
       setRefreshing(true);
     } else {
@@ -291,6 +295,9 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       const params = new URLSearchParams();
       if (dashboardMode) {
         params.set("scope", "all");
+      }
+      if (activeCompetition?.id) {
+        params.set("competitionId", activeCompetition.id);
       }
 
       const res = await fetch("/api/admin/pending-changes" + (params.size ? `?${params}` : ""));
@@ -308,9 +315,11 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [activeCompetition?.id, competitionLoading, dashboardMode]);
 
   useEffect(() => {
+    if (competitionLoading) return;
+
     if (dashboardMode) {
       const params = new URLSearchParams(window.location.search);
       const status = params.get("status");
@@ -330,7 +339,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       }
     }
     void fetchChanges();
-  }, []);
+  }, [competitionLoading, dashboardMode, fetchChanges]);
 
   const decoratedChanges = useMemo<DecoratedChange[]>(() => {
     return changes.map((change) => ({

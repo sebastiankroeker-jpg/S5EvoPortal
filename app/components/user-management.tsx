@@ -33,6 +33,7 @@ import {
   type AccountLinkClaimStatus,
   type AccountLinkStatusMeta,
 } from "@/lib/account-link-status";
+import { useCompetition } from "@/lib/competition-context";
 import { useNotifications } from "@/lib/notification-context";
 
 interface UserRole {
@@ -302,6 +303,7 @@ function UserTeamScopeStatusDialog({ user, team }: { user: UserEntry; team: User
 
 export default function UserManagement() {
   const notifications = useNotifications();
+  const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const [focusedUserId, setFocusedUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -323,8 +325,12 @@ export default function UserManagement() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const fetchUsers = useCallback(async (options?: { silent?: boolean }) => {
+    if (competitionLoading) return;
+
     try {
-      const res = await fetch("/api/admin/users");
+      const params = new URLSearchParams();
+      if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
+      const res = await fetch("/api/admin/users" + (params.size ? `?${params}` : ""));
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (!options?.silent) {
@@ -351,9 +357,11 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  }, [notifications]);
+  }, [activeCompetition?.id, competitionLoading, notifications]);
 
   useEffect(() => {
+    if (competitionLoading) return;
+
     const params = new URLSearchParams(window.location.search);
     setFocusedUserId(params.get("userId"));
     setFocusedTeamId(params.get("teamId"));
@@ -362,7 +370,7 @@ export default function UserManagement() {
       setSearchQuery(userQuery);
     }
     void fetchUsers();
-  }, [fetchUsers]);
+  }, [competitionLoading, fetchUsers]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -399,7 +407,7 @@ export default function UserManagement() {
       const res = await fetch("/api/admin/users/" + userId + "/roles", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roles: editRoles }),
+        body: JSON.stringify({ roles: editRoles, competitionId: activeCompetition?.id }),
       });
 
       if (!res.ok) {
@@ -426,7 +434,9 @@ export default function UserManagement() {
     setDeletingUserId(user.id);
 
     try {
-      const res = await fetch("/api/admin/users/" + user.id, {
+      const params = new URLSearchParams();
+      if (activeCompetition?.id) params.set("competitionId", activeCompetition.id);
+      const res = await fetch("/api/admin/users/" + user.id + (params.size ? `?${params}` : ""), {
         method: "DELETE",
       });
 

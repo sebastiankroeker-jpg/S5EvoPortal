@@ -1,9 +1,21 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 14:46 UTC
+Stand: 2026-07-17 18:43 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller lokaler Hotfix: Admin Dashboard Tenant Scope.
+  - CR: `docs/cr/2026-07-17-admin-dashboard-tenant-scope-hotfix.md`.
+  - Status: lokal implementiert, noch nicht deployed.
+  - Ausloeser: Sebastian meldete, dass nach Wechsel vom alten Tenant auf aktuellen Wettkampf keine Aenderungen mehr im Dashboard sichtbar seien und `Leonhard.Schwaiger@t-online.de` fehle.
+  - Read-only-Fakten: Leonhard existiert als User im aktuellen Tenant `esv-bad-bayersoien` und als Teilnehmer im 2026-Team `5Kampf Orga`; im alten Tenant `esv-2024` ist er nicht. 2026 hat 25 ChangeRequests, 2024 hat 0.
+  - Ursache/Codepfad: `/api/admin/pending-changes` und `/api/admin/users` nutzten `requireTenantRoles()` ohne aktiven `competitionId`-Scope und konnten bei Multi-Tenant-Admins auf den alten 2024-Fallback-Tenant fallen.
+  - Geaendert: Änderungsdashboard und Benutzerverwaltung senden den aktiven `competitionId`; Admin-Routen loesen daraus den Tenant und pruefen Admin/Moderator-Rechte gegen genau diesen Tenant.
+  - Mitgesichert: Rollen-Speichern und User-Loeschen in der Benutzerverwaltung nutzen denselben ausgewählten Tenant; Team-Manager-Scopes in der Userliste werden ebenfalls tenant-/competition-gefiltert.
+  - Keine Produktionsdaten-Mutation, keine DB-Migration, keine neuen Serializer-Felder.
+  - Neuer Guard: `npm run verify:admin-dashboard-scope`.
+  - Checks gruen: `npm run verify:admin-dashboard-scope`, `npm run verify:admin-competition-scope`, targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Deploy: ausstehend; wegen Auth/PII/Tenant-Scope nur nach explizitem Go.
 - Aktueller Hotfix: PWA Watchlist Discoverability.
   - CR: `docs/cr/2026-07-17-pwa-watchlist-discoverability.md`.
   - Status: deployed.

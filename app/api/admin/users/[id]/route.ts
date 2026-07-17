@@ -2,16 +2,40 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
 import { buildDeletedUserIdentity } from "@/lib/user-deletion";
 
+async function resolveScopedTenantId(userId: string, fallbackTenantId: string, competitionId: string | null) {
+  if (!competitionId) return { tenantId: fallbackTenantId };
+
+  const competition = await prisma.competition.findUnique({
+    where: { id: competitionId },
+    select: { tenantId: true },
+  });
+
+  if (!competition) {
+    return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
+  }
+
+  const roleFlags = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
+  if (!roleFlags.isAdmin) {
+    return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
+  }
+
+  return { tenantId: competition.tenantId };
+}
+
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   const auth = await requireTenantRoles(session, ["ADMIN"]);
   if ("error" in auth) return auth.error;
+  const url = new URL(request.url);
+  const scopedTenant = await resolveScopedTenantId(auth.user.id, auth.tenantId, url.searchParams.get("competitionId"));
+  if ("error" in scopedTenant) return scopedTenant.error;
+  const scopedTenantId = scopedTenant.tenantId;
 
   const { id } = await params;
   if (id === auth.user.id) {
@@ -36,13 +60,13 @@ export async function DELETE(
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
   }
 
-  const tenantScopedRoles = targetUser.tenantRoles.filter((role) => role.tenantId === auth.tenantId);
+  const tenantScopedRoles = targetUser.tenantRoles.filter((role) => role.tenantId === scopedTenantId);
   if (tenantScopedRoles.length === 0) {
     return NextResponse.json({ error: "User gehört nicht zu deinem Tenant" }, { status: 404 });
   }
 
-  const hasForeignTenantRoles = targetUser.tenantRoles.some((role) => role.tenantId !== auth.tenantId);
-  const hasForeignOwnedTeams = targetUser.ownedTeams.some((team) => team.competition.tenantId !== auth.tenantId && !team.deletedAt);
+  const hasForeignTenantRoles = targetUser.tenantRoles.some((role) => role.tenantId !== scopedTenantId);
+  const hasForeignOwnedTeams = targetUser.ownedTeams.some((team) => team.competition.tenantId !== scopedTenantId && !team.deletedAt);
 
   if (hasForeignTenantRoles || hasForeignOwnedTeams) {
     return NextResponse.json(
@@ -55,7 +79,7 @@ export async function DELETE(
   if (hadAdminRole) {
     const activeAdminCount = await prisma.tenantRole.count({
       where: {
-        tenantId: auth.tenantId,
+        tenantId: scopedTenantId,
         role: "ADMIN",
       },
     });
@@ -67,7 +91,7 @@ export async function DELETE(
 
   const now = new Date();
   const teamIds = targetUser.ownedTeams
-    .filter((team) => team.competition.tenantId === auth.tenantId)
+    .filter((team) => team.competition.tenantId === scopedTenantId)
     .map((team) => team.id);
   const { archivedEmail, archivedAuthentikSub } = buildDeletedUserIdentity(targetUser.email, targetUser.id, now);
 
@@ -81,7 +105,7 @@ export async function DELETE(
       data: { deletedAt: now },
     }),
     prisma.tenantRole.deleteMany({
-      where: { userId: id, tenantId: auth.tenantId },
+      where: { userId: id, tenantId: scopedTenantId },
     }),
     prisma.user.update({
       where: { id },

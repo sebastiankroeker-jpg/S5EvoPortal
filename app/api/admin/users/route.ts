@@ -2,7 +2,27 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
+
+async function resolveScopedTenantId(userId: string, fallbackTenantId: string, competitionId: string | null) {
+  if (!competitionId) return { tenantId: fallbackTenantId };
+
+  const competition = await prisma.competition.findUnique({
+    where: { id: competitionId },
+    select: { id: true, tenantId: true },
+  });
+
+  if (!competition) {
+    return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
+  }
+
+  const roleFlags = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
+  if (!roleFlags.isAdmin) {
+    return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
+  }
+
+  return { tenantId: competition.tenantId, competitionId: competition.id };
+}
 
 type TeamScope = {
   id: string;
@@ -64,29 +84,46 @@ const teamScopeSelect = {
 };
 
 // GET /api/admin/users — Alle User mit Rollen laden
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   const auth = await requireTenantRoles(session, ["ADMIN"]);
   if ("error" in auth) return auth.error;
+  const url = new URL(request.url);
+  const scopedTenant = await resolveScopedTenantId(auth.user.id, auth.tenantId, url.searchParams.get("competitionId"));
+  if ("error" in scopedTenant) return scopedTenant.error;
+  const scopedTenantId = scopedTenant.tenantId;
+  const scopedCompetitionId = scopedTenant.competitionId;
 
   const users = await prisma.user.findMany({
     where: {
       deletedAt: null,
       tenantRoles: {
-        some: { tenantId: auth.tenantId },
+        some: { tenantId: scopedTenantId },
       },
     },
     include: {
       tenantRoles: {
-        where: { tenantId: auth.tenantId },
+        where: { tenantId: scopedTenantId },
         include: { tenant: { select: { name: true } } },
       },
       ownedTeams: {
-        where: { deletedAt: null, competition: { tenantId: auth.tenantId } },
+        where: {
+          deletedAt: null,
+          competition: {
+            tenantId: scopedTenantId,
+            ...(scopedCompetitionId ? { id: scopedCompetitionId } : {}),
+          },
+        },
         select: teamScopeSelect,
       },
       chiefOfTeams: {
-        where: { deletedAt: null, competition: { tenantId: auth.tenantId } },
+        where: {
+          deletedAt: null,
+          competition: {
+            tenantId: scopedTenantId,
+            ...(scopedCompetitionId ? { id: scopedCompetitionId } : {}),
+          },
+        },
         select: teamScopeSelect,
       },
       linkedParticipants: {
@@ -94,7 +131,10 @@ export async function GET() {
           deletedAt: null,
           team: {
             deletedAt: null,
-            competition: { tenantId: auth.tenantId },
+            competition: {
+              tenantId: scopedTenantId,
+              ...(scopedCompetitionId ? { id: scopedCompetitionId } : {}),
+            },
           },
         },
         select: {
@@ -118,7 +158,13 @@ export async function GET() {
         where: {
           role: "TEAM_MANAGER",
           revokedAt: null,
-          team: { deletedAt: null },
+          team: {
+            deletedAt: null,
+            competition: {
+              tenantId: scopedTenantId,
+              ...(scopedCompetitionId ? { id: scopedCompetitionId } : {}),
+            },
+          },
         },
         select: {
           id: true,
@@ -134,7 +180,8 @@ export async function GET() {
 
   return NextResponse.json({
     currentUserId: auth.user.id,
-    tenantId: auth.tenantId,
+    tenantId: scopedTenantId,
+    competitionId: scopedCompetitionId,
     adminCount,
     users: users.map((u) => {
       const teamScopes = new Map<string, TeamScope>();
