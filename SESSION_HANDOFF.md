@@ -1,9 +1,21 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 13:53 UTC
+Stand: 2026-07-17 14:46 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller Hotfix: PWA Watchlist Discoverability.
+  - CR: `docs/cr/2026-07-17-pwa-watchlist-discoverability.md`.
+  - Status: deployed.
+  - Commit: `8c1c620 Improve watchlist discoverability`.
+  - Production Deploy: `dpl_4CBXBp2qDaxbdv3uujf2FmXg5mGy`.
+  - Deployment URL: `https://s5-evo-portal-p9d4xss2r-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Scope: Watchlist-Auffindbarkeit verbessert; leerer Watchlist-Tab hat `Teams auswählen`, Teamkarten zeigen `Merken`/`Gemerkt` statt nur Icon.
+  - Keine Datenlogik-Aenderung: keine API, DB, Store-Schema, Rollenlogik oder Privacy-Aenderung.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200; `/teilnehmer` 200; `/api/teams?...&scope=all` ohne Session 401; `/api/results?...` 200; Production `sw.js` bypassed weiter `/api/` und `/_next/`.
+  - Test-Gap: kein authentifizierter Admin-Browser-Smoke durch Agent; Sebastian testet live.
 - Aktueller Feature-CR: PWA Watchlist V1.
   - CR: `docs/cr/2026-07-17-pwa-watchlist-v1.md`.
   - Status: deployed.

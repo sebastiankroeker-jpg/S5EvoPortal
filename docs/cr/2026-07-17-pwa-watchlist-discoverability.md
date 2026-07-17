@@ -1,6 +1,6 @@
 # CR: PWA Watchlist Discoverability
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-17
 Type: hotfix
 Risk: low
@@ -50,8 +50,8 @@ Nach dem Watchlist-V1-Deploy fragte Sebastian, ob Admins die Funktion testen koe
 
 - Gate needed: yes for production deploy.
 - Reason: Live-PWA-UI hotfix.
-- Approved by: Implementation follows Sebastian's live feedback; deploy still requires explicit Go.
-- Approval timestamp:
+- Approved by: Implementation follows Sebastian's live feedback; production deploy approved with "Go".
+- Approval timestamp: 2026-07-17T14:41:36Z
 
 ## Implementation Notes
 
@@ -78,17 +78,23 @@ Nach dem Watchlist-V1-Deploy fragte Sebastian, ob Admins die Funktion testen koe
 
 ## Deploy
 
-- Deployment needed: pending explicit Go.
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes, completed.
+- Deployment ID: `dpl_4CBXBp2qDaxbdv3uujf2FmXg5mGy`
+- Deployment URL: `https://s5-evo-portal-p9d4xss2r-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-17T14:44Z
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green
+  - `HEAD https://portal.s5evo.de` -> 200
+  - `HEAD https://portal.s5evo.de/teilnehmer` -> 200
 - API checks:
-- Result:
+  - `/api/teams?competitionId=...&scope=all` without session -> 401
+  - `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` -> 200, structured results
+  - Production `sw.js` still bypasses `/api/` and `/_next/`
+- Result: Production deploy READY and public smoke green.
 
 ## Follow-Ups
 
