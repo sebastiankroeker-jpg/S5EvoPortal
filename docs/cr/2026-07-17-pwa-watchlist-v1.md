@@ -1,6 +1,6 @@
 # CR: PWA Watchlist V1
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-17
 Type: feature
 Risk: medium
@@ -32,7 +32,7 @@ Sebastian moechte Zuschauer:innen und Teilnehmer:innen staerker durch den Wettka
 - Auth/permission impact: keiner; vorhandene Sichtbarkeit bleibt fuehrend.
 - Sensitive data impact: vorhandene Live-Daten enthalten Namen/Teilnehmerbezug je nach Berechtigung; neuer Watchlist-Store speichert nur Team-IDs.
 - Offline/cache/export/log/mail impact: neuer `localStorage`-Eintrag fuer Watchlist-IDs; keine Exporte, Logs oder Mails.
-- Production/deploy impact: funktionaler Frontend-Code; Production-Deploy erst nach explizitem Go.
+- Production/deploy impact: funktionaler Frontend-Code; Production-Deploy nach explizitem Go erfolgt.
 
 ## Privacy / Security Review
 
@@ -120,8 +120,8 @@ Sebastian moechte Zuschauer:innen und Teilnehmer:innen staerker durch den Wettka
 - Gate needed: yes
 - Reason: Frontend feature touches local offline/browser persistence.
 - Sensitive-data/production-data reason: new localStorage persistence adjacent to PII-bearing Live-Daten; minimized to Team-IDs only.
-- Approved by: Sebastian requested "bitte ... mit den vorgeschlagenen Prios fuer PWA beginnen"
-- Approval timestamp: 2026-07-17T13:21:58Z
+- Approved by: Sebastian requested implementation at 2026-07-17T13:21:58Z and production deploy with "Go" at 2026-07-17T13:47:49Z.
+- Approval timestamp: 2026-07-17T13:47:49Z
 
 ## Implementation Notes
 
@@ -157,22 +157,30 @@ Sebastian moechte Zuschauer:innen und Teilnehmer:innen staerker durch den Wettka
 
 ## Deploy
 
-- Deployment needed: no, until Sebastian gives explicit deploy Go.
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes, completed after explicit Go.
+- Deployment ID: `dpl_7GsY6PwrSMtkDebV9tYFTJFiEjTQ`
+- Deployment URL: `https://s5-evo-portal-89ct2rumr-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-17T13:50Z
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green
+  - `HEAD https://portal.s5evo.de` -> 200, `server: Vercel`
+  - `HEAD https://portal.s5evo.de/teilnehmer` -> 200
 - API checks:
+  - `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` -> 200 with structured results, `totalTeams=47`, `totalClasses=9`
+  - `/api/teams?competitionId=...&scope=all` without session -> 401
 - Sensitive-data/API leakage checks:
-- Result:
+  - Watchlist change adds no server API.
+  - Protected team API remains 401 without session.
+  - Production `sw.js` still bypasses `/api/` and `/_next/` and retains `SKIP_WAITING`.
+- Result: Production deploy READY and public smoke green.
 
 ## Follow-Ups
 
 - Public Watchlist-Auswahl ohne Login konzipieren.
 - Logout-/Cache-Clear fuer PWA-Offline-Caches gesamthaft pruefen.
 - Live-Ticker, Heute-Zeitplan und Event Map light als Folge-CRs.
-- Deploy erst nach explizitem Go.
+- Deployed after explicit Go; manual authenticated PWA smoke remains open.

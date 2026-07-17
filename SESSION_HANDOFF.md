@@ -1,19 +1,23 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 13:31 UTC
+Stand: 2026-07-17 13:53 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Aktueller lokaler Feature-CR: PWA Watchlist V1.
+- Aktueller Feature-CR: PWA Watchlist V1.
   - CR: `docs/cr/2026-07-17-pwa-watchlist-v1.md`.
-  - Status: lokal implementiert, noch nicht deployed.
+  - Status: deployed.
+  - Commit: `13c63ec Add PWA watchlist v1`.
+  - Production Deploy: `dpl_7GsY6PwrSMtkDebV9tYFTJFiEjTQ`.
+  - Deployment URL: `https://s5-evo-portal-89ct2rumr-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
   - Scope: Team-Watchlist fuer Live/PWA, lokal pro Wettkampf gespeichert; Watchlist-Segment in Live, Stern-Button an Teams, Ergebnisliste kann auf Watchlist-Teams filtern.
   - Privacy-Entscheidung: neuer Watchlist-Store persistiert nur Team-IDs in `localStorage` (`s5evo.watchlist.teams.v1.${competitionId}`), keine Teamnamen, Teilnehmerdaten, Geburtstage, E-Mails, Telefonnummern, Claim-Links oder Rollen.
   - Keine API-/DB-/Serializer-/Service-Worker-Aenderung; bestehende Rollen-/Sichtbarkeitslogik bleibt fuehrend.
   - Dateien: `lib/pwa-watchlist.ts`, `app/components/live-screen.tsx`, `app/components/results-view.tsx`, CR.
   - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`, gezielter Store-Negativcheck gegen PII-Felder.
-  - Test-Gap: kein authentifizierter Browser-/Handy-Smoke durch Agent; vor/nach Deploy manuell testen: Team sternen, Reload, Watchlist-Tab, Ergebnisfilter.
-  - Deploy: nur nach explizitem Go.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200; `/teilnehmer` 200; `/api/results?competitionId=...` 200; `/api/teams?...&scope=all` ohne Session 401; Production `sw.js` bypassed weiter `/api/` und `/_next/`.
+  - Test-Gap: kein authentifizierter Browser-/Handy-Smoke durch Agent; manuell testen: Team sternen, Reload/PWA-Update, Watchlist-Tab, Ergebnisfilter.
 - Feature-Brainstorm Zuschauer/Teilnehmer fuer spaeter gemerkt:
   - Prioritaet PWA/MVP+: 1) lokale Watchlist/Favoriten, 2) Watchlist-Start-/Ergebnisansicht, 3) Heute-Zeitplan/naechste Starts, 4) offizieller Live-Ticker, 5) Event Map light.
   - Weitere Ideen: Results Story, QR-Teamkarte, spaetere Push/In-App-Notifications, Heute-Timeline, WhatsApp-Share-Karte, Public-Follow-Modus ohne Login.
