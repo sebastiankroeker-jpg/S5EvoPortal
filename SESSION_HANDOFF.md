@@ -1,9 +1,20 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 23:47 UTC
+Stand: 2026-07-17 23:58 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller Hotfix-CR: CSV Export Tenant Scope And Round Logo.
+  - CR: `docs/cr/2026-07-17-csv-export-tenant-scope-and-round-logo.md`.
+  - Status: implemented locally, not deployed.
+  - Ausloeser: Sebastian meldete per Screenshot, dass das offizielle Logo das kreisrunde 5Kampf-Mark ist und der Admin-CSV-Mailversand mit `Wettkampf nicht gefunden` fehlschlaegt.
+  - Ursache/Codepfad: `/api/admin/daily-orga-export` und `/api/admin/teams-export` autorisierten zuerst per `requireTenantRoles()` gegen einen impliziten Fallback-Tenant und filterten danach `loadCompetitionsForDailyExport()` mit `auth.tenantId`. Bei Multi-Tenant-Admins konnte dadurch der ausgewaehlte 2026-Wettkampf im falschen Tenant gesucht werden.
+  - Geaendert: neuer `requireCompetitionTenantRoles()` Helper in `lib/server-permissions.ts`; Daily-Orga-CSV-Mailversand, CSV-Download und Layout-CSV-Export pruefen den Tenant des uebergebenen `competitionId`; Header, Sidebar und Home nutzen `/brand/5kampf/mark.webp` statt Banner.
+  - Bewusst unveraendert: CSV-Inhalt, Empfaengerlogik, Mail-Provider, DB, Offline-Cache und PWA-Manifest.
+  - Privacy: Exportpfad enthaelt sensible Team-/Manager-/Teilnehmerdaten; keine neuen Felder, keine neuen Logs, keine Test-Mail versendet.
+  - Checks gruen: `npm run verify:admin-csv-export-scope`, `npm run verify:admin-dashboard-scope`, `npm run verify:admin-competition-scope`, targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Local smoke gruen: `/brand/5kampf/mark.webp` 200 `image/webp`; `/` enthaelt `<title>Soier 5Kampf</title>`; unauthenticated `POST /api/admin/daily-orga-export` und `GET /api/admin/teams-export?...` bleiben 401.
+  - Test-Gap: kein authentifizierter Admin-/Mail-Smoke durch Agent; Production Deploy braucht klares Go.
 - Aktueller Content-CR: Home Branding Official Logo.
   - CR: `docs/cr/2026-07-17-home-branding-official-logo.md`.
   - Status: deployed.
