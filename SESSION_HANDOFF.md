@@ -1,18 +1,21 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 19:03 UTC
+Stand: 2026-07-17 19:10 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Aktueller lokaler Content-CR: PWA Install Name Soier 5Kampf.
+- Aktueller Content-CR: PWA Install Name Soier 5Kampf.
   - CR: `docs/cr/2026-07-17-pwa-install-name-soier-5kampf.md`.
-  - Status: lokal implementiert, noch nicht deployed.
+  - Status: deployed.
   - Commit: `0775970 Update PWA install name`.
+  - Production Deploy: `dpl_BzBt3bxJ3fUeDmqRaQTJnKmtmQRS`.
+  - Deployment URL: `https://s5-evo-portal-glw36n2lx-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
   - Ausloeser: Sebastian bat darum, beim Installieren der App den Default-Text `Soier 5Kampf` zu verwenden.
   - Geaendert: `app/manifest.ts` setzt `name` und `short_name` auf `Soier 5Kampf`; `app/layout.tsx` setzt `metadata.applicationName` und `appleWebApp.title` auf `Soier 5Kampf`.
   - Bewusst unveraendert: Browser-Tab-Titel bleibt `S5Evo Portal – Mannschaftsfünfkampf`; keine API, DB, Service-Worker, Offline-Cache, Mail, Export oder Privacy-Aenderung.
   - Checks gruen: `npx eslint app/manifest.ts app/layout.tsx`, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`; gebautes Manifest enthaelt `name:"Soier 5Kampf"` und `short_name:"Soier 5Kampf"`.
-  - Deploy: ausstehend; Production-Deploy nur nach explizitem Go. Nach Deploy `/manifest.webmanifest` gegen `https://portal.s5evo.de` pruefen.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200; `/manifest.webmanifest` 200 mit `content-type: application/manifest+json`; Live-Manifest meldet `name` und `short_name` als `Soier 5Kampf`.
 - Aktueller Hotfix: Admin Dashboard Tenant Scope.
   - CR: `docs/cr/2026-07-17-admin-dashboard-tenant-scope-hotfix.md`.
   - Status: deployed.

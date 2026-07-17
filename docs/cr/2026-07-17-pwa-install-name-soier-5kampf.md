@@ -1,6 +1,6 @@
 # CR: PWA Install Name Soier 5Kampf
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-17
 Type: content
 Risk: low
@@ -100,8 +100,8 @@ Sebastian requested the default text shown when installing the app to be `Soier 
 - Gate needed: yes for production deploy only
 - Reason: production deploy changes public PWA metadata.
 - Sensitive-data/production-data reason: none.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian (`Go`)
+- Approval timestamp: 2026-07-17T19:07:12Z
 
 ## Implementation Notes
 
@@ -135,18 +135,26 @@ Sebastian requested the default text shown when installing the app to be `Soier 
 
 ## Deploy
 
-- Deployment needed: yes, after explicit Go.
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes, completed after explicit Go.
+- Deployment ID: `dpl_BzBt3bxJ3fUeDmqRaQTJnKmtmQRS`
+- Deployment URL: `https://s5-evo-portal-glw36n2lx-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-17T19:09:30Z
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green
+  - `https://portal.s5evo.de/` -> 200
+  - `https://portal.s5evo.de/manifest.webmanifest` -> 200, `content-type: application/manifest+json`
 - API checks:
+  - Public smoke kept `/api/teams` without session -> 401
+  - Public smoke kept `/api/admin/pending-changes` without session -> 401
 - Sensitive-data/API leakage checks:
+  - No API changed.
+  - No API payload checked or broadened for this content-only deploy.
 - Result:
+  - Live manifest reports `name: "Soier 5Kampf"` and `short_name: "Soier 5Kampf"`.
 
 ## Follow-Ups
 
