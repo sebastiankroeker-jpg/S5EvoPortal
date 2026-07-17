@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
-import { requireTenantRoles } from '@/lib/server-permissions';
+import { getTenantRoleFlagsForUserId, requireTenantRoles } from '@/lib/server-permissions';
 import { normalizeCompetitionTeamAccessConfig } from '@/lib/team-access-config';
 import { normalizeMarketplaceGlobalVisibility } from '@/lib/marketplace-visibility';
 
@@ -38,6 +38,23 @@ function normalizeClaimTokenTtlDays(value: unknown) {
   return Math.min(Math.max(Math.floor(parsed), 1), 60);
 }
 
+async function requireCompetitionAdmin(userId: string, competitionId: string) {
+  const competition = await prisma.competition.findUnique({
+    where: { id: competitionId },
+  });
+
+  if (!competition) {
+    return { error: NextResponse.json({ error: 'No competition found' }, { status: 404 }) };
+  }
+
+  const access = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
+  if (!access.isAdmin) {
+    return { error: NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 }) };
+  }
+
+  return { competition };
+}
+
 // GET aktuelle Competition
 export async function GET(request: NextRequest) {
   try {
@@ -49,9 +66,16 @@ export async function GET(request: NextRequest) {
       // If ?id= is provided, load that specific competition (admin switcher)
       const competitionId = request.nextUrl.searchParams.get('id');
       
-      const competition = competitionId
-        ? await prisma.competition.findFirst({ where: { id: competitionId, tenantId: auth.tenantId } })
-        : await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
+      const scopedCompetition = competitionId
+        ? await requireCompetitionAdmin(auth.user.id, competitionId)
+        : null;
+
+      if (scopedCompetition && 'error' in scopedCompetition) {
+        return scopedCompetition.error;
+      }
+
+      const competition = scopedCompetition?.competition
+        ?? await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
 
       if (!competition) {
         return NextResponse.json({ error: 'No competition found' }, { status: 404 });
@@ -111,9 +135,16 @@ export async function PUT(request: NextRequest) {
 
     try {
       // Load specific competition by id, or fall back to latest
-      let competition = body.id
-        ? await prisma.competition.findFirst({ where: { id: body.id, tenantId: auth.tenantId } })
-        : await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
+      const scopedCompetition = body.id
+        ? await requireCompetitionAdmin(auth.user.id, String(body.id))
+        : null;
+
+      if (scopedCompetition && 'error' in scopedCompetition) {
+        return scopedCompetition.error;
+      }
+
+      let competition = scopedCompetition?.competition
+        ?? await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
 
       if (!competition) {
         // Erstelle neue Competition wenn keine existiert

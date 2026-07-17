@@ -12,9 +12,18 @@ export async function GET() {
     const auth = await requireTenantRoles(session, ["ADMIN"]);
     if ("error" in auth) return auth.error;
 
+    const adminTenantRoles = await prisma.tenantRole.findMany({
+      where: {
+        userId: auth.user.id,
+        role: "ADMIN",
+      },
+      select: { tenantId: true },
+    });
+    const adminTenantIds = [...new Set(adminTenantRoles.map((role) => role.tenantId))];
+
     const competitions = await prisma.competition.findMany({
-      where: { tenantId: auth.tenantId },
-      orderBy: { year: "desc" },
+      where: { tenantId: { in: adminTenantIds } },
+      orderBy: [{ year: "desc" }, { createdAt: "desc" }],
       include: {
         tenant: { select: { name: true, slug: true } },
         _count: { select: { teams: true } },
