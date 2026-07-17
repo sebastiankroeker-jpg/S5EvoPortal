@@ -243,7 +243,7 @@ export default function LiveScreen() {
                               <Button
                                 type="button"
                                 variant={watchedTeamIdSet.has(team.id) ? "secondary" : "ghost"}
-                                size="icon-sm"
+                                size="sm"
                                 title={watchedTeamIdSet.has(team.id) ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}
                                 aria-label={watchedTeamIdSet.has(team.id) ? `${team.name} von Watchlist entfernen` : `${team.name} zur Watchlist hinzufügen`}
                                 onClick={(event) => {
@@ -252,6 +252,9 @@ export default function LiveScreen() {
                                 }}
                               >
                                 <Star className={watchedTeamIdSet.has(team.id) ? "fill-current" : ""} />
+                                <span className="hidden sm:inline">
+                                  {watchedTeamIdSet.has(team.id) ? "Gemerkt" : "Merken"}
+                                </span>
                               </Button>
                             </div>
                           </div>
@@ -436,6 +439,10 @@ export default function LiveScreen() {
             <p className="mt-1 text-sm text-muted-foreground">
               Markiere Teams mit dem Stern, dann hast du Starts und Ergebnisse schneller im Blick.
             </p>
+            <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => setActiveSegment("teams")}>
+              <Star />
+              Teams auswählen
+            </Button>
           </CardContent>
         </Card>
       );
