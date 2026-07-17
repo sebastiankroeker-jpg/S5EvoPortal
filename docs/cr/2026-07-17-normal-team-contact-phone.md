@@ -1,6 +1,6 @@
 # CR: Telefonnummer fuer normale Mannschaftsanmeldung
 
-Status: Implemented
+Status: Deploying
 Date: 2026-07-17
 Type: feature
 Risk: medium
@@ -108,8 +108,8 @@ Sebastian wants normal team registrations to collect a manager phone number as w
 - Reason: production deploy and push to auto-deploying main.
 - Local implementation approved by: Sebastian via Telegram "Neuer CR ..."
 - Local implementation approval timestamp: 2026-07-17 11:50 UTC
-- Production deploy approved by:
-- Production deploy approval timestamp:
+- Production deploy approved by: Sebastian via Telegram "Go"
+- Production deploy approval timestamp: 2026-07-17 11:58 UTC
 
 ## Implementation Notes
 
