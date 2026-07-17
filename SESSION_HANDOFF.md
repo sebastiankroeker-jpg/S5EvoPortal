@@ -1,9 +1,16 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 10:27 UTC
+Stand: 2026-07-17 11:18 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller lokaler Hardening-CR: Admin Competition Scope Guard.
+  - CR: `docs/cr/2026-07-17-admin-competition-scope-guard.md`.
+  - Ausloeser: Sebastian hatte kurz den 2026er Wettkampf nicht mehr in der Admin-Auswahl, weil sein User Admin in zwei Tenants ist und der alte Codepfad den 2024-Archiv-Tenant als Fallback-Kontext nahm.
+  - Produktionsfix ist bereits live: `2d04b4a Fix admin competition switcher tenant scope`, Deploy `dpl_FSgyPbacMZArx6kzGpba6cR2gE8C`, Alias `https://portal.s5evo.de`.
+  - Guard lokal hinzugefuegt: `scripts/verify-admin-competition-scope.ts` plus npm-Script `verify:admin-competition-scope`.
+  - Business-Invariant: Admin-Wettkampf-Auswahl muss alle Tenants beruecksichtigen, in denen der User `ADMIN` ist; Detail/Speichern muss gegen den Tenant des ausgewaehlten Wettkampfs autorisieren, nicht gegen einen impliziten Fallback-Tenant.
+  - Deploy fuer den Guard selbst nicht erforderlich, sofern er nicht mit einem spaeteren Release gebuendelt wird.
 - Aktueller Deploy: PWA Offline Read Model V1.
   - CR: `docs/cr/2026-07-17-pwa-offline-read-model-v1.md`.
   - Commit: `a0c4870 Add PWA offline read model`.
