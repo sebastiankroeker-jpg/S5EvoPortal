@@ -4,10 +4,12 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { canRoleViewAllTeams } from "@/lib/team-access-config";
+import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { compareClassificationCodes } from "@/lib/domain/classification";
 import ResultsView from "./results-view";
@@ -70,23 +72,32 @@ export default function LiveScreen() {
   const [activeSegment, setActiveSegment] = useState<Segment>("teams");
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [cacheState, setCacheState] = useState<{ storedAt: string | null; fallback: boolean } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const canViewTeamLists = canRoleViewAllTeams(activeRole, activeCompetition);
+  const cacheKey = useMemo(
+    () => activeCompetition?.id ? `s5evo.offline.liveTeams.v1.${activeCompetition.id}.${activeRole}` : null,
+    [activeCompetition?.id, activeRole],
+  );
   const availableSegments = useMemo<Segment[]>(
     () => canViewTeamLists ? [...SEGMENTS] : ["ergebnis"],
     [canViewTeamLists],
   );
 
   // Fetch teams data
-  const fetchTeams = useCallback(async () => {
+  const fetchTeams = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     if (!canViewTeamLists) {
       setTeams([]);
       setLoading(false);
       return;
     }
+
+    if (mode === "initial") setLoading(true);
+    if (mode === "refresh") setRefreshing(true);
 
     try {
       // Fetch all teams for live view
@@ -94,16 +105,29 @@ export default function LiveScreen() {
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
       const response = await fetch(`/api/teams?${params}`);
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Live-Daten konnten nicht geladen werden.");
+      }
       setTeams(data.teams || []);
+      if (cacheKey) {
+        const stored = writeOfflineCache(cacheKey, { teams: data.teams || [] });
+        setCacheState({ storedAt: stored?.storedAt ?? new Date().toISOString(), fallback: false });
+      }
     } catch (error) {
       console.error('Failed to fetch teams:', error);
+      const cached = cacheKey ? readOfflineCache<{ teams: Team[] }>(cacheKey) : null;
+      if (cached) {
+        setTeams(cached.data.teams || []);
+        setCacheState({ storedAt: cached.storedAt, fallback: true });
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [activeCompetition?.id, activeRole, canViewTeamLists]);
+  }, [activeCompetition?.id, activeRole, cacheKey, canViewTeamLists]);
 
   useEffect(() => {
-    fetchTeams();
+    void fetchTeams("initial");
   }, [fetchTeams]);
 
   useEffect(() => {
@@ -379,6 +403,20 @@ export default function LiveScreen() {
 
   return (
     <div className="space-y-6">
+      {canViewTeamLists && (
+        <div className="flex flex-col gap-2 rounded-md border border-border/60 bg-card px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">Start- und Mannschaftsdaten</p>
+            <p className={`text-xs ${cacheState?.fallback ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
+              {cacheState?.fallback ? "Lokaler Stand" : "Datenstand"}: {formatOfflineCacheTimestamp(cacheState?.storedAt)}
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => void fetchTeams("refresh")} disabled={refreshing}>
+            {refreshing ? "Aktualisiere..." : "Daten aktualisieren"}
+          </Button>
+        </div>
+      )}
+
       {/* Segment Tabs */}
       <div className="flex space-x-1 bg-muted/50 p-1 rounded-lg">
         {availableSegments.map((segment) => {

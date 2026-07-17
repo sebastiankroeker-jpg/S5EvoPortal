@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCompetition } from "@/lib/competition-context";
+import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import { motion, AnimatePresence } from "framer-motion";
 
 type DisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
@@ -89,31 +90,57 @@ export default function ResultsView() {
   const { active: activeCompetition } = useCompetition();
   const [data, setData] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [cacheState, setCacheState] = useState<{ storedAt: string | null; fallback: boolean } | null>(null);
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
   const [detailView, setDetailView] = useState<{ classCode: string; discipline: DisciplineCode } | null>(null);
+  const cacheKey = useMemo(
+    () => activeCompetition?.id ? `s5evo.offline.results.v1.${activeCompetition.id}` : null,
+    [activeCompetition?.id],
+  );
+
+  const applyResultsData = useCallback((json: ResultsData) => {
+    setData(json);
+    if (json.results?.length > 0) {
+      setExpandedClasses((current) => Object.keys(current).length > 0 ? current : { [json.results[0].classCode]: true });
+    }
+  }, []);
+
+  const loadResults = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (!activeCompetition?.id || !cacheKey) return;
+    if (mode === "initial") setLoading(true);
+    if (mode === "refresh") setRefreshing(true);
+
+    try {
+      const res = await fetch(`/api/results?competitionId=${activeCompetition.id}`);
+      const json = await res.json().catch(() => null) as ResultsData | { error?: string } | null;
+      if (!res.ok || !json || !("results" in json)) {
+        throw new Error((json as { error?: string } | null)?.error || "Ergebnisse konnten nicht geladen werden.");
+      }
+
+      applyResultsData(json);
+      const stored = writeOfflineCache(cacheKey, json);
+      setCacheState({ storedAt: stored?.storedAt ?? new Date().toISOString(), fallback: false });
+    } catch (err) {
+      console.error("Failed to load results:", err);
+      const cached = readOfflineCache<ResultsData>(cacheKey);
+      if (cached) {
+        applyResultsData(cached.data);
+        setCacheState({ storedAt: cached.storedAt, fallback: true });
+      }
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    setLoading(false);
+    setRefreshing(false);
+  }, [activeCompetition?.id, applyResultsData, cacheKey]);
 
   useEffect(() => {
-    if (!activeCompetition?.id) return;
-    setLoading(true);
-    (async () => {
-      try {
-        const res = await fetch(`/api/results?competitionId=${activeCompetition.id}`);
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-          // Auto-expand first class
-          if (json.results?.length > 0) {
-            setExpandedClasses({ [json.results[0].classCode]: true });
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load results:", err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [activeCompetition?.id]);
+    void loadResults("initial");
+  }, [loadResults]);
 
   if (loading) {
     return (
@@ -193,20 +220,28 @@ export default function ResultsView() {
           <p className="text-xs text-muted-foreground">
             {data.totalTeams} Teams · {data.totalClasses} Klassen
           </p>
+          <p className={`mt-1 text-xs ${cacheState?.fallback ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
+            {cacheState?.fallback ? "Lokaler Stand" : "Datenstand"}: {formatOfflineCacheTimestamp(cacheState?.storedAt)}
+          </p>
         </div>
-        <Select value={selectedClass} onValueChange={setSelectedClass}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Alle Klassen" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Klassen</SelectItem>
-            {data.results.map((r) => (
-              <SelectItem key={r.classCode} value={r.classCode}>
-                {r.className} ({r.teamScores.length})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+          <Button type="button" variant="outline" size="sm" onClick={() => void loadResults("refresh")} disabled={refreshing}>
+            {refreshing ? "Aktualisiere..." : "Daten aktualisieren"}
+          </Button>
+          <Select value={selectedClass} onValueChange={setSelectedClass}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Alle Klassen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Klassen</SelectItem>
+              {data.results.map((r) => (
+                <SelectItem key={r.classCode} value={r.classCode}>
+                  {r.className} ({r.teamScores.length})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Class Results */}

@@ -52,6 +52,7 @@ import {
   type AccountLinkClaimStatus,
 } from "@/lib/account-link-status";
 import { DASHBOARD_SCOPE_STORAGE_KEY, getStoredDashboardScope, setStoredDashboardScope } from "@/lib/dashboard-navigation";
+import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import { DisciplineBrandBadge, DisciplineBrandIcon } from "./discipline-brand";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1730,6 +1731,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const { can, activeRole } = usePermissions();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshingTeams, setRefreshingTeams] = useState(false);
+  const [offlineCacheState, setOfflineCacheState] = useState<{ storedAt: string | null; fallback: boolean } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<string>(initialOwnerFilter || "all");
@@ -1801,6 +1804,13 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const notifications = useNotifications();
   const showOwnerFilter = isOwnerFilterVisibleForRole(activeRole, activeCompetition);
   const canBrowseAllTeams = canViewAll || canRoleViewAllTeams(activeRole, activeCompetition);
+  const offlineTeamsCacheKey = useMemo(() => {
+    const userPart = userEmail ? normalizeEmail(userEmail) : "anonymous";
+    const competitionPart = activeCompetition?.id || "none";
+    const focusPart = marketplaceFocus ? "marketplace" : "teams";
+    const scopePart = canBrowseAllTeams ? "all" : "own";
+    return `s5evo.offline.dashboardTeams.v1.${competitionPart}.${userPart}.${activeRole}.${focusPart}.${scopePart}`;
+  }, [activeCompetition?.id, activeRole, canBrowseAllTeams, marketplaceFocus, userEmail]);
   const sortOptions = useMemo(() => SORT_OPTIONS.filter((option) => !option.adminOnly || isAdmin), [isAdmin]);
   const listOptionalColumns = useMemo(
     () => LIST_OPTIONAL_COLUMNS.filter((column) => !column.adminOnly || isAdmin),
@@ -1901,7 +1911,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     viewMode,
   ]);
 
-  const fetchTeams = useCallback(async () => {
+  const fetchTeams = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (mode === "initial") setLoading(true);
+    if (mode === "refresh") setRefreshingTeams(true);
+
     try {
       const params = new URLSearchParams();
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
@@ -1912,17 +1925,31 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       if (!response.ok) {
         throw new Error(data?.error || "Teams konnten nicht geladen werden.");
       }
-      setTeams(data.teams || []);
+      const nextTeams = data.teams || [];
+      setTeams(nextTeams);
+      const stored = writeOfflineCache(offlineTeamsCacheKey, { teams: nextTeams });
+      setOfflineCacheState({ storedAt: stored?.storedAt ?? new Date().toISOString(), fallback: false });
     } catch (error) {
       console.error('Failed to fetch teams:', error);
-      notifications.error(
-        "Teams konnten nicht geladen werden",
-        error instanceof Error ? error.message : "Bitte versuche es erneut.",
-      );
+      const cached = readOfflineCache<{ teams: Team[] }>(offlineTeamsCacheKey);
+      if (cached) {
+        setTeams(cached.data.teams || []);
+        setOfflineCacheState({ storedAt: cached.storedAt, fallback: true });
+        notifications.info(
+          "Lokaler Mannschaftsstand geladen",
+          `Datenstand: ${formatOfflineCacheTimestamp(cached.storedAt)}.`,
+        );
+      } else {
+        notifications.error(
+          "Teams konnten nicht geladen werden",
+          error instanceof Error ? error.message : "Bitte versuche es erneut.",
+        );
+      }
     } finally {
       setLoading(false);
+      setRefreshingTeams(false);
     }
-  }, [activeCompetition?.id, activeRole, canBrowseAllTeams, notifications]);
+  }, [activeCompetition?.id, activeRole, canBrowseAllTeams, notifications, offlineTeamsCacheKey]);
 
   const fetchDashboardLayouts = useCallback(async () => {
     if (sessionStatus === "loading") {
@@ -3056,6 +3083,18 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col gap-2 rounded-md border border-border/60 bg-card px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium">Mannschafts-Dashboard</p>
+          <p className={`text-xs ${offlineCacheState?.fallback ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
+            {offlineCacheState?.fallback ? "Lokaler Stand" : "Datenstand"}: {formatOfflineCacheTimestamp(offlineCacheState?.storedAt)}
+          </p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => void fetchTeams("refresh")} disabled={refreshingTeams}>
+          {refreshingTeams ? "Aktualisiere..." : "Daten aktualisieren"}
+        </Button>
+      </div>
+
       {marketplaceFocus && (
         <Card>
           <CardContent className="space-y-3 p-3">
