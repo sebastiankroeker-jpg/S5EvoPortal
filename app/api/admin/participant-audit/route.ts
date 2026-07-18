@@ -3,15 +3,15 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const searchParams = request.nextUrl.searchParams;
   const competitionId = searchParams.get("competitionId");
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  if ("error" in auth) return auth.error;
+
   const action = searchParams.get("action") || "DIRECT_CHANGE";
   const limitParam = Number(searchParams.get("limit") || 20);
   const take = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 20;

@@ -29,19 +29,50 @@ import { recordParticipantNotificationAuditEvents } from "@/lib/participant-noti
 import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
+async function resolvePendingChangeTenantId(routeId: string) {
+  const changeRequest = await prisma.changeRequest.findUnique({
+    where: { id: routeId },
+    select: { tenantId: true },
+  });
+  if (changeRequest?.tenantId) return changeRequest.tenantId;
+
+  const pendingChange = await prisma.pendingChange.findUnique({
+    where: { id: routeId },
+    select: {
+      participant: {
+        select: {
+          team: {
+            select: {
+              competition: {
+                select: { tenantId: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return pendingChange?.participant.team.competition.tenantId ?? null;
+}
+
 // PUT /api/admin/pending-changes/[id] — Approve oder Reject
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const { id: routeId } = await params;
   const body = await request.json().catch(() => ({}));
   const action = body.action;
   const comment = typeof body.comment === "string" ? body.comment.trim() : "";
+
+  const scopedTenantId = await resolvePendingChangeTenantId(routeId);
+  const session = await getServerSession(authOptions);
+  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
+    tenantId: scopedTenantId,
+    fallbackToFirstMatchingTenant: !scopedTenantId,
+  });
+  if ("error" in auth) return auth.error;
 
   if (!["approve", "reject"].includes(action)) {
     return NextResponse.json({ error: "Ungültige Aktion" }, { status: 400 });

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { previewResultReset } from "@/lib/result-staging-reset";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +44,11 @@ function parseDiscipline(value: unknown): DisciplineCode | null {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+    const body = normalizeBody(await request.json().catch(() => ({})));
+    const competitionId = parseString(body.competitionId);
+    const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
     if ("error" in auth) return auth.error;
 
-    const body = normalizeBody(await request.json().catch(() => ({})));
     const scope = parseScope(body.scope);
     if (!scope) {
       return NextResponse.json({ error: "Ungueltiger Reset-Scope." }, { status: 400 });
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const result = await previewResultReset({
       tenantId: auth.tenantId,
-      competitionId: parseString(body.competitionId),
+      competitionId,
       scope,
       filter: {
         batchId: parseString(body.batchId),

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 const ALLOWED_ACTIONS = new Set([
   "TEAM_SOFT_DELETED",
@@ -21,12 +21,12 @@ const ALLOWED_ACTIONS = new Set([
 ]);
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
-  if ("error" in auth) return auth.error;
-
   const searchParams = request.nextUrl.searchParams;
   const competitionId = searchParams.get("competitionId");
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN"], competitionId);
+  if ("error" in auth) return auth.error;
+
   const scopeType = searchParams.get("scopeType");
   const scopeId = searchParams.get("scopeId");
   const actionParams = searchParams.getAll("action").filter((action) => ALLOWED_ACTIONS.has(action));

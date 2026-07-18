@@ -8,7 +8,7 @@ import { createParticipantClaimInvitation } from "@/lib/participant-claim-invita
 import { buildMtcAnonymousUrl, buildParticipantClaimUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from "@/lib/registration-claim";
 import { recordParticipantClaimAuditEvent } from "@/lib/participant-claim-audit";
 import { recordClaimAuditEvent } from "@/lib/registration-claim-audit";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles, requireTenantRoles } from "@/lib/server-permissions";
 import { syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
 function isExpired(value?: Date | string | null) {
@@ -44,11 +44,16 @@ async function requireAdminAccess() {
   return requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
 }
 
+async function requireCompetitionAdminAccess(competitionId: string | null) {
+  const session = await getServerSession(authOptions);
+  return requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+}
+
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminAccess();
+  const competitionId = request.nextUrl.searchParams.get("competitionId");
+  const auth = await requireCompetitionAdminAccess(competitionId);
   if ("error" in auth) return auth.error;
 
-  const competitionId = request.nextUrl.searchParams.get("competitionId");
   const tenant = await prisma.tenant.findUnique({
     where: { id: auth.tenantId },
     select: { claimLinksEnabled: true },

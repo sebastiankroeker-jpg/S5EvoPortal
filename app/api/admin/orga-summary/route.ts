@@ -3,14 +3,14 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 export async function GET(request: NextRequest) {
+  const competitionId = request.nextUrl.searchParams.get("competitionId");
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
   if ("error" in auth) return auth.error;
 
-  const competitionId = request.nextUrl.searchParams.get("competitionId");
   const now = new Date();
 
   const competitionWhere = competitionId

@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resetCompetitionData } from "@/lib/competition-reset";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 type ResetRequestBody = {
   id?: string;
@@ -24,11 +24,11 @@ function normalizeBody(value: unknown): ResetRequestBody {
 
 export async function GET(request: NextRequest) {
   try {
+    const competitionId = request.nextUrl.searchParams.get("id");
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ["ADMIN"]);
+    const auth = await requireCompetitionTenantRoles(session, ["ADMIN"], competitionId);
     if ("error" in auth) return auth.error;
 
-    const competitionId = request.nextUrl.searchParams.get("id");
     const competition = competitionId
       ? await prisma.competition.findFirst({
           where: { id: competitionId, tenantId: auth.tenantId },
@@ -100,11 +100,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const body = normalizeBody(await request.json().catch(() => ({})));
+    const competitionId = typeof body.id === "string" && body.id.trim() ? body.id.trim() : null;
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ["ADMIN"]);
+    const auth = await requireCompetitionTenantRoles(session, ["ADMIN"], competitionId);
     if ("error" in auth) return auth.error;
 
-    const body = normalizeBody(await request.json().catch(() => ({})));
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     const dryRun = body.dryRun === true;
     const force = body.force === true;
@@ -116,9 +117,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const competition = body.id
+    const competition = competitionId
       ? await prisma.competition.findFirst({
-          where: { id: body.id, tenantId: auth.tenantId },
+          where: { id: competitionId, tenantId: auth.tenantId },
         })
       : await prisma.competition.findFirst({
           where: { tenantId: auth.tenantId },

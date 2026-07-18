@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { resolveCurrentUser } from "@/lib/current-user";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 type ImportBody = {
   competitionId?: string;
@@ -177,10 +177,6 @@ function collectAssignments(
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const body = (await request.json().catch(() => null)) as ImportBody | null;
   if (!body) {
     return NextResponse.json({ error: "Ungueltiger Request-Body" }, { status: 400 });
@@ -190,6 +186,10 @@ export async function POST(request: NextRequest) {
   if (!competitionId) {
     return NextResponse.json({ error: "competitionId fehlt" }, { status: 400 });
   }
+
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  if ("error" in auth) return auth.error;
 
   const csv = body.csv?.trim();
   if (!csv) {

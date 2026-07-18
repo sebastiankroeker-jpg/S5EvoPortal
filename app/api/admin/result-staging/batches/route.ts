@@ -8,7 +8,7 @@ import {
   RESULT_SOURCE_LABELS,
 } from "@/lib/result-staging";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +39,11 @@ async function resolveCompetition(tenantId: string, competitionId: string | null
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+    const competitionId = request.nextUrl.searchParams.get("competitionId");
+    const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
     if ("error" in auth) return auth.error;
 
-    const competition = await resolveCompetition(auth.tenantId, request.nextUrl.searchParams.get("competitionId"));
+    const competition = await resolveCompetition(auth.tenantId, competitionId);
     if (!competition) {
       return NextResponse.json({ error: "Kein Wettkampf gefunden." }, { status: 404 });
     }

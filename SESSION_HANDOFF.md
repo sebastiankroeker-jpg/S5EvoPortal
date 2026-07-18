@@ -1,9 +1,20 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-17 23:58 UTC
+Stand: 2026-07-18 00:44 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller Hotfix-/Hardening-CR: Tenant Scope Audit Guardrail.
+  - CR: `docs/cr/2026-07-18-tenant-scope-audit-guardrail.md`.
+  - Status: implemented locally, not deployed.
+  - Ausloeser: Sebastian machte nach zwei Multi-Tenant-Hotfixes berechtigt Sorgen, ob alle betroffenen Tenant-Scope-Stellen abgesichert sind.
+  - Kernursache: `requireTenantRoles()` ohne expliziten Tenant kann bei Multi-Tenant-Admins auf den ersten passenden Admin-Tenant fallen, waehrend die UI einen anderen aktiven `competitionId`-Wettkampf sendet.
+  - Geaendert: direkte `competitionId`-Adminrouten nutzen jetzt `requireCompetitionTenantRoles()` bzw. loesen den Ziel-Tenant vor der Autorisierung auf. Betroffen: Audit-Events, Claim-Audit, Claim-Links GET, Competition Reset, Deleted Teams GET, Mail-Events, Orga-Summary, Participant-Audit, Participants, Pending-Change-Decision, Result-Staging Batches/Reset/Sessions, Startnummern-Import, Team-Access-Audit.
+  - Neuer Guard: `npm run verify:tenant-scope` (`scripts/verify-tenant-scope.ts`) blockiert Regressionen, wenn competition-scoped Adminrouten wieder fallback-basiert autorisieren.
+  - Bewusst unveraendert: keine DB-Migration, keine Produktionsdaten-Mutation, keine neuen Serializer-Felder, keine Mails/Exports/Resets ausgefuehrt, kein Deploy.
+  - Checks gruen: `npm run verify:tenant-scope`, `npm run verify:admin-competition-scope`, `npm run verify:admin-dashboard-scope`, `npm run verify:admin-csv-export-scope`, targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Follow-up-Risiko: fuenf Entity-ID-only-Routen brauchen eigene scoped Helper/Guards: Claim-Links POST/PATCH, Deleted-Team Restore, Participant-Change-Bundle Create/Detail/Decision.
+  - Production Deploy braucht separates Go.
 - Aktueller Hotfix-CR: CSV Export Tenant Scope And Round Logo.
   - CR: `docs/cr/2026-07-17-csv-export-tenant-scope-and-round-logo.md`.
   - Status: implemented locally, not deployed.

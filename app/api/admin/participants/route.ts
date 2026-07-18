@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 // GET /api/admin/participants — Alle Teilnehmer flat
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get("search")?.toLowerCase() || "";
   const competitionId = searchParams.get("competitionId");
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  if ("error" in auth) return auth.error;
+
   const canSeeAdminOnlyFields = auth.isAdmin;
 
   const participants = await prisma.participant.findMany({

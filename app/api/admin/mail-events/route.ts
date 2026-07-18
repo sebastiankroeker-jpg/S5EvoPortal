@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 type MailEventStatus = "sent" | "skipped" | "failed" | "generated" | "unknown";
 type MailEventSource = "team_registration" | "team_lifecycle" | "participant_claim" | "participant_change";
@@ -59,12 +59,12 @@ function matchesSearch(event: MailEvent, search: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
-  if ("error" in auth) return auth.error;
-
   const params = request.nextUrl.searchParams;
   const competitionId = params.get("competitionId") || undefined;
+  const session = await getServerSession(authOptions);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN"], competitionId);
+  if ("error" in auth) return auth.error;
+
   const statusFilter = params.get("status") || "all";
   const sourceFilter = params.get("source") || "all";
   const search = (params.get("search") || "").trim().toLowerCase();
