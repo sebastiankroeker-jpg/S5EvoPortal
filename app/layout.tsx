@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import RoleSimulationBanner from "./components/role-simulation-banner";
 import LayoutWrapper from "./components/layout-wrapper";
 import PwaServiceWorker from "./components/pwa-service-worker";
+import MaintenanceScreen from "./components/maintenance-screen";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -38,9 +39,14 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const maintenanceMode = process.env.PORTAL_MAINTENANCE_MODE === "1";
+
   return (
     <html lang="de" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {maintenanceMode ? (
+          <MaintenanceScreen />
+        ) : (
         <Providers>
           <TooltipProvider>
             <RoleSimulationBanner />
@@ -48,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <PwaServiceWorker />
           </TooltipProvider>
         </Providers>
+        )}
       </body>
     </html>
   );

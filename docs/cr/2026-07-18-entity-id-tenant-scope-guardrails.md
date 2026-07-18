@@ -1,0 +1,224 @@
+# CR: Entity-ID Tenant Scope Guardrails
+
+Status: Draft
+Date: 2026-07-18
+Type: hotfix
+Risk: high
+Owner: S5Evo
+
+## Context
+
+Follow-up from `docs/cr/2026-07-18-tenant-scope-audit-guardrail.md`.
+The previous hotfix secured direct `competitionId` admin surfaces. Five remaining
+routes are scoped by entity IDs (`teamId`, `participantId`, `pendingChangeId`,
+or `bundleId`) and still need target-entity tenant resolution before role
+authorization.
+
+On 2026-07-18 16:52 UTC Sebastian reported that no teams were visible. Live
+diagnosis found a production DB access restriction, not an admin-role loss:
+`/api/competition` returned 500 and Vercel logs showed Prisma P1001. A direct
+`psql` connection attempt returned `planLimitReached`.
+
+## Scope
+
+- In scope:
+  - Add entity-scoped auth helpers or route-local tenant resolution for the
+    documented entity-ID-only routes.
+  - Ensure selected entity tenant determines Admin/Moderator authorization
+    before sensitive reads or mutations.
+  - Add static guard coverage so these routes cannot silently regress to
+    fallback tenant authorization.
+  - Keep request/response API shapes unchanged.
+- Out of scope:
+  - No DB migration.
+  - No production data mutation during verification.
+  - No outbound claim, lifecycle, participant, or org mails during agent tests.
+  - No production deploy without separate explicit Go.
+  - No fix for the current Prisma `planLimitReached` account restriction.
+
+## Affected Flows
+
+- User/API/admin flows touched:
+  - Claim link create/revoke/regenerate flows by `teamId` or `participantId`.
+  - Deleted team restore by route `teamId`.
+  - Participant change bundle create/detail/decision by pending-change or bundle
+    IDs.
+- Data model impact: none.
+- Auth/permission impact: yes; entity target tenant should be resolved before
+  role authorization, avoiding fallback tenant mismatch for multi-tenant admins.
+- Sensitive data impact: high; affected flows include team names, participants,
+  birth dates/years, e-mails, claim-link state, audit records, and role-scoped
+  mutations.
+- Offline/cache/export/log/mail impact:
+  - No offline cache change intended.
+  - Some touched routes can send operational mails in real use; verification
+    must avoid sending mails.
+  - No new technical logs of sensitive payloads.
+- Production/deploy impact: local only until a separate deploy approval.
+
+## Privacy / Security Review
+
+- Sensitive fields touched:
+  - Participant names, birth dates/years, e-mails, claim-token state, team
+    identity, team contact context, pending-change snapshots, audit/mail
+    metadata.
+- Purpose / data minimization:
+  - Use entity IDs only to derive the owning tenant for authorization and to
+    continue existing route behavior.
+  - Do not broaden serializers or add new response fields.
+- Visibility by role/user/API/UI:
+  - Existing Admin/Moderator/Admin-only route semantics remain.
+  - Authorization must be checked against the tenant of the target entity, not
+    against the first matching tenant role.
+- Persistence locations:
+  - Existing database writes in real user flows remain.
+  - CR and handoff documentation only; no new persistence.
+- Offline/cache behavior, TTL/invalidation/logout clearing:
+  - No offline cache changes.
+- Logs/mails/exports/screenshots exposure:
+  - Do not print sensitive payloads in smoke output.
+  - Do not send test mails or generate exports.
+- Negative checks for unauthorized access or payload leakage:
+  - Static guard should reject fallback `requireTenantRoles()` usage in the five
+    entity-scoped follow-up routes unless an explicit scoped helper is present.
+  - Unauthenticated requests should remain 401.
+- Authenticated smoke plan or explicit gap:
+  - Gap: agent has no reusable authenticated multi-tenant Admin session/cookies.
+- Residual risk:
+  - Static guards reduce regression risk but do not replace authenticated
+    multi-tenant integration tests.
+
+## Data / API Design
+
+- Proposed data model: none.
+- Proposed API shape: unchanged.
+- Backward compatibility:
+  - Existing request bodies and route params remain valid.
+  - Error semantics should stay close to current behavior: 401 unauthenticated,
+    403 unauthorized, 404 missing target where applicable.
+- Migration/data backfill: none.
+
+## Open Questions
+
+- Decision 1: Use shared helpers in `lib/server-permissions.ts` for team,
+  participant, pending-change, and bundle tenant resolution, or keep narrowly
+  route-local helpers for this hotfix?
+- Decision 2: Extend `npm run verify:tenant-scope` or create a separate
+  `verify:entity-tenant-scope` script for clarity?
+
+## Acceptance Criteria
+
+- Claim-link POST/PATCH authorize against the tenant of the target team or
+  participant before mutation.
+- Deleted-team restore authorizes against the deleted team's competition tenant
+  before restore/mails/audit.
+- Participant-change bundle create/detail/decision authorize against the tenant
+  derived from the pending changes in the target bundle or request body before
+  returning sensitive details or applying decisions.
+- Static guard covers all five entity-ID-only follow-up routes.
+- No serializer expansion, no DB migration, no production data mutation during
+  verification.
+
+## Implementation Handoff
+
+- Relevant files:
+  - `lib/server-permissions.ts`
+  - `app/api/admin/claim-links/route.ts`
+  - `app/api/admin/deleted-teams/[id]/restore/route.ts`
+  - `app/api/admin/participant-change-bundles/route.ts`
+  - `app/api/admin/participant-change-bundles/[id]/route.ts`
+  - `app/api/admin/participant-change-bundles/[id]/decision/route.ts`
+  - `scripts/verify-tenant-scope.ts` or a new verify script
+  - `package.json`
+  - `SESSION_HANDOFF.md`
+- Current decisions:
+  - Current production outage is DB-account-side `planLimitReached`, not this
+    CR's auth logic.
+  - Entity target tenant must be resolved before relying on `auth.tenantId`.
+- Open decisions:
+  - Shared helper shape and verify script placement.
+- Non-goals:
+  - No deploy, no DB migration, no production data mutation, no mails.
+- Expected implementation steps:
+  - Add shared entity-scope helper(s) or route-local target-tenant resolution.
+  - Patch the five follow-up routes.
+  - Add static guard coverage.
+  - Run targeted guards, ESLint for touched routes, TypeScript, diff check, and
+    build if feasible.
+- Required checks:
+  - `npm run verify:tenant-scope`
+  - targeted ESLint for touched routes and helper/script files
+  - `npx tsc --noEmit --incremental false`
+  - `git diff --check`
+  - `npm run build`
+- Privacy/security checks:
+  - No serializer expansion.
+  - Protected endpoints without session remain protected.
+  - No mail/export/reset execution.
+- Risks/assumptions:
+  - Production DB currently blocked by Prisma account restriction
+    `planLimitReached`; live authenticated smoke is blocked until resolved.
+- Context read before implementation:
+  - `SESSION_HANDOFF.md` top block: read 2026-07-18.
+  - Relevant prior CR(s): `docs/cr/2026-07-18-tenant-scope-audit-guardrail.md`.
+  - Relevant source files: route inventory read 2026-07-18.
+
+## Model / Subagent Plan
+
+- Model switch needed: no
+- Target model/role: current Codex implementation after approval
+- Subagent needed: no
+- Subagent role: n/a
+- Handoff source: this CR, prior tenant-scope CR, and current session context.
+
+## Confirmation Gate
+
+- Gate needed: yes
+- Reason: high-risk auth/tenant-scope hardening touching sensitive Admin
+  mutation flows.
+- Sensitive-data/production-data reason: affected APIs expose or mutate
+  participant/team/claim/change/audit/mail-adjacent data.
+- Approved by:
+- Approval timestamp:
+
+## Implementation Notes
+
+- Files changed:
+  - `docs/cr/2026-07-18-entity-id-tenant-scope-guardrails.md`
+- Important decisions during implementation:
+  - Pending explicit implementation approval.
+
+## Verification
+
+- Local checks:
+  - Pending implementation approval.
+- Build:
+  - Pending implementation approval.
+- Targeted verification:
+  - Pending implementation approval.
+- Sensitive-data negative checks:
+  - Pending implementation approval.
+- Authenticated role smoke:
+  - Gap: no reusable authenticated multi-tenant Admin session/cookies.
+- Manual smoke:
+  - Current production issue diagnosed separately as Prisma `planLimitReached`.
+
+## Deploy
+
+- Deployment needed: yes, after implementation and separate deploy approval.
+- Deployment ID:
+- Deployment URL:
+- Production alias:
+- Deployed at:
+
+## Post-Deploy Smoke
+
+- Routes checked:
+- API checks:
+- Sensitive-data/API leakage checks:
+- Result:
+
+## Follow-Ups
+
+- Resolve Prisma account restriction `planLimitReached`; production DB access is
+  currently blocked and public smoke is red at `/api/competition`.

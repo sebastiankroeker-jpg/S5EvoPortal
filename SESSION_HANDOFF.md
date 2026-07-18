@@ -1,9 +1,23 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-18 00:44 UTC
+Stand: 2026-07-18 16:56 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktuelle Production-Stoerung 2026-07-18 16:52 UTC:
+  - Sebastian meldete, dass keine Mannschaften sichtbar sind und fragte, ob Adminrechte entzogen wurden.
+  - Befund: sehr wahrscheinlich nicht Adminrechte. Production erreicht die Prisma-DB nicht.
+  - `npm run smoke:public` gegen `https://portal.s5evo.de` ist rot: `/api/competition` liefert 500.
+  - Vercel Logs fuer Deployment `dpl_9gaTBCHhd46gWNt93yhf8wfRmvqm`: Prisma P1001 `Can't reach database server at db.prisma.io:5432` fuer `/api/competition`, `/api/messages/unread-count`, `/api/profile/presence`.
+  - Lokaler TCP-Test zu `db.prisma.io:5432` ist offen, aber `npx prisma migrate status` liefert P1001.
+  - Direkter `psql`-Handshake mit der aktuellen `.env` meldet: `Failed to identify your database: Your account has restrictions: planLimitReached`.
+  - Prisma public status meldete zeitgleich `All Systems Operational`.
+  - Schlussfolgerung: DB-Projekt/Billing/Usage/Account-Restriction bei Prisma pruefen/loesen. Rollback der letzten App-Commits hilft nach aktuellem Befund nicht, weil die App vor Rollen-/Tenant-Logik an der DB-Verbindung scheitert.
+- Aktueller vorbereiteter Follow-up-CR: Entity-ID Tenant Scope Guardrails.
+  - CR: `docs/cr/2026-07-18-entity-id-tenant-scope-guardrails.md`.
+  - Status: Draft, noch keine Codeaenderung.
+  - Scope: gestrige fuenf Entity-ID-only-Follow-ups aus dem Tenant-Scope-Handoff: Claim-Links POST/PATCH, Deleted-Team Restore, Participant-Change-Bundle Create/Detail/Decision.
+  - Gate: High-Risk Auth/Sensitive-Data-CR; braucht explizites Go vor Implementierung und separates Go vor Production Deploy.
 - Aktueller Hotfix-/Hardening-CR: Tenant Scope Audit Guardrail.
   - CR: `docs/cr/2026-07-18-tenant-scope-audit-guardrail.md`.
   - Status: deployed.
