@@ -13,6 +13,17 @@ Stand: 2026-07-18 16:56 UTC
   - Direkter `psql`-Handshake mit der aktuellen `.env` meldet: `Failed to identify your database: Your account has restrictions: planLimitReached`.
   - Prisma public status meldete zeitgleich `All Systems Operational`.
   - Schlussfolgerung: DB-Projekt/Billing/Usage/Account-Restriction bei Prisma pruefen/loesen. Rollback der letzten App-Commits hilft nach aktuellem Befund nicht, weil die App vor Rollen-/Tenant-Logik an der DB-Verbindung scheitert.
+- Wartungsmodus-Versuch 2026-07-18 18:18 UTC:
+  - Sebastian bat, das Portal offline zu nehmen und ein Wartungs-/Bauarbeiten-Schild zu zeigen.
+  - CR: `docs/cr/2026-07-18-portal-maintenance-mode.md`.
+  - Commit: `fea24c6 Add portal maintenance mode`.
+  - Code: `PORTAL_MAINTENANCE_MODE=1` rendert in `app/layout.tsx` vor Providers/DB/Auth die statische `app/components/maintenance-screen.tsx`.
+  - Vercel Production Env `PORTAL_MAINTENANCE_MODE=1` wurde gesetzt.
+  - Lokale Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`, `PORTAL_MAINTENANCE_MODE=1 vercel build --prod`.
+  - Production Deploys blockiert: `dpl_A3pbRRCcMX6avzXbzECLXmFNwxuU`, `dpl_9w1ifE7aKRgVxmGVzm4GMFkYGfDP`, prebuilt `dpl_75E9dNvj3888R6F5odRmwQyBU4MM`; alle `BUILD_ERROR Resource provisioning failed`.
+  - Vercel Integration Check: `vercel integration list s5-evo-portal` zeigt `prisma-postgres-celeste-bridge` als `Suspended`.
+  - Current alias ist deshalb noch nicht auf Wartungsseite; aktuell bleibt die vorherige Production live und DB-APIs fallen wegen Prisma-Restriction aus.
+  - Sichere Optionen: Prisma/Vercel Storage Restriction loesen; oder mit expliziter Freigabe einen riskanteren Infra-Bypass waehlen (z.B. Threshold/Billing setzen, Integration disconnecten, oder Domain temporaer auf Ersatzprojekt umhaengen).
 - Aktueller vorbereiteter Follow-up-CR: Entity-ID Tenant Scope Guardrails.
   - CR: `docs/cr/2026-07-18-entity-id-tenant-scope-guardrails.md`.
   - Status: Draft, noch keine Codeaenderung.

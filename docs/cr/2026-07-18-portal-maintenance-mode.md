@@ -1,6 +1,6 @@
 # CR: Portal Maintenance Mode
 
-Status: Draft
+Status: Blocked
 Date: 2026-07-18
 Type: ops
 Risk: medium
@@ -149,36 +149,63 @@ notice that the portal is currently closed for maintenance.
   - `app/layout.tsx`
   - `app/components/maintenance-screen.tsx`
   - `docs/cr/2026-07-18-portal-maintenance-mode.md`
+  - `SESSION_HANDOFF.md`
 - Important decisions during implementation:
   - Maintenance page is rendered before `Providers`, `LayoutWrapper`, and
     `PwaServiceWorker`, so it does not trigger session, permission, competition,
     presence, or unread-count requests.
+  - `PORTAL_MAINTENANCE_MODE=1` was added to Vercel Production env.
+  - Commit: `fea24c6 Add portal maintenance mode`.
 
 ## Verification
 
 - Local checks:
+  - `npx eslint app/layout.tsx app/components/maintenance-screen.tsx` -> green
+  - `npx tsc --noEmit --incremental false` -> green
+  - `git diff --check` -> green
 - Build:
+  - `npm run build` -> green
+  - `PORTAL_MAINTENANCE_MODE=1 vercel build --prod` -> green
 - Targeted verification:
+  - Root layout gates before app providers when `PORTAL_MAINTENANCE_MODE=1`.
 - Sensitive-data negative checks:
+  - Static page uses no DB/session/API data.
 - Authenticated role smoke:
+  - Not needed for pre-auth maintenance page.
 - Manual smoke:
+  - Production deploy blocked before alias smoke.
 
 ## Deploy
 
-- Deployment needed: yes
+- Deployment needed: yes, currently blocked.
 - Deployment ID:
+  - Failed: `dpl_A3pbRRCcMX6avzXbzECLXmFNwxuU`
+  - Failed: `dpl_9w1ifE7aKRgVxmGVzm4GMFkYGfDP`
+  - Failed prebuilt: `dpl_75E9dNvj3888R6F5odRmwQyBU4MM`
 - Deployment URL:
+  - Failed: `https://s5-evo-portal-j1johkzdh-sebastiankroeker-2781s-projects.vercel.app`
+  - Failed: `https://s5-evo-portal-hczn59oq2-sebastiankroeker-2781s-projects.vercel.app`
+  - Failed prebuilt: `https://s5-evo-portal-ku2ar4dye-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at:
+- Deployed at: blocked, latest READY production remains previous deployment.
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - Not run; no READY deployment.
 - API checks:
+  - Existing production `/api/competition` remains 500 because Prisma resource is
+    suspended.
 - Sensitive-data/API leakage checks:
+  - Not applicable; deploy did not go live.
 - Result:
+  - Blocked by Vercel resource provisioning. `vercel integration list
+    s5-evo-portal` reports `prisma-postgres-celeste-bridge` status
+    `Suspended`.
 
 ## Follow-Ups
 
 - Add a tenant/competition-admin maintenance switch once Prisma access is
   restored, if this should be controllable without Vercel/env access.
+- Resolve or explicitly bypass the suspended Prisma Postgres integration before
+  redeploying.
