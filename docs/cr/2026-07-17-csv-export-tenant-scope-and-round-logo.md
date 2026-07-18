@@ -157,17 +157,25 @@ Der CSV-Fehler passt zum bekannten Multi-Tenant-Fallback-Risiko: Die UI sendet d
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: dpl_HDapvhntC5hB4Jmt5gc9qj8A5yfd
+- Deployment URL: https://s5-evo-portal-bnnhei0my-sebastiankroeker-2781s-projects.vercel.app
+- Production alias: https://portal.s5evo.de
+- Deployed at: 2026-07-18 00:11 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `https://portal.s5evo.de/` -> 200, `<title>Soier 5Kampf</title>`
+  - `https://portal.s5evo.de/brand/5kampf/mark.webp` -> 200 `image/webp`
+  - `https://portal.s5evo.de/manifest.webmanifest` -> `name`/`short_name` `Soier 5Kampf`, `display` `standalone`
 - API checks:
+  - `npm run smoke:public` -> green
+  - `POST /api/admin/daily-orga-export` without session and dummy `competitionId` -> 401
+  - `GET /api/admin/teams-export?competitionId=test` without session -> 401
 - Sensitive-data/API leakage checks:
-- Result:
+  - Export endpoints remain protected without session; no CSV payload leaked during smoke.
+  - No test mail sent.
+- Result: production deploy verified.
 
 ## Follow-Ups
 
