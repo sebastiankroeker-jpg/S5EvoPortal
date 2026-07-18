@@ -1,6 +1,6 @@
 # CR: CSV Export Tenant Scope And Round Logo
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-17
 Type: hotfix
 Risk: high

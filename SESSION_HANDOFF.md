@@ -6,18 +6,23 @@ Stand: 2026-07-18 00:44 UTC
 
 - Aktueller Hotfix-/Hardening-CR: Tenant Scope Audit Guardrail.
   - CR: `docs/cr/2026-07-18-tenant-scope-audit-guardrail.md`.
-  - Status: implemented locally, not deployed.
+  - Status: deployed.
+  - Commit: `4fe6527 Harden admin tenant scope guardrails`.
+  - Production Deploy: `dpl_9gaTBCHhd46gWNt93yhf8wfRmvqm`.
+  - Deployment URL: `https://s5-evo-portal-cpztoggsn-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
   - Ausloeser: Sebastian machte nach zwei Multi-Tenant-Hotfixes berechtigt Sorgen, ob alle betroffenen Tenant-Scope-Stellen abgesichert sind.
   - Kernursache: `requireTenantRoles()` ohne expliziten Tenant kann bei Multi-Tenant-Admins auf den ersten passenden Admin-Tenant fallen, waehrend die UI einen anderen aktiven `competitionId`-Wettkampf sendet.
   - Geaendert: direkte `competitionId`-Adminrouten nutzen jetzt `requireCompetitionTenantRoles()` bzw. loesen den Ziel-Tenant vor der Autorisierung auf. Betroffen: Audit-Events, Claim-Audit, Claim-Links GET, Competition Reset, Deleted Teams GET, Mail-Events, Orga-Summary, Participant-Audit, Participants, Pending-Change-Decision, Result-Staging Batches/Reset/Sessions, Startnummern-Import, Team-Access-Audit.
   - Neuer Guard: `npm run verify:tenant-scope` (`scripts/verify-tenant-scope.ts`) blockiert Regressionen, wenn competition-scoped Adminrouten wieder fallback-basiert autorisieren.
-  - Bewusst unveraendert: keine DB-Migration, keine Produktionsdaten-Mutation, keine neuen Serializer-Felder, keine Mails/Exports/Resets ausgefuehrt, kein Deploy.
+  - Bewusst unveraendert: keine DB-Migration, keine Produktionsdaten-Mutation, keine neuen Serializer-Felder, keine Mails/Exports/Resets ausgefuehrt.
   - Checks gruen: `npm run verify:tenant-scope`, `npm run verify:admin-competition-scope`, `npm run verify:admin-dashboard-scope`, `npm run verify:admin-csv-export-scope`, targeted ESLint, `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200; `/admin` 200; geschuetzte Admin-Endpunkte ohne Session bleiben 401 fuer `participants`, `mail-events`, `audit-events`, `result-staging/batches`, `start-numbers/import`, `result-staging/reset/preview`, `competition/reset`, `claim-links`.
   - Follow-up-Risiko: fuenf Entity-ID-only-Routen brauchen eigene scoped Helper/Guards: Claim-Links POST/PATCH, Deleted-Team Restore, Participant-Change-Bundle Create/Detail/Decision.
-  - Production Deploy braucht separates Go.
+  - Authenticated multi-tenant Browser/API-Smoke bleibt Gap mangels Session-Cookies.
 - Aktueller Hotfix-CR: CSV Export Tenant Scope And Round Logo.
   - CR: `docs/cr/2026-07-17-csv-export-tenant-scope-and-round-logo.md`.
-  - Status: implemented locally, not deployed.
+  - Status: deployed.
   - Ausloeser: Sebastian meldete per Screenshot, dass das offizielle Logo das kreisrunde 5Kampf-Mark ist und der Admin-CSV-Mailversand mit `Wettkampf nicht gefunden` fehlschlaegt.
   - Ursache/Codepfad: `/api/admin/daily-orga-export` und `/api/admin/teams-export` autorisierten zuerst per `requireTenantRoles()` gegen einen impliziten Fallback-Tenant und filterten danach `loadCompetitionsForDailyExport()` mit `auth.tenantId`. Bei Multi-Tenant-Admins konnte dadurch der ausgewaehlte 2026-Wettkampf im falschen Tenant gesucht werden.
   - Geaendert: neuer `requireCompetitionTenantRoles()` Helper in `lib/server-permissions.ts`; Daily-Orga-CSV-Mailversand, CSV-Download und Layout-CSV-Export pruefen den Tenant des uebergebenen `competitionId`; Header, Sidebar und Home nutzen `/brand/5kampf/mark.webp` statt Banner.

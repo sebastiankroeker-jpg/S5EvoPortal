@@ -1,6 +1,6 @@
 # CR: Tenant Scope Audit Guardrail
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-18
 Type: hotfix
 Risk: high
@@ -186,18 +186,32 @@ The recurring pattern is `requireTenantRoles()` without an explicit tenant scope
 
 ## Deploy
 
-- Deployment needed: yes, after separate deploy approval if code changes ship.
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes, completed after separate deploy approval.
+- Deployment ID: `dpl_9gaTBCHhd46gWNt93yhf8wfRmvqm`
+- Deployment URL: `https://s5-evo-portal-cpztoggsn-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-18 00:42 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green
+  - `https://portal.s5evo.de/` -> 200
+  - `https://portal.s5evo.de/admin` -> 200
+  - `https://portal.s5evo.de/` contains `<title>Soier 5Kampf</title>`
 - API checks:
+  - `GET /api/admin/participants?competitionId=...` without session -> 401
+  - `GET /api/admin/mail-events?competitionId=...` without session -> 401
+  - `GET /api/admin/audit-events?competitionId=...` without session -> 401
+  - `GET /api/admin/result-staging/batches?competitionId=...` without session -> 401
+  - `POST /api/admin/start-numbers/import` with `competitionId` without session -> 401
+  - `POST /api/admin/result-staging/reset/preview` with `competitionId` without session -> 401
+  - `POST /api/admin/competition/reset` with `id` without session -> 401
+  - `GET /api/admin/claim-links?competitionId=...` without session -> 401
 - Sensitive-data/API leakage checks:
-- Result:
+  - Protected admin endpoints did not leak payloads without session.
+  - No mails sent, no exports generated, no resets executed.
+- Result: production deploy verified.
 
 ## Follow-Ups
 
