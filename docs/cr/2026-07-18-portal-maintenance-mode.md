@@ -167,7 +167,7 @@ notice that the portal is currently closed for maintenance.
     overwritten again and the final deployment also passed the flag explicitly
     via `vercel deploy --prod --yes --env PORTAL_MAINTENANCE_MODE=1`.
   - Commit: `fea24c6 Add portal maintenance mode`.
-  - Follow-up commit: pending in current session.
+  - Follow-up commit: `3b9afea Block mutating APIs during maintenance`.
 
 ## Verification
 
@@ -200,17 +200,17 @@ notice that the portal is currently closed for maintenance.
   - Failed prebuilt: `dpl_75E9dNvj3888R6F5odRmwQyBU4MM`
   - Ready UI-only retry: `dpl_8J2azAcv8CMqUMU1rNFzPisZFRa5`
   - Ready with explicit env flag: `dpl_32ss4Ad7QPoQNsojxtM3TQogA1Mv`
-  - Final with mutating API guard: pending in current session.
+  - Final with mutating API guard: `dpl_AUxng2PFN4xnJ434vuSbezKa2SRv`
 - Deployment URL:
   - Failed: `https://s5-evo-portal-j1johkzdh-sebastiankroeker-2781s-projects.vercel.app`
   - Failed: `https://s5-evo-portal-hczn59oq2-sebastiankroeker-2781s-projects.vercel.app`
   - Failed prebuilt: `https://s5-evo-portal-ku2ar4dye-sebastiankroeker-2781s-projects.vercel.app`
   - Ready UI-only retry: `https://s5-evo-portal-edscs46ij-sebastiankroeker-2781s-projects.vercel.app`
   - Ready with explicit env flag: `https://s5-evo-portal-bwifyh9iu-sebastiankroeker-2781s-projects.vercel.app`
-  - Final with mutating API guard: pending in current session.
+  - Final with mutating API guard: `https://s5-evo-portal-7mn50zovq-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
 - Deployed at: 2026-07-19 09:16 UTC for maintenance UI; API guard deploy
-  pending in current session.
+  completed at 2026-07-19 09:23 UTC.
 
 ## Post-Deploy Smoke
 
@@ -220,12 +220,12 @@ notice that the portal is currently closed for maintenance.
 - API checks:
   - `/api/competition` -> 200 after subscription upgrade; read-only API remains
     available.
-  - Mutating API guard final production check pending in current session.
+  - `POST /api/teams` with empty JSON body -> 503 `maintenance_mode`.
 - Sensitive-data/API leakage checks:
   - Not applicable; deploy did not go live.
 - Result:
-  - Maintenance UI is live on the production alias; final mutating API guard is
-    pending deployment in current session.
+  - Maintenance UI is live on the production alias, and mutating API requests
+    are blocked while the flag remains enabled.
 
 ## Follow-Ups
 

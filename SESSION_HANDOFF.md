@@ -22,8 +22,11 @@ Stand: 2026-07-19 09:20 UTC
     keine Mannschaft anmelden oder Daten aendern koennen.
   - Checks fuer API-Guard gruen: targeted ESLint, `npx tsc --noEmit
     --incremental false`, `git diff --check`, `npm run build`.
-  - Deploy-ID finaler API-Guard: pending in current session; nach Deploy
-    `/api/teams` POST ohne Body als 503 smoke pruefen.
+  - Finaler Production Deploy: `dpl_AUxng2PFN4xnJ434vuSbezKa2SRv`
+    (`https://s5-evo-portal-7mn50zovq-sebastiankroeker-2781s-projects.vercel.app`),
+    Alias `https://portal.s5evo.de`.
+  - API-Guard-Smoke gruen: `POST /api/teams` ohne Body liefert 503
+    `maintenance_mode`; read-only `/api/competition` bleibt 200.
   - Reopen-Prozedur: `PORTAL_MAINTENANCE_MODE=0` bzw. Env entfernen/setzen und
     neu nach Production deployen; danach public smoke laufen lassen.
 - Aktuelle Production-Stoerung 2026-07-18 16:52 UTC:
