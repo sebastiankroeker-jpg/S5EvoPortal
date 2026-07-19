@@ -774,11 +774,11 @@ export default function MessageCenter() {
 
   const messageStatsItems = [
     {
-      key: "all",
-      label: "Alle",
-      shortLabel: "Alle",
-      value: filteredConversations.length,
-      total: conversations.length,
+      key: "open",
+      label: "Offen",
+      shortLabel: "Offen",
+      value: filteredConversations.filter((conversation) => DEFAULT_MESSAGE_STATUS_FILTERS.includes(conversation.status)).length,
+      total: conversations.filter((conversation) => DEFAULT_MESSAGE_STATUS_FILTERS.includes(conversation.status)).length,
       tone: "outline" as const,
       active: areStatusFiltersDefault(statusFilters) && !unreadOnly,
       onClick: () => {
@@ -817,6 +817,19 @@ export default function MessageCenter() {
       tone: "secondary" as const,
       active: statusFilters.length === 1 && statusFilters.includes("WAITING_FOR_USER"),
       onClick: () => setStatusFilters(["WAITING_FOR_USER"]),
+    },
+    {
+      key: "closed",
+      label: "Geschlossen",
+      shortLabel: "Zu",
+      value: filteredConversations.filter((conversation) => conversation.status === "CLOSED").length,
+      total: conversations.filter((conversation) => conversation.status === "CLOSED").length,
+      tone: "outline" as const,
+      active: statusFilters.length === 1 && statusFilters.includes("CLOSED"),
+      onClick: () => {
+        setStatusFilters(["CLOSED"]);
+        setUnreadOnly(false);
+      },
     },
   ];
 

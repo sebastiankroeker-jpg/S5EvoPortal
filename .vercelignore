@@ -6,3 +6,16 @@ out
 .ssh
 *.pem
 *.key
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+IDENTITY.md
+INBOX.md
+MEMORY.md
+SESSION_HANDOFF.md
+SOUL.md
+USER.md
+memory
+backups
+*.dump
+*.dump.sha256

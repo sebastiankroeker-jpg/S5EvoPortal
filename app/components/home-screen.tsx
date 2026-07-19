@@ -33,7 +33,13 @@ type TeamStatsSource = {
   participants?: unknown[];
 };
 
-const HOME_TITLE = "Bad Bayersoier Fünfkampf für Mannschaften 2026";
+const HOME_TITLE = "33. Bad Bayersoier Fünfkampf für Mannschaften";
+
+const HOME_ANNOUNCEMENT = {
+  title: "Aktuelles & Ankündigung",
+  body: "Von Samstagabend, 18. Juli, bis Sonntagvormittag kam es zu Fehlern in der Anmeldung. Die Ursache ist behoben und die Anmeldung funktioniert nun wieder.",
+  signoff: "Viele Grüße, Orga-Team",
+};
 
 const FLYER_INFO_2026 = {
   registrationDeadline: "22.07.2026",
@@ -91,10 +97,10 @@ function formatCompetitionDate(competitionInfo: CompetitionInfo | null) {
   const f1 = d1.toLocaleDateString("de-DE", { weekday: "short", day: "numeric" });
   if (competitionInfo.dateEnd) {
     const d2 = new Date(competitionInfo.dateEnd);
-    const f2 = d2.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+    const f2 = d2.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
     return `${f1}. - ${f2}`;
   }
-  return d1.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+  return d1.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
 }
 
 function HomeBrandHeader({ dateLabel }: { dateLabel?: string }) {
@@ -128,6 +134,20 @@ function CompetitionStatusFooter({ status }: { status?: string | null }) {
         {status}
       </span>
     </div>
+  );
+}
+
+function AnnouncementCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-center text-base">{HOME_ANNOUNCEMENT.title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm leading-6">
+        <p>{HOME_ANNOUNCEMENT.body}</p>
+        <p className="font-medium">{HOME_ANNOUNCEMENT.signoff}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -344,7 +364,7 @@ export default function HomeScreen() {
         animate={{ opacity: 1, scale: 1 }}
         className="text-center space-y-8 py-8"
       >
-        <HomeBrandHeader dateLabel="24. + 25.07.2026" />
+        <HomeBrandHeader dateLabel="24. + 25.07." />
 
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
           <CardContent className="space-y-4 pt-6">
@@ -401,7 +421,8 @@ export default function HomeScreen() {
           </CardContent>
         </Card>
 
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto space-y-6">
+          <AnnouncementCard />
           <FlyerInfoCard
             onRegisterClick={() => { window.location.href = "/anmeldung"; }}
             onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
@@ -430,6 +451,8 @@ export default function HomeScreen() {
     >
       {/* Competition Header */}
       <HomeBrandHeader dateLabel={formatCompetitionDate(competitionInfo)} />
+
+      <AnnouncementCard />
 
       <FlyerInfoCard
         onRegisterClick={() => handleQuickAction("registration")}

@@ -154,6 +154,19 @@ export async function canManageSupportConversations(userId: string, tenantId: st
   return roles.isAdmin || roles.isModerator;
 }
 
+export async function getManageableSupportTenantIds(userId: string) {
+  const roles = await prisma.tenantRole.findMany({
+    where: {
+      userId,
+      role: { in: ["ADMIN", "MODERATOR"] },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { tenantId: true },
+  });
+
+  return Array.from(new Set(roles.map((role) => role.tenantId)));
+}
+
 export async function getUnreadMessageCountForUser(userId: string) {
   const memberships = await prisma.conversationParticipant.findMany({
     where: {

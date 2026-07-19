@@ -5,8 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveCurrentUser } from "@/lib/current-user";
 import {
   buildMessagePreview,
-  canManageSupportConversations,
-  getDefaultMessagingTenantId,
+  getManageableSupportTenantIds,
   getSupportContextsForUser,
   normalizeMessageBody,
   normalizeMessageSubject,
@@ -53,13 +52,8 @@ export async function GET(request: NextRequest) {
   const requestedStatus = url.searchParams.get("status");
   const allowedStatuses = new Set(["OPEN", "WAITING_FOR_ADMIN", "WAITING_FOR_USER", "CLOSED"]);
   const status = allowedStatuses.has(requestedStatus || "") ? requestedStatus : null;
-  const tenantId = await getDefaultMessagingTenantId(user.id, user.email);
-
-  if (!tenantId) {
-    return NextResponse.json({ conversations: [], canManageSupport: false });
-  }
-
-  const canManageSupport = await canManageSupportConversations(user.id, tenantId);
+  const manageableTenantIds = await getManageableSupportTenantIds(user.id);
+  const canManageSupport = manageableTenantIds.length > 0;
   if (mode === "admin" && !canManageSupport) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
@@ -67,10 +61,10 @@ export async function GET(request: NextRequest) {
   const conversations = await prisma.conversation.findMany({
     where: {
       deletedAt: null,
-      tenantId,
       ...(status ? { status: status as "OPEN" | "WAITING_FOR_ADMIN" | "WAITING_FOR_USER" | "CLOSED" } : {}),
       ...(mode === "admin"
         ? {
+            tenantId: { in: manageableTenantIds },
             type: "SUPPORT" as const,
             participants: {
               some: {
