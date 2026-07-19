@@ -2807,7 +2807,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       const matchesMarketplace =
         marketplaceKindFilter === "all" ||
         (marketplaceKindFilter === "marketplace" && capabilities.isMarketplaceTeam) ||
-        (marketplaceKindFilter === "mtc" && capabilities.isMtcDraft) ||
+        (marketplaceKindFilter === "mtc" && capabilities.usesMarketplaceSlotContainer) ||
         (marketplaceKindFilter === "single" && capabilities.isMarketplaceTeam && !capabilities.isMtcDraft);
       const matchesMarketplaceStatus =
         marketplaceStatusFilter === "all" ||
@@ -2823,7 +2823,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         (!quickFilterExcludes.mine || team.isCurrentUserTeam !== true) &&
         (!quickFilterExcludes.needsReview || !(canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team))) &&
         (!quickFilterExcludes.marketplace || !(capabilities.isMarketplaceTeam && !capabilities.isMtcDraft)) &&
-        (!quickFilterExcludes.mtc || !capabilities.isMtcDraft) &&
+        (!quickFilterExcludes.mtc || !capabilities.usesMarketplaceSlotContainer) &&
         (!quickFilterExcludes.openSlots || !capabilities.hasOpenMtcSlots);
       const createdAtMs = team.createdAt ? new Date(team.createdAt).getTime() : Number.NaN;
       const createdFromMs = getDateTimeFilterTimestamp(createdFrom);
@@ -2980,7 +2980,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const incompleteTeams = teams.filter((team) => canShowTeamActionStatus(team, showAdminDashboardInfo) && isTeamIncomplete(team)).length;
   const ownTeamCount = teams.filter((team) => team.isCurrentUserTeam === true).length;
   const marketplaceTeams = teams.filter((team) => team.registrationMode === "MARKETPLACE");
-  const mtcTeams = marketplaceTeams.filter((team) => isMarketplaceMatchingTeam(team));
+  const mtcTeams = marketplaceTeams.filter((team) => isMarketplaceSlotContainerTeam(team));
   const marketplaceSingleTeams = marketplaceTeams.filter((team) => !isMarketplaceMatchingTeam(team));
   const openMtcSlotTeams = mtcTeams.filter((team) => getTeamCapabilities(team, { canEditAll }).hasOpenMtcSlots);
   const marketplaceStatusCounts = MARKETPLACE_STATUS_OPTIONS.map((option) => ({
