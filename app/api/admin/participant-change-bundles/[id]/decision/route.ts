@@ -24,7 +24,7 @@ import {
 } from "@/lib/participant-edit-result";
 import { recordParticipantNotificationAuditEvents } from "@/lib/participant-notification-audit";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requirePendingChangeBundleTenantRoles } from "@/lib/server-permissions";
 
 type BundleDecisionBody = {
   action?: unknown;
@@ -37,8 +37,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const { id: bundleId } = await params;
   const body = (await request.json().catch(() => ({}))) as BundleDecisionBody;
@@ -55,6 +56,9 @@ export async function PUT(
       { status: 400 },
     );
   }
+
+  const auth = await requirePendingChangeBundleTenantRoles(session, ["ADMIN", "MODERATOR"], bundleId);
+  if ("error" in auth) return auth.error;
 
   const pendingChanges = await prisma.pendingChange.findMany({
     where: {

@@ -6,7 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { validatePendingChangeBundle } from "@/lib/participant-change-bundle";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requirePendingChangesTenantRoles } from "@/lib/server-permissions";
 
 const BUNDLE_FEATURE_FLAG = process.env.ENABLE_PENDING_CHANGE_BUNDLES === "true";
 
@@ -21,8 +21,9 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const body = (await request.json().catch(() => ({}))) as CreateBundleBody;
   const pendingChangeIds = Array.isArray(body.pendingChangeIds)
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest) {
   if (body.bundleType !== undefined && body.bundleType !== "SWAP") {
     return NextResponse.json({ error: "Ungueltiger bundleType." }, { status: 400 });
   }
+
+  const auth = await requirePendingChangesTenantRoles(session, ["ADMIN", "MODERATOR"], uniquePendingChangeIds);
+  if ("error" in auth) return auth.error;
 
   const pendingChanges = await prisma.pendingChange.findMany({
     where: {

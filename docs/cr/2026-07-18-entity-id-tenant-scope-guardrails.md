@@ -1,7 +1,7 @@
 # CR: Entity-ID Tenant Scope Guardrails
 
-Status: Draft
-Date: 2026-07-18
+Status: Implemented, pending deploy
+Date: 2026-07-18 / 2026-07-19
 Type: hotfix
 Risk: high
 Owner: S5Evo
@@ -13,6 +13,12 @@ The previous hotfix secured direct `competitionId` admin surfaces. Five remainin
 routes are scoped by entity IDs (`teamId`, `participantId`, `pendingChangeId`,
 or `bundleId`) and still need target-entity tenant resolution before role
 authorization.
+
+On 2026-07-19 the Messenger inbox exposed a sibling issue: multi-tenant admin
+routes without an explicit entity or competition scope must not use the first
+matching/default tenant as a hard data filter. The inbox list was fixed in
+`678c866`; this CR additionally hardens admin Messenger target lookup and admin
+conversation creation.
 
 On 2026-07-18 16:52 UTC Sebastian reported that no teams were visible. Live
 diagnosis found a production DB access restriction, not an admin-role loss:
@@ -28,6 +34,9 @@ diagnosis found a production DB access restriction, not an admin-role loss:
     before sensitive reads or mutations.
   - Add static guard coverage so these routes cannot silently regress to
     fallback tenant authorization.
+  - Harden Messenger admin target lookup and admin conversation creation so
+    multi-tenant Orga accounts use all manageable tenants or the target context
+    tenant instead of an implicit first tenant.
   - Keep request/response API shapes unchanged.
 - Out of scope:
   - No DB migration.
@@ -43,6 +52,7 @@ diagnosis found a production DB access restriction, not an admin-role loss:
   - Deleted team restore by route `teamId`.
   - Participant change bundle create/detail/decision by pending-change or bundle
     IDs.
+  - Messenger admin target list and admin-created support conversations.
 - Data model impact: none.
 - Auth/permission impact: yes; entity target tenant should be resolved before
   role authorization, avoiding fallback tenant mismatch for multi-tenant admins.
@@ -91,7 +101,7 @@ diagnosis found a production DB access restriction, not an admin-role loss:
 ## Data / API Design
 
 - Proposed data model: none.
-- Proposed API shape: unchanged.
+- Proposed API shape: unchanged for existing request/response contracts.
 - Backward compatibility:
   - Existing request bodies and route params remain valid.
   - Error semantics should stay close to current behavior: 401 unauthenticated,
@@ -178,34 +188,83 @@ diagnosis found a production DB access restriction, not an admin-role loss:
   mutation flows.
 - Sensitive-data/production-data reason: affected APIs expose or mutate
   participant/team/claim/change/audit/mail-adjacent data.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian (`Go`)
+- Approval timestamp: 2026-07-19 10:14 UTC
 
 ## Implementation Notes
 
 - Files changed:
+  - `lib/server-permissions.ts`
+  - `app/api/admin/claim-links/route.ts`
+  - `app/api/admin/deleted-teams/[id]/restore/route.ts`
+  - `app/api/admin/participant-change-bundles/route.ts`
+  - `app/api/admin/participant-change-bundles/[id]/route.ts`
+  - `app/api/admin/participant-change-bundles/[id]/decision/route.ts`
+  - `app/api/messages/admin-targets/route.ts`
+  - `app/api/messages/admin-conversations/route.ts`
+  - `scripts/verify-tenant-scope.ts`
+  - `scripts/verify-admin-csv-export-scope.ts`
   - `docs/cr/2026-07-18-entity-id-tenant-scope-guardrails.md`
 - Important decisions during implementation:
-  - Pending explicit implementation approval.
+  - Added shared entity-scope auth helpers in `lib/server-permissions.ts`:
+    `requireTeamTenantRoles()`, `requireParticipantTenantRoles()`,
+    `requirePendingChangesTenantRoles()`, and
+    `requirePendingChangeBundleTenantRoles()`.
+  - Added `requireAnyTenantRoles()` for explicitly multi-tenant admin flows
+    where the route should operate over all manageable tenants rather than
+    selecting one fallback tenant.
+  - Claim-link POST now authorizes against the target participant/team tenant
+    before token creation.
+  - Claim-link PATCH `resetParticipantLink` now authorizes against the target
+    participant tenant before unlinking/reinviting.
+  - Claim-link token revoke resolves the token's owning tenant and calls
+    `requireTenantRoles(..., { tenantId, fallbackToFirstMatchingTenant: false })`
+    before revocation.
+  - Deleted-team restore now authorizes against the deleted team's competition
+    tenant via `requireTeamTenantRoles(..., { includeDeleted: true })`.
+  - Bundle create/detail/decision now authorize against the tenant derived from
+    the requested pending changes or bundle before sensitive details, mutations,
+    mails or audit writes.
+  - Messenger admin targets now list targets from all tenants in which the
+    acting user is Admin/Moderator.
+  - Messenger admin conversation creation now derives the conversation tenant
+    from participant/team context first, then a shared target-user tenant, never
+    from the actor's first/default tenant.
+  - `npm run verify:tenant-scope` now asserts all five entity-scoped routes and
+    the two Messenger admin routes.
 
 ## Verification
 
 - Local checks:
-  - Pending implementation approval.
+  - `npm run verify:tenant-scope` -> green
+  - `npm run verify:admin-competition-scope` -> green
+  - `npm run verify:admin-dashboard-scope` -> green
+  - `npm run verify:admin-csv-export-scope` -> green
+  - Targeted ESLint for touched helpers/routes/scripts -> green
+  - `npx tsc --noEmit --incremental false` -> green
+  - `git diff --check` -> green
 - Build:
-  - Pending implementation approval.
+  - `npm run build` -> green
 - Targeted verification:
-  - Pending implementation approval.
+  - Static guard verifies entity-scoped helpers on all five documented
+    follow-up routes.
+  - Static guard verifies Messenger admin target/conversation routes use
+    `requireAnyTenantRoles()` and `tenantId: { in: auth.tenantIds }`.
+  - Broad pattern scan reviewed remaining `requireTenantRoles()` /
+    `auth.tenantId` / default-tenant references.
 - Sensitive-data negative checks:
-  - Pending implementation approval.
+  - No serializer expansion.
+  - No DB migration.
+  - No production data mutation during local verification.
+  - No mails, exports, resets or claim invitations executed during tests.
 - Authenticated role smoke:
   - Gap: no reusable authenticated multi-tenant Admin session/cookies.
 - Manual smoke:
-  - Current production issue diagnosed separately as Prisma `planLimitReached`.
+  - Pending Sebastian after deploy.
 
 ## Deploy
 
-- Deployment needed: yes, after implementation and separate deploy approval.
+- Deployment needed: yes, after implementation and approval.
 - Deployment ID:
 - Deployment URL:
 - Production alias:
@@ -220,5 +279,7 @@ diagnosis found a production DB access restriction, not an admin-role loss:
 
 ## Follow-Ups
 
-- Resolve Prisma account restriction `planLimitReached`; production DB access is
-  currently blocked and public smoke is red at `/api/competition`.
+- Add authenticated multi-tenant admin smoke/test-account tooling.
+- Consider a deeper tenant-level UX decision for routes that remain intentionally
+  tenant-level, such as tenant settings and changelog moderation, so multi-tenant
+  admins can choose the active tenant explicitly where needed.

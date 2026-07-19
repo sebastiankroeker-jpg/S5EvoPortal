@@ -5,20 +5,24 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { parseSnapshot, summarizeParticipantChanges, toParticipantSnapshot } from "@/lib/participant-change";
 import { validatePendingChangeBundle } from "@/lib/participant-change-bundle";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requirePendingChangeBundleTenantRoles } from "@/lib/server-permissions";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const { id: bundleId } = await params;
   if (!bundleId) {
     return NextResponse.json({ error: "Fehlende Bundle-ID." }, { status: 400 });
   }
+
+  const auth = await requirePendingChangeBundleTenantRoles(session, ["ADMIN", "MODERATOR"], bundleId);
+  if ("error" in auth) return auth.error;
 
   const pendingChanges = await prisma.pendingChange.findMany({
     where: {

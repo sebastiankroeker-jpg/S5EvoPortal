@@ -8,7 +8,12 @@ import { createParticipantClaimInvitation } from "@/lib/participant-claim-invita
 import { buildMtcAnonymousUrl, buildParticipantClaimUrl, buildRegistrationClaimUrl, createRegistrationClaimToken } from "@/lib/registration-claim";
 import { recordParticipantClaimAuditEvent } from "@/lib/participant-claim-audit";
 import { recordClaimAuditEvent } from "@/lib/registration-claim-audit";
-import { requireCompetitionTenantRoles, requireTenantRoles } from "@/lib/server-permissions";
+import {
+  requireCompetitionTenantRoles,
+  requireParticipantTenantRoles,
+  requireTeamTenantRoles,
+  requireTenantRoles,
+} from "@/lib/server-permissions";
 import { syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
 function isExpired(value?: Date | string | null) {
@@ -212,8 +217,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminAccess();
-  if ("error" in auth) return auth.error;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const teamId = typeof body.teamId === "string" ? body.teamId : null;
@@ -224,6 +231,9 @@ export async function POST(request: NextRequest) {
   }
 
   if (participantId) {
+    const auth = await requireParticipantTenantRoles(session, ["ADMIN", "MODERATOR"], participantId);
+    if ("error" in auth) return auth.error;
+
     const participant = await prisma.participant.findFirst({
       where: {
         id: participantId,
@@ -317,6 +327,9 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const auth = await requireTeamTenantRoles(session, ["ADMIN", "MODERATOR"], teamId);
+  if ("error" in auth) return auth.error;
+
   const team = await prisma.team.findFirst({
     where: {
       id: teamId,
@@ -406,12 +419,17 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdminAccess();
-  if ("error" in auth) return auth.error;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const requestMeta = getRequestMeta(request);
   if (body.action === "toggleGlobal") {
+    const auth = await requireAdminAccess();
+    if ("error" in auth) return auth.error;
+
     const enabled = Boolean(body.enabled);
     const tenant = await prisma.tenant.findUnique({
       where: { id: auth.tenantId },
@@ -441,6 +459,9 @@ export async function PATCH(request: NextRequest) {
     if (requestedEmail && !isValidEmail(requestedEmail)) {
       return NextResponse.json({ error: "Bitte zuerst eine gültige E-Mail-Adresse hinterlegen" }, { status: 400 });
     }
+
+    const auth = await requireParticipantTenantRoles(session, ["ADMIN", "MODERATOR"], participantId);
+    if ("error" in auth) return auth.error;
 
     const participant = await prisma.participant.findFirst({
       where: {
@@ -692,9 +713,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Claim-Link nicht gefunden" }, { status: 404 });
     }
 
-    if (token.participant.team.competition.tenantId !== auth.tenantId) {
-      return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
-    }
+    const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
+      tenantId: token.participant.team.competition.tenantId,
+      fallbackToFirstMatchingTenant: false,
+    });
+    if ("error" in auth) return auth.error;
 
     const updated = await prisma.participantClaimToken.update({
       where: { id: tokenId },
@@ -743,9 +766,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Claim-Link nicht gefunden" }, { status: 404 });
   }
 
-  if (token.team.competition.tenantId !== auth.tenantId) {
-    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
-  }
+  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
+    tenantId: token.team.competition.tenantId,
+    fallbackToFirstMatchingTenant: false,
+  });
+  if ("error" in auth) return auth.error;
 
   const updated = await prisma.registrationClaimToken.update({
     where: { id: tokenId },

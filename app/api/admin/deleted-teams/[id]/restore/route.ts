@@ -5,7 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { recordAppliedChangeRequest } from "@/lib/change-request";
 import { sendTeamLifecycleOrgEmail } from "@/lib/mail/team-lifecycle";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireTeamTenantRoles } from "@/lib/server-permissions";
 import { collectTeamAccessUserIds, syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
 function getRequestMeta(request: NextRequest) {
@@ -20,10 +20,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  const { id } = await params;
+  const auth = await requireTeamTenantRoles(session, ["ADMIN"], id, { includeDeleted: true });
   if ("error" in auth) return auth.error;
 
-  const { id } = await params;
   const team = await prisma.team.findFirst({
     where: {
       id,

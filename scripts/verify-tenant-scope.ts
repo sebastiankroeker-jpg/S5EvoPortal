@@ -57,6 +57,49 @@ assertIncludes(pendingChangeDecisionRoute, "resolvePendingChangeTenantId", "pend
 assertIncludes(pendingChangeDecisionRoute, "tenantId: scopedTenantId", "pending change decision route");
 assertIncludes(pendingChangeDecisionRoute, "fallbackToFirstMatchingTenant: !scopedTenantId", "pending change decision route");
 
+const entityScopedRoutes = new Map<string, string[]>([
+  [
+    "app/api/admin/claim-links/route.ts",
+    [
+      "requireParticipantTenantRoles(session, [\"ADMIN\", \"MODERATOR\"], participantId)",
+      "requireTeamTenantRoles(session, [\"ADMIN\", \"MODERATOR\"], teamId)",
+      "fallbackToFirstMatchingTenant: false",
+    ],
+  ],
+  [
+    "app/api/admin/deleted-teams/[id]/restore/route.ts",
+    ["requireTeamTenantRoles(session, [\"ADMIN\"], id, { includeDeleted: true })"],
+  ],
+  [
+    "app/api/admin/participant-change-bundles/route.ts",
+    ["requirePendingChangesTenantRoles(session, [\"ADMIN\", \"MODERATOR\"], uniquePendingChangeIds)"],
+  ],
+  [
+    "app/api/admin/participant-change-bundles/[id]/route.ts",
+    ["requirePendingChangeBundleTenantRoles(session, [\"ADMIN\", \"MODERATOR\"], bundleId)"],
+  ],
+  [
+    "app/api/admin/participant-change-bundles/[id]/decision/route.ts",
+    ["requirePendingChangeBundleTenantRoles(session, [\"ADMIN\", \"MODERATOR\"], bundleId)"],
+  ],
+]);
+
+for (const [route, expectedMarkers] of entityScopedRoutes) {
+  const source = readSource(route);
+  for (const marker of expectedMarkers) {
+    assertIncludes(source, marker, route);
+  }
+}
+
+const adminTargetsRoute = readSource("app/api/messages/admin-targets/route.ts");
+assertIncludes(adminTargetsRoute, "requireAnyTenantRoles(session, [\"ADMIN\", \"MODERATOR\"])", "message admin targets route");
+assertIncludes(adminTargetsRoute, "tenantId: { in: auth.tenantIds }", "message admin targets route");
+
+const adminConversationsRoute = readSource("app/api/messages/admin-conversations/route.ts");
+assertIncludes(adminConversationsRoute, "requireAnyTenantRoles(session, [\"ADMIN\", \"MODERATOR\"])", "message admin conversations route");
+assertIncludes(adminConversationsRoute, "tenantId: { in: auth.tenantIds }", "message admin conversations route");
+assertIncludes(adminConversationsRoute, "const tenantId = participant?.team.competition.tenantId ?? team?.competition.tenantId ?? tenantRole?.tenantId", "message admin conversations route");
+
 const allowedCustomCompetitionScopeRoutes = new Map<string, string>([
   ["app/api/admin/competition/route.ts", "uses requireCompetitionAdmin() after resolving selected competition id"],
   ["app/api/admin/competitions/route.ts", "lists all admin tenants for the competition switcher"],
@@ -75,16 +118,6 @@ const tenantLevelRoutes = new Map<string, string>([
   ["app/api/admin/changelog-entries/[entryId]/route.ts", "entry-id scoped changelog route"],
   ["app/api/admin/runtime-logs/route.ts", "tenant/project-level runtime log viewer"],
   ["app/api/admin/tenant/route.ts", "tenant settings route"],
-  ["app/api/messages/admin-conversations/route.ts", "support conversation target is resolved after tenant auth"],
-  ["app/api/messages/admin-targets/route.ts", "tenant-level support target list"],
-]);
-
-const entityScopedFollowUps = new Map<string, string>([
-  ["app/api/admin/claim-links/route.ts", "POST/PATCH actions are teamId/participantId scoped; add entity-scoped auth helper"],
-  ["app/api/admin/deleted-teams/[id]/restore/route.ts", "restore is team-id scoped; add team-scoped auth helper"],
-  ["app/api/admin/participant-change-bundles/route.ts", "bundle create is pendingChange-id scoped; add bundle/pending-change scoped auth helper"],
-  ["app/api/admin/participant-change-bundles/[id]/route.ts", "bundle detail is bundle-id scoped; add bundle-scoped auth helper"],
-  ["app/api/admin/participant-change-bundles/[id]/decision/route.ts", "bundle decision is bundle-id scoped; add bundle-scoped auth helper"],
 ]);
 
 const scannedRoutes = [
@@ -100,7 +133,6 @@ for (const route of scannedRoutes) {
   if (source.includes("requireCompetitionTenantRoles")) continue;
   if (allowedCustomCompetitionScopeRoutes.has(route)) continue;
   if (tenantLevelRoutes.has(route)) continue;
-  if (entityScopedFollowUps.has(route)) continue;
   unexpectedFallbackRoutes.push(route);
 }
 
@@ -111,4 +143,4 @@ assert.deepEqual(
 );
 
 console.log("tenant scope verification ok");
-console.log(`entity scoped follow-ups documented: ${entityScopedFollowUps.size}`);
+console.log(`entity scoped routes verified: ${entityScopedRoutes.size}`);

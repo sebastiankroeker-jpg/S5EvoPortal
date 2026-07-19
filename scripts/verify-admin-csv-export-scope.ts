@@ -23,8 +23,8 @@ const teamsExportRoute = readSource("app/api/admin/teams-export/route.ts");
 
 assertIncludes(serverPermissions, "requireCompetitionTenantRoles", "server permissions helper");
 assertIncludes(serverPermissions, "where: { id: normalizedCompetitionId }", "server permissions helper");
-assertIncludes(serverPermissions, "getTenantRoleFlagsForUserId(user.id, competition.tenantId)", "server permissions helper");
-assertIncludes(serverPermissions, "tenantId: competition.tenantId", "server permissions helper");
+assertIncludes(serverPermissions, "requireResolvedTenantRoles(user, allowedRoles, competition.tenantId, competition.id)", "server permissions helper");
+assertIncludes(serverPermissions, "getTenantRoleFlagsForUserId(user.id, tenantId)", "server permissions helper");
 
 for (const [label, source] of [
   ["daily orga export route", dailyExportRoute],

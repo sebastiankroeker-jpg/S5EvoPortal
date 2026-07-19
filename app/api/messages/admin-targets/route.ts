@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireAnyTenantRoles } from "@/lib/server-permissions";
 
 type AdminMessageTarget = {
   userId: string;
@@ -67,7 +67,7 @@ function targetDescription(target: TargetAggregate) {
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  const auth = await requireAnyTenantRoles(session, ["ADMIN", "MODERATOR"]);
   if ("error" in auth) return auth.error;
 
   const [tenantUsers, participants, teams] = await Promise.all([
@@ -76,7 +76,7 @@ export async function GET() {
         deletedAt: null,
         authentikSub: { not: null },
         id: { not: auth.user.id },
-        tenantRoles: { some: { tenantId: auth.tenantId } },
+        tenantRoles: { some: { tenantId: { in: auth.tenantIds } } },
       },
       select: { id: true, email: true, name: true, authentikSub: true },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }],
@@ -87,7 +87,7 @@ export async function GET() {
         deletedAt: null,
         userId: { not: null },
         user: { deletedAt: null, authentikSub: { not: null }, id: { not: auth.user.id } },
-        team: { deletedAt: null, competition: { tenantId: auth.tenantId } },
+        team: { deletedAt: null, competition: { tenantId: { in: auth.tenantIds } } },
       },
       select: {
         id: true,
@@ -104,7 +104,7 @@ export async function GET() {
     prisma.team.findMany({
       where: {
         deletedAt: null,
-        competition: { tenantId: auth.tenantId },
+        competition: { tenantId: { in: auth.tenantIds } },
         OR: [
           { ownerId: { not: auth.user.id } },
           { teamChiefId: { not: null } },

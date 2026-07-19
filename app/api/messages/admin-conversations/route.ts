@@ -12,7 +12,7 @@ import {
 } from "@/lib/messaging";
 import { sendMessageNotificationEmail } from "@/lib/mail/message-notification";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireAnyTenantRoles } from "@/lib/server-permissions";
 
 function conversationInclude() {
   return {
@@ -37,7 +37,7 @@ function conversationInclude() {
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  const auth = await requireAnyTenantRoles(session, ["ADMIN", "MODERATOR"]);
   if ("error" in auth) return auth.error;
 
   const body = await request.json().catch(() => ({}));
@@ -63,8 +63,9 @@ export async function POST(request: NextRequest) {
       select: { id: true, name: true, email: true, authentikSub: true },
     }),
     prisma.tenantRole.findFirst({
-      where: { userId: targetUserId, tenantId: auth.tenantId },
-      select: { id: true },
+      where: { userId: targetUserId, tenantId: { in: auth.tenantIds } },
+      select: { id: true, tenantId: true },
+      orderBy: { createdAt: "asc" },
     }),
     participantId
       ? prisma.participant.findFirst({
@@ -72,14 +73,14 @@ export async function POST(request: NextRequest) {
             id: participantId,
             deletedAt: null,
             userId: targetUserId,
-            team: { deletedAt: null, competition: { tenantId: auth.tenantId } },
+            team: { deletedAt: null, competition: { tenantId: { in: auth.tenantIds } } },
           },
           select: {
             id: true,
             firstName: true,
             lastName: true,
             teamId: true,
-            team: { select: { competitionId: true } },
+            team: { select: { competitionId: true, competition: { select: { tenantId: true } } } },
           },
         })
       : null,
@@ -88,12 +89,13 @@ export async function POST(request: NextRequest) {
           where: {
             id: teamId,
             deletedAt: null,
-            competition: { tenantId: auth.tenantId },
+            competition: { tenantId: { in: auth.tenantIds } },
           },
           select: {
             id: true,
             name: true,
             competitionId: true,
+            competition: { select: { tenantId: true } },
             ownerId: true,
             teamChiefId: true,
             memberRoles: {
@@ -131,6 +133,7 @@ export async function POST(request: NextRequest) {
   }
 
   const competitionId = participant?.team.competitionId ?? team?.competitionId ?? null;
+  const tenantId = participant?.team.competition.tenantId ?? team?.competition.tenantId ?? tenantRole?.tenantId ?? auth.tenantIds[0];
   const resolvedTeamId = participant?.teamId ?? team?.id ?? null;
   const now = new Date();
   const subject = normalizeMessageSubject(
@@ -144,7 +147,7 @@ export async function POST(request: NextRequest) {
         type: "SUPPORT",
         status: "WAITING_FOR_USER",
         subject,
-        tenantId: auth.tenantId,
+        tenantId,
         competitionId,
         teamId: resolvedTeamId,
         participantId: participant?.id ?? null,
@@ -168,7 +171,7 @@ export async function POST(request: NextRequest) {
     } else {
       const adminRoles = await tx.tenantRole.findMany({
         where: {
-          tenantId: auth.tenantId,
+          tenantId,
           role: { in: ["ADMIN", "MODERATOR"] },
           user: { deletedAt: null },
         },
