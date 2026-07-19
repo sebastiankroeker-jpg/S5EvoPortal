@@ -1027,7 +1027,7 @@ function DirectFieldBadge() {
 }
 
 function isMarketplaceMatchingTeam(team: Team) {
-  return team.registrationMode === "MARKETPLACE";
+  return team.registrationMode === "MARKETPLACE" && team.marketplaceStatus === "MATCHING";
 }
 
 function getMarketplaceDraftStatusMeta(team: Team) {

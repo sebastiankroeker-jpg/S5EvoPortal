@@ -205,6 +205,7 @@ export default function TeamRegistration({
   const [serverError, setServerError] = useState("");
   const [submissionWarning, setSubmissionWarning] = useState("");
   const [submittedMtcAnonymousUrl, setSubmittedMtcAnonymousUrl] = useState("");
+  const [savingMarketplaceRegistration, setSavingMarketplaceRegistration] = useState(false);
   const [savingMtcDraft, setSavingMtcDraft] = useState(false);
   const [competitionInfo, setCompetitionInfo] = useState<PublicCompetitionInfo | null>(null);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>(initialMode);
@@ -485,6 +486,7 @@ export default function TeamRegistration({
   };
 
   const submitMarketplaceRegistration = async () => {
+    if (savingMarketplaceRegistration) return;
     setServerError("");
     setSubmissionWarning("");
 
@@ -509,6 +511,7 @@ export default function TeamRegistration({
       return;
     }
 
+    setSavingMarketplaceRegistration(true);
     try {
       const submitResponse = await fetch("/api/teams", {
         method: "POST",
@@ -557,6 +560,8 @@ export default function TeamRegistration({
       setStep(1);
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    } finally {
+      setSavingMarketplaceRegistration(false);
     }
   };
 
@@ -1698,15 +1703,15 @@ export default function TeamRegistration({
                   </div>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setStep(isMarketplaceRegistration ? 1 : 2)} className="flex-1" disabled={formState.isSubmitting}>
+                    <Button variant="outline" onClick={() => setStep(isMarketplaceRegistration ? 1 : 2)} className="flex-1" disabled={formState.isSubmitting || savingMarketplaceRegistration}>
                       ← Zurück
                     </Button>
                     <Button
                       onClick={isMarketplaceRegistration ? submitMarketplaceRegistration : onSubmit}
                       className="flex-1"
-                      disabled={formState.isSubmitting || !publicRegistrationStatus.canRegister || !liabilityAccepted}
+                      disabled={formState.isSubmitting || savingMarketplaceRegistration || !publicRegistrationStatus.canRegister || !liabilityAccepted}
                     >
-                      {formState.isSubmitting
+                      {formState.isSubmitting || savingMarketplaceRegistration
                         ? "Sende Anmeldung ab..."
                         : isMarketplaceRegistration
                           ? "Sportlerbörse melden 🏅"

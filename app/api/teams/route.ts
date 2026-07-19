@@ -30,6 +30,7 @@ import { getScopedRoleFlags } from '@/lib/server-permissions';
 import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
 import { resolveTeamAccess } from '@/lib/team-manager-access';
 import { syncDerivedTeamchefRole } from '@/lib/teamchef-role';
+import type { Prisma } from '@prisma/client';
 
 // Map frontend gender ("M"/"W") to Prisma enum
 function mapGender(g: string): "MALE" | "FEMALE" {
@@ -47,12 +48,37 @@ function isRegistrationDeadlineReached(deadline?: Date | null): boolean {
   return new Date(deadline) < new Date();
 }
 
-async function findActiveMarketplaceDuplicateTeam(input: {
+type MarketplaceDuplicateClient = Pick<Prisma.TransactionClient, "team" | "$executeRaw">;
+
+function marketplaceDuplicateKey(input: {
   competitionId: string;
   teamName: string;
   contactEmail: string;
 }) {
-  return prisma.team.findFirst({
+  return [
+    input.competitionId,
+    input.teamName.trim().toLowerCase(),
+    normalizeEmail(input.contactEmail),
+  ].join(":");
+}
+
+async function lockMarketplaceDuplicateCheck(
+  db: MarketplaceDuplicateClient,
+  input: {
+    competitionId: string;
+    teamName: string;
+    contactEmail: string;
+  },
+) {
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${marketplaceDuplicateKey(input)}))`;
+}
+
+async function findActiveMarketplaceDuplicateTeam(db: Pick<MarketplaceDuplicateClient, "team">, input: {
+  competitionId: string;
+  teamName: string;
+  contactEmail: string;
+}) {
+  return db.team.findFirst({
     where: {
       competitionId: input.competitionId,
       deletedAt: null,
@@ -804,61 +830,6 @@ export async function POST(request: NextRequest) {
           "MTC-Entwurf aus unvollständiger Mannschaftsanmeldung",
           draftData.marketplaceMessage?.trim(),
         ].filter(Boolean).join("\n\n");
-        const duplicateTeam = await findActiveMarketplaceDuplicateTeam({
-          competitionId,
-          teamName: finalTeamName,
-          contactEmail: userEmail,
-        });
-
-        if (duplicateTeam) {
-          return NextResponse.json(
-            {
-              error: `Für "${finalTeamName}" existiert bereits eine Sportlerbörsen-Meldung mit diesem Kontakt.`,
-              existingTeamId: duplicateTeam.id,
-            },
-            { status: 409 }
-          );
-        }
-
-        const team = await prisma.team.create({
-          data: {
-            name: finalTeamName,
-            contactName: userName || "",
-            contactEmail: userEmail,
-            contactPhone,
-            notes: marketplaceMessage || null,
-            teamPublicationLevel: draftData.teamPublicationLevel,
-            registrationMode: "MARKETPLACE",
-            marketplaceVisibility: draftData.marketplaceVisibility,
-            marketplaceStatus: "MATCHING",
-            marketplaceMessage: marketplaceMessage || null,
-            classificationCode: "sportlerboerse",
-            totalAge: totalAge || null,
-            competitionId,
-            ownerId: user.id,
-            teamChiefId: null,
-            participants: {
-              create: completeParticipants.map(({ participant, firstName, lastName, birthYear, birthDate }) => ({
-                firstName,
-                lastName,
-                birthYear: birthYear as number,
-                birthDate,
-                gender: mapGender(participant.gender),
-                disciplineCode: mapDiscipline(participant.discipline),
-                shirtSize: participant.shirtSize || null,
-                moderationNote: participant.moderationNote?.trim() || null,
-                consentGiven: true,
-                email: participant.email || null,
-                participantPublicationPreference: participant.participantPublicationPreference || "NAME_VERBERGEN",
-              })),
-            },
-          },
-          include: {
-            participants: true,
-            owner: { select: { email: true, name: true } }
-          },
-        });
-
         const claimToken = createRegistrationClaimToken({
           mode: competition.claimTokenExpiryMode || "COMPETITION_END",
           ttlDays: competition.claimTokenTtlDays || null,
@@ -866,15 +837,79 @@ export async function POST(request: NextRequest) {
           competitionEnd: competition.dateEnd || competition.date || null,
           maxExpiresAt: null,
         });
-        await prisma.registrationClaimToken.create({
-          data: {
-            teamId: team.id,
-            tokenHash: claimToken.tokenHash,
-            suggestedEmail: userEmail,
-            suggestedName: userName || null,
-            expiresAt: claimToken.expiresAt,
-          },
+
+        const mtcCreateResult = await prisma.$transaction(async (tx) => {
+          const duplicateInput = { competitionId, teamName: finalTeamName, contactEmail: userEmail };
+          await lockMarketplaceDuplicateCheck(tx, duplicateInput);
+          const duplicateTeam = await findActiveMarketplaceDuplicateTeam(tx, duplicateInput);
+          if (duplicateTeam) return { duplicateTeam, team: null };
+
+          const team = await tx.team.create({
+            data: {
+              name: finalTeamName,
+              contactName: userName || "",
+              contactEmail: userEmail,
+              contactPhone,
+              notes: marketplaceMessage || null,
+              teamPublicationLevel: draftData.teamPublicationLevel,
+              registrationMode: "MARKETPLACE",
+              marketplaceVisibility: draftData.marketplaceVisibility,
+              marketplaceStatus: "MATCHING",
+              marketplaceMessage: marketplaceMessage || null,
+              classificationCode: "sportlerboerse",
+              totalAge: totalAge || null,
+              competitionId,
+              ownerId: user.id,
+              teamChiefId: null,
+              participants: {
+                create: completeParticipants.map(({ participant, firstName, lastName, birthYear, birthDate }) => ({
+                  firstName,
+                  lastName,
+                  birthYear: birthYear as number,
+                  birthDate,
+                  gender: mapGender(participant.gender),
+                  disciplineCode: mapDiscipline(participant.discipline),
+                  shirtSize: participant.shirtSize || null,
+                  moderationNote: participant.moderationNote?.trim() || null,
+                  consentGiven: true,
+                  email: participant.email || null,
+                  participantPublicationPreference: participant.participantPublicationPreference || "NAME_VERBERGEN",
+                })),
+              },
+            },
+            include: {
+              participants: true,
+              owner: { select: { email: true, name: true } }
+            },
+          });
+
+          await tx.registrationClaimToken.create({
+            data: {
+              teamId: team.id,
+              tokenHash: claimToken.tokenHash,
+              suggestedEmail: userEmail,
+              suggestedName: userName || null,
+              expiresAt: claimToken.expiresAt,
+            },
+          });
+
+          return { duplicateTeam: null, team };
         });
+
+        if (mtcCreateResult.duplicateTeam) {
+          return NextResponse.json(
+            {
+              error: `Für "${finalTeamName}" existiert bereits eine Sportlerbörsen-Meldung mit diesem Kontakt.`,
+              existingTeamId: mtcCreateResult.duplicateTeam.id,
+            },
+            { status: 409 }
+          );
+        }
+
+        const team = mtcCreateResult.team;
+        if (!team) {
+          return NextResponse.json({ error: 'MTC-Entwurf konnte nicht gespeichert werden.' }, { status: 500 });
+        }
 
         const mtcAnonymousUrl = buildMtcAnonymousUrl(claimToken.rawToken);
         const portalUrl = buildPortalHomeUrl();
@@ -1038,61 +1073,6 @@ export async function POST(request: NextRequest) {
 
         const participantName = `${marketplaceData.contactFirstName} ${marketplaceData.contactLastName}`.trim();
         const finalTeamName = `Sportlerbörse: ${participantName}`;
-        const duplicateTeam = await findActiveMarketplaceDuplicateTeam({
-          competitionId,
-          teamName: finalTeamName,
-          contactEmail: userEmail,
-        });
-
-        if (duplicateTeam) {
-          return NextResponse.json(
-            {
-              error: `Für "${participantName}" existiert bereits eine Sportlerbörsen-Meldung mit diesem Kontakt.`,
-              existingTeamId: duplicateTeam.id,
-            },
-            { status: 409 }
-          );
-        }
-
-        const team = await prisma.team.create({
-          data: {
-            name: finalTeamName,
-            contactName: userName || participantName,
-            contactEmail: userEmail,
-            contactPhone,
-            clubName: marketplaceData.clubName?.trim() || null,
-            notes: marketplaceData.marketplaceMessage?.trim() || null,
-            teamPublicationLevel: "TEAM_ANONYM",
-            registrationMode: "MARKETPLACE",
-            marketplaceVisibility: marketplaceData.marketplaceVisibility,
-            marketplaceStatus: "NEW",
-            marketplaceMessage: marketplaceData.marketplaceMessage?.trim() || null,
-            classificationCode: "sportlerboerse",
-            totalAge: 2026 - birthYear,
-            competitionId,
-            ownerId: user.id,
-            teamChiefId: user.id,
-            participants: {
-              create: [{
-                firstName: marketplaceData.contactFirstName,
-                lastName: marketplaceData.contactLastName,
-                birthYear,
-                birthDate: normalizeBirthDateForStorage(marketplaceData.birthDate),
-                gender: mapGender(marketplaceData.gender),
-                disciplineCode: mapDiscipline(marketplaceData.discipline),
-                moderationNote: marketplaceData.marketplaceMessage?.trim() || null,
-                consentGiven: true,
-                email: userEmail,
-                participantPublicationPreference: marketplaceData.participantPublicationPreference,
-              }],
-            },
-          },
-          include: {
-            participants: true,
-            owner: { select: { email: true, name: true } }
-          },
-        });
-
         const claimToken = createRegistrationClaimToken({
           mode: competition.claimTokenExpiryMode || "COMPETITION_END",
           ttlDays: competition.claimTokenTtlDays || null,
@@ -1100,22 +1080,86 @@ export async function POST(request: NextRequest) {
           competitionEnd: competition.dateEnd || competition.date || null,
           maxExpiresAt: null,
         });
-        await prisma.registrationClaimToken.create({
-          data: {
-            teamId: team.id,
-            tokenHash: claimToken.tokenHash,
-            suggestedEmail: userEmail,
-            suggestedName: userName || null,
-            expiresAt: claimToken.expiresAt,
-            claimedAt: sessionUserEmail ? new Date() : null,
-            claimedByUserId: sessionUserEmail ? user.id : null,
-          },
+
+        const marketplaceCreateResult = await prisma.$transaction(async (tx) => {
+          const duplicateInput = { competitionId, teamName: finalTeamName, contactEmail: userEmail };
+          await lockMarketplaceDuplicateCheck(tx, duplicateInput);
+          const duplicateTeam = await findActiveMarketplaceDuplicateTeam(tx, duplicateInput);
+          if (duplicateTeam) return { duplicateTeam, team: null };
+
+          const team = await tx.team.create({
+            data: {
+              name: finalTeamName,
+              contactName: userName || participantName,
+              contactEmail: userEmail,
+              contactPhone,
+              clubName: marketplaceData.clubName?.trim() || null,
+              notes: marketplaceData.marketplaceMessage?.trim() || null,
+              teamPublicationLevel: "TEAM_ANONYM",
+              registrationMode: "MARKETPLACE",
+              marketplaceVisibility: marketplaceData.marketplaceVisibility,
+              marketplaceStatus: "NEW",
+              marketplaceMessage: marketplaceData.marketplaceMessage?.trim() || null,
+              classificationCode: "sportlerboerse",
+              totalAge: 2026 - birthYear,
+              competitionId,
+              ownerId: user.id,
+              teamChiefId: user.id,
+              participants: {
+                create: [{
+                  firstName: marketplaceData.contactFirstName,
+                  lastName: marketplaceData.contactLastName,
+                  birthYear,
+                  birthDate: normalizeBirthDateForStorage(marketplaceData.birthDate),
+                  gender: mapGender(marketplaceData.gender),
+                  disciplineCode: mapDiscipline(marketplaceData.discipline),
+                  moderationNote: marketplaceData.marketplaceMessage?.trim() || null,
+                  consentGiven: true,
+                  email: userEmail,
+                  participantPublicationPreference: marketplaceData.participantPublicationPreference,
+                }],
+              },
+            },
+            include: {
+              participants: true,
+              owner: { select: { email: true, name: true } }
+            },
+          });
+
+          await tx.registrationClaimToken.create({
+            data: {
+              teamId: team.id,
+              tokenHash: claimToken.tokenHash,
+              suggestedEmail: userEmail,
+              suggestedName: userName || null,
+              expiresAt: claimToken.expiresAt,
+              claimedAt: sessionUserEmail ? new Date() : null,
+              claimedByUserId: sessionUserEmail ? user.id : null,
+            },
+          });
+
+          await syncDerivedTeamchefRole(tx, {
+            userId: user.id,
+            tenantId: competition.tenantId,
+          });
+
+          return { duplicateTeam: null, team };
         });
 
-        await syncDerivedTeamchefRole(prisma, {
-          userId: user.id,
-          tenantId: competition.tenantId,
-        });
+        if (marketplaceCreateResult.duplicateTeam) {
+          return NextResponse.json(
+            {
+              error: `Für "${participantName}" existiert bereits eine Sportlerbörsen-Meldung mit diesem Kontakt.`,
+              existingTeamId: marketplaceCreateResult.duplicateTeam.id,
+            },
+            { status: 409 }
+          );
+        }
+
+        const team = marketplaceCreateResult.team;
+        if (!team) {
+          return NextResponse.json({ error: 'Sportlerbörse-Anmeldung konnte nicht gespeichert werden.' }, { status: 500 });
+        }
 
         const claimUrl = buildRegistrationClaimUrl(claimToken.rawToken);
         const portalUrl = buildPortalHomeUrl();
