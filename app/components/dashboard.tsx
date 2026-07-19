@@ -1026,9 +1026,12 @@ function DirectFieldBadge() {
   );
 }
 
+function isMarketplaceSlotContainerTeam(team: Team) {
+  return team.registrationMode === "MARKETPLACE" && team.marketplaceStatus !== "MATCHED" && team.marketplaceStatus !== "WITHDRAWN";
+}
+
 function isMarketplaceMatchingTeam(team: Team) {
-  if (team.registrationMode !== "MARKETPLACE") return false;
-  if (team.marketplaceStatus === "MATCHED" || team.marketplaceStatus === "WITHDRAWN") return false;
+  if (!isMarketplaceSlotContainerTeam(team)) return false;
   if (team.marketplaceStatus === "MATCHING") return true;
 
   const normalizedMessage = normalizeComparableText(team.marketplaceMessage).toLowerCase();
@@ -1268,17 +1271,17 @@ function TeamAdminInfoPanel({
 function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team: Team; compact?: boolean; subtle?: boolean }) {
   if (team.registrationMode !== "MARKETPLACE") return null;
 
-  const isMarketplaceMatching = isMarketplaceMatchingTeam(team);
+  const showAsSlotContainer = isMarketplaceSlotContainerTeam(team);
   const marketplaceStatus = getMarketplaceStatusOption(team.marketplaceStatus);
   const marketplaceDraftStatus = getMarketplaceDraftStatusMeta(team);
   const compactClassName = compact ? "h-6 shrink-0 px-1.5 text-[10px]" : "";
   const statusClassName = subtle
     ? "border-muted-foreground/30 text-muted-foreground"
-    : isMarketplaceMatching ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus);
+    : showAsSlotContainer ? marketplaceDraftStatus.className : getMarketplaceStatusClass(team.marketplaceStatus);
 
   return (
     <>
-      {isMarketplaceMatching ? (
+      {showAsSlotContainer ? (
         <Badge variant="outline" className={`${compactClassName} ${statusClassName}`}>
           MTC {getParticipantCount(team)}/5
         </Badge>
@@ -1292,7 +1295,7 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
           </Badge>
         </>
       )}
-      {!subtle && !isMarketplaceMatching && (
+      {!subtle && !showAsSlotContainer && (
         <Badge variant="outline" className={`${compactClassName} border-muted-foreground/30 text-muted-foreground`}>
           {getTeamPublicationLabel(team.teamPublicationLevel)}
         </Badge>
@@ -1302,7 +1305,7 @@ function MarketplaceTeamBadges({ team, compact = false, subtle = false }: { team
 }
 
 function MarketplaceParticipantBadges({ team, participant, compact = false }: { team: Team; participant: Participant; compact?: boolean }) {
-  if (!isMarketplaceMatchingTeam(team)) return null;
+  if (!isMarketplaceSlotContainerTeam(team)) return null;
 
   return (
     <>
@@ -1321,17 +1324,19 @@ function MarketplaceParticipantBadges({ team, participant, compact = false }: { 
 function getTeamCapabilities(team: Team, access: { canEditAll: boolean; canEditOwnTeam?: boolean }) {
   const isMarketplaceTeam = team.registrationMode === "MARKETPLACE";
   const isMtcDraft = isMarketplaceMatchingTeam(team);
+  const usesMarketplaceSlotContainer = isMarketplaceSlotContainerTeam(team);
   const canEditMarketplaceObject = access.canEditAll && isMarketplaceTeam;
-  const canFinalizeMtcDraft = isMtcDraft && (access.canEditAll || team.canFinalizeMarketplaceMatching === true);
+  const canFinalizeMtcDraft = usesMarketplaceSlotContainer && (access.canEditAll || team.canFinalizeMarketplaceMatching === true);
 
   return {
     isMarketplaceTeam,
     isMtcDraft,
-    hasOpenMtcSlots: isMtcDraft && getParticipantCount(team) < 5,
+    usesMarketplaceSlotContainer,
+    hasOpenMtcSlots: usesMarketplaceSlotContainer && getParticipantCount(team) < 5,
     canEditMarketplaceVisibility: canEditMarketplaceObject,
     canEditPublicationPreferences: canEditMarketplaceObject || access.canEditOwnTeam === true,
-    canManageSlots: access.canEditAll && isMtcDraft,
-    canSearchParticipants: access.canEditAll && isMtcDraft && getParticipantCount(team) < 5,
+    canManageSlots: access.canEditAll && usesMarketplaceSlotContainer,
+    canSearchParticipants: access.canEditAll && usesMarketplaceSlotContainer && getParticipantCount(team) < 5,
     canFinalizeMtcDraft,
   };
 }
@@ -4184,8 +4189,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   const capabilities = getTeamCapabilities(team, { canEditAll, canEditOwnTeam: team.canCurrentUserEdit });
                   const isEditable = team.canCurrentUserEdit === true && team.registrationMode !== "MARKETPLACE";
                   const isMarketplaceMatching = capabilities.isMtcDraft;
+                  const usesMarketplaceSlotContainer = capabilities.usesMarketplaceSlotContainer;
                   const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
-                  const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
+                  const canEditMarketplaceParticipant = Boolean(!usesMarketplaceSlotContainer && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
                   const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
                   const canEditMarketplaceMatching = capabilities.canManageSlots || capabilities.canFinalizeMtcDraft;
                   const canOpenOwnMtcEdit = isMarketplaceMatching && team.canCurrentUserEdit === true && !canEditAll;
@@ -4302,7 +4308,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Person
                                 </Button>
                               )}
-                              {canEditMarketplaceTeam && (
+                              {canEditMarketplaceTeam && !usesMarketplaceSlotContainer && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -4311,7 +4317,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Börse
                                 </Button>
                               )}
-                              {canDeleteTeam && (
+                              {canDeleteTeam && !usesMarketplaceSlotContainer && (
                                 <TeamDeleteDialog team={team} deleting={deleting} onDelete={handleDeleteTeam} />
                               )}
                             </div>
@@ -4355,8 +4361,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
               const revealPrivateDashboardNames = canRevealPrivateDashboardName(team, isAdmin);
               const capabilities = getTeamCapabilities(team, { canEditAll, canEditOwnTeam: team.canCurrentUserEdit });
               const isMarketplaceMatching = capabilities.isMtcDraft;
+              const usesMarketplaceSlotContainer = capabilities.usesMarketplaceSlotContainer;
               const marketplaceParticipant = team.registrationMode === "MARKETPLACE" ? team.participants?.[0] : null;
-              const canEditMarketplaceParticipant = Boolean(!isMarketplaceMatching && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
+              const canEditMarketplaceParticipant = Boolean(!usesMarketplaceSlotContainer && marketplaceParticipant?.id && (canEditAll || team.canCurrentUserEdit));
               const canEditMarketplaceTeam = capabilities.canEditMarketplaceVisibility;
               const canEditMarketplaceMatching = capabilities.canManageSlots || capabilities.canFinalizeMtcDraft;
               const canOpenOwnMtcEdit = isMarketplaceMatching && team.canCurrentUserEdit === true && !canEditAll;
@@ -4421,7 +4428,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                 onClick={(event) => event.stopPropagation()}
                               />
                             )}
-                            {team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching ? (
+                            {team.registrationMode === "MARKETPLACE" && !usesMarketplaceSlotContainer ? (
                               <MarketplacePersonSummary
                                 team={team}
                                 participant={marketplaceParticipant}
@@ -4579,7 +4586,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     Person
                                   </Button>
                                 )}
-                                {canEditMarketplaceTeam && !isMarketplaceMatching && (
+                                {canEditMarketplaceTeam && !usesMarketplaceSlotContainer && (
                                   <Button
                                     type="button"
                                     size="sm"
@@ -4593,7 +4600,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                     Börse
                                   </Button>
                                 )}
-                                {canDeleteTeam && team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching && (
+                                {canDeleteTeam && team.registrationMode === "MARKETPLACE" && !usesMarketplaceSlotContainer && (
                                   <TeamDeleteDialog
                                     team={team}
                                     deleting={deleting}
@@ -4636,7 +4643,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                               <div className="flex min-w-0 max-w-full flex-1 basis-48 items-center gap-1.5">
-                                {!isMarketplaceMatching && renderCategoryIconBadge(team)}
+                                {!usesMarketplaceSlotContainer && renderCategoryIconBadge(team)}
                                 <h3 className="min-w-0 truncate text-base font-semibold" title={team.name}>{team.name}</h3>
                                 <TeamVisibilityIconBadge
                                   team={team}
@@ -4698,7 +4705,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   {openingMtcEditTeamId === team.id ? "Öffne..." : "MTC bearbeiten"}
                                 </Button>
                               )}
-                              {canEditMarketplaceTeam && !isMarketplaceMatching && (
+                              {canEditMarketplaceTeam && !usesMarketplaceSlotContainer && (
                                 <Button
                                   size="xs"
                                   variant="outline"
@@ -4710,7 +4717,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                                   Börse
                                 </Button>
                               )}
-                              {canDeleteTeam && team.registrationMode === "MARKETPLACE" && !isMarketplaceMatching && (
+                              {canDeleteTeam && team.registrationMode === "MARKETPLACE" && !usesMarketplaceSlotContainer && (
                                 <TeamDeleteDialog
                                   team={team}
                                   deleting={deleting}
@@ -4792,7 +4799,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                           )}
 
                           {team.registrationMode === "MARKETPLACE" && (
-                            isMarketplaceMatching ? (
+                            usesMarketplaceSlotContainer ? (
                               <div className="space-y-1 text-xs">
                                 <button
                                   type="button"
@@ -4900,7 +4907,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             )
                           )}
 
-                          {(team.registrationMode !== "MARKETPLACE" || isMarketplaceMatching) && (
+                          {(team.registrationMode !== "MARKETPLACE" || usesMarketplaceSlotContainer) && (
                             <div className="space-y-1">
                               <div className="grid gap-1 md:grid-cols-5">
                                 {disciplineSlots.map(({ discipline, participant }) => {
