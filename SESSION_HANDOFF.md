@@ -1,13 +1,19 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-19 13:28 UTC
+Stand: 2026-07-19 13:31 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Aktuelle lokale Arbeit 2026-07-19 13:28 UTC:
+- Aktueller Production-Stand 2026-07-19 13:31 UTC:
+  - Legacy Stammdaten CSV Workflow ist umgesetzt und live.
   - CR: `docs/cr/2026-07-19-legacy-stammdaten-csv.md`
     (lokal durch bestehende `.git/info/exclude`-Regel fuer `docs/*`
     nicht im Git-Status sichtbar).
+  - Code-Commit: `440bacf Add legacy stammdaten csv workflow`.
+  - Production Deploy: `dpl_qzKfXy8zMPENX3J8VcKPgq4Jx3LJ`.
+  - Deployment URL:
+    `https://s5-evo-portal-8w4gbqksl-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
   - Scope: Mannschafts-Dashboard Legacy-Stammdaten-CSV Export plus
     Legacy-Startnummern-Import-Fallback.
   - Geaendert:
@@ -37,8 +43,12 @@ Stand: 2026-07-19 13:28 UTC
     keine CSV-Inhalte in Logs/Audit. Audit schreibt nur Startnummer vor/nach.
   - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`,
     inline `tsx` Legacy-CSV-Shape-Check, `git diff --check`, `npm run build`.
-  - Kein Commit, kein Push, kein Deploy, keine DB-Migration,
-    keine Produktionsdaten-Mutation.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; unauthenticated
+    `POST /api/admin/teams-export` mit `format:"legacy-stammdaten"` 401;
+    unauthenticated `POST /api/admin/start-numbers/import` mit Legacy-CSV
+    Body 401.
+  - Keine DB-Migration, keine Produktionsdaten-Mutation.
   - Gap: kein authentifizierter Browser/API-Smoke mangels Session-Cookies;
     Legacy-Encoding muss nach Deploy mit echter Legacy-Datei manuell validiert
     werden.
