@@ -1,9 +1,47 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-19 10:32 UTC
+Stand: 2026-07-19 13:28 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktuelle lokale Arbeit 2026-07-19 13:28 UTC:
+  - CR: `docs/cr/2026-07-19-legacy-stammdaten-csv.md`
+    (lokal durch bestehende `.git/info/exclude`-Regel fuer `docs/*`
+    nicht im Git-Status sichtbar).
+  - Scope: Mannschafts-Dashboard Legacy-Stammdaten-CSV Export plus
+    Legacy-Startnummern-Import-Fallback.
+  - Geaendert:
+    `lib/team-csv-export.ts`,
+    `app/api/admin/teams-export/route.ts`,
+    `app/api/admin/start-numbers/import/route.ts`,
+    `app/components/dashboard.tsx`.
+  - Export: neuer fixer `legacy-stammdaten` Preset erzeugt exakt drei
+    Leerzeilen, dann Header
+    `Startnummer;Mannschaftsname;Klasse;Gesamtalter;...`, eine Zeile je
+    Mannschaft, Teilnehmer nach RUN/BENCH/STOCK/ROAD/MTB, lesbare Klassenlabels,
+    UTF-8 BOM.
+  - Dashboard: zweiter CSV-Button fuer Legacy-Stammdaten mit aktueller
+    gefilterter/sortierter Mannschaftsmenge fuer ADMIN/MODERATOR;
+    zusaetzlicher Upload-Button nur fuer ADMIN fuer Legacy-Startnummern-Import
+    mit Dry-Run, Bestaetigungsdialog, ersten Warnungsdetails und
+    UTF-8/Windows-1252 Decode-Fallback; bestehender normaler/layout CSV bleibt
+    unveraendert.
+  - Import: vorhandener `/api/admin/start-numbers/import` bleibt ID-basiert
+    fuehrend; wenn keine IDs gefunden werden, matched der Legacy-Fallback
+    ueber normalisierten Mannschaftsnamen und bei Duplikaten ueber
+    Teilnehmer-Signatur. Geschrieben wird weiterhin nur `Team.startNumber`.
+    Unmatched/ambiguous rows kommen als Warnungen zurueck. Import-API ist
+    ADMIN-only, Export-API bleibt ADMIN/MODERATOR.
+  - Privacy: exportiert bewusst Teilnehmernamen/Geschlecht/Geburtsjahr fuer
+    Admin/Moderator; keine Kontakt-/Owner-/Claim-/ID-Felder im Legacy-Export;
+    keine CSV-Inhalte in Logs/Audit. Audit schreibt nur Startnummer vor/nach.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`,
+    inline `tsx` Legacy-CSV-Shape-Check, `git diff --check`, `npm run build`.
+  - Kein Commit, kein Push, kein Deploy, keine DB-Migration,
+    keine Produktionsdaten-Mutation.
+  - Gap: kein authentifizierter Browser/API-Smoke mangels Session-Cookies;
+    Legacy-Encoding muss nach Deploy mit echter Legacy-Datei manuell validiert
+    werden.
 - Aktueller Production-Stand 2026-07-19 10:32 UTC:
   - Entity-ID Tenant Scope Guardrails sind umgesetzt und live.
   - CR: `docs/cr/2026-07-18-entity-id-tenant-scope-guardrails.md`.

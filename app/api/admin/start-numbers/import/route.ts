@@ -24,6 +24,14 @@ type ParsedAssignments = {
   participantAssignments: Map<string, string | null>;
 };
 
+type LegacyImportWarning = {
+  row: number;
+  startNumber: string | null;
+  teamName: string;
+  reason: "missing_team_name" | "missing_start_number" | "unmatched_team" | "ambiguous_team";
+  candidates?: Array<{ teamId: string; teamName: string }>;
+};
+
 function parseCsv(input: string, delimiter = ";"): ParsedCsv {
   const text = input.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const rows: string[][] = [];
@@ -88,6 +96,19 @@ function normalizeHeader(value: string) {
 function normalizeStartNumber(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function normalizeLegacyText(value: string | null | undefined) {
+  return (value || "")
+    .trim()
+    .toLocaleLowerCase("de-DE")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function findHeaderIndex(normalizedHeaders: string[], aliases: string[]) {
+  return normalizedHeaders.findIndex((header) => aliases.includes(header));
 }
 
 async function startNumberColumnExists() {
@@ -176,6 +197,167 @@ function collectAssignments(
   };
 }
 
+function getLegacySlotIndices(normalizedHeaders: string[]) {
+  return [
+    {
+      firstName: findHeaderIndex(normalizedHeaders, ["laufvorname", "runvorname"]),
+      lastName: findHeaderIndex(normalizedHeaders, ["laufname", "runnachname", "runname"]),
+      gender: findHeaderIndex(normalizedHeaders, ["laufgeschlecht", "rungeschlecht"]),
+      birthYear: findHeaderIndex(normalizedHeaders, ["laufgeburtsjahr", "rungeburtsjahr"]),
+      disciplineCode: "RUN",
+    },
+    {
+      firstName: findHeaderIndex(normalizedHeaders, ["bankvorname", "benchvorname"]),
+      lastName: findHeaderIndex(normalizedHeaders, ["bankname", "benchnachname", "benchname"]),
+      gender: findHeaderIndex(normalizedHeaders, ["bankgeschlecht", "benchgeschlecht"]),
+      birthYear: findHeaderIndex(normalizedHeaders, ["bankgeburtsjahr", "benchgeburtsjahr"]),
+      disciplineCode: "BENCH",
+    },
+    {
+      firstName: findHeaderIndex(normalizedHeaders, ["stockvorname"]),
+      lastName: findHeaderIndex(normalizedHeaders, ["stockname", "stocknachname"]),
+      gender: findHeaderIndex(normalizedHeaders, ["stockgeschlecht"]),
+      birthYear: findHeaderIndex(normalizedHeaders, ["stockgeburtsjahr"]),
+      disciplineCode: "STOCK",
+    },
+    {
+      firstName: findHeaderIndex(normalizedHeaders, ["radvorname", "roadvorname"]),
+      lastName: findHeaderIndex(normalizedHeaders, ["radname", "radnachname", "roadname", "roadnachname"]),
+      gender: findHeaderIndex(normalizedHeaders, ["radgeschlecht", "roadgeschlecht"]),
+      birthYear: findHeaderIndex(normalizedHeaders, ["radgeburtsjahr", "roadgeburtsjahr"]),
+      disciplineCode: "ROAD",
+    },
+    {
+      firstName: findHeaderIndex(normalizedHeaders, ["mtbvorname"]),
+      lastName: findHeaderIndex(normalizedHeaders, ["mtbname", "mtbnachname"]),
+      gender: findHeaderIndex(normalizedHeaders, ["mtbgeschlecht"]),
+      birthYear: findHeaderIndex(normalizedHeaders, ["mtbgeburtsjahr"]),
+      disciplineCode: "MTB",
+    },
+  ];
+}
+
+function buildLegacyRowSignature(row: string[], normalizedHeaders: string[]) {
+  const slots = getLegacySlotIndices(normalizedHeaders);
+  return slots
+    .map((slot) => {
+      if (slot.firstName === -1 || slot.lastName === -1) return "";
+      const firstName = normalizeLegacyText(row[slot.firstName]);
+      const lastName = normalizeLegacyText(row[slot.lastName]);
+      if (!firstName && !lastName) return "";
+      const gender = slot.gender === -1 ? "" : normalizeLegacyText(row[slot.gender]);
+      const birthYear = slot.birthYear === -1 ? "" : normalizeLegacyText(row[slot.birthYear]);
+      return [slot.disciplineCode, firstName, lastName, gender, birthYear].join(":");
+    })
+    .filter(Boolean)
+    .join("|");
+}
+
+function buildTeamSignature(team: {
+  participants: Array<{
+    firstName: string;
+    lastName: string;
+    gender: "MALE" | "FEMALE";
+    birthYear: number;
+    disciplineCode: string | null;
+  }>;
+}) {
+  const byDiscipline = new Map(team.participants.map((participant) => [participant.disciplineCode || "TBD", participant]));
+  return ["RUN", "BENCH", "STOCK", "ROAD", "MTB"]
+    .map((disciplineCode) => {
+      const participant = byDiscipline.get(disciplineCode);
+      if (!participant) return "";
+      return [
+        disciplineCode,
+        normalizeLegacyText(participant.firstName),
+        normalizeLegacyText(participant.lastName),
+        participant.gender === "FEMALE" ? "w" : "m",
+        String(participant.birthYear),
+      ].join(":");
+    })
+    .filter(Boolean)
+    .join("|");
+}
+
+function collectLegacyAssignments(
+  headers: string[],
+  rows: string[][],
+  teams: Array<{
+    id: string;
+    name: string;
+    participants: Array<{
+      firstName: string;
+      lastName: string;
+      gender: "MALE" | "FEMALE";
+      birthYear: number;
+      disciplineCode: string | null;
+    }>;
+  }>,
+): { teamAssignments: Map<string, string | null>; warnings: LegacyImportWarning[] } {
+  const normalizedHeaders = headers.map(normalizeHeader);
+  const startNumberIndex = findHeaderIndex(normalizedHeaders, ["startnummer", "start_number", "startnumber"]);
+  const teamNameIndex = findHeaderIndex(normalizedHeaders, ["mannschaftsname", "team_name", "teamname", "mannschaft"]);
+
+  const teamAssignments = new Map<string, string | null>();
+  const warnings: LegacyImportWarning[] = [];
+
+  if (startNumberIndex === -1 || teamNameIndex === -1) {
+    return { teamAssignments, warnings };
+  }
+
+  const teamsByName = new Map<string, typeof teams>();
+  const signatureByTeamId = new Map(teams.map((team) => [team.id, buildTeamSignature(team)]));
+  for (const team of teams) {
+    const key = normalizeLegacyText(team.name);
+    const existing = teamsByName.get(key) || [];
+    existing.push(team);
+    teamsByName.set(key, existing);
+  }
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 5;
+    const startNumber = normalizeStartNumber(row[startNumberIndex] || "");
+    const teamName = (row[teamNameIndex] || "").trim();
+    if (!teamName) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_team_name" });
+      return;
+    }
+    if (!startNumber) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_start_number" });
+      return;
+    }
+
+    const candidates = teamsByName.get(normalizeLegacyText(teamName)) || [];
+    if (candidates.length === 0) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "unmatched_team" });
+      return;
+    }
+
+    let matched = candidates;
+    if (candidates.length > 1) {
+      const rowSignature = buildLegacyRowSignature(row, normalizedHeaders);
+      if (rowSignature) {
+        matched = candidates.filter((team) => signatureByTeamId.get(team.id) === rowSignature);
+      }
+    }
+
+    if (matched.length !== 1) {
+      warnings.push({
+        row: rowNumber,
+        startNumber,
+        teamName,
+        reason: "ambiguous_team",
+        candidates: candidates.slice(0, 10).map((team) => ({ teamId: team.id, teamName: team.name })),
+      });
+      return;
+    }
+
+    teamAssignments.set(matched[0].id, startNumber);
+  });
+
+  return { teamAssignments, warnings };
+}
+
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as ImportBody | null;
   if (!body) {
@@ -188,7 +370,7 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await getServerSession(authOptions);
-  const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  const auth = await requireCompetitionTenantRoles(session, ["ADMIN"], competitionId);
   if ("error" in auth) return auth.error;
 
   const csv = body.csv?.trim();
@@ -216,12 +398,44 @@ export async function POST(request: NextRequest) {
   }
 
   const parsedAssignments = collectAssignments(parsed.headers, parsed.rows, clearMissing);
-  const hasAssignments = parsedAssignments.teamAssignments.size > 0 || parsedAssignments.participantAssignments.size > 0;
+  let legacyWarnings: LegacyImportWarning[] = [];
+  let hasAssignments = parsedAssignments.teamAssignments.size > 0 || parsedAssignments.participantAssignments.size > 0;
+  if (!hasAssignments) {
+    const teamsForLegacyMatch = await prisma.team.findMany({
+      where: {
+        deletedAt: null,
+        competitionId,
+        competition: { tenantId: auth.tenantId },
+      },
+      select: {
+        id: true,
+        name: true,
+        participants: {
+          where: { deletedAt: null },
+          select: {
+            firstName: true,
+            lastName: true,
+            gender: true,
+            birthYear: true,
+            disciplineCode: true,
+          },
+        },
+      },
+    });
+    const legacyAssignments = collectLegacyAssignments(parsed.headers, parsed.rows, teamsForLegacyMatch);
+    legacyWarnings = legacyAssignments.warnings;
+    for (const [teamId, startNumber] of legacyAssignments.teamAssignments) {
+      parsedAssignments.teamAssignments.set(teamId, startNumber);
+    }
+    hasAssignments = parsedAssignments.teamAssignments.size > 0 || parsedAssignments.participantAssignments.size > 0;
+  }
+
   if (!hasAssignments) {
     return NextResponse.json(
       {
         error:
           "Keine gueltigen Startnummern-Zuordnungen gefunden. Erwartet: team_id+team_startnummer oder participant_id+startnummer oder tn_XX_id+tn_XX_startnummer.",
+        warnings: legacyWarnings,
       },
       { status: 400 },
     );
@@ -357,6 +571,7 @@ export async function POST(request: NextRequest) {
       parsedRows: parsed.rows.length,
       assignments: mergedTeamAssignments.size,
       changed: changed.length,
+      warnings: legacyWarnings,
       preview: changed.slice(0, 20).map(({ team, nextStartNumber }) => ({
         teamId: team.id,
         teamName: team.name,
@@ -404,5 +619,6 @@ export async function POST(request: NextRequest) {
     parsedRows: parsed.rows.length,
     assignments: mergedTeamAssignments.size,
     changed: changed.length,
+    warnings: legacyWarnings,
   });
 }

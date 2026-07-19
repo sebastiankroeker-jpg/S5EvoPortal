@@ -5,6 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { sanitizeTeamDashboardLayoutConfig, TEAM_DASHBOARD_KEY } from "@/lib/dashboard-layout-config";
 import { prisma } from "@/lib/prisma";
 import {
+  buildCompetitionTeamsLegacyStammdatenCsvAttachment,
   buildCompetitionTeamsLayoutCsvAttachment,
   buildCompetitionTeamsCsvAttachment,
   loadCompetitionsForDailyExport,
@@ -56,7 +57,8 @@ export async function GET(request: NextRequest) {
 
 const layoutExportSchema = z.object({
   competitionId: z.string().trim().min(1),
-  layoutId: z.string().trim().min(1),
+  format: z.enum(["layout", "legacy-stammdaten"]).default("layout"),
+  layoutId: z.string().trim().min(1).optional(),
   teamIds: z.array(z.string().trim().min(1)).max(1000).default([]),
 });
 
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { competitionId, layoutId, teamIds } = parsed.data;
+  const { competitionId, format, layoutId, teamIds } = parsed.data;
 
   const session = await getServerSession(authOptions);
   const auth = await requireCompetitionTenantRoles(session, ["ADMIN", "MODERATOR"], competitionId);
@@ -85,25 +87,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 });
     }
 
-    const layout = await prisma.dashboardLayout.findFirst({
-      where: {
-        id: layoutId,
-        tenantId: auth.tenantId,
-        dashboardKey: TEAM_DASHBOARD_KEY,
-        deletedAt: null,
-        OR: [
-          { scope: "GLOBAL", competitionId: null },
-          { scope: "GLOBAL", competitionId },
-          { scope: "PERSONAL", ownerId: auth.user.id, competitionId: null },
-          { scope: "PERSONAL", ownerId: auth.user.id, competitionId },
-        ],
-      },
-    });
-
-    if (!layout) {
-      return NextResponse.json({ error: "Layout nicht gefunden" }, { status: 404 });
-    }
-
     const validTeamIds = new Set(competition.teams.map((team) => team.id));
     const uniqueTeamIds = [...new Set(teamIds)];
     const invalidTeamIds = uniqueTeamIds.filter((teamId) => !validTeamIds.has(teamId));
@@ -111,13 +94,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Export enthaelt ungueltige Mannschaften." }, { status: 400 });
     }
 
-    const config = sanitizeTeamDashboardLayoutConfig(layout.config, { isAdmin: auth.isAdmin });
     const startNumberByTeamId = await loadTeamStartNumbersForCompetition(competition.id);
-    const attachment = buildCompetitionTeamsLayoutCsvAttachment(competition, config.exportColumns, {
-      startNumberByTeamId,
-      teamIds: uniqueTeamIds,
-      layoutName: layout.name,
-    });
+    const attachment = format === "legacy-stammdaten"
+      ? buildCompetitionTeamsLegacyStammdatenCsvAttachment(competition, {
+          startNumberByTeamId,
+          teamIds: uniqueTeamIds,
+        })
+      : await (async () => {
+          if (!layoutId) {
+            return null;
+          }
+
+          const layout = await prisma.dashboardLayout.findFirst({
+            where: {
+              id: layoutId,
+              tenantId: auth.tenantId,
+              dashboardKey: TEAM_DASHBOARD_KEY,
+              deletedAt: null,
+              OR: [
+                { scope: "GLOBAL", competitionId: null },
+                { scope: "GLOBAL", competitionId },
+                { scope: "PERSONAL", ownerId: auth.user.id, competitionId: null },
+                { scope: "PERSONAL", ownerId: auth.user.id, competitionId },
+              ],
+            },
+          });
+
+          if (!layout) {
+            return null;
+          }
+
+          const config = sanitizeTeamDashboardLayoutConfig(layout.config, { isAdmin: auth.isAdmin });
+          return buildCompetitionTeamsLayoutCsvAttachment(competition, config.exportColumns, {
+            startNumberByTeamId,
+            teamIds: uniqueTeamIds,
+            layoutName: layout.name,
+          });
+        })();
+
+    if (!attachment) {
+      return NextResponse.json({ error: "Layout nicht gefunden" }, { status: 404 });
+    }
     const responseBody = Buffer.from(attachment.content, "base64");
 
     return new NextResponse(responseBody, {

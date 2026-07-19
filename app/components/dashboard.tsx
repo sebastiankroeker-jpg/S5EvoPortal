@@ -66,6 +66,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FileSpreadsheet,
   Info,
   Mail,
   Pencil,
@@ -75,6 +76,7 @@ import {
   SlidersHorizontal,
   Star,
   Trash2,
+  Upload,
   UserRound,
   UsersRound,
   X,
@@ -1768,6 +1770,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
   const [layoutManagerOpen, setLayoutManagerOpen] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
+  const [importingLegacyCsv, setImportingLegacyCsv] = useState(false);
+  const legacyImportInputRef = useRef<HTMLInputElement | null>(null);
   const [sortField, setSortField] = useState<TeamSortField>(DEFAULT_TEAM_SORT_FIELD);
   const [sortDirection, setSortDirection] = useState<SortDirection>(DEFAULT_TEAM_SORT_DIRECTION);
   const [preferencesLoadedForKey, setPreferencesLoadedForKey] = useState("");
@@ -1787,6 +1791,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const canUseAdminLinks = activeRole === "ADMIN";
   const showAdminDashboardInfo = activeRole === "ADMIN";
   const canExportCompetitionCsv = activeRole === "ADMIN" || activeRole === "MODERATOR";
+  const canImportLegacyStartNumbers = activeRole === "ADMIN";
   const userEmail = session?.user?.email;
   const preferenceStorageKey = useMemo(() => {
     const userPart = userEmail ? normalizeEmail(userEmail) : "anonymous";
@@ -2179,7 +2184,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
   };
 
-  const handleDownloadCompetitionCsv = async () => {
+  const handleDownloadCompetitionCsv = async (format: "default" | "legacy-stammdaten" = "default") => {
     if (!activeCompetition?.id) {
       notifications.error("CSV-Export nicht möglich", "Es ist kein aktiver Wettkampf ausgewählt.");
       return;
@@ -2187,7 +2192,17 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 
     setExportingCsv(true);
     try {
-      const response = selectedLayout
+      const response = format === "legacy-stammdaten"
+        ? await fetch("/api/admin/teams-export", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              competitionId: activeCompetition.id,
+              format: "legacy-stammdaten",
+              teamIds: sortedTeams.map((team) => team.id),
+            }),
+          })
+        : selectedLayout
         ? await fetch("/api/admin/teams-export", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2217,7 +2232,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       window.URL.revokeObjectURL(url);
       notifications.success(
         "CSV exportiert",
-        selectedLayout
+        format === "legacy-stammdaten"
+          ? "Die Legacy-Stammdaten-Schnittstelle mit den aktuell gefilterten Mannschaften wurde heruntergeladen."
+          : selectedLayout
           ? "Der Layout-Export mit den aktuell gefilterten Mannschaften wurde heruntergeladen."
           : "Der Mannschaftsexport wurde heruntergeladen.",
       );
@@ -2229,6 +2246,122 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       );
     } finally {
       setExportingCsv(false);
+    }
+  };
+
+  const readLegacyCsvFile = async (file: File) => {
+    const buffer = await file.arrayBuffer();
+    const utf8 = new TextDecoder("utf-8").decode(buffer);
+    if (!utf8.includes("\uFFFD")) return utf8;
+    return new TextDecoder("windows-1252").decode(buffer);
+  };
+
+  const postLegacyStartNumberImport = async (csv: string, dryRun: boolean) => {
+    if (!activeCompetition?.id) {
+      throw new Error("Es ist kein aktiver Wettkampf ausgewählt.");
+    }
+
+    const response = await fetch("/api/admin/start-numbers/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        competitionId: activeCompetition.id,
+        csv,
+        delimiter: ";",
+        dryRun,
+      }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.error || "Legacy-Import fehlgeschlagen.");
+    }
+    return data as {
+      changed?: number;
+      assignments?: number;
+      parsedRows?: number;
+      warnings?: Array<{
+        row?: number;
+        startNumber?: string | null;
+        teamName?: string;
+        reason?: string;
+      }>;
+    };
+  };
+
+  const formatLegacyImportWarning = (warning: { row?: number; startNumber?: string | null; teamName?: string; reason?: string }) => {
+    const reasonLabels: Record<string, string> = {
+      missing_team_name: "Mannschaftsname fehlt",
+      missing_start_number: "Startnummer fehlt",
+      unmatched_team: "Mannschaft nicht gefunden",
+      ambiguous_team: "Mannschaft mehrdeutig",
+    };
+    const row = warning.row ? `Zeile ${warning.row}` : "Zeile ?";
+    const team = warning.teamName ? `: ${warning.teamName}` : "";
+    const startNumber = warning.startNumber ? ` (${warning.startNumber})` : "";
+    const reason = warning.reason ? reasonLabels[warning.reason] || warning.reason : "Warnung";
+    return `${row}${team}${startNumber} - ${reason}`;
+  };
+
+  const formatLegacyImportWarnings = (warnings?: Array<{ row?: number; startNumber?: string | null; teamName?: string; reason?: string }>) => {
+    if (!warnings?.length) return "";
+    const preview = warnings.slice(0, 5).map(formatLegacyImportWarning).join("\n");
+    const remaining = warnings.length > 5 ? `\n... plus ${warnings.length - 5} weitere Warnungen` : "";
+    return `\n\nWarnungen:\n${preview}${remaining}`;
+  };
+
+  const handleLegacyStartNumberImport = async (file: File | null) => {
+    if (!file) return;
+    if (!activeCompetition?.id) {
+      notifications.error("Import nicht möglich", "Es ist kein aktiver Wettkampf ausgewählt.");
+      return;
+    }
+
+    setImportingLegacyCsv(true);
+    try {
+      const csv = await readLegacyCsvFile(file);
+      const preview = await postLegacyStartNumberImport(csv, true);
+      const changed = preview.changed ?? 0;
+      const assignments = preview.assignments ?? 0;
+      const warnings = preview.warnings?.length ?? 0;
+
+      if (assignments === 0 || changed === 0) {
+        notifications.info(
+          "Legacy-Import geprüft",
+          warnings > 0
+            ? `Keine Startnummern geändert. ${warnings} Zeilen brauchen Prüfung.`
+            : "Keine Startnummernänderungen gefunden.",
+        );
+        if (warnings > 0) {
+          window.alert(`Legacy-Import Warnungen${formatLegacyImportWarnings(preview.warnings)}`);
+        }
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Legacy-Import übernehmen?\n\nZuordnungen: ${assignments}\nÄnderungen: ${changed}\nWarnungen: ${warnings}${formatLegacyImportWarnings(preview.warnings)}\n\nEs werden nur Startnummern geschrieben.`,
+      );
+      if (!confirmed) {
+        notifications.info("Legacy-Import abgebrochen", "Es wurden keine Startnummern geändert.");
+        return;
+      }
+
+      const result = await postLegacyStartNumberImport(csv, false);
+      await fetchTeams("refresh");
+      notifications.success(
+        "Startnummern importiert",
+        `${result.changed ?? changed} Mannschaften wurden aktualisiert.${warnings > 0 ? ` ${warnings} Warnungen bleiben zur Prüfung.` : ""}`,
+      );
+    } catch (error) {
+      console.error("Failed to import legacy start numbers:", error);
+      notifications.error(
+        "Legacy-Import fehlgeschlagen",
+        error instanceof Error ? error.message : "Bitte Datei prüfen und erneut versuchen.",
+      );
+    } finally {
+      setImportingLegacyCsv(false);
+      if (legacyImportInputRef.current) {
+        legacyImportInputRef.current.value = "";
+      }
     }
   };
 
@@ -3386,13 +3519,50 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                   size="icon-xs"
                   className="h-7 w-full lg:size-6"
                   variant="outline"
-                  onClick={handleDownloadCompetitionCsv}
+                  onClick={() => handleDownloadCompetitionCsv()}
                   disabled={exportingCsv || !activeCompetition?.id}
                   title={selectedLayout ? "CSV im gewählten Layout mit gefilterten Zeilen herunterladen" : "Vollständigen Mannschaftsexport als CSV herunterladen"}
                   aria-label="CSV exportieren"
                 >
                   <Download className="size-3.5" />
                 </Button>
+              )}
+              {canExportCompetitionCsv && (
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  className="h-7 w-full lg:size-6"
+                  variant="outline"
+                  onClick={() => handleDownloadCompetitionCsv("legacy-stammdaten")}
+                  disabled={exportingCsv || !activeCompetition?.id}
+                  title="Legacy-Stammdaten-Schnittstelle mit gefilterten Zeilen herunterladen"
+                  aria-label="Legacy-Stammdaten exportieren"
+                >
+                  <FileSpreadsheet className="size-3.5" />
+                </Button>
+              )}
+              {canImportLegacyStartNumbers && (
+                <>
+                  <input
+                    ref={legacyImportInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(event) => void handleLegacyStartNumberImport(event.target.files?.[0] ?? null)}
+                  />
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    className="h-7 w-full lg:size-6"
+                    variant="outline"
+                    onClick={() => legacyImportInputRef.current?.click()}
+                    disabled={importingLegacyCsv || !activeCompetition?.id}
+                    title="Startnummern aus Legacy-Stammdaten-CSV importieren"
+                    aria-label="Legacy-Stammdaten importieren"
+                  >
+                    <Upload className="size-3.5" />
+                  </Button>
+                </>
               )}
               <Button
                 type="button"

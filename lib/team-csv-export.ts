@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { TeamExportColumnKey } from "@/lib/dashboard-layout-config";
+import { CLASSIFICATIONS } from "@/lib/domain/classification";
 
 type CompetitionExportRecord = {
   id: string;
@@ -15,6 +16,7 @@ type CompetitionExportRecord = {
     id: string;
     name: string;
     classificationCode: string | null;
+    totalAge: number | null;
     contactName: string | null;
     contactEmail: string | null;
     contactPhone: string | null;
@@ -45,6 +47,11 @@ type CompetitionExportRecord = {
 function escapeCsvValue(value: string | number | null | undefined) {
   const normalized = value == null ? "" : String(value);
   return '"' + normalized.replace(/"/g, '""') + '"';
+}
+
+function escapeLegacyCsvValue(value: string | number | null | undefined) {
+  const normalized = value == null ? "" : String(value);
+  return /[;"\r\n]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
 }
 
 function normalizeRecipientList(value?: string | null): string[] {
@@ -83,6 +90,15 @@ function formatParticipantByDiscipline(team: CompetitionExportRecord["teams"][nu
   if (!participant) return "";
 
   return `${participant.firstName} ${participant.lastName}`.trim();
+}
+
+function getParticipantByDiscipline(team: CompetitionExportRecord["teams"][number], disciplineCode: string) {
+  return team.participants.find((entry) => entry.disciplineCode === disciplineCode) || null;
+}
+
+function formatLegacyClassification(value?: string | null) {
+  if (!value) return "";
+  return CLASSIFICATIONS[value]?.label ?? value;
 }
 
 async function startNumberColumnExists() {
@@ -176,6 +192,7 @@ export async function loadCompetitionsForDailyExport({
           id: true,
           name: true,
           classificationCode: true,
+          totalAge: true,
           contactName: true,
           contactEmail: true,
           contactPhone: true,
@@ -454,6 +471,113 @@ export function buildCompetitionTeamsLayoutCsvAttachment(
     .replace(/^-+|-+$/g, "");
   const filename = `teams-export-${competition.year}-${safeCompetitionName || "competition"}-${safeLayoutName || "layout"}-${timestamp}.csv`;
   const csv = buildCompetitionTeamsLayoutCsv(competition, columnKeys, options);
+
+  return {
+    filename,
+    content: Buffer.from("\uFEFF" + csv, "utf8").toString("base64"),
+    contentType: "text/csv; charset=utf-8",
+  };
+}
+
+export const LEGACY_STAMMDATEN_HEADERS = [
+  "Startnummer",
+  "Mannschaftsname",
+  "Klasse",
+  "Gesamtalter",
+  "LaufVorname",
+  "LaufName",
+  "LaufGeschlecht",
+  "LaufGeburtsjahr",
+  "BankVorname",
+  "BankName",
+  "BankGeschlecht",
+  "BankGeburtsjahr",
+  "StockVorname",
+  "StockName",
+  "StockGeschlecht",
+  "StockGeburtsjahr",
+  "RadVorname",
+  "RadName",
+  "RadGeschlecht",
+  "RadGeburtsjahr",
+  "MTBVorname",
+  "MTBName",
+  "MTBGeschlecht",
+  "MTBGeburtsjahr",
+] as const;
+
+const LEGACY_DISCIPLINE_SLOTS = [
+  "RUN",
+  "BENCH",
+  "STOCK",
+  "ROAD",
+  "MTB",
+] as const;
+
+function legacyParticipantCells(team: CompetitionExportRecord["teams"][number], disciplineCode: string) {
+  const participant = getParticipantByDiscipline(team, disciplineCode);
+  if (!participant) return ["", "", "", ""];
+
+  return [
+    participant.firstName,
+    participant.lastName,
+    participant.gender === "FEMALE" ? "w" : "m",
+    participant.birthYear,
+  ];
+}
+
+export function buildCompetitionTeamsLegacyStammdatenCsv(
+  competition: CompetitionExportRecord,
+  options: {
+    startNumberByTeamId?: Map<string, string | null>;
+    teamIds?: string[];
+  } = {},
+) {
+  const teamOrder = new Map((options.teamIds || []).map((id, index) => [id, index]));
+  const teams = options.teamIds
+    ? competition.teams
+        .filter((team) => teamOrder.has(team.id))
+        .sort((left, right) => (teamOrder.get(left.id) ?? 0) - (teamOrder.get(right.id) ?? 0))
+    : competition.teams;
+
+  const rows = teams.map((team) => {
+    const row: Array<string | number | null | undefined> = [
+      options.startNumberByTeamId?.get(team.id) ?? "",
+      team.name,
+      formatLegacyClassification(team.classificationCode),
+      team.totalAge,
+    ];
+
+    for (const disciplineCode of LEGACY_DISCIPLINE_SLOTS) {
+      row.push(...legacyParticipantCells(team, disciplineCode));
+    }
+
+    return row;
+  });
+
+  return [
+    "",
+    "",
+    "",
+    LEGACY_STAMMDATEN_HEADERS.map((value) => escapeLegacyCsvValue(value)).join(";"),
+    ...rows.map((row) => row.map((value) => escapeLegacyCsvValue(value)).join(";")),
+  ].join("\n");
+}
+
+export function buildCompetitionTeamsLegacyStammdatenCsvAttachment(
+  competition: CompetitionExportRecord,
+  options: {
+    startNumberByTeamId?: Map<string, string | null>;
+    teamIds?: string[];
+  } = {},
+) {
+  const timestamp = new Date().toISOString().slice(0, 10);
+  const safeCompetitionName = competition.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const filename = `stammdaten-schnittstelle-${competition.year}-${safeCompetitionName || "competition"}-${timestamp}.csv`;
+  const csv = buildCompetitionTeamsLegacyStammdatenCsv(competition, options);
 
   return {
     filename,
