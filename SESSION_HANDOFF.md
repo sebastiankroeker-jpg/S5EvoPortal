@@ -1,9 +1,43 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-19 09:20 UTC
+Stand: 2026-07-19 10:32 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller Production-Stand 2026-07-19 10:32 UTC:
+  - Entity-ID Tenant Scope Guardrails sind umgesetzt und live.
+  - CR: `docs/cr/2026-07-18-entity-id-tenant-scope-guardrails.md`.
+  - Commit: `2afbbf8 Harden entity tenant scoped admin routes`.
+  - Production Deploy: `dpl_Xgx3fzLQjFkRivwoyFnWbKbCB8nx`.
+  - Deployment URL:
+    `https://s5-evo-portal-ptynuwniy-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Gehaertet: Claim-Link POST/PATCH, Deleted-Team Restore,
+    Participant-Change-Bundle Create/Detail/Decision.
+  - Zusaetzlich nach Messenger-Inbox-Fund gehaertet:
+    `/api/messages/admin-targets` und `/api/messages/admin-conversations`
+    nutzen jetzt alle expliziten Admin-/Moderator-Tenants bzw. den Zielkontext,
+    statt blind auf den ersten/default Tenant zu fallen.
+  - Neue Helper in `lib/server-permissions.ts`:
+    `requireAnyTenantRoles()`, `requireTeamTenantRoles()`,
+    `requireParticipantTenantRoles()`, `requirePendingChangesTenantRoles()`,
+    `requirePendingChangeBundleTenantRoles()`.
+  - Guard erweitert: `npm run verify:tenant-scope` prueft jetzt die fuenf
+    Entity-ID-Routen und die zwei Messenger-Orga-Routen.
+  - Checks gruen: `npm run verify:tenant-scope`,
+    `npm run verify:admin-competition-scope`,
+    `npm run verify:admin-dashboard-scope`,
+    `npm run verify:admin-csv-export-scope`, targeted ESLint,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/nachrichten` 200;
+    unauthenticated touched endpoints bleiben 401:
+    Claim-Links POST/PATCH, Deleted-Team Restore, Bundle Detail/Decision,
+    Messenger Admin Targets, Messenger Admin Conversations.
+  - Keine DB-Migration, keine Produktionsdaten-Mutation, keine Test-Mails,
+    keine Exporte/Resets/Claim-Einladungen ausgefuehrt.
+  - Bekannter Gap: kein authentifizierter Multi-Tenant-Admin-Smoke mangels
+    Session-Cookies/Test-Account-Automation; Sebastian kann UI live pruefen.
 - Aktueller Production-Stand 2026-07-19 09:20 UTC:
   - Sebastian meldete, dass die Prisma/Vercel Subscription upgegradet ist.
   - Live-Check danach: `https://portal.s5evo.de/api/competition` liefert wieder

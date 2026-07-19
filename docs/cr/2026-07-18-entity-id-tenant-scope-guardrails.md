@@ -1,6 +1,6 @@
 # CR: Entity-ID Tenant Scope Guardrails
 
-Status: Implemented, pending deploy
+Status: Deployed
 Date: 2026-07-18 / 2026-07-19
 Type: hotfix
 Risk: high
@@ -260,22 +260,35 @@ diagnosis found a production DB access restriction, not an admin-role loss:
 - Authenticated role smoke:
   - Gap: no reusable authenticated multi-tenant Admin session/cookies.
 - Manual smoke:
-  - Pending Sebastian after deploy.
+  - Pending Sebastian for authenticated multi-tenant UI confirmation.
 
 ## Deploy
 
-- Deployment needed: yes, after implementation and approval.
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes, completed after approval.
+- Commit: `2afbbf8 Harden entity tenant scoped admin routes`
+- Deployment ID: `dpl_Xgx3fzLQjFkRivwoyFnWbKbCB8nx`
+- Deployment URL: `https://s5-evo-portal-ptynuwniy-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-19 10:31 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green
+  - `https://portal.s5evo.de/nachrichten` -> 200
 - API checks:
+  - `POST /api/admin/claim-links` without session -> 401
+  - `PATCH /api/admin/claim-links` without session -> 401
+  - `POST /api/admin/deleted-teams/test-team/restore` without session -> 401
+  - `GET /api/admin/participant-change-bundles/test-bundle` without session -> 401
+  - `PUT /api/admin/participant-change-bundles/test-bundle/decision` without session -> 401
+  - `GET /api/messages/admin-targets` without session -> 401
+  - `POST /api/messages/admin-conversations` without session -> 401
 - Sensitive-data/API leakage checks:
-- Result:
+  - Protected touched endpoints did not expose payloads without session.
+  - No test mails, claim invitations, exports, resets or production data
+    mutations were executed.
+- Result: production deploy verified.
 
 ## Follow-Ups
 
