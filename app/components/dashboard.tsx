@@ -1027,7 +1027,18 @@ function DirectFieldBadge() {
 }
 
 function isMarketplaceMatchingTeam(team: Team) {
-  return team.registrationMode === "MARKETPLACE" && team.marketplaceStatus === "MATCHING";
+  if (team.registrationMode !== "MARKETPLACE") return false;
+  if (team.marketplaceStatus === "MATCHED" || team.marketplaceStatus === "WITHDRAWN") return false;
+  if (team.marketplaceStatus === "MATCHING") return true;
+
+  const normalizedMessage = normalizeComparableText(team.marketplaceMessage).toLowerCase();
+  if (normalizedMessage.includes("mtc-entwurf") || normalizedMessage.includes("matching-entwurf")) {
+    return true;
+  }
+
+  const participantCount = getParticipantCount(team);
+  const normalizedName = normalizeComparableText(team.name).toLowerCase();
+  return participantCount !== 1 && !normalizedName.startsWith("sportlerbörse:");
 }
 
 function getMarketplaceDraftStatusMeta(team: Team) {
