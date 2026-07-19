@@ -4370,8 +4370,9 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                 ? getMtcCombinedActionMeta(completionMeta, disciplineMeta)
                 : null;
               const MtcCombinedActionIcon = mtcCombinedActionMeta?.icon;
+              const showTeamValidationBadges = showActionStatus && (!capabilities.isMarketplaceTeam || isMarketplaceMatching);
               const showCompactStatusRow =
-                (showActionStatus && (isMarketplaceMatching
+                (showTeamValidationBadges && (isMarketplaceMatching
                   ? mtcCombinedActionMeta
                   : completionMeta.isImportant || disciplineMeta.isImportant)) ||
                 (showAdminDashboardInfo && pendingChangeCount > 0);
@@ -4495,19 +4496,19 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             )}
                             {showCompactStatusRow && (
                               <div className="flex flex-wrap gap-1.5 pt-0.5">
-                                {showActionStatus && mtcCombinedActionMeta && MtcCombinedActionIcon && (
+                                {showTeamValidationBadges && mtcCombinedActionMeta && MtcCombinedActionIcon && (
                                   <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${mtcCombinedActionMeta.toneClass}`}>
                                     <MtcCombinedActionIcon className="size-3" />
                                     {mtcCombinedActionMeta.label}
                                   </Badge>
                                 )}
-                                {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && completionMeta.isImportant && (
+                                {showTeamValidationBadges && !isMarketplaceMatching && !mtcCombinedActionMeta && completionMeta.isImportant && (
                                   <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                     <CompletionIcon className="size-3" />
                                     {completionMeta.label}
                                   </Badge>
                                 )}
-                                {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
+                                {showTeamValidationBadges && !isMarketplaceMatching && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
                                   <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                     <DisciplineIcon className="size-3" />
                                     {disciplineMeta.label}
@@ -4749,24 +4750,24 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             <TeamAdminInfoPanel team={team} onClick={(event) => event.stopPropagation()} />
                           )}
 
-                          {((showActionStatus && (isMarketplaceMatching
+                          {((showTeamValidationBadges && (isMarketplaceMatching
                             ? mtcCombinedActionMeta
                             : completionMeta.isImportant || disciplineMeta.isImportant)) ||
                             (showAdminDashboardInfo && pendingChangeCount > 0)) && (
                             <div className="flex flex-wrap gap-1">
-                              {showActionStatus && mtcCombinedActionMeta && MtcCombinedActionIcon && (
+                              {showTeamValidationBadges && mtcCombinedActionMeta && MtcCombinedActionIcon && (
                                 <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${mtcCombinedActionMeta.toneClass}`}>
                                   <MtcCombinedActionIcon className="size-3" />
                                   {mtcCombinedActionMeta.label}
                                 </Badge>
                               )}
-                              {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && completionMeta.isImportant && (
+                              {showTeamValidationBadges && !isMarketplaceMatching && !mtcCombinedActionMeta && completionMeta.isImportant && (
                                 <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${completionMeta.toneClass}`}>
                                   <CompletionIcon className="size-3" />
                                   {completionMeta.label}
                                 </Badge>
                               )}
-                              {showActionStatus && !isMarketplaceMatching && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
+                              {showTeamValidationBadges && !isMarketplaceMatching && !mtcCombinedActionMeta && disciplineMeta.isImportant && (
                                 <Badge variant="outline" className={`h-5 gap-1 px-1.5 text-[10px] ${disciplineMeta.toneClass}`}>
                                   <DisciplineIcon className="size-3" />
                                   {disciplineMeta.label}
