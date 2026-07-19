@@ -1,6 +1,6 @@
 # CR: Portal Maintenance Mode
 
-Status: Blocked
+Status: Deployed
 Date: 2026-07-18
 Type: ops
 Risk: medium
@@ -33,7 +33,7 @@ notice that the portal is currently closed for maintenance.
 
 - User/API/admin flows touched:
   - All app-router pages render the maintenance screen while the env flag is on.
-  - API routes are not changed.
+  - Mutating API routes return maintenance `503` while the flag is enabled.
 - Data model impact: none.
 - Auth/permission impact: none; the maintenance page renders before auth
   providers and role context.
@@ -64,8 +64,8 @@ notice that the portal is currently closed for maintenance.
 - Authenticated smoke plan or explicit gap:
   - Authenticated smoke not required for a pre-auth static maintenance gate.
 - Residual risk:
-  - API routes remain technically reachable and may still fail while DB is
-    restricted; this CR targets user-facing portal access.
+  - Read-only API routes remain reachable for status/smoke reads; mutating API
+    routes are blocked while maintenance mode is enabled.
 
 ## Data / API Design
 
@@ -80,8 +80,8 @@ notice that the portal is currently closed for maintenance.
 
 - Decision 1: After Prisma access is restored, add a tenant/competition admin
   maintenance switch backed by DB config?
-- Decision 2: Should API routes also return a maintenance JSON response while
-  the flag is enabled?
+- Decision 2: If a productized admin switch is added later, decide whether
+  read-only APIs should also be hidden or remain available for health/status.
 
 ## Acceptance Criteria
 
@@ -97,6 +97,7 @@ notice that the portal is currently closed for maintenance.
 - Relevant files:
   - `app/layout.tsx`
   - `app/components/maintenance-screen.tsx`
+  - `proxy.ts`
   - `docs/cr/2026-07-18-portal-maintenance-mode.md`
   - `SESSION_HANDOFF.md`
 - Current decisions:
@@ -105,10 +106,13 @@ notice that the portal is currently closed for maintenance.
 - Open decisions:
   - Later productized admin switch.
 - Non-goals:
-  - No DB fix, no DB mutation, no API maintenance middleware in this hotfix.
+  - No DB fix, no DB mutation, no tenant-admin maintenance switch in this
+    hotfix.
 - Expected implementation steps:
   - Add static maintenance screen.
   - Gate root layout via `PORTAL_MAINTENANCE_MODE`.
+  - Block mutating `/api/*` requests via `proxy.ts` while maintenance mode is
+    enabled.
   - Set Production env var to `1`.
   - Build and deploy.
 - Required checks:
@@ -120,7 +124,8 @@ notice that the portal is currently closed for maintenance.
 - Privacy/security checks:
   - Verify no DB/API/session fetch is needed to render the page.
 - Risks/assumptions:
-  - API endpoints remain unchanged and can still report DB errors.
+  - Read-only API endpoints remain available; mutating endpoints return
+    maintenance `503`.
 - Context read before implementation:
   - `SESSION_HANDOFF.md` top block: read.
   - Relevant prior CR(s): tenant-scope guardrail CR and DB outage note.
@@ -148,19 +153,28 @@ notice that the portal is currently closed for maintenance.
 - Files changed:
   - `app/layout.tsx`
   - `app/components/maintenance-screen.tsx`
+  - `proxy.ts`
   - `docs/cr/2026-07-18-portal-maintenance-mode.md`
   - `SESSION_HANDOFF.md`
 - Important decisions during implementation:
   - Maintenance page is rendered before `Providers`, `LayoutWrapper`, and
     `PwaServiceWorker`, so it does not trigger session, permission, competition,
     presence, or unread-count requests.
+  - Mutating API methods (`POST`, `PUT`, `PATCH`, `DELETE`) are blocked under
+    `/api/*` by `proxy.ts` in maintenance mode.
   - `PORTAL_MAINTENANCE_MODE=1` was added to Vercel Production env.
+  - After Prisma/Vercel subscription upgrade, `PORTAL_MAINTENANCE_MODE` was
+    overwritten again and the final deployment also passed the flag explicitly
+    via `vercel deploy --prod --yes --env PORTAL_MAINTENANCE_MODE=1`.
   - Commit: `fea24c6 Add portal maintenance mode`.
+  - Follow-up commit: pending in current session.
 
 ## Verification
 
 - Local checks:
   - `npx eslint app/layout.tsx app/components/maintenance-screen.tsx` -> green
+  - `npx eslint proxy.ts app/layout.tsx app/components/maintenance-screen.tsx`
+    -> green
   - `npx tsc --noEmit --incremental false` -> green
   - `git diff --check` -> green
 - Build:
@@ -173,39 +187,49 @@ notice that the portal is currently closed for maintenance.
 - Authenticated role smoke:
   - Not needed for pre-auth maintenance page.
 - Manual smoke:
-  - Production deploy blocked before alias smoke.
+  - `https://portal.s5evo.de/` contains `Wartungsarbeiten`, `Portal aktuell
+    geschlossen`, and `wegen Wartungsarbeiten`.
+  - `https://portal.s5evo.de/anmeldung` contains the same maintenance copy.
 
 ## Deploy
 
-- Deployment needed: yes, currently blocked.
+- Deployment needed: yes, completed after Prisma/Vercel subscription upgrade.
 - Deployment ID:
   - Failed: `dpl_A3pbRRCcMX6avzXbzECLXmFNwxuU`
   - Failed: `dpl_9w1ifE7aKRgVxmGVzm4GMFkYGfDP`
   - Failed prebuilt: `dpl_75E9dNvj3888R6F5odRmwQyBU4MM`
+  - Ready UI-only retry: `dpl_8J2azAcv8CMqUMU1rNFzPisZFRa5`
+  - Ready with explicit env flag: `dpl_32ss4Ad7QPoQNsojxtM3TQogA1Mv`
+  - Final with mutating API guard: pending in current session.
 - Deployment URL:
   - Failed: `https://s5-evo-portal-j1johkzdh-sebastiankroeker-2781s-projects.vercel.app`
   - Failed: `https://s5-evo-portal-hczn59oq2-sebastiankroeker-2781s-projects.vercel.app`
   - Failed prebuilt: `https://s5-evo-portal-ku2ar4dye-sebastiankroeker-2781s-projects.vercel.app`
+  - Ready UI-only retry: `https://s5-evo-portal-edscs46ij-sebastiankroeker-2781s-projects.vercel.app`
+  - Ready with explicit env flag: `https://s5-evo-portal-bwifyh9iu-sebastiankroeker-2781s-projects.vercel.app`
+  - Final with mutating API guard: pending in current session.
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: blocked, latest READY production remains previous deployment.
+- Deployed at: 2026-07-19 09:16 UTC for maintenance UI; API guard deploy
+  pending in current session.
 
 ## Post-Deploy Smoke
 
 - Routes checked:
-  - Not run; no READY deployment.
+  - `/` -> 200, maintenance text present.
+  - `/anmeldung` -> 200, maintenance text present.
 - API checks:
-  - Existing production `/api/competition` remains 500 because Prisma resource is
-    suspended.
+  - `/api/competition` -> 200 after subscription upgrade; read-only API remains
+    available.
+  - Mutating API guard final production check pending in current session.
 - Sensitive-data/API leakage checks:
   - Not applicable; deploy did not go live.
 - Result:
-  - Blocked by Vercel resource provisioning. `vercel integration list
-    s5-evo-portal` reports `prisma-postgres-celeste-bridge` status
-    `Suspended`.
+  - Maintenance UI is live on the production alias; final mutating API guard is
+    pending deployment in current session.
 
 ## Follow-Ups
 
 - Add a tenant/competition-admin maintenance switch once Prisma access is
   restored, if this should be controllable without Vercel/env access.
-- Resolve or explicitly bypass the suspended Prisma Postgres integration before
-  redeploying.
+- Disable `PORTAL_MAINTENANCE_MODE` and redeploy when Sebastian wants the portal
+  reopened.

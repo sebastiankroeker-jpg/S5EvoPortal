@@ -1,9 +1,31 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-18 16:56 UTC
+Stand: 2026-07-19 09:20 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Aktueller Production-Stand 2026-07-19 09:20 UTC:
+  - Sebastian meldete, dass die Prisma/Vercel Subscription upgegradet ist.
+  - Live-Check danach: `https://portal.s5evo.de/api/competition` liefert wieder
+    200; Prisma `planLimitReached` ist damit akut geloest.
+  - Wartungsmodus wurde erfolgreich nach Production deployed, nachdem der
+    Vercel Resource-Provisioning-Blocker verschwunden war.
+  - Vercel Production Env `PORTAL_MAINTENANCE_MODE=1` wurde erneut
+    ueberschrieben; finaler Deploy wird mit explizitem
+    `--env PORTAL_MAINTENANCE_MODE=1` ausgefuehrt.
+  - UI-Smoke gruen: `/` und `/anmeldung` zeigen
+    `Wartungsarbeiten` / `Portal aktuell geschlossen` /
+    `wegen Wartungsarbeiten`.
+  - Zusaetzliche Haertung in aktueller Session: `proxy.ts` blockiert im
+    Wartungsmodus mutierende `/api/*`-Requests (`POST`, `PUT`, `PATCH`,
+    `DELETE`) mit 503, damit auch alte offene Formulare bzw. direkte API-POSTs
+    keine Mannschaft anmelden oder Daten aendern koennen.
+  - Checks fuer API-Guard gruen: targeted ESLint, `npx tsc --noEmit
+    --incremental false`, `git diff --check`, `npm run build`.
+  - Deploy-ID finaler API-Guard: pending in current session; nach Deploy
+    `/api/teams` POST ohne Body als 503 smoke pruefen.
+  - Reopen-Prozedur: `PORTAL_MAINTENANCE_MODE=0` bzw. Env entfernen/setzen und
+    neu nach Production deployen; danach public smoke laufen lassen.
 - Aktuelle Production-Stoerung 2026-07-18 16:52 UTC:
   - Sebastian meldete, dass keine Mannschaften sichtbar sind und fragte, ob Adminrechte entzogen wurden.
   - Befund: sehr wahrscheinlich nicht Adminrechte. Production erreicht die Prisma-DB nicht.
