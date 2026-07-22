@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 22:32 UTC
+Stand: 2026-07-22 22:37 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -32,8 +32,24 @@ Stand: 2026-07-22 22:32 UTC
     `npx eslint app/components/event-map.tsx`,
     `npx tsc --noEmit --incremental false`, `npm run build`,
     `git diff --check`.
-  - Deploy/status:
-    - Local fix ready; commit/deploy pending at handoff update time.
+  - Commit/Push:
+    - Code/docs commit: `c7484d5 Switch event map to Leaflet`
+    - Pushed `885e062..c7484d5`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_UDLeGMtAJ5YxSWzQ7wsXYSqJYgQZ`
+    - Vercel-URL:
+      `https://s5-evo-portal-5yw3zzs80-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-22 22:37 UTC
+  - Post-Deploy-Smoke gruen:
+    `HEAD https://portal.s5evo.de/karte` 200,
+    `npm run smoke:public`,
+    direct MapTiler raster tile for Bad Bayersoien z14/x8692/y5716 with
+    `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`.
+  - Weiter offen nach Deploy:
+    authenticated iPhone visual smoke durch Sebastian. Expected next signal:
+    Leaflet DOM image-tile map, zoom controls bottom-right, sponsor markers.
 
 - Event Map Raster Style Hotfix 2026-07-22 22:17 UTC:
   - Sebastian sent a screenshot after `ffeeab7` showing the intended red
