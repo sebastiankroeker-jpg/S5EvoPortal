@@ -3160,3 +3160,81 @@ Stand: 2026-07-22 10:19 UTC
 - `HEARTBEAT.md`
 - `MEMORY.md`
 - `SOUL.md`
+## Current Handoff - 2026-07-22 11:45 UTC
+
+Context:
+
+- Sebastian is done for the day after successfully testing the full Legacy
+  Ergebnis-Import V2 path.
+- RUN, ROAD, MTB were imported with corrected test CSVs and Sebastian reported
+  no visible issues.
+- BENCH was fixed/deployed for Legacy `-999` DNF handling and imported
+  successfully.
+- STOCK was fixed/deployed for Legacy tie-breakers and BWZ/Streichergebnis
+  display; Sebastian imported it and said it looks good on first pass.
+
+Production:
+
+- Live URL: `https://portal.s5evo.de`.
+- Latest pushed code commit: `94e7e3a Handle legacy stock tie breakers`.
+- Latest Vercel deployment: `dpl_QWFvViDedR9vXyrWQhQdwzJKLfMw`.
+- Deployment URL:
+  `https://s5-evo-portal-ci3pl138s-sebastiankroeker-2781s-projects.vercel.app`.
+- Ready state: `READY`.
+- Post-deploy smokes passed:
+  - `npm run smoke:public`
+  - `HEAD https://portal.s5evo.de/`: 200
+  - Results API with `includeStaging=true`: 200
+
+Legacy Result Import V2 current behavior:
+
+- V2 import performs Dry-run first; Dry-run writes nothing.
+- Confirmed write creates `PROD_TEST` staging packages only.
+- Official production results are not written by this flow.
+- Legacy CSV points/ranks remain the staged source of truth.
+- S5Evo scoring engine runs as validation/control calculation only and emits
+  warnings for mismatches.
+- `Live -> Ergebnisse` can show staging packages when `Staging-Testdaten` is
+  enabled.
+- Teams without imported results, especially start number `35`, are kept visible
+  in overall result lists without points.
+
+Discipline notes:
+
+- RUN/ROAD/MTB: generated test CSVs are corrected against current engine scoring
+  and portal classes.
+- BENCH: Legacy `-999` imports as DNF; generated test CSV clears non-scoring
+  attempt rows and corrects class and Damen/Herren Gesamt values.
+- STOCK: tie-breaker validation/correction uses rings descending, BWZ
+  descending, then Streichergebnis descending. `AuSchubBWZ` display is
+  left-padded to 8 digits and formatted as `##.###.###`.
+- Stock individual result rows now show BWZ and Streichergebnis below the ring
+  value.
+
+Prepared artifact:
+
+- Latest corrected test archive:
+  `/home/ocadmin/.openclaw/workspace/exports/legacy-results-portal-startnumbers-2026-07-22.tar.gz`
+- SCP:
+  `scp ocadmin@192.168.100.159:/home/ocadmin/.openclaw/workspace/exports/legacy-results-portal-startnumbers-2026-07-22.tar.gz .`
+
+Documentation:
+
+- Main CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`.
+- Local docs-only commits intentionally not pushed to avoid docs-only Vercel
+  deploys:
+  - `753a70a docs: record legacy bench import release`
+  - `32bed30 docs: record legacy stock import release`
+- Git is expected `main...origin/main [ahead 2]`.
+- Untracked workspace note files are still intentionally untouched:
+  `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`.
+
+Next recommended step:
+
+1. Run a read-only staging audit across all imported packages.
+2. Verify package completeness, draft counts, engine warnings, class ranks,
+   Damen/Herren Gesamt ranks, Bank DNF, Stock ties, and start number `35`
+   without points.
+3. Only after that, create a separate CR for an official result publish flow
+   with preview, warning gate, explicit confirmation, audit event, and no
+   ambiguous `Produktion` dropdown.
