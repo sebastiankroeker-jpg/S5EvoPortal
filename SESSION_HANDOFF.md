@@ -1,9 +1,806 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-19 13:31 UTC
+Stand: 2026-07-21 20:36 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Neue Draft-CRs 2026-07-21 21:00 UTC:
+  - `docs/cr/2026-07-21-start-number-import-create-missing-teams.md`
+    - Anlass: Sebastian hat weitere Mannschaften, die ausserhalb des Portals
+      zugetragen wurden, und moechte sie ueber den Startnummern-Import anlegen,
+      indem die Mannschafts-UID leer bleibt.
+    - Status: lokal implementiert, noch nicht deployed.
+    - Aktueller Code: Leere Mannschafts-UID erzeugt heute keine Mannschaft.
+      Wenn keine ID-basierten Zuordnungen gefunden werden, matched der
+      Legacy-Fallback bestehende Teams per Mannschaftsname/Teilnehmer-
+      Signatur; nicht matchbare Rows werden nur als Warnung gefuehrt.
+    - Umsetzung lokal:
+      - Leere Mannschafts-UID kann als Create-Signal dienen, aber nur mit
+        explizitem Flag/Bestätigung `createMissingTeams`.
+      - Dashboard-Legacy-Import sendet `createMissingTeams: true` und zeigt im
+        Confirm-Dialog Anzahl neuer Mannschaften.
+      - Neue Mannschaften werden `approved=true`, Owner/Kontakt
+        `sebastian.kroeker@proton.me`.
+      - Keine Authentik/User/Claim/Mail-Side-Effects.
+      - Teilnehmer werden aus den fuenf Legacy-Disziplin-Slots angelegt.
+      - Duplicate Teamname oder Duplicate Startnummer blockt die Row.
+      - Audit schreibt Team-Anlage-Zusammenfassung, nicht CSV-Body.
+    - Gate: High Risk, weil Teams/Teilnehmer persistent angelegt werden.
+    - Lokale Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental
+      false`, `git diff --check`, `npm run build`.
+  - `docs/cr/2026-07-21-home-news-admin-crud.md`
+    - Anlass: Sebastian will auf Home in der Box "Aktuelles & Neuigkeiten"
+      Admin-Nachrichten einstellen, bearbeiten und archivieren koennen.
+    - Status: deployed 2026-07-21 21:23 UTC.
+    - Lokale Aenderungen:
+      - Neues Prisma-Modell `HomeNewsEntry` plus Migration
+        `prisma/migrations/20260721211500_add_home_news_entries/migration.sql`.
+      - Neue APIs: public `GET /api/home-news`, admin
+        `GET/POST /api/admin/home-news`, admin
+        `PATCH /api/admin/home-news/[entryId]`.
+      - Neue Admin-Komponente `app/components/home-news-management.tsx`.
+      - Home liest bis zu 3 veroeffentlichte, nicht archivierte Eintraege und
+        nutzt die bisherige statische Meldung als Fallback.
+      - Admin-Navigation hat neuen Tab `News`.
+    - Migration `20260721211500_add_home_news_entries` wurde per
+      `npx prisma migrate deploy` erfolgreich angewendet.
+    - Deploy:
+      - Deployment-ID: `dpl_AuuSHhAjmqZDReQWt1Nc1NkD3pUY`
+      - Vercel-URL:
+        `https://s5-evo-portal-rngodacmx-sebastiankroeker-2781s-projects.vercel.app`
+      - Alias: `https://portal.s5evo.de`
+      - Ready-State: `READY`
+    - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200;
+      `/admin?tab=news` 200; `GET /api/home-news` 200 mit leerer Liste;
+      unauthenticated `GET /api/admin/home-news` 401.
+  - `docs/cr/2026-07-21-user-management-authentik-recovery.md`
+    - Anlass: `schmid905@gmx.de` existiert laut Sebastian in Authentik, ist
+      aber nicht in der Portal-Benutzerverwaltung sichtbar; Passwort-Reset
+      fehlt und soll hoch strukturiert mit Rollback angegangen werden.
+    - Read-only Portal-DB-Befund: Es gibt einen lokalen Portal-User
+      `Marco Schmid <schmid905@gmx.de>` mit `authentikSub = null`, ohne
+      Tenant-Rollen, ohne Teams und ohne Teilnehmer-Verknuepfung.
+    - Aktuelle Ursache fuer Nicht-Anzeige war: `app/api/admin/users/route.ts`
+      listete nur User mit `tenantRoles.some({ tenantId: scopedTenantId })`.
+    - Deployed: Admin-User-API nimmt nun auch ungescopte Portal-
+      User ohne Rollen/Teams/Teilnehmerlinks auf; UI hat Filter/KPI
+      `ohne Rolle` und Standalone-Konto-Status fuer User ohne Teambezug.
+    - Authentik-Recovery-Recherche: Passwort-Reset sollte ueber Authentik
+      Recovery Flow laufen; Portal darf keine Passwoerter oder Recovery-Tokens
+      selbst verwalten.
+    - Gate: keine Authentik-Flow-/Provider-Aenderung, keine Recovery-Mail-
+      Automatisierung und kein Deploy ohne explizites Go.
+    - Checks fuer beide CRs gruen: targeted ESLint, `npx prisma
+      validate`, `npx tsc --noEmit --incremental false`, `git diff --check`,
+      `npm run build`.
+    - Post-Deploy Sensitive Negative Smoke: unauthenticated
+      `GET /api/admin/users` bleibt 401.
+
+- Deployed Legacy-Ergebnisimport-V2-Dry-run 2026-07-21 20:36 UTC:
+  - CR `docs/cr/2026-07-21-legacy-result-import-v2.md` per Addendum
+    `Legacy Result Parser V2 Dry-run` erweitert.
+  - Anlass: Sebastian will den Fokus zuerst auf Import der Legacy-Daten legen,
+    unter der Annahme, dass keine manuellen Korrekturen nötig sind.
+  - Testdateien liegen in `/home/ocadmin/.openclaw/media/inbound/`:
+    RUN, ROAD, MTB, BENCH, STOCK. Sie wurden nicht ins Repo kopiert, weil sie
+    personenbezogene Ergebnisdaten enthalten.
+  - Neue lokale Aenderungen:
+    - `lib/legacy-result-import.ts`: generischer Legacy-CSV-Parser fuer alle
+      fuenf Disziplinen.
+    - `app/api/admin/result-staging/legacy-results/import/route.ts`:
+      admin-only Dry-run-Endpunkt; `dryRun:false` wird in diesem Schnitt
+      bewusst abgelehnt.
+    - `app/admin/ergebnisse/page.tsx`: neuer Block
+      `Legacy-Ergebnis-CSV prüfen` fuer V2-Dry-run ohne Paket-Schreiben; alter
+      RUN-Staging-Import bleibt unveraendert.
+    - `scripts/verify-legacy-result-import.ts` + package script
+      `verify:legacy-result-import`.
+    - `scripts/verify-tenant-scope.ts` umfasst die neue Route.
+  - Fachliche Erkennung:
+    - `1` RUN, `2` STOCK, `3` ROAD, `4` BENCH, `5` MTB.
+    - RUN/ROAD/MTB: 1 Raw-Zeile -> 1 Draft Preview.
+    - BENCH: Versuchzeilen gruppiert; bester gueltiger `AuGewicht` als
+      Draft-Wert, `AuBruttoGewicht` bleibt in Details.
+    - STOCK: 11 Schubzeilen + Summary `S` gruppiert; Summary liefert Summe,
+      Streicher und BWZ.
+  - Fixture-Check gruen:
+    - RUN 111 -> 111 Drafts.
+    - ROAD 112 -> 112 Drafts.
+    - MTB 111 -> 111 Drafts.
+    - BENCH 309 -> 111 Drafts.
+    - STOCK 1344 -> 112 Drafts.
+  - Checks bisher gruen: targeted ESLint, `npx tsc --noEmit --incremental
+    false`, `npm run verify:legacy-result-import`,
+    `npm run verify:tenant-scope`.
+  - Weitere Checks gruen:
+    `git diff --check -- lib/legacy-result-import.ts app/api/admin/result-staging/legacy-results/import/route.ts app/admin/ergebnisse/page.tsx scripts/verify-legacy-result-import.ts scripts/verify-tenant-scope.ts package.json docs/cr/2026-07-21-legacy-result-import-v2.md SESSION_HANDOFF.md`,
+    `npm run build`.
+  - Production Deploy:
+    - Deployment-ID: `dpl_DZ6Un29B7DCikWQ1CgedNdUon3kw`
+    - Vercel-URL: `https://s5-evo-portal-1uytzwvso-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de/admin/ergebnisse` 200; unauthenticated V2
+    dry-run API `POST /api/admin/result-staging/legacy-results/import` 401.
+  - Keine DB-Mutation; V2-Endpunkt lehnt `dryRun:false` weiterhin ab.
+  - Manueller Browsercheck offen: Admin -> Ergebnisdaten -> Pakete ->
+    `Legacy-Ergebnis-CSV prüfen` mit RUN/ROAD/MTB/BENCH/STOCK-Dateien.
+
+- Deployed Ergebnisdaten-Overlay-Fix 2026-07-21 20:16 UTC:
+  - CR `docs/cr/2026-07-21-legacy-result-import-v2.md` per Addendum
+    `Manual Correction Overlays` erweitert.
+  - Anlass: Sebastian fragte nach dem naechsten Schritt "manuelle Korrekturen
+    als Overlay" und gab per `go` die Umsetzung frei.
+  - Lokale Aenderung:
+    - Neue Route
+      `app/api/admin/result-staging/batches/[batchId]/corrections/route.ts`
+      fuer Admin/Moderator-gesicherte Overlay-Korrekturen.
+    - Korrekturen werden in bestehende `AuditEvent` geschrieben:
+      `RESULT_STAGING_CORRECTION_APPLIED` und
+      `RESULT_STAGING_CORRECTION_REVERTED`, Scope
+      `result-staging-batch`.
+    - Keine neue Tabelle, keine Schema-Migration.
+    - `app/api/admin/result-staging/batches/[batchId]/route.ts` liest
+      Correction/Revert-Events und liefert `corrections` plus effektive
+      Anzeige-Werte fuer korrigierte Felder.
+    - `app/admin/ergebnisse/page.tsx` hat im Paketdetail neuen Tab
+      `Korrekturen`; Draft-/Raw-Zeilen koennen Startnummer, Zeit/Wert und
+      Status als Overlay korrigieren; aktive Korrekturen koennen
+      zurueckgenommen werden.
+    - `scripts/verify-tenant-scope.ts` umfasst die neue Admin-Route.
+  - Scope/Limit bewusst eng:
+    - Draft-Felder: `startNumber`, `rawValueText`, `resultStatus`.
+    - Raw-Felder: `startNumber`, `rawValueText`, `validationStatus`.
+    - Keine Re-Ranking-/Scoring-Neuberechnung, kein Parser V2, keine
+      Publikation, keine offiziellen Ergebnis-Mutationen, Raw bleibt
+      unveraendert.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`,
+    `npm run verify:tenant-scope`,
+    `git diff --check -- app/admin/ergebnisse/page.tsx app/api/admin/result-staging/batches/[batchId]/route.ts app/api/admin/result-staging/batches/[batchId]/corrections/route.ts scripts/verify-tenant-scope.ts docs/cr/2026-07-21-legacy-result-import-v2.md SESSION_HANDOFF.md`,
+    `npm run build`.
+  - Production Deploy:
+    - Deployment-ID: `dpl_DQGgyXVUf3b6LQxmVVTtMRh3D935`
+    - Vercel-URL: `https://s5-evo-portal-65ptkv2vb-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de/admin/ergebnisse` 200; unauthenticated
+    Batch-Detail API 401; unauthenticated Correction API `POST` 401.
+  - Keine Raw-/Draft-/offiziellen Ergebnis-Mutationen durch Deploy.
+  - Manualer Browsercheck offen: Admin -> Ergebnisdaten -> Paketdetails ->
+    Drafts/Raw Records -> Korrektur speichern und im Tab `Korrekturen`
+    zuruecknehmen.
+
+- Deployed Ergebnisdaten-UI-Fix 2026-07-21 19:50 UTC:
+  - CR `docs/cr/2026-07-21-legacy-result-import-v2.md` per Addendum
+    `Package Workbench Clarity` erweitert.
+  - Anlass: Sebastian bestaetigte, dass Paketdetails/Raw Records live
+    funktionieren, fragte danach nach Ideen fuer eine uebersichtlichere und
+    intuitivere Paketansicht, und gab per `go` die Umsetzung frei.
+  - Lokale Aenderung in `app/admin/ergebnisse/page.tsx`:
+    - Paketliste zeigt kompakte Filter-KPIs: Pakete, Raw/Drafts, Warnsignale,
+      offene Pakete.
+    - Paketzeilen zeigen jetzt abgeleitete Disziplin und Warnsignal-Badge.
+    - Paketdetails haben Tabs `Uebersicht`, `Drafts`, `Raw Records`,
+      `Konflikte`.
+    - Uebersicht zeigt Quelle/Zweck, Status, Raw/Drafts, Warnsignale,
+      Referenz/Zeitpunkt und read-only Next Step.
+    - Konflikte-Tab kombiniert Draft- und Raw-Record-Hinweise aus den bereits
+      geladenen Details.
+  - Keine API-Aenderung, keine Parser-V2-Implementierung, keine manuelle
+    Edit-Persistenz, keine Schema-Migration, keine offiziellen
+    Ergebnis-Mutationen.
+  - Checks gruen: `npx eslint app/admin/ergebnisse/page.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `git diff --check -- app/admin/ergebnisse/page.tsx docs/cr/2026-07-21-legacy-result-import-v2.md SESSION_HANDOFF.md`,
+    `npm run build`.
+  - Production Deploy:
+    - Deployment-ID: `dpl_GM8rqv8eyhKSMex9W1DrFPqChZtG`
+    - Vercel-URL: `https://s5-evo-portal-fhwdtolom-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/admin/ergebnisse` 200; unauthenticated
+    `/api/admin/result-staging/batches/invalid-batch-id?competitionId=cmn3a1piz0002l104372yx9yt` 401.
+  - Keine DB-Mutation, keine offiziellen Ergebnisse geaendert.
+  - Noch offen: manueller Admin-Browsercheck `Admin -> Ergebnisdaten ->
+    Pakete`, neue Paket-KPIs und Detail-Tabs `Uebersicht`/`Konflikte`.
+
+- Deployed Ergebnisdaten-Fix 2026-07-21 19:03 UTC:
+  - Neuer CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`.
+  - Anlass: Sebastian will beim Legacy-Ergebnisimport Datenpakete manuell
+    pruefen/wechseln koennen; die Record-Liste war in der Ergebnisdaten-UI zu
+    versteckt und zeigte nur Drafts.
+  - Fachlicher Import-Kontext fuer V2:
+    - Legacy-Disziplin-Codes: Lauf `1`, Stock `2`, Rad `3`, Bank `4`, MTB `5`.
+    - Lauf/Rad/MTB: 1 Raw-Zeile -> 1 Draft.
+    - Bank: Versuch-Zeilen gruppieren; `AuBruttoGewicht` = gestemmtes Gewicht,
+      `AuGewicht` = gestemmtes Gewicht minus Koerpergewicht; Schueler 2
+      Versuche, Jugend/Damen/Herren 3.
+    - Stock: 11 Schub-Zeilen + Summary `AuSummenkennzeichen = S`; Summe der
+      10 besten, Streicher/BWZ aus Summary.
+  - Lokale Aenderung:
+    - `app/api/admin/result-staging/batches/[batchId]/route.ts` liefert jetzt
+      read-only `rawRecords` neben bestehenden `drafts`.
+    - `app/admin/ergebnisse/page.tsx` hat im Paketdetail Umschalter
+      `Drafts`/`Raw Records`.
+    - Paketliste-Aktion heisst `Records ansehen` und oeffnet die
+      Detailansicht mit Raw Records.
+    - Legacy-Laufen-Import springt weiter in die Paketdetails mit Drafts fuer
+      Ergebnisvorschau.
+    - Raw-Tabelle zeigt Zeile, Startnummer, Disziplin, Klasse, Zeit/Wert,
+      Versuch/Schub, Bank-Brutto/Netto, Stock-Felder, Punkte/Rang, Status,
+      Hinweise und Row-Key.
+  - Keine Parser-V2-Implementierung, keine manuelle Edit-Persistenz, keine
+    offiziellen Ergebnis-Mutationen, keine Schema-Migration.
+  - Checks gruen: `npx eslint app/admin/ergebnisse/page.tsx app/api/admin/result-staging/batches/[batchId]/route.ts`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Production Deploy:
+    - Deployment-ID: `dpl_FH6HHUyrBWRB7u1m18Ln5i2kZo3G`
+    - Vercel-URL: `https://s5-evo-portal-80rgmfjk3-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/admin/ergebnisse` 200; unauthenticated
+    `/api/admin/result-staging/batches/invalid-batch-id?competitionId=cmn3a1piz0002l104372yx9yt` 401.
+  - Noch offen: manueller Admin-Browsercheck `Admin -> Ergebnisdaten ->
+    Pakete -> Records ansehen`, Tabs `Raw Records` und `Drafts`.
+  - Naechste sinnvolle Schritte: manuelle Korrektur-Overlay-Persistenz
+    konzipieren/umsetzen; danach Legacy Parser V2 fuer ROAD/MTB/BENCH/STOCK.
+
+- Deployed Zeitnahme-Fix 2026-07-21 18:08 UTC:
+  - CR `docs/cr/2026-07-21-road-timekeeping-monitor.md` wurde per Addendum
+    `ROAD Two Visible Clock Slots` erweitert.
+  - Anlass: Sebastian meldete, dass bei `Rad` nach drei konfigurierten
+    Startbloecken auch drei Uhr-Kacheln angezeigt werden; zwei genuegen.
+  - Lokale Aenderung in `app/zeitnahme/page.tsx`:
+    - ROAD behaelt beliebig konfigurierte Startbloecke fuer Customizing und
+      Auswahl.
+    - Sichtbar sind maximal zwei ROAD-Uhrslots.
+    - Auswahl eines Startblock-Buttons in einer Uhr-Konfiguration ersetzt den
+      jeweiligen Uhrslot, statt eine weitere Uhr-Kachel anzuzeigen.
+    - Zieleinlauf-Routing per Startnummer sucht bei ROAD nur in den sichtbaren
+      Uhrslots; versteckte konfigurierte Bloecke bleiben reine Auswahloption.
+  - Checks gruen: `npx eslint app/zeitnahme/page.tsx app/zeitnahme/monitor/page.tsx app/api/timekeeping/snapshot/route.ts`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Production Deploy:
+    - Deployment-ID: `dpl_AbfseswHwun99qcAgcB2bJ7Mh7vN`
+    - Vercel-URL: `https://s5-evo-portal-5q3i6rsdn-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme/monitor` 200; unauthenticated
+    `/api/timekeeping/snapshot?competitionId=cmn3a1piz0002l104372yx9yt&startNumberSource=imported-test` 401.
+  - Noch offen: Browser-Smoke mit echter Zeitnehmer-Session.
+
+- Deployed Zeitnahme-UI-Fix 2026-07-21 17:47 UTC:
+  - Anlass: Sebastian meldete, dass die definierten Startbloecke in der
+    Uhr-Konfiguration wieder als Buttons dargestellt werden sollen, wie die
+    Klassenauswahl; das Dropdown war nicht die urspruengliche Loesung.
+  - Lokale Aenderung in `app/zeitnahme/page.tsx`:
+    - Der `Startblock`-Selector in der Uhr-Konfiguration ist wieder eine
+      umbruchfaehige Button-Leiste.
+    - Aktiver Startblock nutzt `default`, andere Startbloecke `outline`.
+    - `Block hinzufügen` bleibt im selben Konfigurationsbereich.
+    - Bestehende Blockfelder bleiben unveraendert: Name, Klassen, erste
+      Startnummer, Abstand, Basiszeit, Startnummernquelle und Entfernen.
+  - Checks gruen: `npx eslint app/zeitnahme/page.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `git diff --check -- app/zeitnahme/page.tsx docs/cr/2026-07-21-road-timekeeping-monitor.md SESSION_HANDOFF.md`,
+    `npm run build`.
+  - Pre-Deploy Checks gruen: `npx eslint app/zeitnahme/page.tsx app/zeitnahme/monitor/page.tsx app/api/timekeeping/snapshot/route.ts`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Production Deploy:
+    - Deployment-ID: `dpl_98WCC7p2SYDYX6h3iUi6HxsDRWkw`
+    - Vercel-URL: `https://s5-evo-portal-m8zungrp5-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme/monitor` 200; unauthenticated
+    `/api/timekeeping/snapshot?competitionId=cmn3a1piz0002l104372yx9yt&startNumberSource=imported-test` 401.
+  - Noch offen: Browser-Smoke mit echter Zeitnehmer-Session.
+
+- Deployed Zeitnahme-Regressionsfix 2026-07-21 17:23 UTC:
+  - CR `docs/cr/2026-07-21-road-timekeeping-monitor.md` wurde per Addendum
+    `Clock Config Start Block Selector` erweitert.
+  - Anlass: Sebastian meldete, dass in der Uhr-Konfiguration die fruehere
+    Moeglichkeit fehlt, Startbloecke zu definieren und auszuwaehlen.
+  - Lokale Aenderung in `app/zeitnahme/page.tsx`:
+    - Die Uhr-Konfiguration zeigt wieder einen `Startblock`-Selector.
+    - `Block hinzufügen` sitzt wieder direkt in der Uhr-Konfiguration.
+    - Auswahl eines vorhandenen Blocks fokussiert und oeffnet dessen
+      Konfiguration.
+    - Bestehende Blockfelder bleiben unveraendert: Name, Klassen, erste
+      Startnummer, Abstand, Basiszeit, Startnummernquelle und Entfernen.
+  - Checks gruen: `npx eslint app/zeitnahme/page.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `git diff --check -- app/zeitnahme/page.tsx`, `npm run build`.
+  - Pre-Deploy Checks gruen: `npx eslint app/zeitnahme/page.tsx app/zeitnahme/monitor/page.tsx app/api/timekeeping/snapshot/route.ts`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Production Deploy:
+    - Deployment-ID: `dpl_ATRyPFps8QMZt3gxPen8ZPFcYLLh`
+    - Vercel-URL: `https://s5-evo-portal-l5whajbam-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme/monitor` 200; unauthenticated
+    `/api/timekeeping/snapshot?...&startNumberSource=imported-test` 401.
+  - Noch offen: Browser-Smoke mit echter Zeitnehmer-Session.
+- Aktueller Production-Stand 2026-07-21 17:10 UTC:
+  - CR `docs/cr/2026-07-21-road-timekeeping-monitor.md` wurde per Addendum
+    `Combined ROAD Finish List` erweitert.
+  - Anlass: Sebastian meldete, dass die Liste der gestoppten Zeiten nur die
+    Uhr zeigte, fuer die zuletzt ein Teilnehmer erfasst wurde.
+  - Diagnose: ROAD-Zieleinlauf routete korrekt in die per Startnummer
+    abgeleitete Startblock-Session und setzte diese danach aktiv. Die
+    Zeitenliste las aber weiterhin nur `activeSession.events`.
+  - Lokale Aenderung in `app/zeitnahme/page.tsx`:
+    - Zeitenliste kombiniert nun Finish-Events aus allen sichtbaren Sessions
+      der gewaehlten Disziplin; bei ROAD also aus allen sichtbaren
+      ROAD-Uhr-Kacheln inkl. Custom-Blocks.
+    - Reihenfolge, Suche, Filter, Sortierung und Duplicate-Warnung laufen auf
+      der kombinierten sichtbaren Liste.
+    - ROAD-Zeilen zeigen den Startblock unter der Klasse.
+    - Nachtraegliche Startnummern-Zuordnung aus der Tabelle aktualisiert die
+      Quell-Session der Zeile, nicht blind die aktive Uhr.
+  - Checks gruen: `npx eslint app/zeitnahme/page.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `git diff --check -- app/zeitnahme/page.tsx docs/cr/2026-07-21-road-timekeeping-monitor.md SESSION_HANDOFF.md`,
+    `npm run build`.
+  - Pre-Deploy Checks gruen: `npx eslint app/zeitnahme/page.tsx app/zeitnahme/monitor/page.tsx app/api/timekeeping/snapshot/route.ts`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`.
+  - Production Deploy URL:
+    `https://s5-evo-portal-1ka8bg23j-sebastiankroeker-2781s-projects.vercel.app`.
+  - Inspect URL:
+    `https://vercel.com/sebastiankroeker-2781s-projects/s5-evo-portal/GRhuiJcF3MTWHpUrC3gcTQht5SCR`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme/monitor` 200; unauthenticated
+    `/api/timekeeping/snapshot?...&startNumberSource=imported-test` 401.
+  - Noch offen: Browser-Smoke mit echter Zeitnehmer-Session.
+- Lokaler, noch nicht deployter Zeitnahme-Zusatzfix 2026-07-21 16:59 UTC:
+  - CR `docs/cr/2026-07-21-road-timekeeping-monitor.md` wurde per Addendum
+    `Clock Card Finish Stats And Negative ROAD Net Times` erweitert.
+  - Anlass: Sebastian meldete im Screenshot ROAD-Zeiten mit `0:00.00` und
+    wuenschte in den Uhr-Kacheln oben links die Disziplin zuerst sowie oben
+    rechts die Anzahl der Teilnehmer im Ziel.
+  - Diagnose: ROAD-Nettozeit kann in Tests negativ werden, wenn vor der
+    geplanten Einzelstartzeit einer Startnummer erfasst wird
+    (`Blockzeit - Startnummern-Offset`). Die Anzeige clampte negative Werte
+    bisher auf `0:00.00`.
+  - Lokale Aenderung in `app/zeitnahme/page.tsx`:
+    - `formatDuration` erhaelt negative Werte, statt sie auf 0 zu clampen.
+    - Negative Nettozeiten werden in der Zeitentabelle mit der bestehenden
+      Warnmarkierung und Tooltip sichtbar.
+    - Uhr-Kachel links zeigt jetzt `Disziplin · Startblock`.
+    - Uhr-Kachel-Stats zeigen jetzt `x/y im Ziel` plus ROAD-Details.
+  - Checks gruen: `npx eslint app/zeitnahme/page.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `git diff --check -- app/zeitnahme/page.tsx`, `npm run build`.
+  - Noch offen: Production-Deploy nach Sebastian-Go und Browser-Smoke mit
+    echter Zeitnehmer-Session.
+- Lokaler, noch nicht deployter Zeitnahme-Regressionsfix 2026-07-21 16:45 UTC:
+  - CR `docs/cr/2026-07-21-road-timekeeping-monitor.md` wurde per Addendum
+    `Restore Start Block Customizing` erweitert.
+  - Anlass: Sebastian meldete nach dem ROAD-Dual-Clock-Deploy, dass das
+    Startblock-Customizing verloren ging. Die Defaults waren korrekt, aber
+    Hinzufuegen, Loeschen, Umbenennen und Klassen-Zuordnung von Startbloecken
+    fehlten bzw. waren zu stark beschnitten.
+  - Lokale Aenderung in `app/zeitnahme/page.tsx`:
+    - `Block hinzufügen` ist wieder sichtbar.
+    - ROAD zeigt alle konfigurierten ROAD-Startbloecke statt hart nur die
+      ersten zwei. Default bleibt `Schueler` + `Herren`.
+    - Pro Kachel bleiben Blockname, Klassen, erste Startnummer, Abstand,
+      lokale Basiszeit und Entfernen konfigurierbar.
+  - Checks gruen: `npx eslint app/zeitnahme/page.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `git diff --check -- app/zeitnahme/page.tsx`.
+  - Noch offen: Production-Deploy nach Sebastian-Go und Browser-Smoke mit
+    echter Zeitnehmer-Session.
+- Aktueller Production-Stand 2026-07-21 16:33 UTC:
+  - CR `docs/cr/2026-07-21-road-timekeeping-monitor.md` wurde per Addendum
+    erweitert und ist live.
+  - Anlass: Sebastian braucht bei ROAD zwei gleichzeitig laufende Startbloecke
+    und stellte klar, dass der Zielblock beim gemeinsamen Zieleinlauf-Feld
+    automatisch aus der eingegebenen Startnummer abgeleitet werden soll.
+  - Lokale Aenderung in `app/zeitnahme/page.tsx`:
+    - Disziplin-Auswahl sitzt in der `Zeitnahme`-Kopfzeile.
+    - Bei `Rad` werden zwei Uhr-Kacheln angezeigt, initial `Schueler` und
+      `Herren`.
+    - Uhr-Kachel zeigt Startblock + enthaltene Klassen und enthaelt die
+      Blockkonfiguration inklusive Klassen, erster Startnummer, Abstand und
+      lokaler Basiszeit.
+    - Stop kann mit Start fortgesetzt werden; die Uhr behält die bisher
+      verstrichene Zeit.
+    - Gemeinsame Zieleinlauf-Erfassung bleibt, routet ROAD-Finish-Events aber
+      anhand der eingegebenen Startnummer/Klasse in den passenden Startblock.
+      Ohne Startnummer oder Treffer bleibt der aktive Block Fallback, damit
+      bestehende Nachzuordnungs-/Ad-hoc-Erfassung erhalten bleibt.
+    - Eingabefeld ist nutzbar, sobald irgendeine Uhr der gewaehlten Disziplin
+      laeuft; der Button erfordert, dass der abgeleitete/Fallback-Zielblock
+      laeuft.
+  - Checks gruen: `npx eslint app/zeitnahme/page.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `git diff --check -- app/zeitnahme/page.tsx`.
+  - Pre-Deploy Checks gruen: targeted ESLint fuer
+    `app/zeitnahme/page.tsx`, `app/zeitnahme/monitor/page.tsx`,
+    `app/api/timekeeping/snapshot/route.ts`; `npx tsc --noEmit --incremental
+    false`; `git diff --check`; `npm run build`.
+  - Production Deploy: `dpl_8AS3Lt3eZL5qSi2cYgc1BVN16Twz`.
+  - Deployment URL:
+    `https://s5-evo-portal-7og5cbazd-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme/monitor` 200; unauthenticated
+    `/api/timekeeping/snapshot?...&startNumberSource=imported-test` 401.
+  - Noch offen: Browser-Smoke mit echter Zeitnehmer-Session.
+- Aktueller Production-Stand 2026-07-21 14:53 UTC:
+  - CR `docs/cr/2026-07-21-participant-change-deadline-and-class-impact.md`
+    ist umgesetzt und live.
+  - Anlass: Sebastian meldete zwei offene Nachnamen-Aenderungsantraege und
+    eine irrefuehrende `Klassenwirkung` bei reiner Namensaenderung. Er fragte
+    auch, ob die Regel "bis Anmeldeschluss nicht genehmigungspflichtig" noch
+    vorhanden ist.
+  - Read-only DB-Check aktive 2026 Competition `cmn3a1piz0002l104372yx9yt`:
+    `registrationDeadline = 2026-07-22T00:00:00.000Z`.
+  - Read-only DB-Check offene Requests: 2 Pending-Participant-Updates, beide
+    reine Nachnamenkorrektur `Hurzler -> Hutzler`, aber fuer zwei
+    unterschiedliche Teilnehmer: Peter und Ferdinand.
+  - Ursache/Fix lokal:
+    - `app/api/teams/[id]/route.ts` hatte die Deadline-Direktregel bereits.
+    - `app/api/participants/[id]/route.ts` hatte sie nicht; nicht-Admin
+      Einzelteilnehmer-Aenderungen liefen deshalb trotz offenem
+      Anmeldeschluss in den Approval-Flow. Der Endpoint nutzt jetzt
+      `isRegistrationDeadlineOpen(...)` fuer Direkt-Speicherung, sofern die
+      bestehende Edit-Berechtigung greift. Disziplin bleibt im
+      Participant-Endpoint fuer Nicht-Admins gesperrt und gehoert in den
+      Team-Kontext.
+    - `GET /api/admin/pending-changes` trennt jetzt echten Klassenwechsel von
+      allgemeinen Klassifikationswarnungen. Name-only erzeugt keine
+      Klassenwirkung mehr.
+    - `app/components/approval-queue.tsx` zeigt `Klassenwirkung` nur bei
+      echtem Klassenwechsel und dann `Klasse vorher -> Klasse neu`.
+  - Checks gruen: targeted ESLint fuer die drei betroffenen Dateien,
+    `npx tsc --noEmit --incremental false`, `npm run verify:participant-edit-flow`,
+    `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_GgrAPLpBcPuVUGuQXnsye7m7mZDg`.
+  - Deployment URL:
+    `https://s5-evo-portal-mcliaup63-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/aenderungen` 200; unauthenticated
+    `/api/admin/pending-changes` 401; unauthenticated `PUT /api/participants/...`
+    401.
+  - Keine Produktionsdatenmutation. Authentifizierter Rollen-/Browser-Smoke
+    bleibt manuell offen.
+  - Bereinigung der beiden bestehenden Pending-Requests `Hurzler -> Hutzler`
+    ist nicht erfolgt und braucht bei Bedarf separates Sebastian-Gate.
+- Aktueller Datenfix 2026-07-21:
+  - CR `docs/cr/2026-07-21-running-testdata-class-fix.md` ist angewendet.
+  - Anlass: Sebastian meldete inkonsistente hochgeladene Lauf-Testdaten und
+    vermutete falsche Klassen-Zuordnung.
+  - Read-only Diagnose aktive 2026 Competition `cmn3a1piz0002l104372yx9yt`:
+    74 RUN-Testdrafts im Batch `cmruq55xj0005jr04nnvizbcx`; Portal-Teamklassen
+    waren intern konsistent, aber 28/74 RUN-Drafts hatten eine Legacy-Klasse,
+    die nicht zur aktuellen Portal-Teamklasse passte.
+  - Nach Sebastian-"go" wurden nur die `PROD_TEST`/`STAGED` RUN-Drafts dieses
+    Batches korrigiert: `proposedResultSnapshot.classScoring.classCode`,
+    Label, Rang und Punkte folgen jetzt der aktuellen `Team.classificationCode`
+    und wurden je Klasse aus den RUN-Zeiten neu berechnet.
+  - Offizielle `DisciplineResult`, Teams, Teilnehmer, Startnummern und Code
+    wurden nicht geaendert; kein Deploy.
+  - Batch-Summary hat einen `portalClassCorrection` Marker.
+  - Post-Fix DB-Check: 74 Drafts, 0 Snapshot-vs-Team-Mismatches, 0
+    Team-vs-Neuberechnung-Mismatches.
+  - Manueller Browsercheck offen: `Live -> Ergebnis -> Staging-Testdaten ->
+    Laufen`.
+- Aktueller Production-Stand 2026-07-21 10:57 UTC:
+  - Hotfix/Erweiterung fuer `docs/cr/2026-07-21-road-timekeeping-monitor.md`
+    ist live.
+  - Anlass: Sebastian meldete, dass in der Beamer-Anzeige keine Startnummer-,
+    Name- und Teamdaten erscheinen, und wollte die importierten/teamzugeordneten
+    Test-Startnummern statt 9000er-Synthetik nutzen.
+  - Vermutete Ursache: `/zeitnahme/monitor` bevorzugte den aktiven
+    Competition-Kontext des neuen Fensters gegenueber der `competitionId` aus
+    dem Monitor-Link. Wenn das divergiert, wird der falsche lokale
+    Zeitnahme-Storage gelesen.
+  - Fix: Monitor nutzt jetzt URL-`competitionId` als Wahrheit und den aktiven
+    Wettbewerb nur als Fallback.
+  - Snapshot-Erweiterung: `/api/timekeeping/snapshot` akzeptiert
+    `startNumberSource=imported-test` und laedt dann nicht geloeschte Teams mit
+    importierter `Team.startNumber` ohne `approved=true` zu erzwingen.
+    `official` bleibt streng: approved + Startnummer.
+  - Zeitnahme-UI: Konfiguration hat jetzt `Startnummernquelle` mit genau zwei
+    Optionen: `Offizielle Startnummern` und `Importierte Test-Startnummern`.
+    9000er-Synthetik ist aus der UI entfernt.
+  - Datencheck aktive 2026 Competition: `officialTeams=0`,
+    `importedTestTeams=74`, `roadFromImportedTest=74`.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`,
+    `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_736bWE2MDXie2gqgYN8iBps5Vyaw`.
+  - Deployment URL:
+    `https://s5-evo-portal-it0s268wu-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme/monitor` 200; unauthenticated
+    `/api/timekeeping/snapshot?...&startNumberSource=imported-test` 401.
+  - Authentifizierter Zeitnahme-Browser-Smoke bleibt manuell offen.
+- Aktueller Production-Stand 2026-07-21 10:10 UTC:
+  - CR `docs/cr/2026-07-21-road-timekeeping-monitor.md` ist umgesetzt und
+    live.
+  - Inhalt: ROAD-Beamer-/Monitoransicht `/zeitnahme/monitor` fuer dasselbe
+    Geraet/denselben Browser wie die Zeitnahme.
+  - Geaendert:
+    `lib/timekeeping-local.ts`, `app/zeitnahme/page.tsx`,
+    `app/zeitnahme/monitor/page.tsx`.
+  - Zeitnahme schreibt weiter die bestehende lokale
+    `s5evo-timekeeping-v1:{competitionId}`-Session und broadcastet zusaetzlich
+    Updates via `s5evo-timekeeping-local-v1`.
+  - Monitor kombiniert alle lokalen ROAD-Startblock-Sessions, zeigt Rang nach
+    Nettozeit je Klasse, Startnummer, Teilnehmername, Mannschaft, Klasse, Zeit
+    und lokal/sync-Status.
+  - Klassenfilter ist als Mehrfachauswahl vorhanden; `Herren Gesamt` und
+    `Damen Gesamt` werden defensiv aus der Beamer-Auswahl entfernt. Bei zu
+    wenig Platz auto-paging alle 8 Sekunden.
+  - Keine neue API, keine DB-Mutation, keine offizielle Ergebnis-Publikation,
+    keine Service-Worker-API-Caching-Aenderung.
+  - Checks gruen: targeted ESLint fuer Zeitnahme/Monitor/Helper,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Production Deploy: `dpl_EAQdgjRXSHoiMRAQpZg8v3xsV1ZS`.
+  - Deployment URL:
+    `https://s5-evo-portal-abm7mw4qc-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; `curl -sSI
+    https://portal.s5evo.de/zeitnahme/monitor` 200; unauthenticated
+    `/api/timekeeping/snapshot?...` 401.
+  - Authentifizierter Rollen-/Browser-Smoke mit echter lokaler Zeitnahme-Session
+    bleibt manuell offen.
+- Aktueller Production-Stand 2026-07-20 16:53 UTC:
+  - Live-Ergebnis-Testmodus fuer gestagte Ergebnis-Drafts ist umgesetzt und
+    live.
+  - Anlass: Sebastian hat das Paket `Legacy Laufen CSV 2026-07-20` erfolgreich
+    gestaged und wollte die Ergebnisanzeige mit Einzelergebnislisten pruefen,
+    ohne Testdaten oeffentlich sichtbar zu machen oder offizielle Ergebnisse zu
+    mutieren.
+  - Geaendert:
+    `app/api/results/route.ts`, `app/components/results-view.tsx`,
+    `lib/domain/scoring.ts`.
+  - `/api/results` akzeptiert jetzt fuer Admins
+    `includeStagingTest=true`.
+    - Ohne ADMIN-Session liefert dieser Parameter 403.
+    - Public/normaler Abruf bleibt ohne Staging-Drafts.
+    - Startnummern bleiben weiterhin nur fuer ADMIN sichtbar.
+  - Admin-Testmodus in `Live -> Ergebnis`:
+    - Button `Staging-Testdaten` aktiviert die gestagten
+      `ResultDraft`-Daten aus `ResultDataBatch.purpose in PROD_TEST/DRY_RUN`.
+    - Gestagte Drafts ueberschreiben nur die jeweilige Disziplin in der Anzeige;
+      offizielle `DisciplineResult` werden nicht geschrieben.
+    - Legacy-Punkte/-Plaetze aus dem Draft-Snapshot werden fuer die Haupttabelle
+      genutzt, also kein Recalc der Legacy-Laufwertung.
+  - Einzeldisziplin-Detailansicht zeigt jetzt:
+    `Platz | Start Nr | Name | Mannschaft | Klasse | Zeit`.
+  - Sebastian bestaetigte: 74 Lauf-Drafts sind korrekt, weil die Testdaten auf
+    die aktuell 74 Mannschaften reduziert wurden.
+  - Reset bleibt ueber `/admin/ergebnisse` -> Tab `Pakete` ->
+    `Testdaten loeschen`; das entfernt nur Staging-Pakete/Drafts mit
+    `PROD_TEST`/`DRY_RUN`, keine offiziellen Ergebnisse.
+  - Checks gruen: targeted ESLint,
+    `npx tsc --noEmit --incremental false`, `npm run verify:tenant-scope`,
+    `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_L69nTBC1RRn1T2TREF4kJ9ambYki`.
+  - Deployment URL:
+    `https://s5-evo-portal-5o5exj6qt-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; unauthenticated
+    `/api/results?...&includeStagingTest=true` 403.
+  - Keine Produktionsdaten-Mutation durch den Agenten.
+  - Naechster sinnvoller Schritt:
+    Browser-Test durch Sebastian:
+    `Live -> Ergebnis -> Staging-Testdaten -> Klasse -> Laufen` pruefen.
+    Danach entscheiden, ob Ergebnis-Preview fuer weitere Disziplinen analog
+    gebaut wird oder zuerst der Publikations-/Review-Schritt fuer Drafts folgt.
+- Vorheriger Production-Stand 2026-07-20 16:08 UTC:
+  - Hotfix fuer Legacy-Laufen-CSV Staging live.
+  - Produktionsfehler nach Sebastian-Test:
+    `POST /api/admin/result-staging/legacy-running/import` scheiterte beim
+    echten Staging mit Prisma `P2028` (`Transaction not found`) auf
+    `ResultRawRecord`/`ResultDraft`.
+  - Fix in `app/api/admin/result-staging/legacy-running/import/route.ts`:
+    - Raw Records werden per `createMany` geschrieben.
+    - Danach werden Raw-Record-IDs ueber `batchId + rowKey` geladen.
+    - Drafts werden per `createMany` geschrieben.
+    - Transaktion bekommt `timeout: 30_000`.
+  - Matching/Parsing/Fachlogik unveraendert.
+  - Checks gruen: `npm run verify:legacy-running-import`,
+    `npm run verify:tenant-scope`, targeted ESLint,
+    `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_4E9u5BK8SeMzT1fFdKEa1B4FcMDi`.
+  - Deployment URL:
+    `https://s5-evo-portal-k8d79yx4a-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; unauthenticated
+    `POST /api/admin/result-staging/legacy-running/import` 401; Vercel logs
+    der letzten 5 Minuten ohne neue `legacy-running` Fehler.
+  - Keine Datenmutation durch den Agenten.
+- Vorheriger Production-Stand 2026-07-20 15:48 UTC:
+  - Startnummern-Anzeige fuer Admin-Live-/Dashboard-Workflow live.
+  - Geaendert:
+    `app/components/dashboard.tsx`, `app/components/live-screen.tsx`,
+    `app/components/results-view.tsx`, `app/api/results/route.ts`,
+    `lib/domain/scoring.ts`.
+  - Mannschafts-Dashboard Kacheln: `#Startnummer` direkt rechts neben der
+    Klassen-Pille.
+  - Live -> Teams: `#Startnummer` vor dem Mannschaftsnamen.
+  - Live -> Start: `#Startnummer` vor dem Teilnehmernamen.
+  - Live -> Ergebnis: vorhandene `#`-Spalte zeigt `#Startnummer` statt
+    Rang-Badge.
+  - Datenschutz: `/api/results` gibt `startNumber` nur fuer ADMIN-Sessions aus;
+    Public/normal bekommt `null`.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`,
+    `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_AsWX98GBVFN7FzZL69o4bQjQvxRc`.
+  - Deployment URL:
+    `https://s5-evo-portal-o8bvwtky6-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; gezielter Public
+    `/api/results?competitionId=cmn3a1piz0002l104372yx9yt` Leak-Check ohne
+    nicht-null `startNumber` gruen.
+  - Keine Produktionsdaten-Mutation.
+- Vorheriger Production-Stand 2026-07-20 15:28 UTC:
+  - Hotfix fuer Startnummern-Import live.
+  - Produktionsfehler nach Sebastian-Test: `POST /api/admin/start-numbers/import`
+    lief im Dry-run, scheiterte beim echten Schreiben mit Prisma `P2028`
+    (`Transaction not found`), weil die sequentiellen Team-Updates plus
+    einzelne Audit-Events die Default-Transaktion ueberzogen.
+  - Fix in `app/api/admin/start-numbers/import/route.ts`:
+    - Team-Updates bleiben transaktional.
+    - Audit-Events werden per `createMany` gebuendelt.
+    - Prisma-Transaktion bekommt `timeout: 30_000`.
+  - Keine Matching-/CSV-Format-Aenderung in diesem Hotfix.
+  - Checks gruen: targeted ESLint, `npx tsc --noEmit --incremental false`,
+    `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_EaQRBWvEYD6QDhyxVJA5EGHHzWxs`.
+  - Deployment URL:
+    `https://s5-evo-portal-o9milppr1-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; unauthenticated
+    `POST /api/admin/start-numbers/import` 401; Vercel logs der letzten 5
+    Minuten ohne neue `start-numbers` Fehler.
+  - Keine Datenmutation durch den Agenten ausgefuehrt.
+- Vorheriger Production-Stand 2026-07-20 15:02 UTC:
+  - Legacy-Stammdaten-CSV Export enthaelt jetzt `team_id` als erste Spalte.
+  - Startnummern-Import erkennt Headerzeilen hinter Beschreibungstext, d. h.
+    die Portal-Datei mit Zeile 1-3 Beschreibung, Zeile 4 Header, Daten ab Zeile 5
+    kann nach manueller Excel-Startnummernpflege direkt wieder importiert werden.
+  - Import-Aliase fuer technische Team-ID erweitert:
+    `team_id`, `teamid`, `team_uid`, `teamuid`, `portal_team_uid`,
+    `mannschaft_id`.
+  - Damit matched der Portal-Import fuehrend ueber `team_id` +
+    `Startnummer`; Legacy-Matching ueber Mannschaftsname bleibt Fallback.
+  - Checks gruen: Source-Assertion fuer `team_id` Export/Import, targeted ESLint,
+    `npx tsc --noEmit --incremental false`, `npm run verify:admin-csv-export-scope`,
+    `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_84u2WYfhuoMs23dAxHvw8iKQa18e`.
+  - Deployment URL:
+    `https://s5-evo-portal-8pewuyp9v-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; unauthenticated
+    `POST /api/admin/teams-export` 401; unauthenticated
+    `POST /api/admin/start-numbers/import` 401.
+  - Keine Produktionsdaten-Mutation ausgefuehrt.
+- Vorheriger Production-Stand 2026-07-20 14:56 UTC:
+  - Legacy-Stammdaten-CSV Export fuer Access/ANSI nachgezogen und live.
+  - Geaendert: `lib/team-csv-export.ts`.
+  - Nur der fixe `legacy-stammdaten` Export wurde angepasst; normale/layout
+    CSV-Exporte bleiben UTF-8/BOM.
+  - Legacy-Stammdaten-Export:
+    - keine UTF-8-BOM mehr.
+    - Content-Type `text/csv; charset=windows-1252`.
+    - Bytes werden als Latin-1/ANSI-kompatibel erzeugt.
+    - Zeile 1-3 enthalten Beschreibung/Hinweise.
+    - Zeile 4 enthaelt die Spaltenueberschriften.
+    - Daten beginnen in Zeile 5.
+    - ASCII-Apostroph `'` wird durch `´` ersetzt.
+    - Zeichen ausserhalb ANSI/Latin-1 werden entfernt; dadurch verschwindet
+      z. B. das Flammen-Emoji in `Cinque Flamme`.
+  - Team-UID wurde bewusst noch nicht in diese Legacy-Datei aufgenommen, weil
+    unklar ist, ob Access Zusatzspalten akzeptiert. Fachlich sinnvoll waere
+    `team_id` fuer Portal-Roundtrip; erst aufnehmen, wenn das Legacy-Ziel
+    Zusatzspalten toleriert oder ein separater technischer Export genutzt wird.
+  - Checks gruen: Source-Assertion fuer Legacy-ANSI-Export, targeted ESLint,
+    `npx tsc --noEmit --incremental false`, `npm run verify:admin-csv-export-scope`,
+    `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_ErAdB9fuEupPZw6oNu9V9oTM1fKu`.
+  - Deployment URL:
+    `https://s5-evo-portal-c5krij6kk-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; unauthenticated
+    `POST /api/admin/teams-export` mit `format:"legacy-stammdaten"` 401.
+  - Keine Produktionsdaten-Mutation ausgefuehrt.
+- Vorheriger Production-Stand 2026-07-20 14:36 UTC:
+  - Produktionstest-Schutz fuer Startnummern/Ergebnis-Staging ist umgesetzt und
+    live.
+  - Normale `/api/teams` Antworten liefern `startNumber` nur noch fuer ADMIN;
+    Teamchefs/Teilnehmer/normale angemeldete Nutzer sehen keine Startnummer.
+  - Neue Admin-Route: `POST /api/admin/start-numbers/reset`.
+    - Default ist Dry-run/Preview.
+    - Ausfuehrung erfordert `dryRun:false` plus exakten Confirmation-Text.
+    - Loescht nur `Team.startNumber` im aktiven Wettkampf, keine Teams oder
+      Teilnehmer.
+    - Audit-Action: `TEAM_START_NUMBERS_RESET`.
+  - Mannschafts-Dashboard hat neben Legacy-Startnummern-Import einen Admin-only
+    Reset-Button fuer Startnummern.
+  - `/admin/ergebnisse`, Tab `Pakete`, hat jetzt einen Admin-only Button
+    `Testdaten loeschen` fuer `ResultDataBatch.purpose in PROD_TEST/DRY_RUN`.
+    Offizielle Ergebnisse werden nicht geloescht.
+  - Guard erweitert: `npm run verify:tenant-scope` prueft jetzt auch
+    `/api/admin/start-numbers/reset`.
+  - Checks gruen: `npm run verify:tenant-scope`, targeted ESLint,
+    `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Production Deploy: `dpl_7KoCreUVknNEPkKqVrdingfphVAK`.
+  - Deployment URL:
+    `https://s5-evo-portal-pojwbb4rm-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de` 200; unauthenticated
+    `POST /api/admin/start-numbers/reset` 401; unauthenticated
+    `POST /api/admin/result-staging/reset/preview` 401.
+  - Keine Produktionsdaten-Mutation ausgefuehrt.
+- Vorheriger Production-Stand 2026-07-20 14:17 UTC:
+  - Legacy-Lauf-Ergebnisimport ist umgesetzt und live.
+  - CR: `docs/cr/2026-07-20-legacy-running-result-import.md`
+    (wie andere `docs/*` durch `.git/info/exclude` nicht im normalen Git-Status sichtbar).
+  - Neue Route: `POST /api/admin/result-staging/legacy-running/import`.
+  - Neue UI: `/admin/ergebnisse`, Tab `Pakete`, Block
+    `Legacy-Laufen-CSV importieren` mit Dateiauswahl, Dry-run und Confirm vor
+    Staging.
+  - Scope: Legacy-Laufen-CSV mit Header Zeile 6 parsen, Startnummer+RUN matchen,
+    als `ResultDataBatch(source=LEGACY_IMPORT)` plus `ResultRawRecord` und
+    `ResultDraft` stagen; keine Publikation in offizielle Ergebnisse.
+  - Default-Sicherheit: `dryRun` ist standardmaessig aktiv; DB-Schreiben nur mit
+    explizitem `dryRun:false`.
+  - Fachliche Regeln: `AuZeit` ist relevante Laufzeit; `AuPunkte` und
+    `AuPlatzKlasse` bleiben Legacy-Klassenwertung; Damen/Herren-Gesamtwertung
+    nur fuer Klassen 4/5 bzw. 6/7/8; `88:88:88.00` wird als `manual_check`
+    normalisiert, Legacy-Punkte/Raenge bleiben erhalten.
+  - Matching: ausschliesslich `Team.startNumber` + Teilnehmer `disciplineCode=RUN`;
+    `Au1TlID` bleibt nur Raw/Debug im Payload.
+  - Checks gruen: `npm run verify:legacy-running-import`,
+    `npm run verify:tenant-scope`, targeted ESLint,
+    `npx tsc --noEmit --incremental false`, `git diff --check`, `npm run build`.
+  - Echte Vorjahresdatei aggregiert geprueft: 111 Zeilen, 109 gueltige Zeiten,
+    2 Sonderzeiten, DAMEN-Gesamtwertung 22, HERREN-Gesamtwertung 54.
+  - Production Deploy: `dpl_6eSK6dAPBgnBgqcYrcGeTiZ7fYBH`.
+  - Deployment URL:
+    `https://s5-evo-portal-1jlbms3d2-sebastiankroeker-2781s-projects.vercel.app`.
+  - Alias: `https://portal.s5evo.de`.
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `curl -sSI
+    https://portal.s5evo.de/admin/ergebnisse` 200; unauthenticated
+    `POST /api/admin/result-staging/legacy-running/import` 401.
+  - Keine Produktionsdaten-Mutation, kein UI-Upload.
+  - Gap: authentifizierter API-Smoke und Browser-Encoding fuer echten Upload fehlen.
 - Aktueller Production-Stand 2026-07-19 13:31 UTC:
   - Legacy Stammdaten CSV Workflow ist umgesetzt und live.
   - CR: `docs/cr/2026-07-19-legacy-stammdaten-csv.md`
