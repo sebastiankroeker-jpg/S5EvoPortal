@@ -2,18 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Star } from "lucide-react";
+import { RefreshCw, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCompetition } from "@/lib/competition-context";
+import { CLASSIFICATION_DISPLAY_ORDER, compareClassificationCodes } from "@/lib/domain/classification";
 import { calculateTeamScores, rankDiscipline } from "@/lib/domain/scoring";
 import { usePermissions } from "@/lib/permissions-context";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
+import {
+  DashboardControlsCard,
+  DashboardPanel,
+  DashboardSearchField,
+  DashboardToolbar,
+  DashboardToolbarButton,
+} from "./dashboard-controls";
 
 type DisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
 type ResultTab = "overall" | "discipline";
 type OverallGroupCode = "damen-gesamt" | "herren-gesamt";
+type ResultClassFilter = string | OverallGroupCode;
 
 interface RankedEntry {
   teamId: string;
@@ -60,6 +69,19 @@ interface OverallGroup {
 
 interface ResultsViewProps {
   watchlistTeamIds?: string[];
+  teamSearchContext?: ResultsTeamSearchContext[];
+}
+
+interface ResultsTeamSearchContext {
+  id: string;
+  name?: string | null;
+  startNumber?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  participants?: Array<{
+    firstName?: string | null;
+    lastName?: string | null;
+  }>;
 }
 
 const DISCIPLINE_CODES: DisciplineCode[] = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"];
@@ -84,6 +106,14 @@ const OVERALL_GROUPS: OverallGroup[] = [
   { code: "damen-gesamt", label: "Damen Gesamt", sourceClassCodes: ["damen-a", "damen-b"] },
   { code: "herren-gesamt", label: "Herren Gesamt", sourceClassCodes: ["jungsters", "herren", "masters"] },
 ];
+
+const OVERALL_CLASS_ORDER = new Map<string, number>([
+  ["damen-gesamt", 4.5],
+  ["herren-gesamt", 7.5],
+]);
+const SOURCE_CLASS_ORDER = new Map<string, number>(
+  CLASSIFICATION_DISPLAY_ORDER.map((code, index) => [code, index]),
+);
 
 function formatValue(val: number | null, disc: DisciplineCode): string {
   if (val === null || val === -999) return "-";
@@ -163,7 +193,110 @@ function buildOverallResults(results: ClassResult[]): ClassResult[] {
   });
 }
 
-export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps) {
+function normalizeSearchValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function resultClassLabel(result: ClassResult) {
+  return result.className || result.classCode;
+}
+
+function compareResultClassCodes(left: string, right: string) {
+  const leftOrder = OVERALL_CLASS_ORDER.get(left) ?? SOURCE_CLASS_ORDER.get(left);
+  const rightOrder = OVERALL_CLASS_ORDER.get(right) ?? SOURCE_CLASS_ORDER.get(right);
+  if (leftOrder !== undefined && rightOrder !== undefined && leftOrder !== rightOrder) return leftOrder - rightOrder;
+  if (leftOrder !== undefined && rightOrder === undefined) return -1;
+  if (leftOrder === undefined && rightOrder !== undefined) return 1;
+  return compareClassificationCodes(left, right);
+}
+
+function entryMatchesSearch(entry: Pick<RankedEntry, "teamName" | "participantName" | "startNumber">, query: string) {
+  const normalizedQuery = normalizeSearchValue(query);
+  if (!normalizedQuery) return true;
+
+  return [entry.teamName, entry.participantName, entry.startNumber]
+    .some((value) => value?.toLowerCase().includes(normalizedQuery));
+}
+
+function teamContextMatchesSearch(team: ResultsTeamSearchContext | undefined, query: string, includeManager: boolean) {
+  const normalizedQuery = normalizeSearchValue(query);
+  if (!team || !normalizedQuery) return false;
+
+  const searchable = [
+    team.name,
+    team.startNumber,
+    ...(includeManager ? [team.contactName, team.contactEmail] : []),
+    ...(team.participants ?? []).flatMap((participant) => [
+      participant.firstName,
+      participant.lastName,
+      `${participant.firstName ?? ""} ${participant.lastName ?? ""}`,
+      `${participant.lastName ?? ""} ${participant.firstName ?? ""}`,
+    ]),
+  ];
+
+  return searchable.some((value) => value?.toLowerCase().includes(normalizedQuery));
+}
+
+function teamScoreMatchesSearch(
+  team: TeamScore,
+  result: ClassResult,
+  query: string,
+  teamSearchContext: Map<string, ResultsTeamSearchContext>,
+  includeManager: boolean,
+) {
+  const normalizedQuery = normalizeSearchValue(query);
+  if (!normalizedQuery) return true;
+
+  if ([team.teamName, team.startNumber].some((value) => value?.toLowerCase().includes(normalizedQuery))) {
+    return true;
+  }
+  if (teamContextMatchesSearch(teamSearchContext.get(team.teamId), normalizedQuery, includeManager)) {
+    return true;
+  }
+
+  return DISCIPLINE_CODES.some((discipline) =>
+    (result.disciplineRankings[discipline] ?? []).some((entry) =>
+      entry.teamId === team.teamId && entryMatchesSearch(entry, normalizedQuery),
+    ),
+  );
+}
+
+function filterResultRows(result: ClassResult, options: {
+  query: string;
+  favoritesOnly: boolean;
+  watchlistTeamIdSet: Set<string>;
+  teamSearchContext: Map<string, ResultsTeamSearchContext>;
+  includeManager: boolean;
+}): ClassResult {
+  const teamScores = result.teamScores.filter((team) =>
+    teamScoreMatchesSearch(team, result, options.query, options.teamSearchContext, options.includeManager) &&
+    (!options.favoritesOnly || options.watchlistTeamIdSet.has(team.teamId)),
+  );
+  const visibleTeamIds = new Set(teamScores.map((team) => team.teamId));
+  const normalizedQuery = normalizeSearchValue(options.query);
+  const disciplineRankings = Object.fromEntries(
+    DISCIPLINE_CODES.map((discipline) => [
+      discipline,
+      (result.disciplineRankings[discipline] ?? []).filter((entry) => {
+        if (!visibleTeamIds.has(entry.teamId)) return false;
+        if (options.favoritesOnly && !options.watchlistTeamIdSet.has(entry.teamId)) return false;
+        if (!normalizedQuery) return true;
+        return entryMatchesSearch(entry, normalizedQuery) ||
+          teamContextMatchesSearch(options.teamSearchContext.get(entry.teamId), normalizedQuery, options.includeManager) ||
+          entry.teamName.toLowerCase().includes(normalizedQuery) ||
+          (entry.startNumber ?? "").toLowerCase().includes(normalizedQuery);
+      }),
+    ]),
+  ) as Record<DisciplineCode, RankedEntry[]>;
+
+  return {
+    ...result,
+    teamScores,
+    disciplineRankings,
+  };
+}
+
+export default function ResultsView({ watchlistTeamIds = [], teamSearchContext = [] }: ResultsViewProps) {
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const [data, setData] = useState<ResultsData | null>(null);
@@ -171,7 +304,10 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
   const [refreshing, setRefreshing] = useState(false);
   const [cacheState, setCacheState] = useState<{ storedAt: string | null; fallback: boolean } | null>(null);
   const [activeTab, setActiveTab] = useState<ResultTab>("overall");
-  const [selectedOverallGroups, setSelectedOverallGroups] = useState<OverallGroupCode[]>(["damen-gesamt", "herren-gesamt"]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedClassFilters, setSelectedClassFilters] = useState<ResultClassFilter[]>(["damen-gesamt", "herren-gesamt"]);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedDiscipline, setSelectedDiscipline] = useState<DisciplineCode>("RUN");
   const [showStagingTestData, setShowStagingTestData] = useState(false);
   const canUseStagingTestMode = activeRole === "ADMIN";
@@ -222,25 +358,54 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
   }, [loadResults]);
 
   const watchlistTeamIdSet = useMemo(() => new Set(watchlistTeamIds), [watchlistTeamIds]);
-  const overallResults = useMemo(() => buildOverallResults(data?.results ?? []), [data?.results]);
-  const selectedResults = useMemo(
-    () => overallResults.filter((result) => selectedOverallGroups.includes(result.classCode as OverallGroupCode)),
-    [overallResults, selectedOverallGroups],
+  const teamSearchContextById = useMemo(
+    () => new Map(teamSearchContext.map((team) => [team.id, team])),
+    [teamSearchContext],
   );
-  const favoriteCountByGroup = useMemo(() => {
+  const canSearchTeamManagers = activeRole === "ADMIN";
+  const overallResults = useMemo(() => buildOverallResults(data?.results ?? []), [data?.results]);
+  const availableResults = useMemo(
+    () => [...overallResults, ...(data?.results ?? [])].sort((left, right) => compareResultClassCodes(left.classCode, right.classCode)),
+    [data?.results, overallResults],
+  );
+  const selectedResults = useMemo(
+    () => availableResults
+      .filter((result) => selectedClassFilters.length === 0 || selectedClassFilters.includes(result.classCode))
+      .map((result) => filterResultRows(result, {
+        query: searchQuery,
+        favoritesOnly,
+        watchlistTeamIdSet,
+        teamSearchContext: teamSearchContextById,
+        includeManager: canSearchTeamManagers,
+      }))
+      .filter((result) => result.teamScores.length > 0 || DISCIPLINE_CODES.some((discipline) => result.disciplineRankings[discipline].length > 0)),
+    [availableResults, canSearchTeamManagers, favoritesOnly, searchQuery, selectedClassFilters, teamSearchContextById, watchlistTeamIdSet],
+  );
+  const favoriteCountByClass = useMemo(() => {
     return Object.fromEntries(
-      overallResults.map((result) => [
+      availableResults.map((result) => [
         result.classCode,
         result.teamScores.filter((team) => watchlistTeamIdSet.has(team.teamId)).length,
       ]),
     ) as Record<string, number>;
-  }, [overallResults, watchlistTeamIdSet]);
+  }, [availableResults, watchlistTeamIdSet]);
 
-  const toggleOverallGroup = (groupCode: OverallGroupCode) => {
-    setSelectedOverallGroups((current) =>
-      current.includes(groupCode)
-        ? current.filter((code) => code !== groupCode)
-        : [...current, groupCode],
+  const visibleResultTeamCount = useMemo(
+    () => selectedResults.reduce((sum, result) => sum + result.teamScores.length, 0),
+    [selectedResults],
+  );
+  const totalResultTeamCount = useMemo(
+    () => availableResults.reduce((sum, result) => sum + result.teamScores.length, 0),
+    [availableResults],
+  );
+  const activeFilterCount = selectedClassFilters.length + (favoritesOnly ? 1 : 0);
+  const hasResettableState = Boolean(searchQuery.trim()) || activeFilterCount > 0;
+
+  const toggleClassFilter = (classCode: ResultClassFilter) => {
+    setSelectedClassFilters((current) =>
+      current.includes(classCode)
+        ? current.filter((code) => code !== classCode)
+        : [...current, classCode],
     );
   };
 
@@ -271,7 +436,7 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
         <div>
           <h2 className="text-lg font-semibold">Live-Ergebnisse</h2>
           <p className="text-xs text-muted-foreground">
-            {data.totalTeams} Teams · Damen Gesamt & Herren Gesamt
+            {data.totalTeams} Teams · {visibleResultTeamCount} von {totalResultTeamCount} Ergebniszeilen
           </p>
           <p className={`mt-1 text-xs ${cacheState?.fallback ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
             {cacheState?.fallback ? "Lokaler Stand" : "Datenstand"}: {formatOfflineCacheTimestamp(cacheState?.storedAt)}
@@ -320,42 +485,98 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {OVERALL_GROUPS.map((group) => {
-          const selected = selectedOverallGroups.includes(group.code);
-          const favoriteCount = favoriteCountByGroup[group.code] ?? 0;
-          const result = overallResults.find((entry) => entry.classCode === group.code);
+      <DashboardControlsCard className="space-y-2">
+        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <DashboardSearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder={canSearchTeamManagers ? "Team, Teilnehmer:in, Startnummer oder Teammanager" : "Team, Teilnehmer:in oder Startnummer"}
+          />
+          <DashboardToolbar>
+            <DashboardToolbarButton
+              icon={<SlidersHorizontal className="size-3.5" />}
+              label="Ergebnis-Filter"
+              open={filtersOpen}
+              badge={activeFilterCount || null}
+              onClick={() => setFiltersOpen((open) => !open)}
+            />
+            <DashboardToolbarButton
+              icon={<XCircle className="size-3.5" />}
+              label="Filter zurücksetzen"
+              variant={hasResettableState ? "default" : "outline"}
+              disabled={!hasResettableState}
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedClassFilters([]);
+                setFavoritesOnly(false);
+              }}
+            />
+          </DashboardToolbar>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {visibleResultTeamCount} von {totalResultTeamCount} Ergebniszeilen
+        </div>
+        {filtersOpen && (
+          <DashboardPanel className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">Klassen</p>
+                <Button size="xs" variant={selectedClassFilters.length === 0 ? "default" : "outline"} onClick={() => setSelectedClassFilters([])}>
+                  Alle Klassen
+                </Button>
+              </div>
+              <div className="flex min-w-0 flex-wrap gap-1.5">
+                {availableResults.map((result) => {
+                  const selected = selectedClassFilters.includes(result.classCode);
+                  const favoriteCount = favoriteCountByClass[result.classCode] ?? 0;
 
-          return (
-            <Button
-              key={group.code}
-              type="button"
-              variant={selected ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => toggleOverallGroup(group.code)}
-              aria-pressed={selected}
-              disabled={!result}
-              className="gap-2"
-            >
-              <span>{group.label}</span>
-              <Badge variant={selected ? "default" : "secondary"} className="h-5 px-1.5 text-[10px]">
-                {result?.teamScores.length ?? 0}
-              </Badge>
-              {favoriteCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                  <Star className="size-3 fill-current" />
-                  {favoriteCount}
-                </span>
-              )}
-            </Button>
-          );
-        })}
-      </div>
+                  return (
+                    <Button
+                      key={result.classCode}
+                      type="button"
+                      variant={selected ? "default" : "outline"}
+                      size="xs"
+                      onClick={() => toggleClassFilter(result.classCode)}
+                      aria-pressed={selected}
+                    >
+                      <span>{resultClassLabel(result)}</span>
+                      <Badge variant={selected ? "secondary" : "outline"} className="h-5 px-1.5 text-[10px]">
+                        {result.teamScores.length}
+                      </Badge>
+                      {favoriteCount > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                          <Star className="size-3 fill-current" />
+                          {favoriteCount}
+                        </span>
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+            {watchlistTeamIds.length > 0 && (
+              <div className="space-y-2 border-t border-border/50 pt-3">
+                <p className="text-xs font-medium text-muted-foreground">Favoriten</p>
+                <Button
+                  type="button"
+                  variant={favoritesOnly ? "default" : "outline"}
+                  size="xs"
+                  onClick={() => setFavoritesOnly((value) => !value)}
+                  aria-pressed={favoritesOnly}
+                >
+                  <Star className={favoritesOnly ? "fill-current" : ""} />
+                  Nur Favoriten ({watchlistTeamIds.length})
+                </Button>
+              </div>
+            )}
+          </DashboardPanel>
+        )}
+      </DashboardControlsCard>
 
       {selectedResults.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Wähle mindestens eine Gesamtklasse aus.
+            Keine Ergebnisse für die aktuelle Auswahl.
           </CardContent>
         </Card>
       ) : activeTab === "overall" ? (
