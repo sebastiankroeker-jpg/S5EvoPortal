@@ -553,6 +553,21 @@ Existing context:
   - `npx tsc --noEmit --incremental false` -> pass
   - `npm run build` -> pass
   - `git diff --check` -> pass
+- Deployment:
+  - Commit: `34d53c6 Harden event map client initialization`
+  - Pushed to `origin/main`: `7275234..34d53c6`
+  - Deployment ID: `dpl_6t3cu4nQiuShkrgYpgYuguALfrbp`
+  - Deployment URL:
+    `https://s5-evo-portal-hqxl9bklm-sebastiankroeker-2781s-projects.vercel.app`
+  - Production alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-22 22:04 UTC
+- Post-deploy smoke:
+  - `HEAD https://portal.s5evo.de/` -> 200
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass
+  - MapTiler style request with `Referer: https://portal.s5evo.de/karte`
+    -> 200 `style ok`
+  - Same-origin MapLibre worker asset -> 200 JavaScript
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
