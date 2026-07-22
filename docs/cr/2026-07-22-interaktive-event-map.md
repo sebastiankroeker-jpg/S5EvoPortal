@@ -758,6 +758,19 @@ Existing context:
   - `npx tsc --noEmit --incremental false` -> pass
   - `npm run build` -> pass
   - `git diff --check` -> pass
+- Deployment:
+  - Commit: `139af0c Move sponsor details into map popups`
+  - Pushed to `origin/main`: `c7484d5..139af0c`
+  - Deployment ID: `dpl_3WrqzkLY7P7jPtcYWS4TK3ZrKg7n`
+  - Deployment URL:
+    `https://s5-evo-portal-nm83g988z-sebastiankroeker-2781s-projects.vercel.app`
+  - Production alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-22 23:02 UTC
+- Post-deploy smoke:
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass
+  - Direct MapTiler raster tile for Bad Bayersoien z14/x8692/y5716 with
+    `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 

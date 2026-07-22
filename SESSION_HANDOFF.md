@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 22:56 UTC
+Stand: 2026-07-22 23:02 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -26,8 +26,23 @@ Stand: 2026-07-22 22:56 UTC
     `npx eslint app/components/event-map.tsx`,
     `npx tsc --noEmit --incremental false`, `npm run build`,
     `git diff --check`.
-  - Deploy/status:
-    - Local fix ready; commit/deploy pending at handoff update time.
+  - Commit/Push:
+    - Code/docs commit: `139af0c Move sponsor details into map popups`
+    - Pushed `c7484d5..139af0c`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_3WrqzkLY7P7jPtcYWS4TK3ZrKg7n`
+    - Vercel-URL:
+      `https://s5-evo-portal-nm83g988z-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-22 23:02 UTC
+  - Post-Deploy-Smoke gruen:
+    `HEAD https://portal.s5evo.de/karte` 200,
+    `npm run smoke:public`,
+    direct MapTiler raster tile for Bad Bayersoien z14/x8692/y5716 with
+    `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`.
+  - Weiter offen nach Deploy:
+    authenticated iPhone visual smoke by Sebastian for popup behavior.
 
 - Event Map Leaflet Fallback 2026-07-22 22:32 UTC:
   - Sebastian sent another iPhone screenshot after `885e062`: still only the
