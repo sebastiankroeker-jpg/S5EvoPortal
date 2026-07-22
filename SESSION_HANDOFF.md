@@ -1,8 +1,50 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 04:45 UTC
+Stand: 2026-07-22 07:42 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Production Release 2026-07-22 07:41 UTC:
+  - Aenderung: Nachschliff fuer `Live` nach Screenshot-Feedback.
+  - Teams:
+    - Teilnehmer innerhalb der Teamkarten folgen jetzt der Standard-
+      Disziplinreihenfolge.
+    - Neben dem Disziplin-Icon steht der Disziplintext.
+    - Favoritenbutton heisst zustandsabhaengig `Favorit hinzufuegen` oder
+      `Favorit`.
+    - Klassen-Ueberschriften nutzen offizielle Klassenlabels mit Umlauten.
+  - Gesamtergebnisse:
+    - Klassen-Ueberschriften nutzen offizielle Klassenlabels mit Umlauten.
+    - Lange Teamnamen umbrechen statt abgeschnitten zu werden.
+    - Disziplin-Punktespalten sind kompakter; Gesamtspalte ebenfalls schmaler.
+    - Disziplin-Ueberschriften nutzen volle Namen, `Bank` statt abgeleitetem
+      Kurznamen.
+  - Geaenderte Dateien:
+    `app/components/live-screen.tsx`,
+    `app/components/results-view.tsx`.
+  - Checks gruen: `npx eslint app/components/live-screen.tsx
+    app/components/results-view.tsx`, `npx tsc --noEmit --incremental false`,
+    `git diff --check`, `npm run build`.
+  - Commit: `a6ca1ca Polish live cockpit displays`.
+  - Push: `git push origin main` nach Sebastian-Go; dabei wurde der vorher
+    lokale Handoff-Commit `e44f46a docs: record live filter refinement release`
+    mit gepusht.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_7Nq2kqSLoMynCGSLaPDepKSLH1ZQ`
+    - Vercel-URL:
+      `https://s5-evo-portal-pj6vc0ic5-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/`, `/login`,
+    `/anmeldung`, `/aenderungen` 200; Legacy-Domain 308;
+    `/api/competition` 200; `/api/results` 200; unauthenticated `/api/teams`
+    401; unauthenticated `/api/admin/pending-changes` 401.
+  - Targeted Live/API Smoke: `HEAD https://portal.s5evo.de/` 200;
+    `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200;
+    aktuelle API-Daten: `totalClasses=9`, `totalTeams=82`,
+    `resultBuckets=9`.
+  - Authenticated Manual Smoke offen: Teamkarten und Gesamtergebnis-Tabelle im
+    Browser mit echter Live-Rolle visuell gegen die Screenshots pruefen.
 
 - Production Release 2026-07-22 07:01 UTC:
   - Aenderung: Nachkorrektur fuer `Live`-Such-/Filterpanel.
