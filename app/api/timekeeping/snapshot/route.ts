@@ -8,9 +8,15 @@ import { requireTenantRoles } from "@/lib/server-permissions";
 
 const TIMEKEEPING_ROLES = ["ZEITNAHME"] as const;
 const TIMEKEEPING_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
+const START_NUMBER_SOURCES = ["official", "imported-test"] as const;
+type StartNumberSource = (typeof START_NUMBER_SOURCES)[number];
 const DEFAULT_START_BLOCKS = [
   { name: "Schüler", classificationCodes: ["schueler-a", "schueler-b"] },
   { name: "Jugend & Damen", classificationCodes: ["jugend", "damen-a", "damen-b"] },
+  { name: "Herren", classificationCodes: ["jungsters", "herren", "masters"] },
+] as const;
+const DEFAULT_ROAD_START_BLOCKS = [
+  { name: "Schüler", classificationCodes: ["schueler-a", "schueler-b"] },
   { name: "Herren", classificationCodes: ["jungsters", "herren", "masters"] },
 ] as const;
 
@@ -20,13 +26,13 @@ function toStartNumberValue(startNumber: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function buildTestStartNumber(index: number) {
-  return String(9001 + index);
+function parseStartNumberSource(value: string | null): StartNumberSource {
+  return START_NUMBER_SOURCES.includes(value as StartNumberSource) ? value as StartNumberSource : "official";
 }
 
 export async function GET(request: NextRequest) {
   const competitionId = request.nextUrl.searchParams.get("competitionId");
-  const includeTestStartNumbers = request.nextUrl.searchParams.get("testStartNumbers") === "1";
+  const startNumberSource = parseStartNumberSource(request.nextUrl.searchParams.get("startNumberSource"));
   if (!competitionId) {
     return NextResponse.json({ error: "competitionId required" }, { status: 400 });
   }
@@ -62,12 +68,8 @@ export async function GET(request: NextRequest) {
     where: {
       competitionId,
       deletedAt: null,
-      ...(includeTestStartNumbers
-        ? {}
-        : {
-            approved: true,
-            startNumber: { not: null },
-          }),
+      startNumber: { not: null },
+      ...(startNumberSource === "official" ? { approved: true } : {}),
     },
     select: {
       id: true,
@@ -91,27 +93,20 @@ export async function GET(request: NextRequest) {
     orderBy: [{ startNumber: "asc" }, { name: "asc" }],
   });
 
-  const testStartNumberByTeamId = new Map(
-    teams
-      .filter((team) => !team.startNumber)
-      .map((team, index) => [team.id, buildTestStartNumber(index)] as const),
-  );
-
   const starters = teams.flatMap((team) => {
-    const effectiveStartNumber = team.startNumber ?? testStartNumberByTeamId.get(team.id) ?? null;
-    const startNumberValue = toStartNumberValue(effectiveStartNumber);
+    const startNumberValue = toStartNumberValue(team.startNumber);
     return team.participants.map((participant) => ({
       participantId: participant.id,
       teamId: team.id,
       teamName: team.name,
       classificationCode: team.classificationCode ?? "unclassified",
       classificationLabel: CLASSIFICATIONS[team.classificationCode ?? "unclassified"]?.label ?? team.classificationCode ?? "Unklassifiziert",
-      startNumber: effectiveStartNumber,
+      startNumber: team.startNumber,
       startNumberValue,
       firstName: participant.firstName,
       lastName: participant.lastName,
       disciplineCode: participant.disciplineCode,
-      isTestStartNumber: !team.startNumber && Boolean(effectiveStartNumber),
+      isTestStartNumber: startNumberSource === "imported-test",
     }));
   });
 
@@ -129,7 +124,7 @@ export async function GET(request: NextRequest) {
       code,
       name: competition.disciplines.find((discipline) => discipline.code === code)?.name ?? code,
       defaultStartIntervalSeconds: code === "ROAD" ? 30 : 0,
-      defaultStartBlocks: DEFAULT_START_BLOCKS,
+      defaultStartBlocks: code === "ROAD" ? DEFAULT_ROAD_START_BLOCKS : DEFAULT_START_BLOCKS,
       firstStartNumber,
       classifications: CLASSIFICATION_DISPLAY_ORDER.map((classificationCode) => ({
         code: classificationCode,
@@ -149,9 +144,10 @@ export async function GET(request: NextRequest) {
     },
     role: "ZEITNAHME",
     testStartNumbers: {
-      enabled: includeTestStartNumbers,
-      count: testStartNumberByTeamId.size,
+      enabled: startNumberSource === "imported-test",
+      count: teams.length,
     },
+    startNumberSource,
     disciplines: disciplineSummaries,
   });
 }
