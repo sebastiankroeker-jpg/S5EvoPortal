@@ -5,6 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { resolveCurrentUser } from "@/lib/current-user";
 import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
+import { CLASSIFICATIONS } from "@/lib/domain/classification";
 
 type ImportBody = {
   competitionId?: string;
@@ -12,11 +13,13 @@ type ImportBody = {
   delimiter?: string;
   dryRun?: boolean;
   clearMissing?: boolean;
+  createMissingTeams?: boolean;
 };
 
 type ParsedCsv = {
   headers: string[];
   rows: string[][];
+  dataStartRowNumber: number;
 };
 
 type ParsedAssignments = {
@@ -28,8 +31,32 @@ type LegacyImportWarning = {
   row: number;
   startNumber: string | null;
   teamName: string;
-  reason: "missing_team_name" | "missing_start_number" | "unmatched_team" | "ambiguous_team";
+  reason:
+    | "missing_team_name"
+    | "missing_start_number"
+    | "unmatched_team"
+    | "ambiguous_team"
+    | "missing_participant_data"
+    | "invalid_birth_year"
+    | "invalid_gender"
+    | "duplicate_start_number"
+    | "existing_team_name";
   candidates?: Array<{ teamId: string; teamName: string }>;
+};
+
+type LegacyCreateCandidate = {
+  row: number;
+  startNumber: string;
+  teamName: string;
+  classificationCode: string | null;
+  totalAge: number | null;
+  participants: Array<{
+    firstName: string;
+    lastName: string;
+    gender: "MALE" | "FEMALE";
+    birthYear: number;
+    disciplineCode: "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
+  }>;
 };
 
 function parseCsv(input: string, delimiter = ";"): ParsedCsv {
@@ -77,11 +104,15 @@ function parseCsv(input: string, delimiter = ";"): ParsedCsv {
     if (hasValues) rows.push(row);
   }
 
-  if (rows.length === 0) return { headers: [], rows: [] };
-  const [headers, ...dataRows] = rows;
+  if (rows.length === 0) return { headers: [], rows: [], dataStartRowNumber: 1 };
+  const headerIndex = rows.findIndex(isStartNumberHeaderRow);
+  const effectiveHeaderIndex = headerIndex === -1 ? 0 : headerIndex;
+  const headers = rows[effectiveHeaderIndex];
+  const dataRows = rows.slice(effectiveHeaderIndex + 1);
   return {
     headers: headers.map((header) => header.trim()),
     rows: dataRows,
+    dataStartRowNumber: effectiveHeaderIndex + 2,
   };
 }
 
@@ -111,6 +142,20 @@ function findHeaderIndex(normalizedHeaders: string[], aliases: string[]) {
   return normalizedHeaders.findIndex((header) => aliases.includes(header));
 }
 
+function isStartNumberHeaderRow(row: string[]) {
+  const normalizedHeaders = row.map(normalizeHeader);
+  const hasTeamId = findHeaderIndex(
+    normalizedHeaders,
+    ["team_id", "teamid", "team_uid", "teamuid", "portal_team_uid", "mannschaft_id"],
+  ) !== -1;
+  const hasStartNumber = findHeaderIndex(
+    normalizedHeaders,
+    ["team_startnummer", "team_start_number", "team_startnumber", "startnummer", "start_number", "startnumber"],
+  ) !== -1;
+  const hasTeamName = findHeaderIndex(normalizedHeaders, ["mannschaftsname", "team_name", "teamname", "mannschaft"]) !== -1;
+  return hasStartNumber && (hasTeamId || hasTeamName);
+}
+
 async function startNumberColumnExists() {
   const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
     SELECT EXISTS (
@@ -131,7 +176,7 @@ function collectAssignments(
 ): ParsedAssignments {
   const normalizedHeaders = headers.map(normalizeHeader);
   const teamIdIndex = normalizedHeaders.findIndex((header) =>
-    ["team_id", "teamid", "mannschaft_id"].includes(header),
+    ["team_id", "teamid", "team_uid", "teamuid", "portal_team_uid", "mannschaft_id"].includes(header),
   );
   const teamStartNumberIndex = normalizedHeaders.findIndex((header) =>
     ["team_startnummer", "team_start_number", "team_startnumber", "startnummer", "start_number", "startnumber"].includes(
@@ -279,9 +324,178 @@ function buildTeamSignature(team: {
     .join("|");
 }
 
+function parseLegacyGender(value: string | null | undefined): "MALE" | "FEMALE" | null {
+  const normalized = normalizeLegacyText(value);
+  if (["w", "weiblich", "female", "f", "frau"].includes(normalized)) return "FEMALE";
+  if (["m", "maennlich", "mannlich", "male", "herr", "mann"].includes(normalized)) return "MALE";
+  return null;
+}
+
+function parseLegacyBirthYear(value: string | null | undefined) {
+  const normalized = (value || "").trim();
+  const match = normalized.match(/\d{4}/);
+  if (!match) return null;
+  const birthYear = Number(match[0]);
+  return Number.isInteger(birthYear) && birthYear >= 1901 && birthYear <= 2018 ? birthYear : null;
+}
+
+function parseLegacyInteger(value: string | null | undefined) {
+  const normalized = (value || "").trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized.replace(",", "."));
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function resolveLegacyClassificationCode(value: string | null | undefined) {
+  const normalized = normalizeLegacyText(value);
+  if (!normalized) return null;
+
+  const entries = Object.entries(CLASSIFICATIONS);
+  const byCode = entries.find(([code]) => normalizeLegacyText(code) === normalized);
+  if (byCode) return byCode[0];
+
+  const byLabel = entries.find(([, meta]) => normalizeLegacyText(meta.label) === normalized);
+  if (byLabel) return byLabel[0];
+
+  const compact = normalized.replace(/[^a-z0-9]/g, "");
+  const aliases: Record<string, string> = {
+    sa: "schueler-a",
+    schuelera: "schueler-a",
+    schuelerinnena: "schueler-a",
+    sb: "schueler-b",
+    schuelerb: "schueler-b",
+    schuelerinnenb: "schueler-b",
+    j: "jugend",
+    jugend: "jugend",
+    da: "damen-a",
+    damena: "damen-a",
+    db: "damen-b",
+    damenb: "damen-b",
+    ha: "jungsters",
+    jungsters: "jungsters",
+    hb: "herren",
+    herren: "herren",
+    hc: "masters",
+    masters: "masters",
+  };
+
+  return aliases[compact] ?? null;
+}
+
+function collectLegacyCreateCandidates(
+  headers: string[],
+  rows: string[][],
+  dataStartRowNumber: number,
+  teams: Array<{
+    id: string;
+    name: string;
+    startNumber: string | null;
+    participants: Array<{
+      firstName: string;
+      lastName: string;
+      gender: "MALE" | "FEMALE";
+      birthYear: number;
+      disciplineCode: string | null;
+    }>;
+  }>,
+): { createCandidates: LegacyCreateCandidate[]; warnings: LegacyImportWarning[] } {
+  const normalizedHeaders = headers.map(normalizeHeader);
+  const teamIdIndex = findHeaderIndex(
+    normalizedHeaders,
+    ["team_id", "teamid", "team_uid", "teamuid", "portal_team_uid", "mannschaft_id"],
+  );
+  const startNumberIndex = findHeaderIndex(normalizedHeaders, ["startnummer", "start_number", "startnumber"]);
+  const teamNameIndex = findHeaderIndex(normalizedHeaders, ["mannschaftsname", "team_name", "teamname", "mannschaft"]);
+  const classificationIndex = findHeaderIndex(normalizedHeaders, ["klasse", "classification", "class"]);
+  const totalAgeIndex = findHeaderIndex(normalizedHeaders, ["gesamtalter", "total_age", "totalage"]);
+  const slots = getLegacySlotIndices(normalizedHeaders);
+
+  const createCandidates: LegacyCreateCandidate[] = [];
+  const warnings: LegacyImportWarning[] = [];
+  const teamsByName = new Map(teams.map((team) => [normalizeLegacyText(team.name), team]));
+  const existingStartNumbers = new Set(teams.map((team) => normalizeStartNumber(team.startNumber || "")).filter(Boolean));
+  const candidateStartNumbers = new Set<string>();
+
+  if (teamIdIndex === -1 || startNumberIndex === -1 || teamNameIndex === -1) {
+    return { createCandidates, warnings };
+  }
+
+  rows.forEach((row, index) => {
+    const rowNumber = dataStartRowNumber + index;
+    const teamId = (row[teamIdIndex] || "").trim();
+    if (teamId) return;
+
+    const teamName = (row[teamNameIndex] || "").trim();
+    const startNumber = normalizeStartNumber(row[startNumberIndex] || "");
+
+    if (!teamName) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_team_name" });
+      return;
+    }
+    if (!startNumber) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_start_number" });
+      return;
+    }
+    if (teamsByName.has(normalizeLegacyText(teamName))) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "existing_team_name" });
+      return;
+    }
+    if (existingStartNumbers.has(startNumber) || candidateStartNumbers.has(startNumber)) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "duplicate_start_number" });
+      return;
+    }
+
+    const participants: LegacyCreateCandidate["participants"] = [];
+    for (const slot of slots) {
+      if (slot.firstName === -1 || slot.lastName === -1 || slot.gender === -1 || slot.birthYear === -1) {
+        warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_participant_data" });
+        return;
+      }
+
+      const firstName = (row[slot.firstName] || "").trim();
+      const lastName = (row[slot.lastName] || "").trim();
+      const gender = parseLegacyGender(row[slot.gender]);
+      const birthYear = parseLegacyBirthYear(row[slot.birthYear]);
+      if (!firstName || !lastName) {
+        warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_participant_data" });
+        return;
+      }
+      if (!gender) {
+        warnings.push({ row: rowNumber, startNumber, teamName, reason: "invalid_gender" });
+        return;
+      }
+      if (!birthYear) {
+        warnings.push({ row: rowNumber, startNumber, teamName, reason: "invalid_birth_year" });
+        return;
+      }
+
+      participants.push({
+        firstName,
+        lastName,
+        gender,
+        birthYear,
+        disciplineCode: slot.disciplineCode as "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB",
+      });
+    }
+
+    candidateStartNumbers.add(startNumber);
+    createCandidates.push({
+      row: rowNumber,
+      startNumber,
+      teamName,
+      classificationCode: classificationIndex === -1 ? null : resolveLegacyClassificationCode(row[classificationIndex]),
+      totalAge: totalAgeIndex === -1 ? null : parseLegacyInteger(row[totalAgeIndex]),
+      participants,
+    });
+  });
+
+  return { createCandidates, warnings };
+}
+
 function collectLegacyAssignments(
   headers: string[],
   rows: string[][],
+  dataStartRowNumber: number,
   teams: Array<{
     id: string;
     name: string;
@@ -315,7 +529,7 @@ function collectLegacyAssignments(
   }
 
   rows.forEach((row, index) => {
-    const rowNumber = index + 5;
+    const rowNumber = dataStartRowNumber + index;
     const startNumber = normalizeStartNumber(row[startNumberIndex] || "");
     const teamName = (row[teamNameIndex] || "").trim();
     if (!teamName) {
@@ -391,6 +605,7 @@ export async function POST(request: NextRequest) {
   const delimiter = typeof body.delimiter === "string" && body.delimiter.length === 1 ? body.delimiter : ";";
   const dryRun = Boolean(body.dryRun);
   const clearMissing = Boolean(body.clearMissing);
+  const createMissingTeams = Boolean(body.createMissingTeams);
 
   const parsed = parseCsv(csv, delimiter);
   if (parsed.headers.length === 0 || parsed.rows.length === 0) {
@@ -400,37 +615,55 @@ export async function POST(request: NextRequest) {
   const parsedAssignments = collectAssignments(parsed.headers, parsed.rows, clearMissing);
   let legacyWarnings: LegacyImportWarning[] = [];
   let hasAssignments = parsedAssignments.teamAssignments.size > 0 || parsedAssignments.participantAssignments.size > 0;
-  if (!hasAssignments) {
-    const teamsForLegacyMatch = await prisma.team.findMany({
-      where: {
-        deletedAt: null,
-        competitionId,
-        competition: { tenantId: auth.tenantId },
-      },
-      select: {
-        id: true,
-        name: true,
-        participants: {
-          where: { deletedAt: null },
-          select: {
-            firstName: true,
-            lastName: true,
-            gender: true,
-            birthYear: true,
-            disciplineCode: true,
-          },
+  const teamsForLegacyMatch = await prisma.team.findMany({
+    where: {
+      deletedAt: null,
+      competitionId,
+      competition: { tenantId: auth.tenantId },
+    },
+    select: {
+      id: true,
+      name: true,
+      startNumber: true,
+      participants: {
+        where: { deletedAt: null },
+        select: {
+          firstName: true,
+          lastName: true,
+          gender: true,
+          birthYear: true,
+          disciplineCode: true,
         },
       },
-    });
-    const legacyAssignments = collectLegacyAssignments(parsed.headers, parsed.rows, teamsForLegacyMatch);
-    legacyWarnings = legacyAssignments.warnings;
+    },
+  });
+  let createCandidates: LegacyCreateCandidate[] = [];
+  if (createMissingTeams) {
+    const createCandidateResult = collectLegacyCreateCandidates(
+      parsed.headers,
+      parsed.rows,
+      parsed.dataStartRowNumber,
+      teamsForLegacyMatch,
+    );
+    createCandidates = createCandidateResult.createCandidates;
+    legacyWarnings = [...legacyWarnings, ...createCandidateResult.warnings];
+  }
+
+  if (!hasAssignments && createCandidates.length === 0) {
+    const legacyAssignments = collectLegacyAssignments(
+      parsed.headers,
+      parsed.rows,
+      parsed.dataStartRowNumber,
+      teamsForLegacyMatch,
+    );
+    legacyWarnings = [...legacyWarnings, ...legacyAssignments.warnings];
     for (const [teamId, startNumber] of legacyAssignments.teamAssignments) {
       parsedAssignments.teamAssignments.set(teamId, startNumber);
     }
     hasAssignments = parsedAssignments.teamAssignments.size > 0 || parsedAssignments.participantAssignments.size > 0;
   }
 
-  if (!hasAssignments) {
+  if (!hasAssignments && createCandidates.length === 0) {
     return NextResponse.json(
       {
         error:
@@ -571,6 +804,8 @@ export async function POST(request: NextRequest) {
       parsedRows: parsed.rows.length,
       assignments: mergedTeamAssignments.size,
       changed: changed.length,
+      createMissingTeams,
+      createCandidates: createCandidates.length,
       warnings: legacyWarnings,
       preview: changed.slice(0, 20).map(({ team, nextStartNumber }) => ({
         teamId: team.id,
@@ -578,11 +813,38 @@ export async function POST(request: NextRequest) {
         previousStartNumber: team.startNumber,
         nextStartNumber,
       })),
+      createPreview: createCandidates.slice(0, 20).map((candidate) => ({
+        row: candidate.row,
+        teamName: candidate.teamName,
+        startNumber: candidate.startNumber,
+        classificationCode: candidate.classificationCode,
+        totalAge: candidate.totalAge,
+        participantCount: candidate.participants.length,
+      })),
     });
   }
 
   const currentUser = await resolveCurrentUser(session);
   const actorId = currentUser.user?.id ?? null;
+  const importOwnerEmail = "sebastian.kroeker@proton.me";
+  const importOwner = createCandidates.length > 0
+    ? await prisma.user.findFirst({
+        where: {
+          deletedAt: null,
+          email: { equals: importOwnerEmail, mode: "insensitive" },
+        },
+        select: { id: true, name: true, email: true },
+      })
+    : null;
+
+  if (createCandidates.length > 0 && !importOwner) {
+    return NextResponse.json(
+      {
+        error: `Owner/Kontakt fuer neue Mannschaften nicht gefunden: ${importOwnerEmail}`,
+      },
+      { status: 400 },
+    );
+  }
 
   await prisma.$transaction(async (tx) => {
     for (const entry of changed) {
@@ -590,9 +852,65 @@ export async function POST(request: NextRequest) {
         where: { id: entry.team.id },
         data: { startNumber: entry.nextStartNumber },
       });
+    }
 
-      await tx.auditEvent.create({
+    const createdTeamAuditEvents = [];
+    for (const candidate of createCandidates) {
+      const createdTeam = await tx.team.create({
         data: {
+          name: candidate.teamName,
+          startNumber: candidate.startNumber,
+          contactName: importOwner?.name || "Sebastian Kroeker",
+          contactEmail: importOwner?.email || importOwnerEmail,
+          approved: true,
+          totalAge: candidate.totalAge,
+          classificationCode: candidate.classificationCode,
+          ownerId: importOwner?.id ?? auth.user.id,
+          competitionId,
+          participants: {
+            create: candidate.participants.map((participant) => ({
+              firstName: participant.firstName,
+              lastName: participant.lastName,
+              birthYear: participant.birthYear,
+              gender: participant.gender,
+              disciplineCode: participant.disciplineCode,
+              participantPublicationPreference: "NAME_VERBERGEN",
+              consentGiven: false,
+            })),
+          },
+        },
+        select: { id: true, name: true, startNumber: true },
+      });
+
+      createdTeamAuditEvents.push({
+        action: "TEAM_CREATED_FROM_START_NUMBER_IMPORT",
+        scopeType: "TEAM",
+        scopeId: createdTeam.id,
+        entityType: "TEAM",
+        entityId: createdTeam.id,
+        reason: "csv_import_create_missing_team",
+        beforeData: { existed: false },
+        afterData: {
+          name: createdTeam.name,
+          startNumber: createdTeam.startNumber,
+          approved: true,
+          participantCount: candidate.participants.length,
+          ownerEmail: importOwner?.email || importOwnerEmail,
+        },
+        meta: {
+          source: "admin_start_numbers_import",
+          competitionId,
+          row: candidate.row,
+        },
+        tenantId: auth.tenantId,
+        competitionId,
+        actorId: actorId ?? auth.user.id,
+      });
+    }
+
+    if (changed.length > 0) {
+      await tx.auditEvent.createMany({
+        data: changed.map((entry) => ({
           action: "TEAM_START_NUMBER_IMPORTED",
           scopeType: "TEAM",
           scopeId: entry.team.id,
@@ -608,10 +926,14 @@ export async function POST(request: NextRequest) {
           tenantId: auth.tenantId,
           competitionId,
           actorId: actorId ?? auth.user.id,
-        },
+        })),
       });
     }
-  });
+
+    if (createdTeamAuditEvents.length > 0) {
+      await tx.auditEvent.createMany({ data: createdTeamAuditEvents });
+    }
+  }, { timeout: 30_000 });
 
   return NextResponse.json({
     ok: true,
@@ -619,6 +941,8 @@ export async function POST(request: NextRequest) {
     parsedRows: parsed.rows.length,
     assignments: mergedTeamAssignments.size,
     changed: changed.length,
+    createMissingTeams,
+    createdTeams: createCandidates.length,
     warnings: legacyWarnings,
   });
 }

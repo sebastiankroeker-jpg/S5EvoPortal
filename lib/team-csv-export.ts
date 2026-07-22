@@ -50,8 +50,18 @@ function escapeCsvValue(value: string | number | null | undefined) {
 }
 
 function escapeLegacyCsvValue(value: string | number | null | undefined) {
-  const normalized = value == null ? "" : String(value);
+  const normalized = sanitizeLegacyAnsiText(value == null ? "" : String(value));
   return /[;"\r\n]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
+}
+
+function sanitizeLegacyAnsiText(value: string) {
+  return [...value.replace(/'/g, "´")]
+    .filter((char) => {
+      const codePoint = char.codePointAt(0) ?? 0;
+      return codePoint <= 0xff;
+    })
+    .join("")
+    .trim();
 }
 
 function normalizeRecipientList(value?: string | null): string[] {
@@ -480,6 +490,7 @@ export function buildCompetitionTeamsLayoutCsvAttachment(
 }
 
 export const LEGACY_STAMMDATEN_HEADERS = [
+  "team_id",
   "Startnummer",
   "Mannschaftsname",
   "Klasse",
@@ -542,6 +553,7 @@ export function buildCompetitionTeamsLegacyStammdatenCsv(
 
   const rows = teams.map((team) => {
     const row: Array<string | number | null | undefined> = [
+      team.id,
       options.startNumberByTeamId?.get(team.id) ?? "",
       team.name,
       formatLegacyClassification(team.classificationCode),
@@ -556,9 +568,9 @@ export function buildCompetitionTeamsLegacyStammdatenCsv(
   });
 
   return [
-    "",
-    "",
-    "",
+    "Legacy-Stammdaten Export fuer Microsoft Access",
+    "Zweck: Startnummern und Mannschaftsdaten fuer Legacy-Import und Portal-Abgleich",
+    "Codierung: ANSI Windows-1252; Daten beginnen in Zeile 5",
     LEGACY_STAMMDATEN_HEADERS.map((value) => escapeLegacyCsvValue(value)).join(";"),
     ...rows.map((row) => row.map((value) => escapeLegacyCsvValue(value)).join(";")),
   ].join("\n");
@@ -581,7 +593,7 @@ export function buildCompetitionTeamsLegacyStammdatenCsvAttachment(
 
   return {
     filename,
-    content: Buffer.from("\uFEFF" + csv, "utf8").toString("base64"),
-    contentType: "text/csv; charset=utf-8",
+    content: Buffer.from(csv, "latin1").toString("base64"),
+    contentType: "text/csv; charset=windows-1252",
   };
 }

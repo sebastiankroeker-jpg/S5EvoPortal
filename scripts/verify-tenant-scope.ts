@@ -31,10 +31,15 @@ const competitionScopedRoutes = [
   "app/api/admin/participant-audit/route.ts",
   "app/api/admin/participants/route.ts",
   "app/api/admin/result-staging/batches/route.ts",
+  "app/api/admin/result-staging/batches/[batchId]/route.ts",
+  "app/api/admin/result-staging/batches/[batchId]/corrections/route.ts",
+  "app/api/admin/result-staging/legacy-results/import/route.ts",
+  "app/api/admin/result-staging/legacy-running/import/route.ts",
   "app/api/admin/result-staging/reset/preview/route.ts",
   "app/api/admin/result-staging/reset/route.ts",
   "app/api/admin/result-staging/timekeeping/sessions/route.ts",
   "app/api/admin/start-numbers/import/route.ts",
+  "app/api/admin/start-numbers/reset/route.ts",
   "app/api/admin/team-access-audit/route.ts",
 ] as const;
 

@@ -1787,6 +1787,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   const [layoutManagerOpen, setLayoutManagerOpen] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [importingLegacyCsv, setImportingLegacyCsv] = useState(false);
+  const [resettingStartNumbers, setResettingStartNumbers] = useState(false);
   const legacyImportInputRef = useRef<HTMLInputElement | null>(null);
   const [sortField, setSortField] = useState<TeamSortField>(DEFAULT_TEAM_SORT_FIELD);
   const [sortDirection, setSortDirection] = useState<SortDirection>(DEFAULT_TEAM_SORT_DIRECTION);
@@ -2285,6 +2286,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         csv,
         delimiter: ";",
         dryRun,
+        createMissingTeams: true,
       }),
     });
     const data = await response.json().catch(() => null);
@@ -2294,6 +2296,8 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     return data as {
       changed?: number;
       assignments?: number;
+      createCandidates?: number;
+      createdTeams?: number;
       parsedRows?: number;
       warnings?: Array<{
         row?: number;
@@ -2310,6 +2314,11 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       missing_start_number: "Startnummer fehlt",
       unmatched_team: "Mannschaft nicht gefunden",
       ambiguous_team: "Mannschaft mehrdeutig",
+      missing_participant_data: "Teilnehmerdaten unvollständig",
+      invalid_birth_year: "Geburtsjahr unplausibel",
+      invalid_gender: "Geschlecht unplausibel",
+      duplicate_start_number: "Startnummer doppelt",
+      existing_team_name: "Mannschaft existiert bereits",
     };
     const row = warning.row ? `Zeile ${warning.row}` : "Zeile ?";
     const team = warning.teamName ? `: ${warning.teamName}` : "";
@@ -2338,9 +2347,10 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       const preview = await postLegacyStartNumberImport(csv, true);
       const changed = preview.changed ?? 0;
       const assignments = preview.assignments ?? 0;
+      const createCandidates = preview.createCandidates ?? 0;
       const warnings = preview.warnings?.length ?? 0;
 
-      if (assignments === 0 || changed === 0) {
+      if (changed === 0 && createCandidates === 0) {
         notifications.info(
           "Legacy-Import geprüft",
           warnings > 0
@@ -2354,7 +2364,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       }
 
       const confirmed = window.confirm(
-        `Legacy-Import übernehmen?\n\nZuordnungen: ${assignments}\nÄnderungen: ${changed}\nWarnungen: ${warnings}${formatLegacyImportWarnings(preview.warnings)}\n\nEs werden nur Startnummern geschrieben.`,
+        `Legacy-Import übernehmen?\n\nZuordnungen: ${assignments}\nStartnummern-Änderungen: ${changed}\nNeue Mannschaften: ${createCandidates}\nWarnungen: ${warnings}${formatLegacyImportWarnings(preview.warnings)}\n\nNeue Mannschaften werden ohne Login, Claim-Link oder Mail angelegt und Sebastian als Owner/Kontakt zugeordnet.`,
       );
       if (!confirmed) {
         notifications.info("Legacy-Import abgebrochen", "Es wurden keine Startnummern geändert.");
@@ -2365,7 +2375,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       await fetchTeams("refresh");
       notifications.success(
         "Startnummern importiert",
-        `${result.changed ?? changed} Mannschaften wurden aktualisiert.${warnings > 0 ? ` ${warnings} Warnungen bleiben zur Prüfung.` : ""}`,
+        `${result.changed ?? changed} Mannschaften wurden aktualisiert. ${result.createdTeams ?? createCandidates} Mannschaften wurden angelegt.${warnings > 0 ? ` ${warnings} Warnungen bleiben zur Prüfung.` : ""}`,
       );
     } catch (error) {
       console.error("Failed to import legacy start numbers:", error);
@@ -2378,6 +2388,65 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       if (legacyImportInputRef.current) {
         legacyImportInputRef.current.value = "";
       }
+    }
+  };
+
+  const handleStartNumberReset = async () => {
+    if (!activeCompetition?.id || resettingStartNumbers) return;
+
+    setResettingStartNumbers(true);
+    try {
+      const previewResponse = await fetch("/api/admin/start-numbers/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          dryRun: true,
+        }),
+      });
+      const preview = await previewResponse.json().catch(() => null);
+      if (!previewResponse.ok) {
+        throw new Error(preview?.error || "Startnummern-Reset konnte nicht geprüft werden.");
+      }
+
+      const count = Number(preview?.count ?? 0);
+      if (count === 0) {
+        notifications.info("Keine Startnummern vorhanden", "Im aktiven Wettkampf gibt es keine Startnummern zum Löschen.");
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Startnummern löschen?\n\nWettkampf: ${preview?.competition?.name || activeCompetition.name}\nBetroffene Mannschaften: ${count}\n\nBestätigung:\n${preview?.expectedConfirmationText}\n\nDie Mannschaften bleiben erhalten, nur Team-Startnummern werden geleert.`,
+      );
+      if (!confirmed) {
+        notifications.info("Reset abgebrochen", "Es wurden keine Startnummern gelöscht.");
+        return;
+      }
+
+      const resetResponse = await fetch("/api/admin/start-numbers/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          dryRun: false,
+          confirmationText: preview?.expectedConfirmationText,
+        }),
+      });
+      const result = await resetResponse.json().catch(() => null);
+      if (!resetResponse.ok) {
+        throw new Error(result?.error || "Startnummern-Reset fehlgeschlagen.");
+      }
+
+      await fetchTeams("refresh");
+      notifications.success("Startnummern gelöscht", `${result?.deleted ?? count} Mannschaften wurden für den aktiven Wettkampf geleert.`);
+    } catch (error) {
+      console.error("Failed to reset start numbers:", error);
+      notifications.error(
+        "Startnummern-Reset fehlgeschlagen",
+        error instanceof Error ? error.message : "Bitte später erneut versuchen.",
+      );
+    } finally {
+      setResettingStartNumbers(false);
     }
   };
 
@@ -2965,6 +3034,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       </Badge>
     );
   };
+
+  const renderStartNumberBadge = (team: Team) => (
+    team.startNumber ? (
+      <Badge variant="outline" className="h-6 shrink-0 px-1.5 font-mono text-[10px] tabular-nums">
+        #{team.startNumber}
+      </Badge>
+    ) : null
+  );
 
   if (loading) {
     return (
@@ -3572,11 +3649,23 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                     className="h-7 w-full lg:size-6"
                     variant="outline"
                     onClick={() => legacyImportInputRef.current?.click()}
-                    disabled={importingLegacyCsv || !activeCompetition?.id}
+                    disabled={importingLegacyCsv || resettingStartNumbers || !activeCompetition?.id}
                     title="Startnummern aus Legacy-Stammdaten-CSV importieren"
                     aria-label="Legacy-Stammdaten importieren"
                   >
                     <Upload className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    className="h-7 w-full lg:size-6"
+                    variant="outline"
+                    onClick={() => void handleStartNumberReset()}
+                    disabled={resettingStartNumbers || importingLegacyCsv || !activeCompetition?.id}
+                    title="Startnummern im aktiven Wettkampf löschen"
+                    aria-label="Startnummern löschen"
+                  >
+                    <Trash2 className="size-3.5" />
                   </Button>
                 </>
               )}
@@ -4400,6 +4489,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                               <div className="flex min-w-0 max-w-full flex-1 basis-40 items-center gap-1.5">
                                 {renderCategoryIconBadge(team)}
+                                {renderStartNumberBadge(team)}
                                 <h3 className="min-w-0 truncate text-sm font-medium" title={team.name}>{team.name}</h3>
                                 <TeamVisibilityIconBadge
                                   team={team}
@@ -4644,6 +4734,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                               <div className="flex min-w-0 max-w-full flex-1 basis-48 items-center gap-1.5">
                                 {!usesMarketplaceSlotContainer && renderCategoryIconBadge(team)}
+                                {!usesMarketplaceSlotContainer && renderStartNumberBadge(team)}
                                 <h3 className="min-w-0 truncate text-base font-semibold" title={team.name}>{team.name}</h3>
                                 <TeamVisibilityIconBadge
                                   team={team}
