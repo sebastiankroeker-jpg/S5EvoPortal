@@ -13,7 +13,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
-import { Check, EllipsisVertical, FlaskConical, LogOut, MessageCircle, Search, Sparkles, UserCircle2 } from "lucide-react";
+import { Check, EllipsisVertical, FlaskConical, LogOut, Map, MessageCircle, Search, Sparkles, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
 
@@ -47,6 +47,7 @@ export default function NavBar() {
   const realRole = roles.length > 0 ? roles[0] : "ZUSCHAUER";
   const simulatable = getSimulatableRoles(realRole as Role);
   const showChangelogLink = activeRole === "ADMIN";
+  const showMapLink = activeRole === "ADMIN";
   const [isCollapsed, setIsCollapsed] = useState(false);
   const showDesktopOffset = status === "authenticated";
 
@@ -210,6 +211,21 @@ export default function NavBar() {
 
       {/* Right: Search + Role-Switcher + User + Abmelden */}
       <div className="flex items-center gap-1.5 min-w-0">
+        {showMapLink && (
+          <Link
+            href="/karte"
+            className={`inline-flex h-8 min-w-[38px] items-center justify-center rounded-full border px-2 text-xs font-semibold transition-colors md:w-auto md:gap-2 md:px-3 ${
+              pathname === "/karte"
+                ? "border-primary/70 bg-primary/10 text-primary"
+                : "border-border/60 bg-background/95 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+            }`}
+            title="Event-Karte öffnen"
+            aria-label="Event-Karte öffnen"
+          >
+            <Map className="h-4 w-4" />
+            <span className="hidden md:inline">Karte</span>
+          </Link>
+        )}
         {/* Search */}
         <button
           onClick={() => setSearchOpen(true)}

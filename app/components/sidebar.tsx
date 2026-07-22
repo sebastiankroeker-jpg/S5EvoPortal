@@ -230,6 +230,9 @@ export default function Sidebar() {
         <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} isCollapsed={isCollapsed} />
         <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} isCollapsed={isCollapsed} />
         <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} isCollapsed={isCollapsed} />
+        {can("config.edit") && (
+          <SidebarItem icon="🗺️" label="Karte" onClick={() => router.push("/karte")} isActive={pathname === "/karte"} isCollapsed={isCollapsed} />
+        )}
         {showTimekeepingSection && (
           <SidebarItem icon="⏱️" label="Zeitnahme" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} isCollapsed={isCollapsed} />
         )}

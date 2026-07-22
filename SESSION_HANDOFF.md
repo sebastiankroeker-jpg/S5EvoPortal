@@ -1,8 +1,59 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 10:19 UTC
+Stand: 2026-07-22 17:56 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- In Arbeit 2026-07-22 17:56 UTC:
+  - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
+  - Sebastian hat Option 1 freigegeben: MapLibre GL JS + MapTiler Cloud,
+    self-hosting-faehiger Pfad spaeter ueber MapLibre-kompatible Tiles/PMTiles.
+  - Sebastian hat am 2026-07-22 17:49 UTC entschieden:
+    Event-Map erstmal nur fuer Admins. MapTiler-Key wurde von Sebastian auf
+    Origin `portal.s5evo.de` eingeschraenkt bereitgestellt.
+  - Lokal umgesetzt:
+    - `maplibre-gl` installiert.
+    - Neue admin-gated Route `/karte`.
+    - Neue Admin-Gate-Komponente `app/components/admin-event-map-page.tsx`
+      nach bestehendem `can("config.edit")`-Pattern.
+    - Neue Client-Komponente `app/components/event-map.tsx`.
+    - Static Sponsor Seed in `lib/event-map/sponsor-pois.ts` mit
+      `verified`/`needs_review` Confidence.
+    - MapTiler-Style via `NEXT_PUBLIC_MAPTILER_KEY`; ohne Key nutzt die lokale
+      Seite einen MapLibre Demo-Style und zeigt einen Hinweis.
+    - Sponsor-Layer, Marker, Sponsor-Liste, Detail-Popup, Route-/Website-Links,
+      Layer-Platzhalter fuer Infrastruktur/Strecken und dezente
+      Card-zu-Marker-Verbindungslinie.
+    - Top-Nav-Link `Karte` und authenticated Sidebar-Eintrag nur fuer Admins
+      ergaenzt.
+    - `NEXT_PUBLIC_MAPTILER_KEY` lokal in `.env.local` gesetzt.
+    - `NEXT_PUBLIC_MAPTILER_KEY` in Vercel Production env gesetzt; `vercel env
+      ls` zeigt den Wert als `Encrypted`. Kein Deploy ausgefuehrt.
+  - Geaenderte Dateien:
+    `package.json`, `package-lock.json`, `app/karte/page.tsx`,
+    `app/components/admin-event-map-page.tsx`,
+    `app/components/event-map.tsx`, `app/components/nav-bar.tsx`,
+    `app/components/sidebar.tsx`, `app/globals.css`, `.env.local`,
+    `lib/event-map/sponsor-pois.ts`,
+    `docs/cr/2026-07-22-interaktive-event-map.md`,
+    `SESSION_HANDOFF.md`.
+  - Checks gruen:
+    `npx eslint app/components/admin-event-map-page.tsx app/components/event-map.tsx app/karte/page.tsx app/components/nav-bar.tsx app/components/sidebar.tsx lib/event-map/sponsor-pois.ts`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Lokaler Smoke:
+    Dev-Server `http://127.0.0.1:3114`; `HEAD /karte` -> 200.
+  - Offen:
+    - Browser/Visual-Smoke mit echtem Key.
+    - Sponsor-Liste/Adressen kurz plausibilisieren, insbesondere
+      `needs_review`-Eintraege.
+    - Vor Production Deploy explizites Go einholen; dann Vercel Deploy und
+      `npm run smoke:public`.
+  - Git-Hinweis:
+    Lokale `.git/info/exclude` ignoriert neue Dateien unter `app/`, `lib/` und
+    `docs/`; beim Commit muessen neue Event-Map-Dateien gezielt mit
+    `git add -f` aufgenommen werden. Unrelated untracked Workspace-Dateien
+    `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md` nicht anfassen.
 
 - Production Release 2026-07-22 10:18 UTC:
   - CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`.
