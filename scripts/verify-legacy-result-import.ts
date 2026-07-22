@@ -74,6 +74,9 @@ for (const fixture of foundFixtures) {
   assert.equal(parsed.summary.rawRows, fixture.rawRows, fixture.name);
   assert.equal(parsed.summary.drafts, fixture.drafts, fixture.name);
   assert.equal(parsed.headers.length, 29, fixture.name);
+  if (fixture.disciplineCode === "BENCH") {
+    assert.equal(parsed.summary.errors, 0, "Bank DNF rows should not be parser errors");
+  }
 }
 
 const route = readFileSync(join(root, "app/api/admin/result-staging/legacy-results/import/route.ts"), "utf8");

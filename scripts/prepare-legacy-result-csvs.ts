@@ -211,6 +211,128 @@ function correctTimeScoring(rows: string[][], headerIndex: number, file: string)
   return { correctedRows };
 }
 
+function parseLegacyDecimal(value: string | undefined) {
+  const trimmed = value?.trim().replace(",", ".") ?? "";
+  if (!trimmed || !/^-?\d+(\.\d+)?$/.test(trimmed)) return null;
+  return Number.parseFloat(trimmed);
+}
+
+function benchGroupKey(row: string[], startIndex: number, participantIndex: number, classIndex: number) {
+  return [
+    row[startIndex]?.trim() || "missing-start",
+    row[participantIndex]?.trim() || "missing-participant",
+    row[classIndex]?.trim() || "missing-class",
+  ].join(":");
+}
+
+function correctBenchScoring(rows: string[][], headerIndex: number, file: string) {
+  if (!file.includes("BANK")) return { correctedRows: 0 };
+
+  const headers = rows[headerIndex];
+  const startIndex = headers.indexOf("Au1Startnr");
+  const participantIndex = headers.indexOf("Au1TlID");
+  const classIndex = headers.indexOf("Au1Klasse");
+  const grossIndex = headers.indexOf("AuBruttoGewicht");
+  const netIndex = headers.indexOf("AuGewicht");
+  const attemptIndex = headers.indexOf("AuVersuchnr");
+  const classPointsIndex = headers.indexOf("AuPunkte");
+  const classRankIndex = headers.indexOf("AuPlatzKlasse");
+  const femalePointsIndex = headers.indexOf("AuPunkteDamenGes");
+  const malePointsIndex = headers.indexOf("AuPunkteHerrenGes");
+  const overallRankIndex = headers.indexOf("AuPlatzGesamt");
+  const omittedIndex = headers.indexOf("AuStreichergebnis");
+
+  const dataRows = rows.slice(headerIndex + 1).filter((row) => row.some((field) => field.trim()));
+  const groupedRows = new Map<string, string[][]>();
+  for (const row of dataRows) {
+    const key = benchGroupKey(row, startIndex, participantIndex, classIndex);
+    groupedRows.set(key, [...(groupedRows.get(key) ?? []), row]);
+  }
+
+  const drafts = [...groupedRows.values()].map((groupRows) => {
+    const attempts = groupRows
+      .map((row) => ({
+        row,
+        attemptNumber: Number.parseInt(row[attemptIndex] || "0", 10),
+        grossWeight: parseLegacyDecimal(row[grossIndex]),
+        netWeight: parseLegacyDecimal(row[netIndex]),
+      }))
+      .sort((left, right) => left.attemptNumber - right.attemptNumber);
+    const validAttempts = attempts.filter((attempt) => attempt.netWeight !== null && attempt.grossWeight !== null && attempt.netWeight > -999);
+    const bestAttempt = validAttempts.toSorted((left, right) => (right.netWeight ?? -Infinity) - (left.netWeight ?? -Infinity))[0] ?? null;
+    const dnfAttempt = attempts.find((attempt) => attempt.netWeight === -999 || attempt.grossWeight === -999) ?? null;
+    const scoringAttempt = bestAttempt ?? dnfAttempt ?? attempts[0] ?? null;
+    const legacyClass = groupRows[0]?.[classIndex]?.trim() ?? "";
+    return {
+      row: scoringAttempt?.row ?? groupRows[0],
+      groupRows,
+      startNumber: groupRows[0]?.[startIndex]?.trim() ?? "",
+      legacyClass,
+      rawValue: bestAttempt?.netWeight ?? (dnfAttempt ? -999 : null),
+    };
+  });
+
+  const draftsByClass = new Map<string, typeof drafts>();
+  const draftsByOverallGroup = new Map<string, typeof drafts>();
+  for (const draft of drafts) {
+    if (!draft.legacyClass) continue;
+    draftsByClass.set(draft.legacyClass, [...(draftsByClass.get(draft.legacyClass) ?? []), draft]);
+    const overallGroup = overallGroupByLegacyClass[draft.legacyClass] ?? null;
+    if (overallGroup) draftsByOverallGroup.set(overallGroup, [...(draftsByOverallGroup.get(overallGroup) ?? []), draft]);
+  }
+
+  let correctedRows = 0;
+  for (const [legacyClass, classDrafts] of draftsByClass) {
+    const entries: DisciplineEntry[] = classDrafts.map((draft) => ({
+      teamId: draft.startNumber,
+      teamName: "",
+      startNumber: draft.startNumber,
+      participantName: "",
+      rawValue: draft.rawValue,
+      classCode: legacyClass,
+    }));
+    const ranked = rankDiscipline(entries, "BENCH");
+    const scoringByStartNumber = new Map(ranked.map((entry) => [entry.teamId, entry]));
+    for (const draft of classDrafts) {
+      const scoring = scoringByStartNumber.get(draft.startNumber);
+      if (!scoring) continue;
+      for (const row of draft.groupRows) {
+        setCell(row, classPointsIndex, null);
+        setCell(row, classRankIndex, null);
+        setCell(row, femalePointsIndex, null);
+        setCell(row, malePointsIndex, null);
+        setCell(row, overallRankIndex, null);
+        setCell(row, omittedIndex, row === draft.row ? "Falsch" : "Wahr");
+      }
+      setCell(draft.row, classPointsIndex, scoring.points);
+      setCell(draft.row, classRankIndex, scoring.rank);
+      correctedRows += 1;
+    }
+  }
+
+  for (const [overallGroup, overallDrafts] of draftsByOverallGroup) {
+    const entries: DisciplineEntry[] = overallDrafts.map((draft) => ({
+      teamId: draft.startNumber,
+      teamName: "",
+      startNumber: draft.startNumber,
+      participantName: "",
+      rawValue: draft.rawValue,
+      classCode: overallGroup,
+    }));
+    const ranked = rankDiscipline(entries, "BENCH");
+    const scoringByStartNumber = new Map(ranked.map((entry) => [entry.teamId, entry]));
+    for (const draft of overallDrafts) {
+      const scoring = scoringByStartNumber.get(draft.startNumber);
+      if (!scoring) continue;
+      setCell(draft.row, femalePointsIndex, overallGroup === "DAMEN" ? scoring.points : null);
+      setCell(draft.row, malePointsIndex, overallGroup === "HERREN" ? scoring.points : null);
+      setCell(draft.row, overallRankIndex, scoring.rank);
+    }
+  }
+
+  return { correctedRows };
+}
+
 async function main() {
   const competition = await prisma.competition.findFirst({
     orderBy: { year: "desc" },
@@ -272,7 +394,9 @@ async function main() {
       outputRows.push(next);
     }
 
-    const { correctedRows } = correctTimeScoring(outputRows, headerIndex, file);
+    const timeCorrection = correctTimeScoring(outputRows, headerIndex, file);
+    const benchCorrection = correctBenchScoring(outputRows, headerIndex, file);
+    const correctedRows = timeCorrection.correctedRows + benchCorrection.correctedRows;
     const outputName = basename(file, ".csv") + "--portal-startnummern.csv";
     const outputPath = join(outputDir, outputName);
     writeFileSync(outputPath, serializeCsvRows(outputRows), "latin1");

@@ -249,10 +249,15 @@ function buildBenchDraft(records: LegacyRawResultRecord[]): LegacyResultDraftPre
     .sort((left, right) => (left.attemptNumber ?? 0) - (right.attemptNumber ?? 0));
   const validAttempts = attempts.filter((attempt) => attempt.netWeight !== null && attempt.grossWeight !== null && attempt.netWeight > -999);
   const bestAttempt = validAttempts.toSorted((left, right) => (right.netWeight ?? -Infinity) - (left.netWeight ?? -Infinity))[0] ?? null;
+  const dnfAttempt = attempts.find((attempt) => attempt.netWeight === -999 || attempt.grossWeight === -999) ?? null;
+  const scoringAttempt = bestAttempt
+    ?? attempts.find((attempt) => nullableInteger(attempt.raw.AuPunkte) !== null || nullableInteger(attempt.raw.AuPlatzKlasse) !== null)
+    ?? dnfAttempt
+    ?? null;
   const validationMessages = records.flatMap((record) => record.validationMessages);
-  if (!bestAttempt) validationMessages.push({ code: "missing_valid_bench_attempt", severity: "error" });
+  if (!bestAttempt && !dnfAttempt) validationMessages.push({ code: "missing_valid_bench_attempt", severity: "error" });
 
-  const scoringRaw = bestAttempt?.raw ?? first.raw;
+  const scoringRaw = scoringAttempt?.raw ?? first.raw;
   const rawValueText = bestAttempt
     ? `${String(bestAttempt.grossWeight).replace(".", ",")} kg / ${String(bestAttempt.netWeight).replace(".", ",")} netto`
     : null;
@@ -264,15 +269,16 @@ function buildBenchDraft(records: LegacyRawResultRecord[]): LegacyResultDraftPre
     legacyParticipantId: first.legacyParticipantId,
     legacyClassId: first.legacyClassId,
     disciplineCode: "BENCH",
-    rawValue: bestAttempt?.netWeight ?? null,
+    rawValue: bestAttempt?.netWeight ?? (dnfAttempt ? -999 : null),
     rawValueText,
-    resultStatus: bestAttempt ? "valid" : "missing_attempt",
+    resultStatus: bestAttempt ? "valid" : dnfAttempt ? "dnf" : "missing_attempt",
     ...pointsAndRanks(scoringRaw),
     details: {
       attempts,
       bestAttemptNumber: bestAttempt?.attemptNumber ?? null,
       bestGrossWeight: bestAttempt?.grossWeight ?? null,
       bestNetWeight: bestAttempt?.netWeight ?? null,
+      dnfAttemptNumber: dnfAttempt?.attemptNumber ?? null,
     },
     validationMessages,
   };
