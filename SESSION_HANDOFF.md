@@ -4,6 +4,33 @@ Stand: 2026-07-22 04:45 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Pending local CR after the 04:41 UTC production release:
+  - CR: `docs/cr/2026-07-22-live-results-tabs.md`
+  - Aenderung: `Live` ist als Wettkampftags-Cockpit geordnet:
+    `Teams | Startlisten | Ergebnisse`.
+  - `Ergebnisse` enthaelt zwei Subtabs: `Gesamtergebnisse` und
+    `Einzelergebnisse`.
+  - In beiden Ergebnis-Subtabs gibt es Klassen-Buttons fuer `Damen Gesamt` und
+    `Herren Gesamt`; bestehende lokale Favoriten werden pro Gesamtklasse als
+    Count am Button gekennzeichnet.
+  - Teams und Startlisten sind wiederhergestellt. Der separate Watchlist-
+    Haupttab ist entfernt; Favoriten bleiben als Stern und `Nur Favoriten`-
+    Filter in Teams/Startlisten sowie als Stern/Count in Ergebnissen.
+  - Sportlerboerse-/Marketplace-Teams werden aus Teams/Startlisten in `Live`
+    clientseitig herausgefiltert (`registrationMode=MARKETPLACE` oder
+    `category=sportlerboerse`).
+  - Keine API-/DB-/Serializer-/Service-Worker-/Mail-/Export-/Log-Aenderung.
+    Kombinierte Gesamtklassen werden clientseitig aus `/api/results` abgeleitet:
+    `damen-a` + `damen-b`; `jungsters` + `herren` + `masters`.
+  - Checks gruen: `npx eslint app/components/live-screen.tsx
+    app/components/results-view.tsx`, `npx tsc --noEmit --incremental false`,
+    `git diff --check`, `npm run build`.
+  - Lokale Runtime-Probe: Dev-Server `http://localhost:3108`; `HEAD /` 200;
+    `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200; Quellklassen
+    fuer `Damen Gesamt` = 2, `Herren Gesamt` = 3.
+  - Noch nicht gepusht/deployed. Production-Deploy bleibt Go-pflichtig, weil
+    `main` Vercel Production triggert.
+
 - Production Release 2026-07-22 04:41 UTC:
   - Commit `97f90f6 Hide changelog link from non-admin header`
   - Aenderung: Header-Badge `Projektstand` / `APP_VERSION` / Link
