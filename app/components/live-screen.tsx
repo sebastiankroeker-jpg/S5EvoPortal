@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DISCIPLINES } from "@/lib/domain/team";
-import { compareClassificationCodes } from "@/lib/domain/classification";
+import { CLASSIFICATIONS, compareClassificationCodes } from "@/lib/domain/classification";
 import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
 import { SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { DisciplineBrandIcon } from "./discipline-brand";
@@ -61,17 +61,6 @@ const categoryEmojis: Record<string, string> = {
   "masters": "HC",
 };
 
-const categoryLabels: Record<string, string> = {
-  "schueler-a": "Schüler A",
-  "schueler-b": "Schüler B",
-  jugend: "Jugend",
-  jungsters: "Jungsters",
-  herren: "Herren",
-  masters: "Masters",
-  "damen-a": "Damen A",
-  "damen-b": "Damen B",
-};
-
 const getDisciplineDisplay = (disciplineCode?: string) => {
   if (!disciplineCode || disciplineCode === "TBD") {
     return { id: "TBD", label: "Noch offen" };
@@ -79,6 +68,10 @@ const getDisciplineDisplay = (disciplineCode?: string) => {
   const discipline = DISCIPLINES.find(d => d.id === disciplineCode);
   return discipline ? { id: discipline.id, label: discipline.label } : { id: disciplineCode, label: disciplineCode };
 };
+
+function getCategoryLabel(category: string) {
+  return CLASSIFICATIONS[category]?.label ?? category;
+}
 
 function formatStartNumber(startNumber?: string | null, showHash = true) {
   return startNumber ? `${showHash ? "#" : ""}${startNumber}` : "";
@@ -154,6 +147,17 @@ function compareByStartNumber<T extends { startNumber?: string | null; teamName?
   const startDiff = startNumberSortValue(left.startNumber) - startNumberSortValue(right.startNumber);
   if (startDiff !== 0) return startDiff;
   return (left.teamName || left.name || "").localeCompare(right.teamName || right.name || "", "de");
+}
+
+function getTeamDisciplineSlots(team: Team) {
+  const remainingParticipants = [...(team.participants ?? [])];
+
+  return DISCIPLINES.map((discipline) => {
+    const participantIndex = remainingParticipants.findIndex((participant) => participant.discipline === discipline.id);
+    const participant = participantIndex >= 0 ? remainingParticipants.splice(participantIndex, 1)[0] : null;
+
+    return { discipline, participant };
+  }).filter((slot): slot is { discipline: (typeof DISCIPLINES)[number]; participant: Participant } => Boolean(slot.participant));
 }
 
 export default function LiveScreen() {
@@ -346,7 +350,7 @@ export default function LiveScreen() {
                     aria-pressed={classFilters.includes(category)}
                   >
                     <span>{categoryEmojis[category] || "🏆"}</span>
-                    {categoryLabels[category] || category}
+                    {getCategoryLabel(category)}
                   </Button>
                 ))}
                 <Button
@@ -410,7 +414,7 @@ export default function LiveScreen() {
               >
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {categoryLabels[category] || category}
+                    {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                   </span>
                   <Badge variant="outline">
                     {categoryTeams.length} Team{categoryTeams.length !== 1 ? 's' : ''}
@@ -443,8 +447,8 @@ export default function LiveScreen() {
                                 type="button"
                                 variant={watchedTeamIdSet.has(team.id) ? "secondary" : "ghost"}
                                 size="sm"
-                                title={watchedTeamIdSet.has(team.id) ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}
-                                aria-label={watchedTeamIdSet.has(team.id) ? `${team.name} von Watchlist entfernen` : `${team.name} zur Watchlist hinzufügen`}
+                                title={watchedTeamIdSet.has(team.id) ? "Favorit" : "Favorit hinzufügen"}
+                                aria-label={watchedTeamIdSet.has(team.id) ? `${team.name} ist Favorit` : `${team.name} als Favorit hinzufügen`}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   toggleWatchedTeam(team.id);
@@ -452,7 +456,7 @@ export default function LiveScreen() {
                               >
                                 <Star className={watchedTeamIdSet.has(team.id) ? "fill-current" : ""} />
                                 <span className="hidden sm:inline">
-                                  {watchedTeamIdSet.has(team.id) ? "Gemerkt" : "Merken"}
+                                  {watchedTeamIdSet.has(team.id) ? "Favorit" : "Favorit hinzufügen"}
                                 </span>
                               </Button>
                             </div>
@@ -460,10 +464,10 @@ export default function LiveScreen() {
 
                           {team.participants && team.participants.length > 0 && (
                             <div className="space-y-1">
-                              {team.participants.map((p, i) => {
-                                const disc = getDisciplineDisplay(p.discipline);
+                              {getTeamDisciplineSlots(team).map(({ discipline, participant: p }, i) => {
+                                const disc = getDisciplineDisplay(discipline.id);
                                 return (
-                                  <div key={i} className="text-sm text-muted-foreground flex items-center justify-between">
+                                  <div key={`${discipline.id}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-sm text-muted-foreground">
                                     <span className="inline-flex min-w-0 items-center gap-1.5">
                                       <span className="truncate">{p.firstName} {p.lastName}</span>
                                       <ParticipantPublicationPreferenceIcon
@@ -471,8 +475,9 @@ export default function LiveScreen() {
                                         teamPublicationLevel={team.teamPublicationLevel}
                                       />
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                      <DisciplineBrandIcon code={disc.id} label={disc.label} className="size-5 rounded" />
+                                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                                      <DisciplineBrandIcon code={disc.id} label={disc.label} className="size-6 rounded" />
+                                      <span className="hidden text-xs sm:inline">{disc.label}</span>
                                       <span>{p.gender === "M" ? "♂" : "♀"}</span>
                                     </span>
                                   </div>
@@ -618,7 +623,7 @@ export default function LiveScreen() {
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
                               <span className="flex items-center gap-2">
-                                {isClassExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {categoryLabels[category] || category}
+                                {isClassExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                               </span>
                               <Badge variant="outline" className="text-xs">
                                 {participants.length} Starter:innen

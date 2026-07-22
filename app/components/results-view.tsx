@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCompetition } from "@/lib/competition-context";
-import { CLASSIFICATION_DISPLAY_ORDER, compareClassificationCodes } from "@/lib/domain/classification";
+import { CLASSIFICATIONS, CLASSIFICATION_DISPLAY_ORDER, compareClassificationCodes } from "@/lib/domain/classification";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { usePermissions } from "@/lib/permissions-context";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
@@ -126,7 +126,7 @@ function normalizeSearchValue(value: string) {
 }
 
 function resultClassLabel(result: ClassResult) {
-  return result.className || result.classCode;
+  return CLASSIFICATIONS[result.classCode]?.label ?? result.className ?? result.classCode;
 }
 
 function compareResultClassCodes(left: string, right: string) {
@@ -140,6 +140,10 @@ function compareResultClassCodes(left: string, right: string) {
 
 function getDisciplineLabel(disciplineCode: DisciplineCode) {
   return DISCIPLINES.find((discipline) => discipline.id === disciplineCode)?.label ?? DISC_LABELS[disciplineCode];
+}
+
+function getOverallDisciplineHeader(disciplineCode: DisciplineCode) {
+  return disciplineCode === "BENCH" ? "Bank" : getDisciplineLabel(disciplineCode);
 }
 
 function entryMatchesSearch(entry: Pick<RankedEntry, "teamName" | "participantName" | "startNumber">, query: string) {
@@ -567,7 +571,7 @@ function OverallResultsTables({
           <Card>
             <CardHeader className="py-3">
               <CardTitle className="flex items-center gap-2 text-base">
-                {classResult.className}
+                {resultClassLabel(classResult)}
                 <Badge variant="secondary" className="text-xs">
                   {classResult.teamScores.length} Teams
                 </Badge>
@@ -575,18 +579,18 @@ function OverallResultsTables({
             </CardHeader>
             <CardContent className="pt-0">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-sm">
+                <table className="w-full min-w-[680px] table-fixed text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground">
-                      <th className="w-16 py-2 pr-2 text-left align-bottom">Platz</th>
-                      <th className="w-20 px-2 py-2 text-left align-bottom">STRNR</th>
-                      <th className="py-2 text-left align-bottom">Team</th>
+                      <th className="w-14 py-2 pr-2 text-left align-bottom">Platz</th>
+                      <th className="w-16 px-1 py-2 text-left align-bottom">STRNR</th>
+                      <th className="py-2 pr-3 text-left align-bottom">Team</th>
                       {DISCIPLINE_CODES.map((discipline) => (
-                        <th key={discipline} className="min-w-[48px] px-1 py-2 text-center align-bottom">
-                          <VerticalHeader>{DISC_LABELS[discipline].replace(/^\S+\s+/, "")}</VerticalHeader>
+                        <th key={discipline} className="w-10 px-0.5 py-2 text-center align-bottom">
+                          <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
                         </th>
                       ))}
-                      <th className="w-16 py-2 pl-2 text-right align-bottom font-bold">
+                      <th className="w-12 py-2 pl-1 text-right align-bottom font-bold">
                         <VerticalHeader>Gesamt</VerticalHeader>
                       </th>
                     </tr>
@@ -605,21 +609,21 @@ function OverallResultsTables({
                       return (
                         <tr key={team.teamId} className="border-b border-border/30 transition-colors hover:bg-muted/30">
                           <td className="py-2 pr-2 font-semibold tabular-nums">{team.rank}</td>
-                          <td className="px-2 py-2">
+                          <td className="px-1 py-2">
                             <StartNumberCell startNumber={team.startNumber} showHash={false} />
                           </td>
-                          <td className="max-w-[180px] truncate py-2 font-medium">
-                            <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <td className="py-2 pr-3 font-medium leading-snug">
+                            <span className="inline-flex min-w-0 items-start gap-1.5">
                               {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
-                              <span className="truncate">{team.teamName}</span>
+                              <span className="min-w-0 whitespace-normal break-words">{team.teamName}</span>
                             </span>
                           </td>
                           {DISCIPLINE_CODES.map((discipline) => (
-                            <td key={discipline} className="px-1 py-2 text-center text-muted-foreground tabular-nums">
+                            <td key={discipline} className="px-0.5 py-2 text-center text-xs text-muted-foreground tabular-nums">
                               {team.disciplinePoints[discipline] || "-"}
                             </td>
                           ))}
-                          <td className="py-2 pl-2 text-right font-bold tabular-nums">{team.totalPoints}</td>
+                          <td className="py-2 pl-1 text-right font-bold tabular-nums">{team.totalPoints}</td>
                         </tr>
                       );
                     })}
@@ -663,7 +667,7 @@ function DisciplineResultsTables({
               <CardHeader className="py-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
-                  {disciplineLabel} - {classResult.className}
+                  {disciplineLabel} - {resultClassLabel(classResult)}
                   <Badge variant="secondary" className="text-xs">
                     {entries.length} Starter:innen
                   </Badge>
