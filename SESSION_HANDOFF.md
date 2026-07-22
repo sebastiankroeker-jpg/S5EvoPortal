@@ -29,8 +29,25 @@ Stand: 2026-07-22 21:47 UTC
     `npx eslint app/components/event-map.tsx`,
     `npx tsc --noEmit --incremental false`, `npm run build`,
     `git diff --check`.
-  - Deploy/status:
-    - Local fix ready; commit/deploy pending at handoff update time.
+  - Commit/Push:
+    - Code/docs commit: `7275234 Fix event map worker initialization`
+    - Pushed `06d0efb..7275234`.
+    - Note: this push also included the earlier local docs-only commit
+      `5466334 docs: record event map layer hotfix release [skip ci]`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_87w3iLvAiNxiRjY6VWnrpw1E7osx`
+    - Vercel-URL:
+      `https://s5-evo-portal-ovy2ofvgs-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-22 21:53 UTC
+  - Post-Deploy-Smoke gruen:
+    `HEAD https://portal.s5evo.de/` 200,
+    `HEAD https://portal.s5evo.de/karte` 200, `npm run smoke:public`,
+    MapTiler style fetch with `Referer: https://portal.s5evo.de/karte` -> 200
+    `style ok`, same-origin MapLibre worker asset -> 200 JavaScript.
+  - Weiter offen nach Deploy:
+    authenticated iPhone visual smoke durch Sebastian.
 
 - Sponsor Layer Tree / Mobile Touch Hotfix 2026-07-22 21:18 UTC:
   - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.

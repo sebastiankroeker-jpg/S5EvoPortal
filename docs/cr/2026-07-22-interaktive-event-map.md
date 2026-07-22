@@ -496,6 +496,21 @@ Existing context:
   - `npx tsc --noEmit --incremental false` -> pass
   - `npm run build` -> pass
   - `git diff --check` -> pass
+- Deployment:
+  - Commit: `7275234 Fix event map worker initialization`
+  - Pushed to `origin/main`: `06d0efb..7275234`
+  - Deployment ID: `dpl_87w3iLvAiNxiRjY6VWnrpw1E7osx`
+  - Deployment URL:
+    `https://s5-evo-portal-ovy2ofvgs-sebastiankroeker-2781s-projects.vercel.app`
+  - Production alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-22 21:53 UTC
+- Post-deploy smoke:
+  - `HEAD https://portal.s5evo.de/` -> 200
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass
+  - MapTiler style request with `Referer: https://portal.s5evo.de/karte`
+    -> 200 `style ok`
+  - Same-origin MapLibre worker asset -> 200 JavaScript
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
