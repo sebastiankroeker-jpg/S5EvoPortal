@@ -74,6 +74,7 @@ export default function EventMap() {
 
     let cancelled = false;
     let resizeObserver: ResizeObserver | null = null;
+    let loadTimeout: number | null = null;
     const markers = markersRef.current;
     setMapLoaded(false);
 
@@ -99,10 +100,21 @@ export default function EventMap() {
 
         mapRef.current = map;
         setMapError(null);
-        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-        map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right");
+        map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+
+        loadTimeout = window.setTimeout(() => {
+          if (!cancelled) {
+            setMapError("MapLibre hat auf diesem Geraet keinen Load-Event gemeldet. Bitte Safari/WebGL oder Content-Blocker pruefen.");
+          }
+        }, 8000);
 
         map.on("load", () => {
+          if (loadTimeout) {
+            window.clearTimeout(loadTimeout);
+            loadTimeout = null;
+          }
+
           map.jumpTo({
             center: BAD_BAYERSOIEN_CENTER,
             zoom: 14.2,
@@ -139,6 +151,7 @@ export default function EventMap() {
       cancelled = true;
       markers.forEach((marker) => marker.remove());
       markers.clear();
+      if (loadTimeout) window.clearTimeout(loadTimeout);
       resizeObserver?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
@@ -332,7 +345,7 @@ export default function EventMap() {
           <div ref={mapContainerRef} className="absolute inset-0 touch-none" />
 
           {!mapLoaded && !mapError && (
-            <div className="absolute left-3 top-3 z-10 rounded-md border border-border/70 bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm">
+            <div className="absolute left-3 top-16 z-10 rounded-md border border-border/70 bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm lg:top-3">
               Karte wird geladen...
             </div>
           )}
@@ -344,7 +357,7 @@ export default function EventMap() {
           )}
 
           {mapError && (
-            <div className="absolute inset-x-3 top-3 z-10 rounded-md border border-destructive/40 bg-background/95 px-3 py-2 text-sm text-destructive shadow-sm">
+            <div className="absolute inset-x-3 top-16 z-10 rounded-md border border-destructive/40 bg-background/95 px-3 py-2 text-sm text-destructive shadow-sm lg:top-3">
               {mapError}
             </div>
           )}

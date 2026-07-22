@@ -571,6 +571,36 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
+## Event Map Visible Diagnostics Hotfix
+
+- Tier / risk:
+  - Micro CR / low-risk client-map diagnostics visibility change.
+  - No DB migration, no API change, no participant/team/account data touched.
+- Trigger:
+  - Sebastian reported on 2026-07-22 22:07 UTC with another iPhone screenshot
+    that the map area remains fallback green. A dark clipped strip at the
+    top-left of the map suggested the loading overlay may be hidden behind the
+    sticky mobile navigation.
+- Change:
+  - Move MapLibre `NavigationControl` to `bottom-right`.
+  - Move attribution to `bottom-left`.
+  - Move the map loading/error overlays to `top-16` on mobile and keep `top-3`
+    on desktop.
+  - Add an 8-second timeout after MapLibre construction. If no MapLibre `load`
+    event arrives, show a visible error in the map area that points at
+    Safari/WebGL/content-blocker checks.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after deploy.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.

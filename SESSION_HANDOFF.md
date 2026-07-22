@@ -1,8 +1,28 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 22:04 UTC
+Stand: 2026-07-22 22:09 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Event Map Visible Diagnostics Hotfix 2026-07-22 22:09 UTC:
+  - Sebastian sent a third iPhone screenshot after deploy
+    `34d53c6`/`dpl_6t3cu4nQiuShkrgYpgYuguALfrbp`: the map area was still
+    fallback green. A dark clipped strip at the top-left suggested the new
+    loading overlay may have been hidden under the sticky mobile nav.
+  - Fix in `app/components/event-map.tsx`:
+    - Moved MapLibre `NavigationControl` from `top-right` to `bottom-right`.
+    - Moved attribution to `bottom-left`.
+    - Moved loading and error overlays to `top-16` on mobile, keeping `top-3`
+      on desktop.
+    - Added an 8s timeout after MapLibre construction; if no `load` event
+      arrives, the map area shows a red error message pointing at
+      Safari/WebGL/content-blocker checks.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`.
+  - Deploy/status:
+    - Local fix ready; commit/deploy pending at handoff update time.
 
 - MapLibre Hydration Diagnostics Hotfix 2026-07-22 21:59 UTC:
   - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
