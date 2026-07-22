@@ -439,7 +439,24 @@ Existing context:
 - Authenticated/manual smoke:
   - Authenticated iPhone visual smoke remains with Sebastian after deploy.
 - Deployment:
-  - Pending at time of writing.
+  - Commit: `06d0efb Refine event map layer controls`
+  - Pushed to `origin/main`: `46a654e..06d0efb`
+  - Deployment ID: `dpl_12w5sorZjYkcJ92zgFrxjbRtdo5u`
+  - Deployment URL:
+    `https://s5-evo-portal-9dxip5gkf-sebastiankroeker-2781s-projects.vercel.app`
+  - Production alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-22 21:20 UTC
+- Post-deploy smoke:
+  - `HEAD https://portal.s5evo.de/` -> 200
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass:
+    `/`, `/login`, `/anmeldung`, `/aenderungen`, `/api/competition`,
+    `/api/results`; protected `/api/teams` and
+    `/api/admin/pending-changes` return 401 without session.
+  - MapTiler style request with `Referer: https://portal.s5evo.de/karte`
+    -> 200 `style ok`.
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian.
 
 ## Follow-Ups
 

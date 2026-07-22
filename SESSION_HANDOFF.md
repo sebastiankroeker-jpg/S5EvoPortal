@@ -28,9 +28,24 @@ Stand: 2026-07-22 21:18 UTC
     `git diff --check`.
   - Production deploy approved by Sebastian in Telegram on 2026-07-22 21:15 UTC
     with "Handoff und guard rails beachten und los".
-  - Deploy/smoke: in progress in the current session.
+  - Commit/Push: `06d0efb Refine event map layer controls`,
+    pushed `46a654e..06d0efb`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_12w5sorZjYkcJ92zgFrxjbRtdo5u`
+    - Vercel-URL:
+      `https://s5-evo-portal-9dxip5gkf-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy-Smoke gruen:
+    `HEAD https://portal.s5evo.de/` 200,
+    `HEAD https://portal.s5evo.de/karte` 200, `npm run smoke:public`,
+    MapTiler style fetch with `Referer: https://portal.s5evo.de/karte` -> 200
+    `style ok`.
   - Weiter offen nach Deploy:
     authenticated iPhone visual smoke durch Sebastian.
+  - Doku-Nachtrag fuer finalen Deploy-Status ist lokal geschrieben; nicht
+    erneut gepusht, um keine weitere Vercel-Deployment-Schleife durch reine
+    Doku-Aenderungen auszuloesen.
 
 - Mobile Map Viewport Fix 2026-07-22 19:06 UTC:
   - Sebastian reported on iOS Safari that he still saw no actual map and could
