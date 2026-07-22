@@ -59,6 +59,19 @@ function jsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function asNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function stockTieBreakers(details: Record<string, unknown>, disciplineCode: DisciplineCode) {
+  if (disciplineCode !== "STOCK") return undefined;
+  const bwzValue = details.bwz;
+  const bwz = typeof bwzValue === "string"
+    ? Number.parseInt(bwzValue.replace(/\D/g, "") || "0", 10)
+    : asNumber(bwzValue) ?? 0;
+  return [Number.isFinite(bwz) ? bwz : 0, asNumber(details.dropped) ?? 0];
+}
+
 function hasError(messages: LegacyResultValidationMessage[]) {
   return messages.some((message) => message.severity === "error");
 }
@@ -247,6 +260,7 @@ function addScoringWarnings(draftRows: DraftRow[]) {
         participantName: "",
         rawValue: draft.rawValue,
         rawValueText: draft.rawValueText,
+        tieBreakers: stockTieBreakers(draft.details, disciplineCode),
         classCode,
       }));
       const ranked = rankDiscipline(entries, disciplineCode);
@@ -269,6 +283,7 @@ function addScoringWarnings(draftRows: DraftRow[]) {
         participantName: "",
         rawValue: draft.rawValue,
         rawValueText: draft.rawValueText,
+        tieBreakers: stockTieBreakers(draft.details, disciplineCode),
         classCode: overallGroup,
       }));
       const ranked = rankDiscipline(entries, disciplineCode);

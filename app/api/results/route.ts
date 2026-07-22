@@ -40,6 +40,18 @@ function getClassScoring(snapshot: ResultSnapshot) {
   };
 }
 
+function getLegacyStockDetails(snapshot: ResultSnapshot) {
+  if (snapshot?.disciplineCode !== "STOCK") return {};
+  const legacy = asRecord(snapshot?.legacy);
+  const details = asRecord(legacy?.details);
+  if (!details) return {};
+
+  return {
+    stockBwz: typeof details.maskedBwz === "string" ? details.maskedBwz : null,
+    stockDropped: asNumber(details.dropped),
+  };
+}
+
 function startNumberSortValue(value: string | null | undefined) {
   if (!value) return Number.MAX_SAFE_INTEGER;
   const number = Number.parseInt(value, 10);
@@ -258,10 +270,11 @@ export async function GET(request: NextRequest) {
           participantName: visibleParticipantById.get(draft.participantId) ?? "Teilnehmer:in",
           rawValue: draft.normalizedValue ?? draft.rawValue,
           rawValueText: draft.rawValueText,
+          ...getLegacyStockDetails(asRecord(draft.proposedResultSnapshot)),
           classCode,
           rank: classScoring.rank ?? entries.length + 1,
           points: classScoring.points ?? 0,
-        } as RankedEntry & { rawValueText?: string | null });
+        } as RankedEntry & { rawValueText?: string | null; stockBwz?: string | null; stockDropped?: number | null });
         byDiscipline.set(disciplineCode, entries);
       }
 

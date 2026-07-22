@@ -37,6 +37,7 @@ export interface DisciplineEntry {
   participantName: string;
   rawValue: number | null; // null = nicht angetreten
   rawValueText?: string | null;
+  tieBreakers?: number[];
   classCode: string;
 }
 
@@ -67,7 +68,7 @@ export function rankDiscipline(
   const n = entries.length;
 
   // Sort: null/DNF values go last
-  const sorted = [...entries].sort((a, b) => {
+  const compareEntries = (a: DisciplineEntry, b: DisciplineEntry) => {
     // null = DNF → last
     if (a.rawValue === null && b.rawValue === null) return 0;
     if (a.rawValue === null) return 1;
@@ -78,10 +79,26 @@ export function rankDiscipline(
       if (a.rawValue === -999) return 1;
       if (b.rawValue === -999) return -1;
     }
-    return sort === "ASC"
+    const rawCompare = sort === "ASC"
       ? a.rawValue - b.rawValue
       : b.rawValue - a.rawValue;
-  });
+    if (rawCompare !== 0) return rawCompare;
+
+    if (discipline === "STOCK") {
+      const maxTieBreakers = Math.max(a.tieBreakers?.length ?? 0, b.tieBreakers?.length ?? 0);
+      for (let index = 0; index < maxTieBreakers; index += 1) {
+        const left = a.tieBreakers?.[index] ?? 0;
+        const right = b.tieBreakers?.[index] ?? 0;
+        if (left !== right) return right - left;
+      }
+    }
+
+    return 0;
+  };
+
+  const hasEqualDisciplineScore = (a: DisciplineEntry, b: DisciplineEntry) => compareEntries(a, b) === 0;
+
+  const sorted = [...entries].sort(compareEntries);
 
   // Assign ranks with ties
   const ranked: RankedEntry[] = [];
@@ -91,7 +108,7 @@ export function rankDiscipline(
     const entry = sorted[i];
 
     // If same value as previous → same rank
-    if (i > 0 && entry.rawValue !== null && sorted[i - 1].rawValue === entry.rawValue) {
+    if (i > 0 && entry.rawValue !== null && hasEqualDisciplineScore(sorted[i - 1], entry)) {
       ranked.push({
         ...entry,
         rank: ranked[i - 1].rank,

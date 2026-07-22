@@ -143,6 +143,13 @@ function nullableString(value: string | undefined) {
   return trimmed ? trimmed : null;
 }
 
+export function formatLegacyStockBwz(value: string | number | null | undefined) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  const padded = digits.padStart(8, "0").slice(-8);
+  return `${padded.slice(0, 2)}.${padded.slice(2, 5)}.${padded.slice(5)}`;
+}
+
 function nullableInteger(value: string | undefined) {
   const trimmed = value?.trim() ?? "";
   if (!/^-?\d+$/.test(trimmed)) return null;
@@ -303,6 +310,7 @@ function buildStockDraft(records: LegacyRawResultRecord[]): LegacyResultDraftPre
   const stockSum = nullableInteger(scoringRaw.AuRingeStock);
   const dropped = nullableInteger(scoringRaw.AuRingeStockStreicherg);
   const bwz = nullableString(scoringRaw.AuSchubBWZ);
+  const maskedBwz = formatLegacyStockBwz(bwz);
   if (summary && stockSum === null) validationMessages.push({ code: "missing_stock_sum", severity: "error" });
 
   return {
@@ -320,6 +328,7 @@ function buildStockDraft(records: LegacyRawResultRecord[]): LegacyResultDraftPre
       shots,
       dropped,
       bwz,
+      maskedBwz,
       summaryRowNumber: summary?.rowNumber ?? null,
     },
     validationMessages,

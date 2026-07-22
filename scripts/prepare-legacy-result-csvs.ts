@@ -333,6 +333,119 @@ function correctBenchScoring(rows: string[][], headerIndex: number, file: string
   return { correctedRows };
 }
 
+function stockTieBreakers(row: string[], bwzIndex: number, omittedRingsIndex: number) {
+  const bwz = Number.parseInt((row[bwzIndex] ?? "").replace(/\D/g, "") || "0", 10);
+  const omittedRings = Number.parseInt(row[omittedRingsIndex] || "0", 10);
+  return [bwz, Number.isFinite(omittedRings) ? omittedRings : 0];
+}
+
+function stockGroupKey(row: string[], startIndex: number, participantIndex: number, classIndex: number) {
+  return [
+    row[startIndex]?.trim() || "missing-start",
+    row[participantIndex]?.trim() || "missing-participant",
+    row[classIndex]?.trim() || "missing-class",
+  ].join(":");
+}
+
+function correctStockScoring(rows: string[][], headerIndex: number, file: string) {
+  if (!file.includes("STOCK")) return { correctedRows: 0 };
+
+  const headers = rows[headerIndex];
+  const startIndex = headers.indexOf("Au1Startnr");
+  const participantIndex = headers.indexOf("Au1TlID");
+  const classIndex = headers.indexOf("Au1Klasse");
+  const ringsIndex = headers.indexOf("AuRingeStock");
+  const omittedRingsIndex = headers.indexOf("AuRingeStockStreicherg");
+  const bwzIndex = headers.indexOf("AuSchubBWZ");
+  const classPointsIndex = headers.indexOf("AuPunkte");
+  const classRankIndex = headers.indexOf("AuPlatzKlasse");
+  const femalePointsIndex = headers.indexOf("AuPunkteDamenGes");
+  const malePointsIndex = headers.indexOf("AuPunkteHerrenGes");
+  const overallRankIndex = headers.indexOf("AuPlatzGesamt");
+  const summaryIndex = headers.indexOf("AuSummenkennzeichen");
+
+  const dataRows = rows.slice(headerIndex + 1).filter((row) => row.some((field) => field.trim()));
+  const groupedRows = new Map<string, string[][]>();
+  for (const row of dataRows) {
+    const key = stockGroupKey(row, startIndex, participantIndex, classIndex);
+    groupedRows.set(key, [...(groupedRows.get(key) ?? []), row]);
+  }
+
+  const drafts = [...groupedRows.values()].map((groupRows) => {
+    const summaryRow = groupRows.find((row) => row[summaryIndex] === "S") ?? groupRows[0];
+    const legacyClass = groupRows[0]?.[classIndex]?.trim() ?? "";
+    return {
+      row: summaryRow,
+      groupRows,
+      startNumber: groupRows[0]?.[startIndex]?.trim() ?? "",
+      legacyClass,
+      rawValue: Number.parseInt(summaryRow?.[ringsIndex] || "0", 10),
+      tieBreakers: stockTieBreakers(summaryRow, bwzIndex, omittedRingsIndex),
+    };
+  });
+
+  const draftsByClass = new Map<string, typeof drafts>();
+  const draftsByOverallGroup = new Map<string, typeof drafts>();
+  for (const draft of drafts) {
+    if (!draft.legacyClass) continue;
+    draftsByClass.set(draft.legacyClass, [...(draftsByClass.get(draft.legacyClass) ?? []), draft]);
+    const overallGroup = overallGroupByLegacyClass[draft.legacyClass] ?? null;
+    if (overallGroup) draftsByOverallGroup.set(overallGroup, [...(draftsByOverallGroup.get(overallGroup) ?? []), draft]);
+  }
+
+  let correctedRows = 0;
+  for (const [legacyClass, classDrafts] of draftsByClass) {
+    const entries: DisciplineEntry[] = classDrafts.map((draft) => ({
+      teamId: draft.startNumber,
+      teamName: "",
+      startNumber: draft.startNumber,
+      participantName: "",
+      rawValue: draft.rawValue,
+      tieBreakers: draft.tieBreakers,
+      classCode: legacyClass,
+    }));
+    const ranked = rankDiscipline(entries, "STOCK");
+    const scoringByStartNumber = new Map(ranked.map((entry) => [entry.teamId, entry]));
+    for (const draft of classDrafts) {
+      const scoring = scoringByStartNumber.get(draft.startNumber);
+      if (!scoring) continue;
+      for (const row of draft.groupRows) {
+        setCell(row, classPointsIndex, null);
+        setCell(row, classRankIndex, null);
+        setCell(row, femalePointsIndex, null);
+        setCell(row, malePointsIndex, null);
+        setCell(row, overallRankIndex, null);
+      }
+      setCell(draft.row, classPointsIndex, scoring.points);
+      setCell(draft.row, classRankIndex, scoring.rank);
+      correctedRows += 1;
+    }
+  }
+
+  for (const [overallGroup, overallDrafts] of draftsByOverallGroup) {
+    const entries: DisciplineEntry[] = overallDrafts.map((draft) => ({
+      teamId: draft.startNumber,
+      teamName: "",
+      startNumber: draft.startNumber,
+      participantName: "",
+      rawValue: draft.rawValue,
+      tieBreakers: draft.tieBreakers,
+      classCode: overallGroup,
+    }));
+    const ranked = rankDiscipline(entries, "STOCK");
+    const scoringByStartNumber = new Map(ranked.map((entry) => [entry.teamId, entry]));
+    for (const draft of overallDrafts) {
+      const scoring = scoringByStartNumber.get(draft.startNumber);
+      if (!scoring) continue;
+      setCell(draft.row, femalePointsIndex, overallGroup === "DAMEN" ? scoring.points : null);
+      setCell(draft.row, malePointsIndex, overallGroup === "HERREN" ? scoring.points : null);
+      setCell(draft.row, overallRankIndex, scoring.rank);
+    }
+  }
+
+  return { correctedRows };
+}
+
 async function main() {
   const competition = await prisma.competition.findFirst({
     orderBy: { year: "desc" },
@@ -396,7 +509,8 @@ async function main() {
 
     const timeCorrection = correctTimeScoring(outputRows, headerIndex, file);
     const benchCorrection = correctBenchScoring(outputRows, headerIndex, file);
-    const correctedRows = timeCorrection.correctedRows + benchCorrection.correctedRows;
+    const stockCorrection = correctStockScoring(outputRows, headerIndex, file);
+    const correctedRows = timeCorrection.correctedRows + benchCorrection.correctedRows + stockCorrection.correctedRows;
     const outputName = basename(file, ".csv") + "--portal-startnummern.csv";
     const outputPath = join(outputDir, outputName);
     writeFileSync(outputPath, serializeCsvRows(outputRows), "latin1");

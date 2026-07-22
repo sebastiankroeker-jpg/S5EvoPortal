@@ -32,6 +32,8 @@ interface RankedEntry {
   participantName: string;
   rawValue: number | null;
   rawValueText?: string | null;
+  stockBwz?: string | null;
+  stockDropped?: number | null;
   classCode: string;
   rank: number;
   points: number;
@@ -104,6 +106,18 @@ function formatValue(val: number | null, disc: DisciplineCode): string {
   if (disc === "BENCH") return `${val.toFixed(1)} kg`;
   if (disc === "STOCK") return `${val}`;
   return String(val);
+}
+
+function StockTieBreakerLine({ entry }: { entry: RankedEntry }) {
+  if (!entry.stockBwz && entry.stockDropped === null && entry.stockDropped === undefined) return null;
+
+  return (
+    <span className="mt-1 block text-[11px] leading-tight text-muted-foreground">
+      {entry.stockBwz ? `BWZ: ${entry.stockBwz}` : null}
+      {entry.stockBwz && entry.stockDropped !== null && entry.stockDropped !== undefined ? " · " : null}
+      {entry.stockDropped !== null && entry.stockDropped !== undefined ? `Streichergebnis: ${entry.stockDropped}` : null}
+    </span>
+  );
 }
 
 function StartNumberCell({ startNumber, showHash = true }: { startNumber?: string | null; showHash?: boolean }) {
@@ -696,7 +710,7 @@ function DisciplineResultsTables({
                           <th className="w-16 px-2 py-2 text-left">STRNR</th>
                           <th className="w-[32%] px-2 py-2 text-left">Name</th>
                           <th className="px-2 py-2 text-left">Mannschaft</th>
-                          <th className="w-24 py-2 pl-2 text-right">Wert</th>
+                          <th className="w-32 py-2 pl-2 text-right">Wert</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -724,7 +738,8 @@ function DisciplineResultsTables({
                                 </span>
                               </td>
                               <td className="py-2 pl-2 text-right font-mono tabular-nums">
-                                {entry.rawValueText || formatValue(entry.rawValue, discipline)}
+                                <span>{entry.rawValueText || formatValue(entry.rawValue, discipline)}</span>
+                                {discipline === "STOCK" && <StockTieBreakerLine entry={entry} />}
                               </td>
                             </tr>
                           );
