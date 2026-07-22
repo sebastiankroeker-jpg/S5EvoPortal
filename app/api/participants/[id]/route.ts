@@ -37,6 +37,7 @@ import { recordParticipantNotificationAuditEvents } from "@/lib/participant-noti
 import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
+import { isRegistrationDeadlineOpen } from "@/lib/registration-deadline";
 import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
 import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { resolveTeamAccess } from "@/lib/team-manager-access";
@@ -499,7 +500,14 @@ export async function PUT(
     );
   }
 
-  if (isAdmin) {
+  const registrationDeadlineOpen = isRegistrationDeadlineOpen(participant.team.competition.registrationDeadline);
+  const canApplyParticipantUpdateDirectly = isAdmin || registrationDeadlineOpen;
+  const directEditActorLabel = isAdmin ? "Admin/Moderator" : "Teilnehmer/Team vor Anmeldeschluss";
+  const directEditObsoleteReviewComment = isAdmin
+    ? "Durch direkte Änderung überholt"
+    : "Durch direkte Änderung vor Anmeldeschluss überholt";
+
+  if (canApplyParticipantUpdateDirectly) {
     const shouldSendParticipantClaim = shouldInviteParticipantClaim({
       previousEmail: typeof currentSnapshot.email === "string" ? currentSnapshot.email : null,
       nextEmail: typeof requestedSnapshot.email === "string" ? requestedSnapshot.email : null,
@@ -528,7 +536,7 @@ export async function PUT(
           status: "REJECTED",
           reviewedAt: new Date(),
           reviewedById: user.id,
-          reviewComment: "Durch direkte Änderung überholt",
+          reviewComment: directEditObsoleteReviewComment,
         },
       });
 
@@ -553,7 +561,7 @@ export async function PUT(
           status: "REJECTED",
           reviewedAt: new Date(),
           reviewedById: user.id,
-          reviewComment: "Durch direkte Änderung überholt",
+          reviewComment: directEditObsoleteReviewComment,
         },
       });
 
@@ -565,7 +573,7 @@ export async function PUT(
             action: "REJECTED",
             beforeData: changeRequest.requestedSnapshot as Prisma.InputJsonValue,
             afterData: requestedSnapshot,
-            message: "Durch direkte Änderung überholt",
+            message: directEditObsoleteReviewComment,
           },
         });
       }
@@ -577,7 +585,7 @@ export async function PUT(
           actorId: user.id,
           beforeData: serializeSnapshot(currentSnapshot),
           afterData: serializeSnapshot(requestedSnapshot),
-          message: "Direkte Änderung durch Admin/Moderator",
+          message: `Direkte Änderung durch ${directEditActorLabel}`,
         },
       });
 

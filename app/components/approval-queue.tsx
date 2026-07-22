@@ -64,9 +64,12 @@ interface PendingChange {
     } | null;
   }>;
   impact?: {
+    previousClassificationCode?: string;
+    previousClassificationLabel?: string;
     nextClassificationCode: string;
     nextClassificationLabel: string;
     nextTotalAge: number;
+    hasClassificationChange?: boolean;
     classificationWarnings: string[];
     disciplineWarnings: string[];
     hasLiveDrift: boolean;
@@ -243,7 +246,7 @@ function resolvePriorityScore(change: PendingChange, wasUpdated: boolean) {
 
   if (change.status === "PENDING") score += 100;
   if (change.impact?.hasLiveDrift) score += 50;
-  if ((change.impact?.classificationWarnings?.length || 0) > 0) score += 30;
+  if (change.impact?.hasClassificationChange) score += 30;
   if ((change.impact?.disciplineWarnings?.length || 0) > 0) score += 20;
   if (wasUpdated) score += 10;
 
@@ -353,7 +356,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         change.status === "PENDING" &&
         Boolean(
           change.impact?.hasLiveDrift ||
-            change.impact?.classificationWarnings?.length ||
+            change.impact?.hasClassificationChange ||
             change.impact?.disciplineWarnings?.length,
         ),
     }));
@@ -1177,10 +1180,10 @@ function ChangeList({
                         {previewFields.length > 2 ? `+${previewFields.length - 2} weitere` : ""}
                       </div>
                     )}
-                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
+                    {(change.wasUpdated || change.impact?.hasClassificationChange || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {change.wasUpdated && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Aktualisiert</Badge>}
-                        {change.impact?.classificationWarnings?.length ? (
+                        {change.impact?.hasClassificationChange ? (
                           <Badge variant="outline" className="h-5 border-amber-300 px-1.5 text-[10px] text-amber-700 dark:text-amber-200">
                             Klassenwirkung
                           </Badge>
@@ -1213,7 +1216,9 @@ function ChangeList({
                         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
                           <div className="text-xs font-medium uppercase tracking-[0.14em] opacity-80">Prüfhinweise</div>
                           <div className="mt-1 font-medium">
-                            {change.impact?.nextClassificationLabel || "Unbekannte Klasse"}
+                            {change.impact?.hasClassificationChange
+                              ? `${change.impact.previousClassificationLabel || "Unbekannte Klasse"} -> ${change.impact.nextClassificationLabel || "Unbekannte Klasse"}`
+                              : change.impact?.nextClassificationLabel || "Unbekannte Klasse"}
                             {typeof change.impact?.nextTotalAge === "number" && change.impact.nextTotalAge > 0
                               ? ` · Gesamtalter ${change.impact.nextTotalAge}`
                               : ""}
@@ -1362,10 +1367,10 @@ function ChangeList({
                       {isSwapBundle ? <Badge variant="secondary">Tausch-Bundle</Badge> : change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
                       {change.changeRequestId ? <Badge variant="secondary">ChangeRequest</Badge> : null}
                     </div>
-                    {(change.wasUpdated || change.impact?.classificationWarnings?.length || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
+                    {(change.wasUpdated || change.impact?.hasClassificationChange || change.bundleHasLiveDrift || change.impact?.hasLiveDrift) ? (
                       <div className="flex flex-wrap gap-2">
                         {change.wasUpdated && <Badge variant="secondary">Aktualisiert</Badge>}
-                        {change.impact?.classificationWarnings?.length ? (
+                        {change.impact?.hasClassificationChange ? (
                           <Badge variant="outline" className="border-amber-300 text-amber-700 dark:text-amber-200">
                             Klassenwirkung
                           </Badge>
@@ -1447,7 +1452,9 @@ function ChangeList({
                   <div className="mb-3 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
                     <div className="text-xs font-medium uppercase tracking-[0.14em] opacity-80">Prüfhinweise</div>
                     <div className="mt-1 font-medium">
-                      {change.impact?.nextClassificationLabel || "Unbekannte Klasse"}
+                      {change.impact?.hasClassificationChange
+                        ? `${change.impact.previousClassificationLabel || "Unbekannte Klasse"} -> ${change.impact.nextClassificationLabel || "Unbekannte Klasse"}`
+                        : change.impact?.nextClassificationLabel || "Unbekannte Klasse"}
                       {typeof change.impact?.nextTotalAge === "number" && change.impact.nextTotalAge > 0
                         ? ` · Gesamtalter ${change.impact.nextTotalAge}`
                         : ""}

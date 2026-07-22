@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import type { Prisma } from "@prisma/client";
 
-import { evaluateTeamState, type TeamStateParticipantInput } from "@/lib/domain/classification";
+import { CLASSIFICATIONS, evaluateTeamState, type TeamStateParticipantInput } from "@/lib/domain/classification";
 import {
+  diffParticipantSnapshots,
   parseSnapshot,
   serializeSnapshot,
   summarizeParticipantRequestConflicts,
@@ -611,6 +612,8 @@ function decorateParticipantChange(input: {
 }) {
   const requestedSnapshot = input.requestedSnapshot ?? parseSnapshot(input.changeData);
   const beforeSnapshot = input.beforeSnapshot ?? parseSnapshot(input.beforeData);
+  const changedFields = diffParticipantSnapshots(beforeSnapshot, requestedSnapshot);
+  const hasClassificationRelevantChange = Boolean(changedFields.birthYear || changedFields.gender);
   const liveSnapshot = toParticipantSnapshot(input.participant);
   const liveDriftSummary = input.beforeData
     ? summarizeParticipantRequestConflicts(beforeSnapshot, requestedSnapshot, liveSnapshot)
@@ -640,6 +643,15 @@ function decorateParticipantChange(input: {
     projectedParticipants,
     input.participant.team.classificationCode,
   );
+  const previousClassificationCode = input.participant.team.classificationCode || "unclassified";
+  const nextClassificationCode = projectedTeamState.classification.code;
+  const hasClassificationChange =
+    previousClassificationCode !== "unclassified" &&
+    previousClassificationCode !== nextClassificationCode;
+  const classificationWarnings =
+    hasClassificationRelevantChange || hasClassificationChange
+      ? projectedTeamState.classificationWarnings
+      : [];
 
   return {
     id: input.id,
@@ -672,10 +684,13 @@ function decorateParticipantChange(input: {
     reviewedBy: input.reviewedBy,
     recentHistory: input.recentHistory,
     impact: {
-      nextClassificationCode: projectedTeamState.classification.code,
+      previousClassificationCode,
+      previousClassificationLabel: classificationLabel(previousClassificationCode),
+      nextClassificationCode,
       nextClassificationLabel: projectedTeamState.classification.label,
       nextTotalAge: projectedTeamState.classification.totalAge,
-      classificationWarnings: projectedTeamState.classificationWarnings,
+      hasClassificationChange,
+      classificationWarnings,
       disciplineWarnings: projectedTeamState.discipline.warnings,
       hasLiveDrift: liveDriftSummary.length > 0,
       liveDriftSummary,
@@ -697,6 +712,14 @@ function stringifyJsonSnapshot(value: Prisma.JsonValue | null): string {
   }
 
   return JSON.stringify(value);
+}
+
+function classificationLabel(code?: string | null) {
+  if (!code || code === "unclassified") {
+    return "Unklassifiziert";
+  }
+
+  return CLASSIFICATIONS[code]?.label ?? code;
 }
 
 function normalizeChangeRequestStatus(status: string) {

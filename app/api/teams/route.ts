@@ -261,6 +261,7 @@ function serializeTeam(
     canSeeSensitiveParticipantFields?: boolean;
     canSeeOwnerClaimFields?: boolean;
     canEditAllTeams?: boolean;
+    canSeeStartNumber?: boolean;
     currentUserHasPortalAccount?: boolean;
   },
 ) {
@@ -317,7 +318,7 @@ function serializeTeam(
   return {
     id: team.id,
     name: visibleTeamName,
-    startNumber: team.startNumber ?? "",
+    startNumber: options?.canSeeStartNumber === true ? team.startNumber ?? "" : "",
     teamPublicationLevel: team.teamPublicationLevel ?? "TEAM_ANONYM",
     registrationMode: team.registrationMode ?? "TEAM",
     marketplaceVisibility: team.marketplaceVisibility ?? "ADMIN_MANAGEMENT_ONLY",
@@ -694,6 +695,7 @@ export async function GET(request: NextRequest) {
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,
             canEditAllTeams: access.canEditAllTeams,
+            canSeeStartNumber: access.isAdmin,
             currentUserHasPortalAccount: Boolean(user?.authentikSub),
             canSeeSensitiveParticipantFields: access.canEditAllTeams,
             canSeeOwnerClaimFields: effectiveScopeRole === "ADMIN" && access.isAdmin,
