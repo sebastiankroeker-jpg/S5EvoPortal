@@ -1,8 +1,39 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 22:23 UTC
+Stand: 2026-07-22 22:32 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Event Map Leaflet Fallback 2026-07-22 22:32 UTC:
+  - Sebastian sent another iPhone screenshot after `885e062`: still only the
+    fallback map background. He also sent a Google AI screenshot about MapTiler
+    + Vercel API keys.
+  - Interpretation:
+    - Google AI note is not the primary issue. Browser map tile keys are
+      expected to be public-ish and protected with MapTiler domain/referrer
+      restrictions; our direct MapTiler tile request with portal referer is
+      200.
+    - Since both vector style and inline raster style still do not visibly
+      render through MapLibre on iPhone, the practical next move is to avoid
+      MapLibre/WebGL/worker entirely for the MVP.
+  - Fix in `app/components/event-map.tsx`:
+    - Replaced MapLibre runtime usage with Leaflet runtime usage.
+    - Leaflet is dynamically imported client-side.
+    - MapTiler Outdoor raster PNG XYZ tiles remain the provider.
+    - Sponsor markers are now Leaflet div markers.
+    - Map zoom control is bottom-right, attribution bottom-left.
+    - Leaflet tile load/error events drive the visible loading/error state.
+  - Dependency/CSS changes:
+    - Added `leaflet` and `@types/leaflet`.
+    - Removed `maplibre-gl`.
+    - Replaced MapLibre CSS import with Leaflet CSS import in
+      `app/globals.css`.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`.
+  - Deploy/status:
+    - Local fix ready; commit/deploy pending at handoff update time.
 
 - Event Map Raster Style Hotfix 2026-07-22 22:17 UTC:
   - Sebastian sent a screenshot after `ffeeab7` showing the intended red

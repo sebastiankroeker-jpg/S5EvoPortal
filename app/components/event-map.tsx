@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ErrorEvent, Map as MapLibreMap, Marker, StyleSpecification } from "maplibre-gl";
+import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import {
   AlertTriangle,
   Building2,
@@ -11,31 +11,17 @@ import {
   Navigation,
   Route,
 } from "lucide-react";
-import { BAD_BAYERSOIEN_CENTER, SPONSOR_POIS, sponsorsToGeoJson, type SponsorPoi } from "@/lib/event-map/sponsor-pois";
+import { BAD_BAYERSOIEN_CENTER, SPONSOR_POIS, type SponsorPoi } from "@/lib/event-map/sponsor-pois";
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-const MAP_STYLE: string | StyleSpecification = MAPTILER_KEY
-  ? {
-      version: 8,
-      sources: {
-        "maptiler-outdoor-raster": {
-          type: "raster",
-          tiles: [`https://api.maptiler.com/maps/outdoor-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`],
-          tileSize: 256,
-          maxzoom: 22,
-          attribution: "MapTiler | OpenStreetMap contributors",
-        },
-      },
-      layers: [
-        {
-          id: "maptiler-outdoor-raster",
-          type: "raster",
-          source: "maptiler-outdoor-raster",
-        },
-      ],
-    }
-  : "https://demotiles.maplibre.org/style.json";
-const MAPLIBRE_WORKER_URL = new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString();
+const MAPTILER_RASTER_TILE_URL = MAPTILER_KEY
+  ? `https://api.maptiler.com/maps/outdoor-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
+  : "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const MAP_ATTRIBUTION = MAPTILER_KEY ? "MapTiler | OpenStreetMap contributors" : "OpenStreetMap contributors";
+
+function toLeafletLatLng(coordinates: [number, number]): [number, number] {
+  return [coordinates[1], coordinates[0]];
+}
 
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
   return (
@@ -61,9 +47,9 @@ function ConfidenceLabel({ confidence }: { confidence: SponsorPoi["confidence"] 
 export default function EventMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<MapLibreMap | null>(null);
-  const maplibreRef = useRef<typeof import("maplibre-gl") | null>(null);
-  const markersRef = useRef<Map<string, Marker>>(new Map());
+  const mapRef = useRef<LeafletMap | null>(null);
+  const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [selectedSponsorId, setSelectedSponsorId] = useState(SPONSOR_POIS[0]?.id ?? "");
   const [sponsorsVisible, setSponsorsVisible] = useState(true);
@@ -78,12 +64,7 @@ export default function EventMap() {
   const selectSponsor = useCallback((sponsor: SponsorPoi, flyTo = true) => {
     setSelectedSponsorId(sponsor.id);
     if (flyTo && mapRef.current) {
-      mapRef.current.flyTo({
-        center: sponsor.coordinates,
-        zoom: 14.7,
-        duration: 650,
-        essential: true,
-      });
+      mapRef.current.flyTo(toLeafletLatLng(sponsor.coordinates), 15, { duration: 0.65 });
     }
   }, []);
 
@@ -91,70 +72,63 @@ export default function EventMap() {
     if (!mapContainerRef.current || mapRef.current) return;
 
     let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
     let loadTimeout: number | null = null;
     const markers = markersRef.current;
     setMapLoaded(false);
 
     const initializeMap = async () => {
       try {
-        const maplibregl = await import("maplibre-gl");
-        maplibregl.setWorkerUrl(MAPLIBRE_WORKER_URL);
+        const L = await import("leaflet");
 
         if (cancelled || !mapContainerRef.current) return;
 
-        maplibreRef.current = maplibregl;
-        const map = new maplibregl.Map({
-          container: mapContainerRef.current,
-          style: MAP_STYLE,
-          center: BAD_BAYERSOIEN_CENTER,
-          zoom: 14.2,
+        leafletRef.current = L;
+        const map = L.map(mapContainerRef.current, {
+          center: toLeafletLatLng(BAD_BAYERSOIEN_CENTER),
+          zoom: 14,
+          zoomControl: false,
           attributionControl: false,
-          cooperativeGestures: false,
-          dragPan: true,
-          dragRotate: false,
-          touchZoomRotate: true,
+          dragging: true,
+          touchZoom: true,
+          scrollWheelZoom: true,
+          doubleClickZoom: true,
+          boxZoom: false,
+          keyboard: true,
         });
 
         mapRef.current = map;
         setMapError(null);
-        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right");
-        map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+        L.control.zoom({ position: "bottomright" }).addTo(map);
+        L.control.attribution({ position: "bottomleft", prefix: false }).addTo(map);
+
+        const tileLayer = L.tileLayer(MAPTILER_RASTER_TILE_URL, {
+          attribution: MAP_ATTRIBUTION,
+          tileSize: 256,
+          maxZoom: 22,
+          crossOrigin: true,
+        }).addTo(map);
 
         loadTimeout = window.setTimeout(() => {
           if (!cancelled) {
-            setMapError("MapLibre hat auf diesem Geraet keinen Load-Event gemeldet. Bitte Safari/WebGL oder Content-Blocker pruefen.");
+            setMapError("Leaflet hat auf diesem Geraet keine Kartenkacheln geladen. Bitte Content-Blocker oder Netz pruefen.");
           }
         }, 8000);
 
-        map.on("load", () => {
+        tileLayer.on("load", () => {
           if (loadTimeout) {
             window.clearTimeout(loadTimeout);
             loadTimeout = null;
           }
-
-          map.jumpTo({
-            center: BAD_BAYERSOIEN_CENTER,
-            zoom: 14.2,
-          });
-
-          map.addSource("sponsors", {
-            type: "geojson",
-            data: sponsorsToGeoJson(SPONSOR_POIS),
-          });
-
           setMapLoaded(true);
-          window.requestAnimationFrame(() => map.resize());
+          window.requestAnimationFrame(() => map.invalidateSize());
         });
 
-        resizeObserver = new ResizeObserver(() => {
-          window.requestAnimationFrame(() => map.resize());
+        tileLayer.on("tileerror", () => {
+          setMapError("Eine Kartenkachel konnte nicht geladen werden. Bitte MapTiler-Referer oder Netzwerk pruefen.");
         });
-        resizeObserver.observe(mapContainerRef.current);
 
-        map.on("error", (event: ErrorEvent) => {
-          const message = event.error?.message || "Die Karte konnte nicht vollstaendig geladen werden.";
-          setMapError(message);
+        window.requestAnimationFrame(() => {
+          map.invalidateSize();
         });
       } catch (error) {
         if (!cancelled) {
@@ -170,35 +144,32 @@ export default function EventMap() {
       markers.forEach((marker) => marker.remove());
       markers.clear();
       if (loadTimeout) window.clearTimeout(loadTimeout);
-      resizeObserver?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
-      maplibreRef.current = null;
+      leafletRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
-    const maplibregl = maplibreRef.current;
-    if (!map || !maplibregl) return;
+    const L = leafletRef.current;
+    if (!map || !L) return;
 
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current.clear();
 
     if (sponsorsVisible) {
       SPONSOR_POIS.forEach((sponsor) => {
-        const el = document.createElement("button");
-        el.type = "button";
-        el.className =
-          "event-map-marker inline-flex size-9 items-center justify-center rounded-md border-2 border-white bg-primary text-[11px] font-bold text-primary-foreground shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-        el.textContent = sponsor.logoText;
-        el.title = sponsor.name;
-        el.setAttribute("aria-label", `${sponsor.name} auf Karte fokussieren`);
-        el.addEventListener("click", () => selectSponsor(sponsor, false));
-
-        const marker = new maplibregl.Marker({ element: el, anchor: "center" })
-          .setLngLat(sponsor.coordinates)
-          .addTo(map);
+        const marker = L.marker(toLeafletLatLng(sponsor.coordinates), {
+          icon: L.divIcon({
+            className: "",
+            html: `<span class="event-map-marker inline-flex size-9 items-center justify-center rounded-md border-2 border-white bg-primary text-[11px] font-bold text-primary-foreground shadow-lg transition-transform hover:scale-110">${sponsor.logoText}</span>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+          }),
+          title: sponsor.name,
+        }).addTo(map);
+        marker.on("click", () => selectSponsor(sponsor, false));
         markersRef.current.set(sponsor.id, marker);
       });
     }
@@ -207,6 +178,7 @@ export default function EventMap() {
   useEffect(() => {
     markersRef.current.forEach((marker, sponsorId) => {
       const element = marker.getElement();
+      if (!element) return;
       element.classList.toggle("ring-4", sponsorId === selectedSponsorId);
       element.classList.toggle("ring-amber-300", sponsorId === selectedSponsorId);
       element.classList.toggle("scale-110", sponsorId === selectedSponsorId);
@@ -214,12 +186,12 @@ export default function EventMap() {
 
     const selectedCard = cardRefs.current.get(selectedSponsorId);
     selectedCard?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selectedSponsorId]);
+  }, [mapLoaded, selectedSponsorId, sponsorsVisible]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const resizeMap = () => map.resize();
+    const resizeMap = () => map.invalidateSize();
     window.addEventListener("orientationchange", resizeMap);
     window.addEventListener("resize", resizeMap);
     return () => {

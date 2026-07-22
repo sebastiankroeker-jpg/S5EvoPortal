@@ -668,6 +668,52 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
+## Event Map Leaflet Fallback
+
+- Tier / risk:
+  - Small CR / client-map runtime change.
+  - No DB migration, no API change, no participant/team/account data touched.
+- Trigger:
+  - Sebastian reported on 2026-07-22 22:27 UTC with another iPhone screenshot
+    that the inline raster MapLibre version still shows only the fallback map
+    background. He also sent a Google AI screenshot about MapTiler + Vercel API
+    keys.
+- Interpretation:
+  - The Google AI note about protecting the key is not the primary issue for
+    this browser map use case. MapTiler browser keys are expected to be exposed
+    to the frontend and protected by domain/referrer restrictions.
+  - Direct MapTiler tile fetches with `Referer: https://portal.s5evo.de/karte`
+    return 200, so Vercel env exposure is not the observed blocker.
+  - Since MapLibre still fails to visibly render on iPhone after both vector
+    style and inline raster style paths, avoid MapLibre/WebGL/worker for the
+    MVP.
+- Change:
+  - Replace MapLibre runtime usage in `app/components/event-map.tsx` with
+    Leaflet runtime usage.
+  - Dynamically import `leaflet` client-side.
+  - Keep MapTiler Outdoor raster XYZ PNG tiles as the tile source.
+  - Render sponsor POIs as Leaflet div markers.
+  - Move zoom control to bottom-right and attribution to bottom-left.
+  - Drive the map loading/error UI from Leaflet tile load/error events.
+- Dependencies/CSS:
+  - Add `leaflet` and `@types/leaflet`.
+  - Remove `maplibre-gl`.
+  - Replace MapLibre CSS import with Leaflet CSS import in `app/globals.css`.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `app/globals.css`
+  - `package.json`
+  - `package-lock.json`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after deploy.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.
