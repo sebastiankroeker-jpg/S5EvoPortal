@@ -5,6 +5,8 @@ import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import Image from "next/image";
 import {
   Building2,
+  ChevronDown,
+  ChevronRight,
   Layers,
   MapPin,
   Route,
@@ -92,10 +94,14 @@ export default function EventMap() {
   const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [selectedSponsorId, setSelectedSponsorId] = useState(SPONSOR_POIS[0]?.id ?? "");
-  const [sponsorsVisible, setSponsorsVisible] = useState(true);
+  const [visibleSponsorIds, setVisibleSponsorIds] = useState(() => new Set(SPONSOR_POIS.map((sponsor) => sponsor.id)));
+  const [sponsorsExpanded, setSponsorsExpanded] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [popupSponsorId, setPopupSponsorId] = useState<string | null>(null);
+  const visibleSponsorCount = visibleSponsorIds.size;
+  const sponsorsVisible = visibleSponsorCount > 0;
+  const allSponsorsVisible = visibleSponsorCount === SPONSOR_POIS.length;
 
   const selectSponsor = useCallback((sponsor: SponsorPoi, flyTo = true) => {
     setSelectedSponsorId(sponsor.id);
@@ -195,8 +201,9 @@ export default function EventMap() {
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current.clear();
 
-    if (sponsorsVisible) {
-      SPONSOR_POIS.forEach((sponsor) => {
+    const visibleSponsors = SPONSOR_POIS.filter((sponsor) => visibleSponsorIds.has(sponsor.id));
+    if (visibleSponsors.length > 0) {
+      visibleSponsors.forEach((sponsor) => {
         const marker = L.marker(toLeafletLatLng(sponsor.coordinates), {
           icon: L.divIcon({
             className: "",
@@ -218,7 +225,7 @@ export default function EventMap() {
         markersRef.current.set(sponsor.id, marker);
       });
     }
-  }, [mapLoaded, selectSponsor, sponsorsVisible]);
+  }, [mapLoaded, selectSponsor, visibleSponsorIds]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, sponsorId) => {
@@ -228,14 +235,14 @@ export default function EventMap() {
       element.classList.toggle("ring-amber-300", sponsorId === selectedSponsorId);
       element.classList.toggle("scale-110", sponsorId === selectedSponsorId);
 
-      if (sponsorId === popupSponsorId && sponsorsVisible) {
+      if (sponsorId === popupSponsorId && visibleSponsorIds.has(sponsorId)) {
         marker.openPopup();
       }
     });
 
     const selectedCard = cardRefs.current.get(selectedSponsorId);
     selectedCard?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [mapLoaded, popupSponsorId, selectedSponsorId, sponsorsVisible]);
+  }, [mapLoaded, popupSponsorId, selectedSponsorId, visibleSponsorIds]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -274,48 +281,90 @@ export default function EventMap() {
             </div>
             <div className="mt-3 grid grid-cols-1 gap-2">
               <div className="rounded-md border border-border/60 bg-card">
-                <label className="flex items-center justify-between px-3 py-2 text-sm">
-                  <span className="inline-flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-primary" />
-                    Vielen Dank an unsere Sponsoren 🫶
-                  </span>
+                <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setSponsorsExpanded((expanded) => !expanded)}
+                    className="inline-flex min-w-0 flex-1 items-center gap-2 text-left"
+                    aria-expanded={sponsorsExpanded}
+                  >
+                    {sponsorsExpanded ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <Building2 className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="truncate">Vielen Dank an unsere Sponsoren 🫶</span>
+                  </button>
                   <input
                     type="checkbox"
-                    checked={sponsorsVisible}
-                    onChange={(event) => setSponsorsVisible(event.target.checked)}
+                    ref={(node) => {
+                      if (node) node.indeterminate = sponsorsVisible && !allSponsorsVisible;
+                    }}
+                    checked={allSponsorsVisible}
+                    onChange={(event) => {
+                      const nextVisibleIds = event.target.checked
+                        ? SPONSOR_POIS.map((sponsor) => sponsor.id)
+                        : [];
+                      setVisibleSponsorIds(new Set(nextVisibleIds));
+                    }}
+                    aria-label="Alle Sponsoren ein- oder ausblenden"
                     className="h-4 w-4 accent-primary"
                   />
-                </label>
+                </div>
 
-                {sponsorsVisible && (
+                {sponsorsExpanded && (
                   <div className="border-t border-border/50 px-2 py-2">
                     <div className="space-y-1 border-l border-border/70 pl-2">
                       {SPONSOR_POIS.map((sponsor) => {
                         const selected = sponsor.id === selectedSponsorId;
+                        const sponsorVisible = visibleSponsorIds.has(sponsor.id);
                         return (
                           <div key={sponsor.id} className="rounded-md">
-                            <button
-                              ref={(node) => {
-                                if (node) cardRefs.current.set(sponsor.id, node);
-                                else cardRefs.current.delete(sponsor.id);
-                              }}
-                              type="button"
-                              onClick={() => selectSponsor(sponsor)}
-                              className={`w-full rounded-md px-2 py-1.5 text-left transition-colors ${
+                            <div
+                              className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
                                 selected
                                   ? "bg-primary/10 text-foreground ring-1 ring-primary/25"
                                   : "hover:bg-accent/60"
-                              }`}
-                              aria-pressed={selected}
+                              } ${sponsorVisible ? "" : "opacity-55"}`}
                             >
-                              <span className="flex min-w-0 items-center gap-2">
+                              <button
+                                ref={(node) => {
+                                  if (node) cardRefs.current.set(sponsor.id, node);
+                                  else cardRefs.current.delete(sponsor.id);
+                                }}
+                                type="button"
+                                onClick={() => {
+                                  if (sponsorVisible) selectSponsor(sponsor);
+                                }}
+                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                aria-pressed={selected}
+                              >
                                 <SponsorBadge sponsor={sponsor} />
                                 <span className="min-w-0 flex-1 truncate text-sm leading-tight">
                                   <span className="font-semibold">{sponsor.name}</span>
                                   <span className="text-muted-foreground"> · {sponsor.category}</span>
                                 </span>
-                              </span>
-                            </button>
+                              </button>
+                              <input
+                                type="checkbox"
+                                checked={sponsorVisible}
+                                onChange={(event) => {
+                                  setVisibleSponsorIds((current) => {
+                                    const next = new Set(current);
+                                    if (event.target.checked) {
+                                      next.add(sponsor.id);
+                                    } else {
+                                      next.delete(sponsor.id);
+                                      if (popupSponsorId === sponsor.id) setPopupSponsorId(null);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                aria-label={`${sponsor.name} ein- oder ausblenden`}
+                                className="h-4 w-4 shrink-0 accent-primary"
+                              />
+                            </div>
                           </div>
                         );
                       })}
