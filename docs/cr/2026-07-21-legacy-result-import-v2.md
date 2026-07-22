@@ -356,7 +356,7 @@ Production deploy:
 
 ## Addendum: Legacy Result Parser V2 Staging Write
 
-Status: Implemented Locally
+Status: Deployed
 
 Approved by Sebastian via "go" after accepting the import-mode simplification:
 `Dry-run` remains a preview/check action that does not write to the DB;
@@ -495,8 +495,24 @@ Local Verification:
 
 Deploy:
 
-- Pending Sebastian `go`. Pushing functional code to `main` is production
-  deploy-relevant because Vercel auto-deploys.
+- Approved by Sebastian via `Go`.
+- Commit: `3efadfb Enable legacy result staging import`.
+- Deployment ID: `dpl_2yNgvX2Ye7ibLtt6P5W6iazoeNZ9`.
+- Deployment URL:
+  `https://s5-evo-portal-6vmb532nk-sebastiankroeker-2781s-projects.vercel.app`.
+- Production alias: `https://portal.s5evo.de`.
+- Ready state: `READY`.
+
+Post-Deploy Smoke:
+
+- `npm run smoke:public`: passed.
+- `HEAD https://portal.s5evo.de/`: 200.
+- Production unauthenticated V2 import `POST
+  /api/admin/result-staging/legacy-results/import`: 401 without payload
+  exposure.
+- `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt`: 200 with
+  `totalClasses=9`, `totalTeams=82`, `resultBuckets=9`.
+- Authenticated admin browser smoke: gap, requires Sebastian/admin session.
 
 ## Verification
 

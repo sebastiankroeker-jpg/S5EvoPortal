@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 08:46 UTC
+Stand: 2026-07-22 08:56 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Local In-Progress CR 2026-07-22 08:46 UTC:
+- Production Release 2026-07-22 08:55 UTC:
   - CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`
     Addendum `Legacy Result Parser V2 Staging Write`.
   - Sebastian hat den Vorschlag angenommen:
@@ -12,7 +12,7 @@ Stand: 2026-07-22 08:46 UTC
     - Neue Import-Pakete verwenden nur noch `Produktionstest` / `PROD_TEST`.
     - `Produktion` bleibt fuer spaetere Publikation/Siegerehrungs-/Release-
       Workflows reserviert.
-  - Lokal umgesetzt, noch nicht committed/gepusht/deployed:
+  - Aenderung:
     - Generischer V2-Endpunkt
       `POST /api/admin/result-staging/legacy-results/import` schreibt bei
       `dryRun:false` `PROD_TEST`-Batches mit Raw Records und Drafts.
@@ -36,19 +36,33 @@ Stand: 2026-07-22 08:46 UTC
     `npx tsc --noEmit --incremental false`,
     `npm run verify:legacy-result-import`,
     `git diff --check`, `npm run build`.
+  - Commit: `3efadfb Enable legacy result staging import`.
+  - Push: `git push origin main` nach Sebastian-Go.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_2yNgvX2Ye7ibLtt6P5W6iazoeNZ9`
+    - Vercel-URL:
+      `https://s5-evo-portal-6vmb532nk-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
   - Local negative smoke:
     unauthenticated V2 import `POST` -> 401 ohne Payload;
     alter RUN-Importer mit `purpose=PRODUCTION` -> 400 `Ungueltiger purpose.`
     ohne Payload.
+  - Post-Deploy Smoke gruen:
+    `npm run smoke:public`; `HEAD https://portal.s5evo.de/` 200;
+    production unauthenticated V2 import `POST` -> 401 ohne Payload;
+    `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200 mit
+    `totalClasses=9`, `totalTeams=82`, `resultBuckets=9`.
   - Check-Gap:
     `npm run verify:tenant-scope` faellt aktuell wegen bestehenden,
     unberuehrten Home-News-Routen
     `app/api/admin/home-news/[entryId]/route.ts` und
     `app/api/admin/home-news/route.ts`.
-  - Gate:
-    Noch auf Sebastian-Go fuer Commit/Push/Production-Deploy warten, weil dies
-    production DB staging writes aktiviert. Pushing `main` triggert Vercel
-    Production.
+  - Authenticated Manual Smoke offen:
+    Mit Admin-Session `Admin -> Ergebnisse -> Pakete -> Legacy-Ergebnis-CSV`
+    eine Legacy-Datei trocken pruefen, Confirm geben, neues
+    `Produktionstest`-Paket ansehen und unter `Live -> Ergebnisse` mit
+    `Staging-Testdaten` gegenpruefen.
   - Lokaler Dev-Server laeuft auf `http://localhost:3113`.
 
 - Production Release 2026-07-22 08:16 UTC:
