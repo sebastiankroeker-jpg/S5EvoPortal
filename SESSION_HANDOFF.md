@@ -1,8 +1,46 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-21 20:36 UTC
+Stand: 2026-07-22 02:43 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Release-/Commit-Standard ab 2026-07-22:
+  - `main` ist mit Vercel/GitHub verbunden:
+    - Vercel-Projekt `s5-evo-portal`
+    - GitHub-Link `sebastiankroeker-jpg/S5EvoPortal`
+    - Production Branch `main`
+    - `gitProviderOptions.createDeployments = enabled`
+  - Ein `git push origin main` ist damit deploy-relevant und zaehlt als
+    Production-Release-Schritt, nicht nur als Remote-Backup.
+  - Standardprozess fuer CRs:
+    1. CR lokal umsetzen.
+    2. Relevante Checks laufen lassen.
+    3. Kleine fachliche Commits erstellen.
+    4. Erst nach Sebastian-Go `git push origin main`.
+    5. Vercel Production Build/Deploy abwarten.
+    6. Smoke gegen `https://portal.s5evo.de`, inklusive relevanter
+       unauthenticated 401/403-Negativtests.
+    7. CR/Handoff mit Commit, Deployment-ID, URL und Smoke-Ergebnis
+       aktualisieren.
+  - Nicht mehr aus dirty/uncommitted lokalem Stand deployen, ausser es gibt
+    einen bewusst dokumentierten Notfallgrund.
+  - Fuer High-Risk-Themen wie Authentik/Passwort-Reset:
+    - eigener kleiner Commit als Ruecksprungpunkt vor Aenderungen;
+    - kein Misch-Deploy mit anderen CRs;
+    - Rollback-Weg vor Umsetzung dokumentieren;
+    - separates Go fuer Implementierung und Production-Release.
+  - Aktueller Git-Stand nach Commit-Aufraeumung:
+    - `main` ist lokal 43 Commits vor `origin/main`.
+    - Neue lokale Commits:
+      - `53dad00 Harden participant changes and start number visibility`
+      - `45e16f8 Add home news admin and standalone user visibility`
+      - `57d3e57 Extend start number import workflow`
+      - `ad5465f Add legacy result staging workflows`
+      - `86dfcb2 Add road timekeeping monitor workflow`
+      - `6def917 docs: update session handoff for deployed CRs`
+    - Getrackter Working Tree war nach der Aufraeumung sauber; untracked
+      Workspace-Dateien `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`
+      nicht ins Portal-Repo aufnehmen.
 
 - Neue Draft-CRs 2026-07-21 21:00 UTC:
   - `docs/cr/2026-07-21-start-number-import-create-missing-teams.md`
