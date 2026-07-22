@@ -1,6 +1,6 @@
 # CR: Live Results Tabs
 
-Status: Draft
+Status: Deployed
 Date: 2026-07-22
 Type: feature
 Risk: medium
@@ -201,7 +201,8 @@ marketplace discovery should not appear inside these Live views.
   - No new persistence key was introduced; existing results cache and watchlist
     ID store are reused.
 - Authenticated role smoke:
-  - Gap: no authenticated browser session/cookie in agent.
+  - Gap: no authenticated browser session/cookie in agent; Teams/Startlisten
+    require authenticated role visibility for full manual UI smoke.
 - Manual smoke:
   - Pending Sebastian/device smoke before or after deploy: open Live, switch
     both tabs, toggle Damen/Herren buttons, confirm favorite badges when local
@@ -209,18 +210,34 @@ marketplace discovery should not appear inside these Live views.
 
 ## Deploy
 
-- Deployment needed: yes, after explicit Go.
-- Deployment ID:
+- Deployment needed: yes, completed after Sebastian-Go.
+- Deployment ID: `dpl_Cgsp5YyBUqkp38UanLKrqVttRo3K`
 - Deployment URL:
-- Production alias:
-- Deployed at:
+  `https://s5-evo-portal-2263mmjyz-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-22T05:25Z
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public` -> green.
+  - `HEAD https://portal.s5evo.de/` -> 200, Vercel, `x-vercel-cache:
+    PRERENDER`.
 - API checks:
+  - `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` -> 200.
+  - Combined mapping from live API response:
+    - `Damen Gesamt`: 2 source classes, 0 current official team scores.
+    - `Herren Gesamt`: 3 source classes, 0 current official team scores.
+    - Overall payload: `classes=9`, `teams=82`.
+  - Public smoke kept unauthenticated `/api/teams` and
+    `/api/admin/pending-changes` at 401.
 - Sensitive-data/API leakage checks:
+  - No API/serializer change shipped.
+  - Public smoke confirms protected team/admin APIs remain protected without a
+    session.
 - Result:
+  - Production deploy READY and public smoke green. Authenticated manual smoke
+    remains open for Teams/Startlisten/Favoriten UI.
 
 ## Follow-Ups
 

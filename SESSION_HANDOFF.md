@@ -4,7 +4,7 @@ Stand: 2026-07-22 04:45 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Pending local CR after the 04:41 UTC production release:
+- Production Release 2026-07-22 05:25 UTC:
   - CR: `docs/cr/2026-07-22-live-results-tabs.md`
   - Aenderung: `Live` ist als Wettkampftags-Cockpit geordnet:
     `Teams | Startlisten | Ergebnisse`.
@@ -28,8 +28,25 @@ Stand: 2026-07-22 04:45 UTC
   - Lokale Runtime-Probe: Dev-Server `http://localhost:3108`; `HEAD /` 200;
     `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200; Quellklassen
     fuer `Damen Gesamt` = 2, `Herren Gesamt` = 3.
-  - Noch nicht gepusht/deployed. Production-Deploy bleibt Go-pflichtig, weil
-    `main` Vercel Production triggert.
+  - Commit: `35f4d15 Reorganize live cockpit result tabs`
+  - Nach Sebastian-Go wurde `git push origin main` ausgefuehrt.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_Cgsp5YyBUqkp38UanLKrqVttRo3K`
+    - Vercel-URL:
+      `https://s5-evo-portal-2263mmjyz-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/`, `/login`,
+    `/anmeldung`, `/aenderungen` 200; Legacy-Domain 308; `/api/competition`
+    200; `/api/results` 200; unauthenticated `/api/teams` 401;
+    unauthenticated `/api/admin/pending-changes` 401.
+  - Targeted Live/API Smoke: `HEAD https://portal.s5evo.de/` 200;
+    `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200; aktuelle
+    API-Daten: `Damen Gesamt` 2 Quellklassen/0 offizielle TeamScores,
+    `Herren Gesamt` 3 Quellklassen/0 offizielle TeamScores, insgesamt
+    `classes=9`, `teams=82`.
+  - Authenticated Manual Smoke offen: Teams/Startlisten/Favoriten-Filter und
+    Ergebnis-Subtabs im Browser mit eingeloggter Rolle pruefen.
 
 - Production Release 2026-07-22 04:41 UTC:
   - Commit `97f90f6 Hide changelog link from non-admin header`
