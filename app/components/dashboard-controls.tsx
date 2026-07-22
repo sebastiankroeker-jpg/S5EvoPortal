@@ -137,6 +137,7 @@ export function DashboardToolbarButton({
   onClick,
   disabled,
   variant,
+  showLabel = false,
 }: {
   icon: ReactNode;
   label: string;
@@ -145,15 +146,16 @@ export function DashboardToolbarButton({
   onClick: () => void;
   disabled?: boolean;
   variant?: "default" | "outline" | "ghost";
+  showLabel?: boolean;
 }) {
   const resolvedVariant = variant ?? (open ? "default" : "outline");
 
   return (
-    <div className="relative flex min-w-0 items-center lg:size-6">
+    <div className={`relative flex min-w-0 items-center ${showLabel ? "lg:w-auto" : "lg:size-6"}`}>
       <Button
         type="button"
-        size="icon-xs"
-        className="h-7 w-full lg:size-6"
+        size={showLabel ? "sm" : "icon-xs"}
+        className={showLabel ? "h-7 w-full gap-1.5 px-2 text-xs lg:w-auto" : "h-7 w-full lg:size-6"}
         variant={resolvedVariant}
         onClick={onClick}
         aria-expanded={open}
@@ -162,6 +164,7 @@ export function DashboardToolbarButton({
         disabled={disabled}
       >
         {icon}
+        {showLabel && <span>{label}</span>}
       </Button>
       {badge !== undefined && badge !== null && badge !== "" ? (
         <Badge

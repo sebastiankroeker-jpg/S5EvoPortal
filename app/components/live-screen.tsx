@@ -314,6 +314,7 @@ export default function LiveScreen() {
               open={filtersOpen}
               badge={activeFilterCount || null}
               onClick={() => setFiltersOpen((open) => !open)}
+              showLabel
             />
             <DashboardToolbarButton
               icon={<XCircle className="size-3.5" />}
@@ -365,6 +366,9 @@ export default function LiveScreen() {
                 </Button>
               </div>
             </div>
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setFiltersOpen(false)}>
+              Filter Ausblenden
+            </Button>
           </DashboardPanel>
         )}
       </DashboardControlsCard>
@@ -476,8 +480,8 @@ export default function LiveScreen() {
                                       />
                                     </span>
                                     <span className="inline-flex min-w-0 items-center gap-1.5">
-                                      <DisciplineBrandIcon code={disc.id} label={disc.label} className="size-6 rounded" />
                                       <span className="hidden text-xs sm:inline">{disc.label}</span>
+                                      <DisciplineBrandIcon code={disc.id} label={disc.label} className="size-6 rounded" />
                                       <span>{p.gender === "M" ? "♂" : "♀"}</span>
                                     </span>
                                   </div>
@@ -526,7 +530,7 @@ export default function LiveScreen() {
     const disciplineGroups = DISCIPLINES.reduce((groups, discipline) => {
       groups[discipline.id] = {};
       return groups;
-    }, {} as Record<string, Record<string, Array<{ participant: Participant; teamName: string; startNumber?: string | null }>>>);
+    }, {} as Record<string, Record<string, Array<{ participant: Participant; teamId: string; teamName: string; startNumber?: string | null }>>>);
 
     // Populate groups
     sourceTeams.forEach(team => {
@@ -540,6 +544,7 @@ export default function LiveScreen() {
         }
         disciplineGroups[disciplineCode][team.category].push({
           participant,
+          teamId: team.id,
           teamName: team.name,
           startNumber: team.startNumber,
         });
@@ -638,25 +643,35 @@ export default function LiveScreen() {
                                   exit={{ height: 0, opacity: 0 }}
                                   transition={{ duration: 0.15 }}
                                 >
-                                  <div className="px-3 pb-3 space-y-1 border-t border-border/40 pt-2">
-                                    {sortedParticipants.map(({ participant, teamName, startNumber }, i) => (
-                                      <div key={i} className="text-sm flex items-center justify-between py-1">
-                                        <span className="inline-flex min-w-0 items-center gap-1.5">
-                                          <span className="font-mono text-xs font-medium text-muted-foreground tabular-nums">
-                                            {formatStartNumber(startNumber) || `${i + 1}.`}
+                                  <div className="space-y-1 border-t border-border/40 px-3 pb-3 pt-2">
+                                    <div className="grid grid-cols-[4.25rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] gap-2 px-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+                                      <span>STRNR</span>
+                                      <span>Name</span>
+                                      <span>Mannschaft</span>
+                                      <span className="text-right">G</span>
+                                    </div>
+                                    {sortedParticipants.map(({ participant, teamId, teamName, startNumber }, i) => {
+                                      const watched = watchedTeamIdSet.has(teamId);
+
+                                      return (
+                                        <div key={`${teamId}-${i}-${participant.firstName}-${participant.lastName}`} className="grid grid-cols-[4.25rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/30">
+                                          <span className="inline-flex min-w-0 items-center gap-1.5">
+                                            <span className="font-mono text-xs font-medium text-muted-foreground tabular-nums">
+                                              {formatStartNumber(startNumber, false) || `${i + 1}.`}
+                                            </span>
+                                            {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
                                           </span>
-                                          <span className="truncate">{participant.firstName} {participant.lastName}</span>
-                                          <ParticipantPublicationPreferenceIcon
-                                            preference={participant.participantPublicationPreference}
-                                          />
-                                        </span>
-                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                          <span>—</span>
-                                          <span className="text-xs">{teamName}</span>
-                                          <span>{participant.gender === "M" ? "♂" : "♀"}</span>
+                                          <span className="inline-flex min-w-0 items-center gap-1.5">
+                                            <span className="truncate">{participant.firstName} {participant.lastName}</span>
+                                            <ParticipantPublicationPreferenceIcon
+                                              preference={participant.participantPublicationPreference}
+                                            />
+                                          </span>
+                                          <span className="truncate text-xs text-muted-foreground">{teamName}</span>
+                                          <span className="text-right text-muted-foreground">{participant.gender === "M" ? "♂" : "♀"}</span>
                                         </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </motion.div>
                               )}

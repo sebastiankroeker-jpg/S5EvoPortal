@@ -402,8 +402,8 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
 
       <div className="grid grid-cols-2 rounded-lg bg-muted/50 p-1">
         {[
-          { id: "overall" as const, label: "Gesamtergebnisse" },
           { id: "discipline" as const, label: "Einzelergebnisse" },
+          { id: "overall" as const, label: "Gesamtergebnisse" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -434,6 +434,7 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
               open={filtersOpen}
               badge={activeFilterCount || null}
               onClick={() => setFiltersOpen((open) => !open)}
+              showLabel
             />
             <DashboardToolbarButton
               icon={<XCircle className="size-3.5" />}
@@ -529,6 +530,9 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
                 </div>
               </div>
             )}
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setFiltersOpen(false)}>
+              Filter Ausblenden
+            </Button>
           </DashboardPanel>
         )}
       </DashboardControlsCard>
@@ -610,11 +614,13 @@ function OverallResultsTables({
                         <tr key={team.teamId} className="border-b border-border/30 transition-colors hover:bg-muted/30">
                           <td className="py-2 pr-2 font-semibold tabular-nums">{team.rank}</td>
                           <td className="px-1 py-2">
-                            <StartNumberCell startNumber={team.startNumber} showHash={false} />
+                            <span className="inline-flex min-w-0 items-center gap-1.5">
+                              <StartNumberCell startNumber={team.startNumber} showHash={false} />
+                              {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
+                            </span>
                           </td>
                           <td className="py-2 pr-3 font-medium leading-snug">
                             <span className="inline-flex min-w-0 items-start gap-1.5">
-                              {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
                               <span className="min-w-0 whitespace-normal break-words">{team.teamName}</span>
                             </span>
                           </td>
@@ -703,12 +709,14 @@ function DisciplineResultsTables({
                                 {entry.rank}
                               </td>
                               <td className="px-2 py-2">
-                                <StartNumberCell startNumber={entry.startNumber} showHash={false} />
+                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                                  <StartNumberCell startNumber={entry.startNumber} showHash={false} />
+                                  {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
+                                </span>
                               </td>
                               <td className="truncate px-2 py-2 font-medium">{entry.participantName}</td>
                               <td className="truncate px-2 py-2 text-muted-foreground">
                                 <span className="inline-flex min-w-0 items-center gap-1.5">
-                                  {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
                                   <span className="truncate">{entry.teamName}</span>
                                 </span>
                               </td>
