@@ -458,6 +458,47 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian.
 
+## MapLibre Worker Hotfix
+
+- Tier / risk:
+  - Micro CR / low-risk client-map hotfix.
+  - No DB migration, no API change, no participant/team/account data touched.
+- Trigger:
+  - Sebastian reported on 2026-07-22 21:43 UTC with an iPhone screenshot that
+    the sponsor tree now fits, but the map area still shows only the fallback
+    background and no visible tiles/controls.
+- Documentation checked:
+  - MapTiler React MapLibre guide for the expected React component setup:
+    MapLibre GL JS, MapTiler key, map container, controls, and marker.
+  - MapLibre GL JS v6 introduction/API for WebGL/style rendering, required
+    MapLibre CSS, and ESM worker setup.
+  - MapLibre GL JS v6 worker/CSP guidance for explicitly setting a same-origin
+    worker URL when bundling or strict worker policies can interfere with
+    autodetection.
+- Root-cause hypothesis:
+  - The map shell and React UI render, so the page/layout is not the primary
+    failure.
+  - Missing MapLibre controls together with missing tiles points at MapLibre
+    client initialization/rendering not completing.
+  - With MapLibre GL JS `^6.0.0` and Next/Turbopack, the worker URL should be
+    made explicit instead of relying on autodetection.
+- Change:
+  - Added an explicit same-origin MapLibre worker URL in
+    `app/components/event-map.tsx`:
+    `new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url)`.
+  - Calls `maplibregl.setWorkerUrl(...)` before constructing the map.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after deploy.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.

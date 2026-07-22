@@ -1,8 +1,36 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 21:18 UTC
+Stand: 2026-07-22 21:47 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- MapLibre Worker Hotfix 2026-07-22 21:47 UTC:
+  - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
+  - Sebastian reported by iPhone screenshot that the sponsor tree is correct,
+    but the map area still renders only the fallback background without visible
+    tiles/controls.
+  - Documentation check:
+    - MapTiler React MapLibre guide confirms the expected React setup:
+      MapTiler key, MapLibre GL JS, map container, controls, and marker.
+    - MapLibre v6 docs confirm WebGL/style-driven rendering, required
+      MapLibre CSS, and ESM worker setup.
+    - MapLibre v6 docs explicitly recommend setting a worker URL for bundled
+      apps/strict CSP instead of relying on worker autodetection.
+  - Fix in `app/components/event-map.tsx`:
+    - Added an explicit same-origin MapLibre worker URL via
+      `new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url)`.
+    - Calls `maplibregl.setWorkerUrl(...)` before constructing the map.
+  - Rationale:
+    - The visible fallback background means the layout/container exists.
+    - Missing tiles and missing MapLibre controls point to MapLibre not
+      completing client initialization/rendering, so worker/bundling is the
+      next likely failure point.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`.
+  - Deploy/status:
+    - Local fix ready; commit/deploy pending at handoff update time.
 
 - Sponsor Layer Tree / Mobile Touch Hotfix 2026-07-22 21:18 UTC:
   - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.

@@ -18,6 +18,9 @@ const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 const MAP_STYLE = MAPTILER_KEY
   ? `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${MAPTILER_KEY}`
   : "https://demotiles.maplibre.org/style.json";
+const MAPLIBRE_WORKER_URL = new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString();
+
+maplibregl.setWorkerUrl(MAPLIBRE_WORKER_URL);
 
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
   return (
