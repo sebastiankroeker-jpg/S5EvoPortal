@@ -1,6 +1,6 @@
 # CR: Startnummern-Import Creates Missing Teams
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-21
 Type: feature
 Risk: high
@@ -217,18 +217,29 @@ Therefore an empty Mannschafts-UID is a good future signal, but it does not crea
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_3XtD9XYN2zmVBNd55qmyDh3oYf67`
+- Deployment URL: `https://s5-evo-portal-992i43hoj-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-22 02:49 UTC via `git push origin main` / Vercel GitHub production deploy
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/` -> 200
+  - `/admin?tab=news` -> 200
+  - `/zeitnahme/monitor` -> 200
 - API checks:
+  - `GET /api/home-news` -> 200
+  - unauthenticated `GET /api/admin/users` -> 401
+  - unauthenticated `GET /api/admin/home-news` -> 401
+  - unauthenticated `POST /api/admin/start-numbers/import` with valid JSON dry-run body -> 401
+  - unauthenticated `GET /api/timekeeping/snapshot?...&startNumberSource=imported-test` -> 401
 - Sensitive-data/API leakage checks:
-- Result:
+  - No Authentik, password, claim-link, or mail side effects added.
+  - Unauthenticated import remains blocked before any mutation.
+- Result: green
 
 ## Follow-Ups
 
 - Decide whether a later workflow should generate claim links for imported teams.
+- Admin browser smoke remains manual: upload a small legacy/start-number CSV, check dry-run preview for created teams, then apply only after the preview is correct.

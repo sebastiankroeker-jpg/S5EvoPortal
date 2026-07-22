@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 02:43 UTC
+Stand: 2026-07-22 02:53 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -29,8 +29,24 @@ Stand: 2026-07-22 02:43 UTC
     - kein Misch-Deploy mit anderen CRs;
     - Rollback-Weg vor Umsetzung dokumentieren;
     - separates Go fuer Implementierung und Production-Release.
-  - Aktueller Git-Stand nach Commit-Aufraeumung:
-    - `main` ist lokal 43 Commits vor `origin/main`.
+  - Production Release 2026-07-22 02:49 UTC:
+    - `git push origin main` wurde nach gruenen Pre-Checks ausgefuehrt.
+    - `main` ist jetzt mit `origin/main` synchron.
+    - Vercel Production Deployment:
+      - Deployment-ID: `dpl_3XtD9XYN2zmVBNd55qmyDh3oYf67`
+      - Vercel-URL:
+        `https://s5-evo-portal-992i43hoj-sebastiankroeker-2781s-projects.vercel.app`
+      - Alias: `https://portal.s5evo.de`
+      - Ready-State: `READY`
+    - Pre-Checks gruen: `git diff --check`, `npx prisma validate`,
+      `npx tsc --noEmit --incremental false`, `npm run build`.
+    - Post-Deploy Smoke gruen: `npm run smoke:public`; `/` 200;
+      `/admin?tab=news` 200; `/zeitnahme/monitor` 200;
+      `GET /api/home-news` 200; unauthenticated `GET /api/admin/users` 401;
+      unauthenticated `GET /api/admin/home-news` 401; unauthenticated
+      `POST /api/admin/start-numbers/import` mit gueltigem JSON-Dry-run 401;
+      unauthenticated `GET /api/timekeeping/snapshot?...&startNumberSource=imported-test` 401.
+  - Vorherige lokale Commit-Aufraeumung:
     - Neue lokale Commits:
       - `53dad00 Harden participant changes and start number visibility`
       - `45e16f8 Add home news admin and standalone user visibility`
@@ -38,6 +54,7 @@ Stand: 2026-07-22 02:43 UTC
       - `ad5465f Add legacy result staging workflows`
       - `86dfcb2 Add road timekeeping monitor workflow`
       - `6def917 docs: update session handoff for deployed CRs`
+      - `67664c7 docs: record release commit standard`
     - Getrackter Working Tree war nach der Aufraeumung sauber; untracked
       Workspace-Dateien `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`
       nicht ins Portal-Repo aufnehmen.
@@ -47,7 +64,8 @@ Stand: 2026-07-22 02:43 UTC
     - Anlass: Sebastian hat weitere Mannschaften, die ausserhalb des Portals
       zugetragen wurden, und moechte sie ueber den Startnummern-Import anlegen,
       indem die Mannschafts-UID leer bleibt.
-    - Status: lokal implementiert, noch nicht deployed.
+    - Status: deployed 2026-07-22 02:49 UTC via `git push origin main`
+      / Vercel auto-deploy.
     - Aktueller Code: Leere Mannschafts-UID erzeugt heute keine Mannschaft.
       Wenn keine ID-basierten Zuordnungen gefunden werden, matched der
       Legacy-Fallback bestehende Teams per Mannschaftsname/Teilnehmer-
