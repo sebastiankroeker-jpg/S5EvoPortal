@@ -561,3 +561,59 @@ Post-Deploy Smoke:
 - Add manual correction overlay persistence.
 - Add generic Legacy parser V2 with strategies for RUN, ROAD, MTB, BENCH, and
   STOCK.
+
+## Addendum: Engine Consistency Warnings
+
+Date: 2026-07-22
+
+Decision:
+
+- Legacy CSV points and ranks remain the primary staged values for V2 import.
+- The S5Evo scoring engine is used as a validation/control calculation only.
+- Engine-calculated points/ranks are not written as proposed result values.
+
+Implemented:
+
+- `POST /api/admin/result-staging/legacy-results/import` now computes
+  validation warnings when imported Legacy values differ from current engine
+  scoring:
+  - class points
+  - class rank
+  - Damen/Herren Gesamt points
+  - Damen/Herren Gesamt rank
+- Warnings are stored in existing `validationMessages` and summarized via
+  `engineWarnings`.
+- Admin Workbench displays `Engine-Abweichungen` and includes actual/expected
+  details in draft warning summaries.
+- `Live -> Ergebnisse` keeps staged Legacy points/ranks as display source and
+  adds no-result teams to overall result lists so teams such as start number
+  `35` remain visible without points.
+- `scripts/prepare-legacy-result-csvs.ts` now corrects generated test CSV
+  points for RUN/ROAD/MTB using the current scoring engine and portal classes.
+  BENCH/STOCK remain only start-number/class filtered for now.
+
+Deploy:
+
+- Commit: `0abe34d Validate legacy import scoring`.
+- Deployment ID: `dpl_BkgYPkXFNLAMuDojCg6ySkJRPKsq`.
+- Deployment URL:
+  `https://s5-evo-portal-gz8k3zg5r-sebastiankroeker-2781s-projects.vercel.app`.
+- Production alias: `https://portal.s5evo.de`.
+- Ready state: `READY`.
+
+Verification:
+
+- `npx eslint app/api/results/route.ts app/components/results-view.tsx app/api/admin/result-staging/legacy-results/import/route.ts app/admin/ergebnisse/page.tsx lib/legacy-result-import.ts scripts/prepare-legacy-result-csvs.ts`: passed.
+- `npx tsc --noEmit --incremental false`: passed.
+- `npm run verify:legacy-result-import`: passed.
+- `git diff --check`: passed.
+- `npm run build`: passed.
+- `npm run smoke:public`: passed against production.
+- `HEAD https://portal.s5evo.de/`: 200.
+- `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt`: 200 with
+  `totalClasses=9`, `totalTeams=82`, `resultBuckets=9`.
+
+Open:
+
+- Authenticated admin browser smoke with a corrected RUN/ROAD/MTB file.
+- BENCH/STOCK scoring correction remains deferred.

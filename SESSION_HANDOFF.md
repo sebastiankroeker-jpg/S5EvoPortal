@@ -1,8 +1,54 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 08:56 UTC
+Stand: 2026-07-22 10:19 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Production Release 2026-07-22 10:18 UTC:
+  - CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`.
+  - Commit: `0abe34d Validate legacy import scoring`.
+  - Aenderung:
+    - V2-Legacy-Ergebnisimport priorisiert weiter die gelieferten
+      Legacy-Punkte/-Plaetze und schreibt keine engineberechneten Punkte als
+      Ergebniswerte in die DB.
+    - Unsere Scoring Engine laeuft beim Import als Kontrollrechnung und
+      erzeugt `WARNING`-Validation-Messages, falls Klassenpunkte/-platz oder
+      Damen-/Herren-Gesamtpunkte/-platz von der Legacy-CSV abweichen.
+    - Admin-Workbench zeigt `Engine-Abweichungen` in der Dry-run/Import-
+      Zusammenfassung und Ist/Soll-Details in Draft-Warnungen.
+    - `Live -> Ergebnisse` zeigt Teams ohne Ergebnisdaten, z.B. Startnummer
+      `35`, im Gesamtergebnis ohne Platz/Punkte statt sie auszublenden.
+    - Gesamtergebnis-Disziplinpunkte-Header bleiben untenbuendig.
+    - `scripts/prepare-legacy-result-csvs.ts` korrigiert beim Erzeugen der
+      Testdateien fuer Lauf/Rennrad/MTB Klassenpunkte und Damen-/Herren-
+      Gesamtpunkte anhand der Portal-Klassen; Bank/Stock bleiben nur
+      startnummern-/klassenbereinigt.
+  - Neu erzeugtes Archiv:
+    `/home/ocadmin/.openclaw/workspace/exports/legacy-results-portal-startnumbers-2026-07-22.tar.gz`.
+  - CSV-Prep-Counts:
+    - Lauf/Rennrad/MTB: je 76 Output Rows, je 76 Scoring Rows korrigiert.
+    - Bank: 204 Output Rows, 0 Scoring Rows korrigiert.
+    - Stock: 924 Output Rows, 0 Scoring Rows korrigiert.
+  - Checks gruen:
+    `npx eslint app/api/results/route.ts app/components/results-view.tsx app/api/admin/result-staging/legacy-results/import/route.ts app/admin/ergebnisse/page.tsx lib/legacy-result-import.ts scripts/prepare-legacy-result-csvs.ts`,
+    `npx tsc --noEmit --incremental false`,
+    `npm run verify:legacy-result-import`,
+    `git diff --check`,
+    `npm run build`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_BkgYPkXFNLAMuDojCg6ySkJRPKsq`
+    - Vercel-URL:
+      `https://s5-evo-portal-gz8k3zg5r-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen:
+    `npm run smoke:public`; `HEAD https://portal.s5evo.de/` 200;
+    `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200 mit
+    `totalClasses=9`, `totalTeams=82`, `resultBuckets=9`.
+  - Authenticated Manual Smoke offen:
+    Mit Admin-Session eine korrigierte Lauf/Rennrad/MTB-Datei importieren und
+    pruefen, dass `Engine-Abweichungen` nur noch bei echten Restdifferenzen
+    auftauchen und Startnummer `35` im Gesamtergebnis ohne Punkte sichtbar ist.
 
 - Production Data Ops 2026-07-22 09:20 UTC:
   - CR: `docs/cr/2026-07-22-soier-lions-startnumber-legacy-csv-prep.md`.
