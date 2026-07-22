@@ -6,6 +6,9 @@ export type LegacyResultValidationSeverity = "warning" | "error";
 export type LegacyResultValidationMessage = {
   code: string;
   severity: LegacyResultValidationSeverity;
+  actual?: number | string | null;
+  expected?: number | string | null;
+  message?: string;
 };
 
 export type LegacyRawResultRecord = {

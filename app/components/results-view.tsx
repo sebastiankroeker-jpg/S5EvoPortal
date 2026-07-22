@@ -45,6 +45,7 @@ interface TeamScore {
   disciplinePoints: Record<DisciplineCode, number>;
   totalPoints: number;
   rank: number;
+  hasAnyResult?: boolean;
 }
 
 interface ClassResult {
@@ -115,7 +116,7 @@ function StartNumberCell({ startNumber, showHash = true }: { startNumber?: strin
 
 function VerticalHeader({ children }: { children: string }) {
   return (
-    <span className="inline-flex h-24 items-center justify-center text-[11px] leading-none [writing-mode:vertical-rl] rotate-180">
+    <span className="inline-flex h-24 items-center justify-end text-[11px] leading-none [writing-mode:vertical-rl] rotate-180">
       {children}
     </span>
   );
@@ -612,7 +613,7 @@ function OverallResultsTables({
 
                       return (
                         <tr key={team.teamId} className="border-b border-border/30 transition-colors hover:bg-muted/30">
-                          <td className="py-2 pr-2 font-semibold tabular-nums">{team.rank}</td>
+                          <td className="py-2 pr-2 font-semibold tabular-nums">{team.hasAnyResult === false ? "-" : team.rank}</td>
                           <td className="px-1 py-2">
                             <span className="inline-flex min-w-0 items-center gap-1.5">
                               <StartNumberCell startNumber={team.startNumber} showHash={false} />
@@ -626,10 +627,12 @@ function OverallResultsTables({
                           </td>
                           {DISCIPLINE_CODES.map((discipline) => (
                             <td key={discipline} className="px-0.5 py-2 text-center text-xs text-muted-foreground tabular-nums">
-                              {team.disciplinePoints[discipline] || "-"}
+                              {team.hasAnyResult === false ? "-" : team.disciplinePoints[discipline] || "-"}
                             </td>
                           ))}
-                          <td className="py-2 pl-1 text-right font-bold tabular-nums">{team.totalPoints}</td>
+                          <td className="py-2 pl-1 text-right font-bold tabular-nums">
+                            {team.hasAnyResult === false ? "-" : team.totalPoints}
+                          </td>
                         </tr>
                       );
                     })}

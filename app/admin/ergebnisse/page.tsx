@@ -233,6 +233,7 @@ type LegacyResultImportSummary = {
   disciplineCounts?: Record<string, number>;
   warnings?: number;
   errors?: number;
+  engineWarnings?: number;
 };
 
 type LegacyResultImportResponse = {
@@ -246,6 +247,7 @@ type LegacyResultImportResponse = {
     status?: string;
     warnings?: number;
     errors?: number;
+    engineWarnings?: number;
   };
   error?: string;
 };
@@ -382,7 +384,12 @@ function messageSummary(messages: unknown[]) {
       const record = message as Record<string, unknown>;
       const code = typeof record.code === "string" ? record.code : "Hinweis";
       const severity = typeof record.severity === "string" ? record.severity : null;
-      return severity ? `${severity}: ${code}` : code;
+      const detail = typeof record.message === "string"
+        ? ` (${record.message})`
+        : typeof record.actual !== "undefined" || typeof record.expected !== "undefined"
+          ? ` (Ist ${String(record.actual ?? "—")}, Soll ${String(record.expected ?? "—")})`
+          : "";
+      return severity ? `${severity}: ${code}${detail}` : `${code}${detail}`;
     })
     .join(", ");
 }
@@ -622,6 +629,7 @@ export default function ResultDataWorkbenchPage() {
       `Raw Records: ${summary.rawRows ?? 0}`,
       `Drafts: ${summary.drafts ?? 0}`,
       `Disziplin-Zeilen: ${disciplineCounts || "—"}`,
+      `Engine-Abweichungen: ${summary.engineWarnings ?? 0}`,
       `Warnungen: ${summary.warnings ?? 0}`,
       `Fehler: ${summary.errors ?? 0}`,
     ].join("\n");

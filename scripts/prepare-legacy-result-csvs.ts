@@ -3,6 +3,8 @@ import { basename, join } from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 
+import { rankDiscipline, type DisciplineCode, type DisciplineEntry } from "../lib/domain/scoring";
+
 const prisma = new PrismaClient();
 
 const inboundDir = "/home/ocadmin/.openclaw/media/inbound";
@@ -25,6 +27,23 @@ const legacyClassByPortalCode: Record<string, string> = {
   jungsters: "6",
   herren: "7",
   masters: "8",
+};
+
+const overallGroupByLegacyClass: Record<string, "DAMEN" | "HERREN" | null> = {
+  "1": null,
+  "2": null,
+  "3": null,
+  "4": "DAMEN",
+  "5": "DAMEN",
+  "6": "HERREN",
+  "7": "HERREN",
+  "8": "HERREN",
+};
+
+const disciplineByFile: Record<string, DisciplineCode> = {
+  LAUFEN: "RUN",
+  RENNRAD: "ROAD",
+  MTB: "MTB",
 };
 
 function parseCsvRows(input: string, delimiter = ";") {
@@ -88,6 +107,110 @@ function findHeaderRow(rows: string[][]) {
   return index;
 }
 
+function parseLegacyTimeMs(value: string | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed || trimmed === "88:88:88.00" || trimmed === "99:99:99.99" || trimmed === "00:00:00.00") return null;
+  const match = /^(\d+):(\d{2}):(\d{2})\.(\d{2,3})$/.exec(trimmed);
+  if (!match) return null;
+  const [, hoursValue, minutesValue, secondsValue, fractionValue] = match;
+  const hours = Number.parseInt(hoursValue, 10);
+  const minutes = Number.parseInt(minutesValue, 10);
+  const seconds = Number.parseInt(secondsValue, 10);
+  const fraction = Number.parseInt(fractionValue.padEnd(3, "0").slice(0, 3), 10);
+  if (minutes >= 60 || seconds >= 60) return null;
+  return ((hours * 60 + minutes) * 60 + seconds) * 1000 + fraction;
+}
+
+function detectDiscipline(file: string): DisciplineCode | null {
+  const match = Object.entries(disciplineByFile).find(([token]) => file.includes(token));
+  return match?.[1] ?? null;
+}
+
+function setCell(row: string[], index: number, value: number | string | null) {
+  if (index < 0) return;
+  row[index] = value === null ? "" : String(value);
+}
+
+function correctTimeScoring(rows: string[][], headerIndex: number, file: string) {
+  const disciplineCode = detectDiscipline(file);
+  if (!disciplineCode) return { correctedRows: 0 };
+
+  const headers = rows[headerIndex];
+  const startIndex = headers.indexOf("Au1Startnr");
+  const classIndex = headers.indexOf("Au1Klasse");
+  const timeIndex = headers.indexOf("AuZeit");
+  const classPointsIndex = headers.indexOf("AuPunkte");
+  const classRankIndex = headers.indexOf("AuPlatzKlasse");
+  const femalePointsIndex = headers.indexOf("AuPunkteDamenGes");
+  const malePointsIndex = headers.indexOf("AuPunkteHerrenGes");
+  const overallRankIndex = headers.indexOf("AuPlatzGesamt");
+
+  const dataRows = rows.slice(headerIndex + 1).filter((row) => row.some((field) => field.trim()));
+  const rowsByClass = new Map<string, string[][]>();
+  const rowsByOverallGroup = new Map<string, string[][]>();
+
+  for (const row of dataRows) {
+    const legacyClass = row[classIndex]?.trim() ?? "";
+    if (!legacyClass) continue;
+    rowsByClass.set(legacyClass, [...(rowsByClass.get(legacyClass) ?? []), row]);
+    const overallGroup = overallGroupByLegacyClass[legacyClass] ?? null;
+    if (overallGroup) rowsByOverallGroup.set(overallGroup, [...(rowsByOverallGroup.get(overallGroup) ?? []), row]);
+  }
+
+  let correctedRows = 0;
+  for (const [legacyClass, classRows] of rowsByClass) {
+    const entries: DisciplineEntry[] = classRows.map((row) => ({
+      teamId: row[startIndex]?.trim() ?? "",
+      teamName: "",
+      startNumber: row[startIndex]?.trim() ?? null,
+      participantName: "",
+      rawValue: parseLegacyTimeMs(row[timeIndex]),
+      rawValueText: row[timeIndex] ?? null,
+      classCode: legacyClass,
+    }));
+    const ranked = rankDiscipline(entries, disciplineCode);
+    const scoringByStartNumber = new Map(ranked.map((entry) => [entry.teamId, entry]));
+    for (const row of classRows) {
+      const scoring = scoringByStartNumber.get(row[startIndex]?.trim() ?? "");
+      if (!scoring) continue;
+      setCell(row, classPointsIndex, scoring.points);
+      setCell(row, classRankIndex, scoring.rank);
+      correctedRows += 1;
+    }
+  }
+
+  for (const [overallGroup, overallRows] of rowsByOverallGroup) {
+    const entries: DisciplineEntry[] = overallRows.map((row) => ({
+      teamId: row[startIndex]?.trim() ?? "",
+      teamName: "",
+      startNumber: row[startIndex]?.trim() ?? null,
+      participantName: "",
+      rawValue: parseLegacyTimeMs(row[timeIndex]),
+      rawValueText: row[timeIndex] ?? null,
+      classCode: overallGroup,
+    }));
+    const ranked = rankDiscipline(entries, disciplineCode);
+    const scoringByStartNumber = new Map(ranked.map((entry) => [entry.teamId, entry]));
+    for (const row of overallRows) {
+      const scoring = scoringByStartNumber.get(row[startIndex]?.trim() ?? "");
+      if (!scoring) continue;
+      setCell(row, femalePointsIndex, overallGroup === "DAMEN" ? scoring.points : null);
+      setCell(row, malePointsIndex, overallGroup === "HERREN" ? scoring.points : null);
+      setCell(row, overallRankIndex, scoring.rank);
+    }
+  }
+
+  for (const row of dataRows) {
+    const legacyClass = row[classIndex]?.trim() ?? "";
+    if (overallGroupByLegacyClass[legacyClass]) continue;
+    setCell(row, femalePointsIndex, null);
+    setCell(row, malePointsIndex, null);
+    setCell(row, overallRankIndex, null);
+  }
+
+  return { correctedRows };
+}
+
 async function main() {
   const competition = await prisma.competition.findFirst({
     orderBy: { year: "desc" },
@@ -119,6 +242,7 @@ async function main() {
       outputRows: number;
       removedRows: number;
       changedClassRows: number;
+      correctedScoringRows: number;
     }>,
   };
 
@@ -148,6 +272,7 @@ async function main() {
       outputRows.push(next);
     }
 
+    const { correctedRows } = correctTimeScoring(outputRows, headerIndex, file);
     const outputName = basename(file, ".csv") + "--portal-startnummern.csv";
     const outputPath = join(outputDir, outputName);
     writeFileSync(outputPath, serializeCsvRows(outputRows), "latin1");
@@ -158,6 +283,7 @@ async function main() {
       outputRows: outputRows.length - headerIndex - 1,
       removedRows: sourceRows - (outputRows.length - headerIndex - 1),
       changedClassRows,
+      correctedScoringRows: correctedRows,
     });
   }
 

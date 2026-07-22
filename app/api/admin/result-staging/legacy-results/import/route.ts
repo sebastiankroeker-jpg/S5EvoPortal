@@ -9,6 +9,7 @@ import {
   type LegacyResultDraftPreview,
   type LegacyResultValidationMessage,
 } from "@/lib/legacy-result-import";
+import { rankDiscipline, type DisciplineCode, type DisciplineEntry } from "@/lib/domain/scoring";
 import { prisma } from "@/lib/prisma";
 import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
@@ -26,7 +27,27 @@ type LegacyResultImportBody = {
 type StarterMatch = {
   teamId: string | null;
   participantId: string | null;
+  classCode: string | null;
   messages: LegacyResultValidationMessage[];
+};
+
+type DraftRow = {
+  draft: LegacyResultDraftPreview;
+  match: StarterMatch | undefined;
+  validationMessages: LegacyResultValidationMessage[];
+};
+
+type ComputedScoring = {
+  points: number;
+  rank: number;
+};
+
+const OVERALL_GROUP_BY_CLASS: Record<string, "DAMEN" | "HERREN" | null> = {
+  "damen-a": "DAMEN",
+  "damen-b": "DAMEN",
+  jungsters: "HERREN",
+  herren: "HERREN",
+  masters: "HERREN",
 };
 
 function parseHeaderRow(value: unknown) {
@@ -66,6 +87,7 @@ async function buildStarterMatches(competitionId: string, tenantId: string, reco
     select: {
       id: true,
       startNumber: true,
+      classificationCode: true,
       participants: {
         where: { deletedAt: null },
         select: { id: true, disciplineCode: true },
@@ -95,6 +117,7 @@ async function buildStarterMatches(competitionId: string, tenantId: string, reco
       matches.set(key, {
         teamId: null,
         participantId: null,
+        classCode: null,
         messages: [{ code: "unmatched_start_number", severity: "error" }],
       });
       continue;
@@ -104,6 +127,7 @@ async function buildStarterMatches(competitionId: string, tenantId: string, reco
       matches.set(key, {
         teamId: null,
         participantId: null,
+        classCode: null,
         messages: [{ code: "ambiguous_start_number", severity: "error" }],
       });
       continue;
@@ -115,6 +139,7 @@ async function buildStarterMatches(competitionId: string, tenantId: string, reco
       matches.set(key, {
         teamId: team.id,
         participantId: null,
+        classCode: team.classificationCode || null,
         messages: [{ code: "missing_discipline_participant", severity: "error" }],
       });
       continue;
@@ -124,6 +149,7 @@ async function buildStarterMatches(competitionId: string, tenantId: string, reco
       matches.set(key, {
         teamId: team.id,
         participantId: null,
+        classCode: team.classificationCode || null,
         messages: [{ code: "ambiguous_discipline_participant", severity: "error" }],
       });
       continue;
@@ -132,6 +158,7 @@ async function buildStarterMatches(competitionId: string, tenantId: string, reco
     matches.set(key, {
       teamId: team.id,
       participantId: participants[0].id,
+      classCode: team.classificationCode || null,
       messages: [],
     });
   }
@@ -174,6 +201,109 @@ function buildProposedResultSnapshot(draft: LegacyResultDraftPreview) {
   };
 }
 
+function scoringMessage(
+  code: string,
+  actual: number | null,
+  expected: number | null,
+  label: string,
+): LegacyResultValidationMessage | null {
+  if (actual === null || expected === null || actual === expected) return null;
+  return {
+    code,
+    severity: "warning",
+    actual,
+    expected,
+    message: `${label}: Legacy ${actual}, Engine ${expected}`,
+  };
+}
+
+function addScoringWarnings(draftRows: DraftRow[]) {
+  const rowsByClass = new Map<string, Map<DisciplineCode, DraftRow[]>>();
+  const rowsByOverallGroup = new Map<string, Map<DisciplineCode, DraftRow[]>>();
+
+  for (const row of draftRows) {
+    const { draft, match } = row;
+    if (!match?.teamId || !match.participantId || !match.classCode) continue;
+    const disciplineCode = draft.disciplineCode as DisciplineCode;
+
+    if (!rowsByClass.has(match.classCode)) rowsByClass.set(match.classCode, new Map());
+    const classDisciplines = rowsByClass.get(match.classCode)!;
+    classDisciplines.set(disciplineCode, [...(classDisciplines.get(disciplineCode) ?? []), row]);
+
+    const overallGroup = OVERALL_GROUP_BY_CLASS[match.classCode] ?? null;
+    if (!overallGroup) continue;
+    if (!rowsByOverallGroup.has(overallGroup)) rowsByOverallGroup.set(overallGroup, new Map());
+    const overallDisciplines = rowsByOverallGroup.get(overallGroup)!;
+    overallDisciplines.set(disciplineCode, [...(overallDisciplines.get(disciplineCode) ?? []), row]);
+  }
+
+  const computedByClass = new Map<string, ComputedScoring>();
+  for (const [classCode, byDiscipline] of rowsByClass) {
+    for (const [disciplineCode, rows] of byDiscipline) {
+      const entries: DisciplineEntry[] = rows.map(({ draft, match }) => ({
+        teamId: match?.teamId ?? "",
+        teamName: "",
+        startNumber: draft.startNumber,
+        participantName: "",
+        rawValue: draft.rawValue,
+        rawValueText: draft.rawValueText,
+        classCode,
+      }));
+      const ranked = rankDiscipline(entries, disciplineCode);
+      ranked.forEach((entry) => {
+        computedByClass.set(`${disciplineCode}:${entry.teamId}`, {
+          points: entry.points,
+          rank: entry.rank,
+        });
+      });
+    }
+  }
+
+  const computedByOverall = new Map<string, ComputedScoring>();
+  for (const [overallGroup, byDiscipline] of rowsByOverallGroup) {
+    for (const [disciplineCode, rows] of byDiscipline) {
+      const entries: DisciplineEntry[] = rows.map(({ draft, match }) => ({
+        teamId: match?.teamId ?? "",
+        teamName: "",
+        startNumber: draft.startNumber,
+        participantName: "",
+        rawValue: draft.rawValue,
+        rawValueText: draft.rawValueText,
+        classCode: overallGroup,
+      }));
+      const ranked = rankDiscipline(entries, disciplineCode);
+      ranked.forEach((entry) => {
+        computedByOverall.set(`${overallGroup}:${disciplineCode}:${entry.teamId}`, {
+          points: entry.points,
+          rank: entry.rank,
+        });
+      });
+    }
+  }
+
+  return draftRows.map((row) => {
+    const { draft, match } = row;
+    if (!match?.teamId || !match.classCode) return row;
+    const disciplineCode = draft.disciplineCode as DisciplineCode;
+    const classComputed = computedByClass.get(`${disciplineCode}:${match.teamId}`);
+    const overallGroup = OVERALL_GROUP_BY_CLASS[match.classCode] ?? null;
+    const overallComputed = overallGroup
+      ? computedByOverall.get(`${overallGroup}:${disciplineCode}:${match.teamId}`)
+      : undefined;
+    const scoringWarnings = [
+      scoringMessage("engine_class_points_mismatch", draft.classPoints, classComputed?.points ?? null, "Klassenpunkte"),
+      scoringMessage("engine_class_rank_mismatch", draft.classRank, classComputed?.rank ?? null, "Klassenplatz"),
+      scoringMessage("engine_overall_gender_points_mismatch", draft.overallGenderPoints, overallComputed?.points ?? null, "Gesamtpunkte"),
+      scoringMessage("engine_overall_gender_rank_mismatch", draft.overallGenderRank, overallComputed?.rank ?? null, "Gesamtplatz"),
+    ].filter((message): message is LegacyResultValidationMessage => Boolean(message));
+
+    return {
+      ...row,
+      validationMessages: [...row.validationMessages, ...scoringWarnings],
+    };
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => null)) as LegacyResultImportBody | null;
@@ -210,7 +340,7 @@ export async function POST(request: NextRequest) {
         validationStatus: validationStatusFor(validationMessages),
       };
     });
-    const draftRows = parsed.drafts.map((draft) => {
+    const draftRows = addScoringWarnings(parsed.drafts.map((draft) => {
       const match = matchKey(draft);
       const validationMessages = mergeMessages(draft.validationMessages, match ? matches.get(match) : undefined);
       return {
@@ -218,7 +348,7 @@ export async function POST(request: NextRequest) {
         match: match ? matches.get(match) : undefined,
         validationMessages,
       };
-    });
+    }));
     const warnings = [...rawRows, ...draftRows].reduce(
       (count, row) => count + row.validationMessages.filter((message) => message.severity === "warning").length,
       0,
@@ -229,12 +359,17 @@ export async function POST(request: NextRequest) {
     );
     const matchedDrafts = draftRows.filter((row) => row.match?.participantId).length;
     const unmatchedDrafts = parsed.drafts.length - matchedDrafts;
+    const engineWarnings = draftRows.reduce(
+      (count, row) => count + row.validationMessages.filter((message) => message.code.startsWith("engine_")).length,
+      0,
+    );
     const responseSummary = {
       ...parsed.summary,
       warnings,
       errors,
       matchedDrafts,
       unmatchedDrafts,
+      engineWarnings,
     };
 
     if (dryRun) {
@@ -245,6 +380,7 @@ export async function POST(request: NextRequest) {
           status: errors > 0 ? "ERROR" : warnings > 0 ? "WARNING" : "PENDING",
           warnings,
           errors,
+          engineWarnings,
         },
         samples: {
           rawRecords: rawRows.slice(0, 5).map(({ record, validationMessages }) => ({
@@ -301,6 +437,7 @@ export async function POST(request: NextRequest) {
             errors,
             matchedDrafts,
             unmatchedDrafts,
+            engineWarnings,
           }),
         },
       });
@@ -387,6 +524,7 @@ export async function POST(request: NextRequest) {
             drafts: parsed.drafts.length,
             matchedDrafts,
             unmatchedDrafts,
+            engineWarnings,
             warningCount: warnings,
             errorCount: errors,
           }),
@@ -404,6 +542,7 @@ export async function POST(request: NextRequest) {
           status: errors > 0 ? "ERROR" : warnings > 0 ? "WARNING" : "PENDING",
           warnings,
           errors,
+          engineWarnings,
         },
       };
     }, { timeout: 30_000 });

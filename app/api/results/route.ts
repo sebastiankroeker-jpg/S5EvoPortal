@@ -14,10 +14,15 @@ import {
   type DisciplineCode,
   type DisciplineEntry,
   type RankedEntry,
+  type TeamScore,
 } from "@/lib/domain/scoring";
 import { compareClassificationCodes } from "@/lib/domain/classification";
 
 type ResultSnapshot = Record<string, unknown> | null;
+
+type ClassTeam = Pick<TeamScore, "teamId" | "teamName" | "startNumber" | "classCode">;
+
+type ResultTeamScore = TeamScore & { hasAnyResult?: boolean };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -33,6 +38,43 @@ function getClassScoring(snapshot: ResultSnapshot) {
     points: asNumber(scoring?.points),
     rank: asNumber(scoring?.rank),
   };
+}
+
+function startNumberSortValue(value: string | null | undefined) {
+  if (!value) return Number.MAX_SAFE_INTEGER;
+  const number = Number.parseInt(value, 10);
+  return Number.isFinite(number) ? number : Number.MAX_SAFE_INTEGER;
+}
+
+function completeTeamScores(scores: TeamScore[], classTeams: ClassTeam[]): ResultTeamScore[] {
+  const scoreByTeamId = new Map(scores.map((score) => [score.teamId, { ...score, hasAnyResult: true } as ResultTeamScore]));
+
+  for (const team of classTeams) {
+    if (scoreByTeamId.has(team.teamId)) continue;
+    scoreByTeamId.set(team.teamId, {
+      ...team,
+      disciplinePoints: { RUN: 0, BENCH: 0, STOCK: 0, ROAD: 0, MTB: 0 },
+      totalPoints: 0,
+      rank: 0,
+      hasAnyResult: false,
+    });
+  }
+
+  const completed = [...scoreByTeamId.values()].sort((left, right) => {
+    const pointDiff = right.totalPoints - left.totalPoints;
+    if (pointDiff !== 0) return pointDiff;
+    return startNumberSortValue(left.startNumber) - startNumberSortValue(right.startNumber);
+  });
+
+  for (let index = 0; index < completed.length; index += 1) {
+    if (index > 0 && completed[index].totalPoints === completed[index - 1].totalPoints) {
+      completed[index].rank = completed[index - 1].rank;
+    } else {
+      completed[index].rank = index + 1;
+    }
+  }
+
+  return completed;
 }
 
 /**
@@ -104,15 +146,26 @@ export async function GET(request: NextRequest) {
     const visibleParticipantById = new Map<string, string>();
     const teamClassCodeById = new Map<string, string>();
     const teamStartNumberById = new Map<string, string | null>();
+    const classTeams = new Map<string, ClassTeam[]>();
 
     for (const team of teams) {
+      const classCode = team.classificationCode || "unclassified";
       visibleTeamById.set(team.id, resolveVisibleTeamName({
         actualTeamName: team.name,
         teamPublicationLevel: team.teamPublicationLevel,
         canSeeFullPublication,
       }));
-      teamClassCodeById.set(team.id, team.classificationCode || "unclassified");
+      teamClassCodeById.set(team.id, classCode);
       teamStartNumberById.set(team.id, canSeeStartNumber ? team.startNumber : null);
+      classTeams.set(classCode, [
+        ...(classTeams.get(classCode) ?? []),
+        {
+          teamId: team.id,
+          teamName: visibleTeamById.get(team.id) ?? "Mannschaft",
+          startNumber: teamStartNumberById.get(team.id) ?? null,
+          classCode,
+        },
+      ]);
 
       for (const participant of team.participants) {
         visibleParticipantById.set(participant.id, resolveVisibleParticipantName({
@@ -222,7 +275,7 @@ export async function GET(request: NextRequest) {
       classCode: string;
       className: string;
       classType: string;
-      teamScores: ReturnType<typeof calculateTeamScores>;
+      teamScores: ResultTeamScore[];
       disciplineRankings: Record<DisciplineCode, ReturnType<typeof rankDiscipline>>;
     }[] = [];
 
@@ -245,7 +298,7 @@ export async function GET(request: NextRequest) {
       };
 
       // Calculate team scores
-      const teamScores = calculateTeamScores(disciplineRankings);
+      const teamScores = completeTeamScores(calculateTeamScores(disciplineRankings), classTeams.get(classCode) ?? []);
 
       results.push({
         classCode,
