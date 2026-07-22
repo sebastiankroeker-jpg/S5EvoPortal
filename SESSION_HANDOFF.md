@@ -1,8 +1,87 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 18:22 UTC
+Stand: 2026-07-22 21:18 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Sponsor Layer Tree / Mobile Touch Hotfix 2026-07-22 21:18 UTC:
+  - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
+  - Sebastian requested:
+    - Sponsor entries nested under the `Sponsoren` layer toggle.
+    - The parent toggle should show/hide the whole sponsor layer.
+    - Remove the remaining connection/leader line.
+    - Do not keep the selected sponsor card in the map area, especially after
+      layer off.
+    - Keep route link behavior to Google Maps.
+    - Continue improving mobile map visibility and pan/scroll.
+  - Fix in `app/components/event-map.tsx`:
+    - Sponsor entries now render as a tree below the `Sponsoren` toggle.
+    - Toggle off hides sponsor tree and markers together.
+    - Leader-line state/effects/SVG removed completely.
+    - Selected sponsor details moved from map overlay into the tree item.
+    - Mobile map area enlarged and MapLibre resize/touch handling reinforced
+      with `ResizeObserver`, orientation/resize hooks, and explicit pan/touch
+      options.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`.
+  - Production deploy approved by Sebastian in Telegram on 2026-07-22 21:15 UTC
+    with "Handoff und guard rails beachten und los".
+  - Deploy/smoke: in progress in the current session.
+  - Weiter offen nach Deploy:
+    authenticated iPhone visual smoke durch Sebastian.
+
+- Mobile Map Viewport Fix 2026-07-22 19:06 UTC:
+  - Sebastian reported on iOS Safari that he still saw no actual map and could
+    not scroll the screen. He also asked whether the default map area can be
+    defined and whether Bad Bayersoien coordinates are known.
+  - Confirmed coordinates already used:
+    `BAD_BAYERSOIEN_CENTER = [10.9987, 47.6907]`.
+  - Root cause: initial `fitBounds` included sponsor addresses outside the
+    municipality, including Oberau/Oderding, so Mobile started with an
+    over-wide extent instead of the Gemeindegebiet. The mobile shell also used
+    fixed viewport/overflow settings that could trap iOS Safari.
+  - Fix in `app/components/event-map.tsx`:
+    - Removed all-sponsor initial `fitBounds`.
+    - Map initializes and jumps to Bad Bayersoien center at zoom `14.2`.
+    - Mobile shell uses `svh`, allows page scrolling, and keeps desktop as a
+      fixed two-column map/list layout.
+    - Map area has a subtle land-colored fallback background while tiles load.
+  - Commit/Push: `46a654e Fix mobile event map viewport`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_4U1hP5mpb5p8kZiuKiEoaH9Bhdwz`
+    - Vercel-URL:
+      `https://s5-evo-portal-n66uclkot-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`, `HEAD https://portal.s5evo.de/karte` 200,
+    `npm run smoke:public`, MapTiler style fetch with
+    `Referer: https://portal.s5evo.de/karte` -> 200 `style ok`.
+
+- Mobile Hotfix 2026-07-22 18:55 UTC:
+  - Sebastian schickte einen iPhone-Screenshot: Die gestrichelte
+    Card-zu-Marker-Verbindungslinie lief auf Mobile diagonal ueber Karte,
+    Popup und Layer-Panel.
+  - Fix: `app/components/event-map.tsx` blendet die Leader-Line auf kleinen
+    Viewports aus und zeigt sie erst ab `lg`, wo Karte und Sponsor-Liste
+    nebeneinander stehen.
+  - Commit/Push: `3b5301a Fix mobile event map leader line`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_Bumou1pLZjUzzF41BcX6HphZTRSz`
+    - Vercel-URL:
+      `https://s5-evo-portal-at92pvgfu-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`, `HEAD https://portal.s5evo.de/karte` 200,
+    `npm run smoke:public`.
+  - Weiter offen: echter authenticated Mobile-Visual-Smoke durch Sebastian.
 
 - Production Release 2026-07-22 18:22 UTC:
   - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
@@ -46,10 +125,13 @@ Stand: 2026-07-22 18:22 UTC
   - Commit/Push:
     - Commit: `8448f11 Add admin event map`
     - Push: `git push origin main` -> `94e7e3a..8448f11`.
+    - Docs release-record commit `a20b94d docs: record admin event map release
+      [skip ci]` pushed afterwards. Vercel ignored/overrode `[skip ci]` and
+      still created a production deployment for that docs commit.
   - Vercel Production Deployment:
-    - Deployment-ID: `dpl_FqQzpadqm4ST2h7akUf4MhKDSwTC`
+    - Final Deployment-ID on alias: `dpl_65GVcfmnVVnjPSkSrDMDbQW9QXMv`
     - Vercel-URL:
-      `https://s5-evo-portal-qrkn14w2q-sebastiankroeker-2781s-projects.vercel.app`
+      `https://s5-evo-portal-qrd8uod9j-sebastiankroeker-2781s-projects.vercel.app`
     - Alias: `https://portal.s5evo.de`
     - Ready-State: `READY`
   - Post-Deploy Smoke gruen:
@@ -58,6 +140,10 @@ Stand: 2026-07-22 18:22 UTC
     `GET /api/teams` -> 401 `Unauthorized`; Smoke bestaetigt auch
     unauthenticated `/api/admin/pending-changes` -> 401.
     Rueckgabe von `/karte` enthaelt keinen Demo-Key-Hinweis.
+    Hinweis: Direkt nach dem zweiten Aliaswechsel gab es zwei transiente
+    `/api/competition` 500er (`PrismaClientInitializationError`, DB
+    `db.prisma.io:5432` kurz nicht erreichbar). Danach 5 direkte Retries 200
+    und voller `npm run smoke:public` erneut gruen.
   - Offen:
     - Browser/Visual-Smoke mit echtem Key.
     - Sponsor-Liste/Adressen kurz plausibilisieren, insbesondere
@@ -68,6 +154,9 @@ Stand: 2026-07-22 18:22 UTC
     `docs/`; beim Commit muessen neue Event-Map-Dateien gezielt mit
     `git add -f` aufgenommen werden. Unrelated untracked Workspace-Dateien
     `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md` nicht anfassen.
+    Der Nachtrag fuer den finalen zweiten Deployment-Status ist lokal in
+    CR/Handoff dokumentiert, aber bewusst nicht erneut gepusht, um keine dritte
+    Vercel-Deployment-Schleife durch reine Doku-Aenderungen auszuloesen.
 
 - Production Release 2026-07-22 10:18 UTC:
   - CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`.

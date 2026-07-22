@@ -263,6 +263,10 @@ Existing context:
   - Added `NEXT_PUBLIC_MAPTILER_KEY` to Vercel Production env; Vercel stores it
     encrypted, but it remains a public browser key at runtime.
   - Commit `8448f11 Add admin event map` pushed to `origin/main`.
+  - Docs release-record commit `a20b94d docs: record admin event map release
+    [skip ci]` was pushed. Vercel still created a production deployment for
+    that docs commit, so the final production alias points to the second
+    deployment below.
   - Kept sponsor data as typed static repo data, with `verified` vs
     `needs_review` confidence.
   - Added a MapTiler production style when `NEXT_PUBLIC_MAPTILER_KEY` is set.
@@ -301,13 +305,13 @@ Existing context:
 
 - Deployment needed: yes
 - Deployment ID:
-  - `dpl_FqQzpadqm4ST2h7akUf4MhKDSwTC`
+  - `dpl_65GVcfmnVVnjPSkSrDMDbQW9QXMv`
 - Deployment URL:
-  - `https://s5-evo-portal-qrkn14w2q-sebastiankroeker-2781s-projects.vercel.app`
+  - `https://s5-evo-portal-qrd8uod9j-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias:
   - `https://portal.s5evo.de`
 - Deployed at:
-  - 2026-07-22 18:18 UTC
+  - 2026-07-22 18:23 UTC
 
 ## Post-Deploy Smoke
 
@@ -327,7 +331,115 @@ Existing context:
   - `/karte` static HTML initially renders loading state before client auth
     resolution; no protected API data included.
 - Result:
-  - Pass. Authenticated admin visual smoke remains the only gap.
+  - Pass after retry. Immediately after the second alias switch there were two
+    transient `/api/competition` 500s caused by Prisma being unable to reach
+    `db.prisma.io:5432`; five direct retries returned 200 and the full
+    `npm run smoke:public` passed afterwards. Authenticated admin visual smoke
+    remains the only gap.
+
+## Mobile Hotfix
+
+- Trigger:
+  - Sebastian sent an iPhone screenshot on 2026-07-22 18:48 UTC showing the
+    dashed card-to-marker leader line crossing through the mobile map popup and
+    layer panel.
+- Change:
+  - `app/components/event-map.tsx` now hides the leader-line SVG below the
+    `lg` breakpoint and keeps it on desktop/tablet layouts where map and
+    sponsor list are side by side.
+- Commit:
+  - `3b5301a Fix mobile event map leader line`
+- Deployment:
+  - Deployment ID: `dpl_Bumou1pLZjUzzF41BcX6HphZTRSz`
+  - Deployment URL:
+    `https://s5-evo-portal-at92pvgfu-sebastiankroeker-2781s-projects.vercel.app`
+  - Production alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-22 18:55 UTC
+- Verification:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass
+
+## Mobile Viewport Fix
+
+- Trigger:
+  - Sebastian reported on iOS Safari that the map itself was still not visible,
+    the page did not scroll, and asked for a defined default map extent with
+    Bad Bayersoien coordinates.
+- Coordinates:
+  - Bad Bayersoien default center:
+    `BAD_BAYERSOIEN_CENTER = [10.9987, 47.6907]`.
+- Root cause:
+  - The original initial view used `fitBounds` over all sponsor addresses. Since
+    some sponsor addresses are outside the Gemeindegebiet, the mobile viewport
+    started too broadly and did not communicate the local map area well.
+  - The mobile shell also used viewport/overflow constraints that were brittle
+    in iOS Safari.
+- Change:
+  - Removed the initial all-sponsor `fitBounds`.
+  - Initialize/jump the map to Bad Bayersoien center at zoom `14.2`.
+  - Use `svh` for the mobile shell, allow mobile page scrolling, keep the
+    desktop layout fixed, and add a subtle map fallback background while tiles
+    load.
+- Commit:
+  - `46a654e Fix mobile event map viewport`
+- Deployment:
+  - Deployment ID: `dpl_4U1hP5mpb5p8kZiuKiEoaH9Bhdwz`
+  - Deployment URL:
+    `https://s5-evo-portal-n66uclkot-sebastiankroeker-2781s-projects.vercel.app`
+  - Production alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-22 19:06 UTC
+- Verification:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass
+  - MapTiler style request with `Referer: https://portal.s5evo.de/karte` -> 200
+
+## Sponsor Layer Tree And Touch Hotfix
+
+- Tier / risk:
+  - Micro CR / low-risk UI hotfix.
+  - No DB migration, no API change, no sensitive participant/team/account data.
+- Trigger:
+  - Sebastian reported on 2026-07-22 21:09 UTC that the sponsor UI should live
+    as child items under the sponsor layer toggle, the connecting line should be
+    removed entirely, the selected sponsor card stayed visible when the layer
+    was off, and the mobile map still did not visibly pan/scroll.
+- Change:
+  - Moved sponsor entries into a nested tree below the `Sponsoren` layer toggle.
+  - The sponsor layer toggle now hides/shows the sponsor tree and all sponsor
+    markers together.
+  - Removed the leader-line state, resize listeners, and SVG rendering
+    completely.
+  - Removed the selected sponsor overlay from the map area. Selected sponsor
+    details and `Route` / `Website` actions now expand inline in the sponsor
+    tree.
+  - Enlarged the mobile map area and added explicit MapLibre resize handling
+    with `ResizeObserver`, orientation/resize hooks, and touch/pan options.
+  - Kept the existing Google Maps route link behavior.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Sensitive-data/API leakage checks:
+  - No protected API serializers changed.
+  - No service-worker or offline-cache changes.
+  - Sponsor seed remains public business data only.
+- Authenticated/manual smoke:
+  - Authenticated iPhone visual smoke remains with Sebastian after deploy.
+- Deployment:
+  - Pending at time of writing.
 
 ## Follow-Ups
 
