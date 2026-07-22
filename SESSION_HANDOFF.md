@@ -1,8 +1,32 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 22:14 UTC
+Stand: 2026-07-22 22:17 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Event Map Raster Style Hotfix 2026-07-22 22:17 UTC:
+  - Sebastian sent a screenshot after `ffeeab7` showing the intended red
+    timeout box: MapLibre starts, but the external MapTiler style did not reach
+    `load` on iPhone.
+  - Root-cause hypothesis:
+    - MapLibre runtime is active.
+    - Problem is likely the remote style JSON/glyph/sprite/vector-tile style
+      chain on iOS/Safari, not the React shell.
+  - Fix in `app/components/event-map.tsx`:
+    - Replaced the external MapTiler `outdoor-v2/style.json` URL with an
+      inline MapLibre raster style.
+    - Raster source uses MapTiler Maps API XYZ PNG tiles:
+      `https://api.maptiler.com/maps/outdoor-v2/256/{z}/{x}/{y}.png?key=...`.
+    - This keeps MapTiler as provider but avoids remote style/glyph/sprite
+      loading before MapLibre can fire `load`.
+  - Verification:
+    - Direct MapTiler raster tile for Bad Bayersoien z14/x8692/y5716 with
+      `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`.
+    - `npx eslint app/components/event-map.tsx`,
+      `npx tsc --noEmit --incremental false`, `npm run build`,
+      `git diff --check` all gruen.
+  - Deploy/status:
+    - Local fix ready; commit/deploy pending at handoff update time.
 
 - Event Map Visible Diagnostics Hotfix 2026-07-22 22:09 UTC:
   - Sebastian sent a third iPhone screenshot after deploy

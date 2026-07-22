@@ -617,6 +617,44 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
+## Event Map Raster Style Hotfix
+
+- Tier / risk:
+  - Micro CR / low-risk map-style loading change.
+  - No DB migration, no API change, no participant/team/account data touched.
+- Trigger:
+  - Sebastian reported on 2026-07-22 22:15 UTC with a screenshot showing the
+    intended red timeout box: MapLibre started, but no `load` event arrived on
+    iPhone.
+- Additional documentation/API check:
+  - MapTiler Maps API supports raster XYZ tiles:
+    `GET https://api.maptiler.com/maps/{mapId}/{tileSize}/{z}/{x}/{y}{scale}.{format}`.
+- Root-cause hypothesis:
+  - Since the timeout UI rendered, the React shell and MapLibre initialization
+    path execute on iPhone.
+  - The likely failure is now the external MapTiler style JSON/glyph/sprite/
+    vector style chain not reaching `load` on iOS Safari.
+- Change:
+  - Replace the external MapTiler `outdoor-v2/style.json` URL with an inline
+    MapLibre raster style.
+  - Use MapTiler Outdoor raster XYZ PNG tiles directly:
+    `https://api.maptiler.com/maps/outdoor-v2/256/{z}/{x}/{y}.png?key=...`.
+  - Keep MapTiler as the tile provider while avoiding remote style/glyph/sprite
+    dependencies before the map can load.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - Direct MapTiler raster tile for Bad Bayersoien z14/x8692/y5716 with
+    `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after deploy.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ErrorEvent, Map as MapLibreMap, Marker } from "maplibre-gl";
+import type { ErrorEvent, Map as MapLibreMap, Marker, StyleSpecification } from "maplibre-gl";
 import {
   AlertTriangle,
   Building2,
@@ -14,8 +14,26 @@ import {
 import { BAD_BAYERSOIEN_CENTER, SPONSOR_POIS, sponsorsToGeoJson, type SponsorPoi } from "@/lib/event-map/sponsor-pois";
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-const MAP_STYLE = MAPTILER_KEY
-  ? `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${MAPTILER_KEY}`
+const MAP_STYLE: string | StyleSpecification = MAPTILER_KEY
+  ? {
+      version: 8,
+      sources: {
+        "maptiler-outdoor-raster": {
+          type: "raster",
+          tiles: [`https://api.maptiler.com/maps/outdoor-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`],
+          tileSize: 256,
+          maxzoom: 22,
+          attribution: "MapTiler | OpenStreetMap contributors",
+        },
+      },
+      layers: [
+        {
+          id: "maptiler-outdoor-raster",
+          type: "raster",
+          source: "maptiler-outdoor-raster",
+        },
+      ],
+    }
   : "https://demotiles.maplibre.org/style.json";
 const MAPLIBRE_WORKER_URL = new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString();
 
