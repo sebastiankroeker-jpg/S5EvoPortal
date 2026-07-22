@@ -46,6 +46,7 @@ export default function NavBar() {
   const activeTheme = THEMES.find((t) => t.id === theme) || THEMES[0];
   const realRole = roles.length > 0 ? roles[0] : "ZUSCHAUER";
   const simulatable = getSimulatableRoles(realRole as Role);
+  const showChangelogLink = activeRole === "ADMIN";
   const [isCollapsed, setIsCollapsed] = useState(false);
   const showDesktopOffset = status === "authenticated";
 
@@ -101,7 +102,7 @@ export default function NavBar() {
         showDesktopOffset ? (isCollapsed ? "lg:ml-12" : "lg:ml-52") : ""
       }`}
     >
-      {/* Left: Logo + Theme + Version */}
+      {/* Left: Logo + Theme */}
       <div className="flex items-center gap-1.5 min-w-0">
         <Link href="/" className="relative block size-8 shrink-0 overflow-hidden rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <Image
@@ -192,17 +193,19 @@ export default function NavBar() {
             </>
           )}
         </div>
-        <Link
-          href="/changelog"
-          aria-label="Projektstand und Changelog öffnen"
-          className="inline-flex shrink-0"
-          title="Projektstand und Changelog öffnen"
-        >
-          <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px] hover:bg-primary/20 cursor-pointer whitespace-nowrap">
-            <span className="hidden lg:inline">Projektstand</span>
-            <span>{APP_VERSION}</span>
-          </Badge>
-        </Link>
+        {showChangelogLink && (
+          <Link
+            href="/changelog"
+            aria-label="Projektstand und Changelog öffnen"
+            className="inline-flex shrink-0"
+            title="Projektstand und Changelog öffnen"
+          >
+            <Badge variant="secondary" className="h-6 gap-1 px-1.5 text-[10px] hover:bg-primary/20 cursor-pointer whitespace-nowrap">
+              <span className="hidden lg:inline">Projektstand</span>
+              <span>{APP_VERSION}</span>
+            </Badge>
+          </Link>
+        )}
       </div>
 
       {/* Right: Search + Role-Switcher + User + Abmelden */}
