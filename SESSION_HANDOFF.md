@@ -1,8 +1,45 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 23:14 UTC
+Stand: 2026-07-22 23:31 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Event Map PDF Sponsor Logos 2026-07-22 23:31 UTC:
+  - Sebastian sent front/back 2025 flyer PDFs and asked to extract sponsor
+    graphics and use them as icons.
+  - Assets:
+    - Extracted/cropped 42 sponsor logos from the PDF pages.
+    - Saved as WebP files in `public/event-map/sponsors/`.
+  - Data/UI:
+    - Added optional `logoSrc` to `SponsorPoi`.
+    - Expanded `SPONSOR_POIS` from 8 to 42 entries.
+    - Existing and new sponsors now show PDF logo icons in the sponsor tree,
+      Leaflet markers, and popups.
+    - Sponsor tree remains one-line per entry and is scrollable.
+    - Many newly-added sponsor coordinates are marked `needs_review`; exact
+      addresses/locations should be validated later.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx lib/event-map/sponsor-pois.ts`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`, `npm run smoke:public`.
+  - Commit/Push:
+    - Code/assets commit: `8a1285e Add sponsor logos to event map`
+    - Pushed `de94441..8a1285e`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_G7Dyn8rP2vD2cqPLQ3adQv3mA7hR`
+    - Vercel-URL:
+      `https://s5-evo-portal-gtixdguo1-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy-Smoke gruen:
+    `HEAD https://portal.s5evo.de/karte` 200,
+    `HEAD https://portal.s5evo.de/event-map/sponsors/radlstadl-wurmansau.webp`
+    200 `image/webp`, `npm run smoke:public`, direct MapTiler raster tile
+    for Bad Bayersoien z14/x8692/y5716 with
+    `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`.
+  - Weiter offen:
+    authenticated iPhone visual smoke by Sebastian; exact sponsor
+    addresses/coordinates should be reviewed after MVP.
 
 - Event Map Sponsor Popup UI 2026-07-22 22:56 UTC:
   - Sebastian confirmed "Mega!" after Leaflet deploy; iPhone screenshot showed
