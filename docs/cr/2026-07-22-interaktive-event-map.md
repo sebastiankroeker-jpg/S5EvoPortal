@@ -514,6 +514,48 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
+## MapLibre Hydration Diagnostics Hotfix
+
+- Tier / risk:
+  - Micro CR / low-risk client-map diagnostics and initialization hardening.
+  - No DB migration, no API change, no participant/team/account data touched.
+- Trigger:
+  - Sebastian reported on 2026-07-22 21:56 UTC with another iPhone screenshot
+    that the sponsor tree still renders correctly after the worker hotfix, but
+    the map area remains only the green fallback.
+- Additional inspection:
+  - `public/sw.js` does not intercept `/_next/*` requests.
+  - Navigation requests are network-first and only fall back to `/offline.html`
+    when fetch fails.
+  - Therefore stale PWA service-worker caching of the Event Map chunks is
+    unlikely to be the primary cause.
+- Root-cause hypothesis:
+  - Since MapLibre controls are also missing, the failure is still before or
+    inside MapLibre client initialization, not only a MapTiler tile/key issue.
+  - The previous page was silent when MapLibre did not reach `load`, because
+    the green fallback background remained visible without a loading/error
+    state.
+- Change:
+  - Removed the static runtime import of `maplibre-gl` from
+    `app/components/event-map.tsx`.
+  - Dynamically imports `maplibre-gl` inside the client `useEffect`.
+  - Keeps explicit `maplibregl.setWorkerUrl(...)` before map construction.
+  - Adds `mapLoaded` state and a visible `Karte wird geladen...` overlay until
+    MapLibre fires `load`.
+  - Caught dynamic import / constructor errors surface through the existing map
+    error overlay.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after deploy.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.

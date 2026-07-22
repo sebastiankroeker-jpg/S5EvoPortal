@@ -1,8 +1,35 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 21:47 UTC
+Stand: 2026-07-22 21:59 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- MapLibre Hydration Diagnostics Hotfix 2026-07-22 21:59 UTC:
+  - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
+  - Sebastian sent a second iPhone screenshot after deploy
+    `7275234`/`dpl_87w3iLvAiNxiRjY6VWnrpw1E7osx`: sponsor tree still visible,
+    but map area remained only the green fallback.
+  - Interpretation:
+    - The page shell and SSR/client markup are present.
+    - Missing MapLibre controls means the issue is still before/inside
+      MapLibre client initialization, not only tile loading.
+    - PWA service worker was inspected; it does not intercept `/_next/*` and
+      navigations are network-first, so stale SW chunk caching is unlikely.
+  - Fix in `app/components/event-map.tsx`:
+    - Removed the static runtime import of `maplibre-gl`.
+    - MapLibre now loads inside the client `useEffect` with dynamic
+      `import("maplibre-gl")`.
+    - The same-origin worker URL is still set before map construction.
+    - Added explicit `mapLoaded` state and a visible `Karte wird geladen...`
+      overlay while MapLibre has not reached `load`.
+    - Existing caught MapLibre import/constructor errors now surface in the map
+      area instead of leaving the fallback background silent.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`.
+  - Deploy/status:
+    - Local fix ready; commit/deploy pending at handoff update time.
 
 - MapLibre Worker Hotfix 2026-07-22 21:47 UTC:
   - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as maplibregl from "maplibre-gl";
 import type { ErrorEvent, Map as MapLibreMap, Marker } from "maplibre-gl";
 import {
   AlertTriangle,
@@ -19,8 +18,6 @@ const MAP_STYLE = MAPTILER_KEY
   ? `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${MAPTILER_KEY}`
   : "https://demotiles.maplibre.org/style.json";
 const MAPLIBRE_WORKER_URL = new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString();
-
-maplibregl.setWorkerUrl(MAPLIBRE_WORKER_URL);
 
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
   return (
@@ -47,11 +44,13 @@ export default function EventMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const maplibreRef = useRef<typeof import("maplibre-gl") | null>(null);
   const markersRef = useRef<Map<string, Marker>>(new Map());
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [selectedSponsorId, setSelectedSponsorId] = useState(SPONSOR_POIS[0]?.id ?? "");
   const [sponsorsVisible, setSponsorsVisible] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   const selectedSponsor = useMemo(
     () => SPONSOR_POIS.find((sponsor) => sponsor.id === selectedSponsorId) ?? SPONSOR_POIS[0],
@@ -73,65 +72,84 @@ export default function EventMap() {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    try {
-      const map = new maplibregl.Map({
-        container: mapContainerRef.current,
-        style: MAP_STYLE,
-        center: BAD_BAYERSOIEN_CENTER,
-        zoom: 14.2,
-        attributionControl: false,
-        cooperativeGestures: false,
-        dragPan: true,
-        dragRotate: false,
-        touchZoomRotate: true,
-      });
+    let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
+    const markers = markersRef.current;
+    setMapLoaded(false);
 
-      mapRef.current = map;
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-      map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+    const initializeMap = async () => {
+      try {
+        const maplibregl = await import("maplibre-gl");
+        maplibregl.setWorkerUrl(MAPLIBRE_WORKER_URL);
 
-      map.on("load", () => {
-        map.jumpTo({
+        if (cancelled || !mapContainerRef.current) return;
+
+        maplibreRef.current = maplibregl;
+        const map = new maplibregl.Map({
+          container: mapContainerRef.current,
+          style: MAP_STYLE,
           center: BAD_BAYERSOIEN_CENTER,
           zoom: 14.2,
+          attributionControl: false,
+          cooperativeGestures: false,
+          dragPan: true,
+          dragRotate: false,
+          touchZoomRotate: true,
         });
 
-        map.addSource("sponsors", {
-          type: "geojson",
-          data: sponsorsToGeoJson(SPONSOR_POIS),
+        mapRef.current = map;
+        setMapError(null);
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+        map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+
+        map.on("load", () => {
+          map.jumpTo({
+            center: BAD_BAYERSOIEN_CENTER,
+            zoom: 14.2,
+          });
+
+          map.addSource("sponsors", {
+            type: "geojson",
+            data: sponsorsToGeoJson(SPONSOR_POIS),
+          });
+
+          setMapLoaded(true);
+          window.requestAnimationFrame(() => map.resize());
         });
 
-        window.requestAnimationFrame(() => map.resize());
-      });
+        resizeObserver = new ResizeObserver(() => {
+          window.requestAnimationFrame(() => map.resize());
+        });
+        resizeObserver.observe(mapContainerRef.current);
 
-      const resizeObserver = new ResizeObserver(() => {
-        window.requestAnimationFrame(() => map.resize());
-      });
-      resizeObserver.observe(mapContainerRef.current);
+        map.on("error", (event: ErrorEvent) => {
+          const message = event.error?.message || "Die Karte konnte nicht vollstaendig geladen werden.";
+          setMapError(message);
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setMapError(error instanceof Error ? error.message : "Die Karte konnte nicht initialisiert werden.");
+        }
+      }
+    };
 
-      map.on("error", (event: ErrorEvent) => {
-        const message = event.error?.message || "Die Karte konnte nicht vollstaendig geladen werden.";
-        setMapError(message);
-      });
+    void initializeMap();
 
-      const markers = markersRef.current;
-      return () => {
-        markers.forEach((marker) => marker.remove());
-        markers.clear();
-        resizeObserver.disconnect();
-        map.remove();
-        mapRef.current = null;
-      };
-    } catch (error) {
-      window.setTimeout(() => {
-        setMapError(error instanceof Error ? error.message : "Die Karte konnte nicht initialisiert werden.");
-      }, 0);
-    }
+    return () => {
+      cancelled = true;
+      markers.forEach((marker) => marker.remove());
+      markers.clear();
+      resizeObserver?.disconnect();
+      mapRef.current?.remove();
+      mapRef.current = null;
+      maplibreRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    const maplibregl = maplibreRef.current;
+    if (!map || !maplibregl) return;
 
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current.clear();
@@ -153,7 +171,7 @@ export default function EventMap() {
         markersRef.current.set(sponsor.id, marker);
       });
     }
-  }, [selectSponsor, sponsorsVisible]);
+  }, [mapLoaded, selectSponsor, sponsorsVisible]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, sponsorId) => {
@@ -312,6 +330,12 @@ export default function EventMap() {
 
         <main className="relative order-1 h-[62svh] min-h-[420px] touch-none bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0">
           <div ref={mapContainerRef} className="absolute inset-0 touch-none" />
+
+          {!mapLoaded && !mapError && (
+            <div className="absolute left-3 top-3 z-10 rounded-md border border-border/70 bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm">
+              Karte wird geladen...
+            </div>
+          )}
 
           {!MAPTILER_KEY && (
             <div className="absolute left-3 top-3 z-10 max-w-[min(24rem,calc(100vw-1.5rem))] rounded-md border border-amber-300/70 bg-amber-50/95 px-3 py-2 text-xs text-amber-950 shadow-sm dark:border-amber-500/40 dark:bg-amber-950/90 dark:text-amber-100">
