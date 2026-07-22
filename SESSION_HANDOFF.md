@@ -4,6 +4,21 @@ Stand: 2026-07-22 02:53 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Pending local UI change after the 02:49 UTC production release:
+  - Commit `97f90f6 Hide changelog link from non-admin header`
+  - Aenderung: Header-Badge `Projektstand` / `APP_VERSION` / Link
+    `/changelog` wird in `app/components/nav-bar.tsx` nur noch fuer aktive
+    Rolle `ADMIN` gerendert. Nicht-Admins sehen ihn route-uebergreifend nicht
+    mehr.
+  - Checks gruen: `npx eslint app/components/nav-bar.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check -- app/components/nav-bar.tsx`.
+  - Lokale Runtime-Probe: `http://localhost:3107/anmeldung` 200; Suche nach
+    `Projektstand`, `v0.7.1`, `/changelog` im nicht-authentifizierten HTML ohne
+    Treffer.
+  - Noch nicht gepusht/deployed. Fuer Production weiter Standardprozess:
+    Sebastian-Go -> `git push origin main` -> Vercel abwarten -> Smoke.
+
 - Release-/Commit-Standard ab 2026-07-22:
   - `main` ist mit Vercel/GitHub verbunden:
     - Vercel-Projekt `s5-evo-portal`
