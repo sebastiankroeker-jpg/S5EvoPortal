@@ -662,3 +662,44 @@ Open:
 
 - Authenticated admin browser smoke with the corrected Bank CSV.
 - STOCK scoring correction remains deferred.
+
+## Addendum: Stock Tie-Breaker Import
+
+Date: 2026-07-22
+
+Implemented:
+
+- Stock scoring validation and generated test CSV correction now use Legacy
+  tie-breakers: rings descending, masked BWZ descending, strikeout result
+  descending.
+- `AuSchubBWZ` is formatted for display by left-padding to 8 digits and
+  rendering as `##.###.###`.
+- Stock individual result rows in `Live -> Ergebnisse` now show BWZ and
+  strikeout result below the rings value.
+- Legacy CSV points/ranks remain the imported/staged source of truth; engine
+  values are still only validation warnings.
+
+Deploy:
+
+- Commit: `94e7e3a Handle legacy stock tie breakers`.
+- Deployment ID: `dpl_QWFvViDedR9vXyrWQhQdwzJKLfMw`.
+- Deployment URL:
+  `https://s5-evo-portal-ci3pl138s-sebastiankroeker-2781s-projects.vercel.app`.
+- Production alias: `https://portal.s5evo.de`.
+- Ready state: `READY`.
+
+Verification:
+
+- `npm run verify:legacy-result-import`: passed, 5 inbound fixtures.
+- `npx eslint app/api/admin/result-staging/legacy-results/import/route.ts app/api/results/route.ts app/components/results-view.tsx lib/domain/scoring.ts lib/legacy-result-import.ts scripts/prepare-legacy-result-csvs.ts`: passed.
+- `npx tsc --noEmit --incremental false`: passed.
+- `git diff --check`: passed.
+- `npm run build`: passed locally and on Vercel.
+- `npm run smoke:public`: passed against production.
+- `HEAD https://portal.s5evo.de/`: 200.
+- `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt&includeStaging=true`:
+  200.
+
+Open:
+
+- Authenticated admin browser smoke with the corrected Stock CSV.
