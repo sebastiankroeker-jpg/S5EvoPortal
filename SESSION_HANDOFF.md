@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 02:53 UTC
+Stand: 2026-07-22 04:45 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Pending local UI change after the 02:49 UTC production release:
+- Production Release 2026-07-22 04:41 UTC:
   - Commit `97f90f6 Hide changelog link from non-admin header`
   - Aenderung: Header-Badge `Projektstand` / `APP_VERSION` / Link
     `/changelog` wird in `app/components/nav-bar.tsx` nur noch fuer aktive
@@ -16,8 +16,22 @@ Stand: 2026-07-22 02:53 UTC
   - Lokale Runtime-Probe: `http://localhost:3107/anmeldung` 200; Suche nach
     `Projektstand`, `v0.7.1`, `/changelog` im nicht-authentifizierten HTML ohne
     Treffer.
-  - Noch nicht gepusht/deployed. Fuer Production weiter Standardprozess:
-    Sebastian-Go -> `git push origin main` -> Vercel abwarten -> Smoke.
+  - Nach Sebastian-Go wurde `git push origin main` ausgefuehrt.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_5hR4bfqanaPJKsxP7moxCrY5uuj9`
+    - Vercel-URL:
+      `https://s5-evo-portal-kmysnqdqw-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/`, `/login`,
+    `/anmeldung`, `/aenderungen` 200; Legacy-Domain 308; `/api/competition`
+    200; `/api/results` 200; unauthenticated `/api/teams` 401;
+    unauthenticated `/api/admin/pending-changes` 401.
+  - Live Header-Smoke: `https://portal.s5evo.de/anmeldung` 200; Suche nach
+    `Projektstand`, `v0.7.1`, `/changelog` im nicht-authentifizierten HTML ohne
+    Treffer.
+  - Dieser Handoff-Update-Commit bleibt zunaechst lokal, damit kein zweiter
+    docs-only Production-Build direkt nach dem Release ausgeloest wird.
 
 - Release-/Commit-Standard ab 2026-07-22:
   - `main` ist mit Vercel/GitHub verbunden:
