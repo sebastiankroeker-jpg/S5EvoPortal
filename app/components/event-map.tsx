@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+import Image from "next/image";
 import {
   Building2,
   Layers,
@@ -29,6 +30,18 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+function buildSponsorLogoHtml(sponsor: SponsorPoi, className: string): string {
+  if (!sponsor.logoSrc) {
+    return `<span class="${className} bg-primary text-xs font-semibold text-primary-foreground">${escapeHtml(sponsor.logoText)}</span>`;
+  }
+
+  return `
+    <span class="${className} overflow-hidden bg-white p-0.5">
+      <img src="${escapeHtml(sponsor.logoSrc)}" alt="${escapeHtml(sponsor.name)}" class="h-full w-full object-contain" loading="lazy" />
+    </span>
+  `;
+}
+
 function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
   const confidenceText = sponsor.confidence === "verified" ? "verifiziert" : "pruefen";
   const websiteLink = sponsor.websiteUrl
@@ -38,7 +51,7 @@ function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
   return `
     <div class="min-w-52 max-w-64 text-sm text-foreground">
       <div class="flex items-start gap-3">
-        <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">${escapeHtml(sponsor.logoText)}</span>
+        ${buildSponsorLogoHtml(sponsor, "inline-flex size-12 shrink-0 items-center justify-center rounded-md border border-border/60")}
         <div class="min-w-0">
           <p class="font-semibold leading-tight">${escapeHtml(sponsor.name)}</p>
           <p class="mt-1 text-xs text-muted-foreground">${escapeHtml(sponsor.category)}</p>
@@ -56,6 +69,14 @@ function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
 }
 
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
+  if (sponsor.logoSrc) {
+    return (
+      <span className="inline-flex h-8 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-white p-0.5 shadow-sm">
+        <Image src={sponsor.logoSrc} alt={sponsor.name} width={40} height={32} className="h-full w-full object-contain" />
+      </span>
+    );
+  }
+
   return (
     <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground shadow-sm">
       {sponsor.logoText}
@@ -179,9 +200,12 @@ export default function EventMap() {
         const marker = L.marker(toLeafletLatLng(sponsor.coordinates), {
           icon: L.divIcon({
             className: "",
-            html: `<span class="event-map-marker inline-flex size-9 items-center justify-center rounded-md border-2 border-white bg-primary text-[11px] font-bold text-primary-foreground shadow-lg transition-transform hover:scale-110">${sponsor.logoText}</span>`,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
+            html: buildSponsorLogoHtml(
+              sponsor,
+              "event-map-marker inline-flex h-9 w-11 items-center justify-center rounded-md border-2 border-white shadow-lg transition-transform hover:scale-110",
+            ),
+            iconSize: [44, 36],
+            iconAnchor: [22, 18],
           }),
           title: sponsor.name,
         }).addTo(map);
@@ -231,7 +255,7 @@ export default function EventMap() {
       className="relative min-h-[calc(100svh-3rem)] overflow-x-hidden bg-background lg:h-[calc(100vh-3rem)] lg:overflow-hidden"
     >
       <div className="grid min-h-[calc(100svh-3rem)] grid-cols-1 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(300px,380px)_1fr]">
-        <aside className="z-10 order-2 flex flex-col border-t border-border/50 bg-background/95 lg:order-1 lg:max-h-none lg:border-r lg:border-t-0">
+        <aside className="z-10 order-2 flex min-h-0 flex-col border-t border-border/50 bg-background/95 lg:order-1 lg:max-h-none lg:border-r lg:border-t-0">
           <div className="border-b border-border/50 px-4 py-4">
             <div className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
@@ -243,7 +267,7 @@ export default function EventMap() {
             </p>
           </div>
 
-          <div className="border-b border-border/50 px-4 py-3">
+          <div className="min-h-0 flex-1 overflow-y-auto border-b border-border/50 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Layers className="h-4 w-4" />
               Layer
