@@ -231,7 +231,7 @@ export default function EventMap() {
   return (
     <div ref={shellRef} className="relative min-h-[calc(100vh-3rem)] overflow-hidden bg-background">
       {leaderLine && (
-        <svg className="pointer-events-none absolute inset-0 z-20 h-full w-full" aria-hidden="true">
+        <svg className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full lg:block" aria-hidden="true">
           <line
             x1={leaderLine.x1}
             y1={leaderLine.y1}
