@@ -4,6 +4,52 @@ Stand: 2026-07-22 04:45 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Production Release 2026-07-22 06:25 UTC:
+  - Aenderung: `Live` hat in allen drei Tabs `Teams`, `Startlisten` und
+    `Ergebnisse` ein Dashboard-analoges Such-/Filterfeld.
+  - Suchindex:
+    - Teams/Startlisten: Teamname, sichtbare Startnummer, Teilnehmer:innen;
+      fuer Admins zusaetzlich Teammanager/Kontakt.
+    - Ergebnisse: Teamname, sichtbare Startnummer, Teilnehmer:innen aus
+      Ergebnissen; fuer Admins zusaetzlich Teammanager/Kontakt ueber den
+      bereits geladenen Live-Teamkontext.
+  - Filterpanel:
+    - Klassen-Pillen pro Tab.
+    - `Damen Gesamt` = `damen-a` + `damen-b`.
+    - `Herren Gesamt` = `jungsters` + `herren` + `masters`.
+    - Favoritenfilter bleibt watchlist-basiert und ist in das Panel gezogen.
+  - Startlisten-Suche reduziert bei Treffer auf Teilnehmer:innen-Niveau:
+    Teamname/Startnummer/Teammanager filtert teamweit, Teilnehmername nur die
+    passenden Starter:innen.
+  - Geaenderte Dateien:
+    `app/components/live-screen.tsx`,
+    `app/components/results-view.tsx`.
+  - Checks gruen: `npx eslint app/components/live-screen.tsx
+    app/components/results-view.tsx`, `npx tsc --noEmit --incremental false`,
+    `git diff --check`, `npm run build`.
+  - Lokale Runtime-Probe: Dev-Server `http://localhost:3109`; `HEAD /` 200.
+  - Commit: `4fde882 Add live cockpit search filters`.
+  - Push: `git push origin main` nach Sebastian-Go; dabei wurde der vorher
+    lokale Handoff-Commit `0005952 docs: record live cockpit production
+    release` mit gepusht.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_CVox9EKY8PyRGh5yubg5wFdtd7Sf`
+    - Vercel-URL:
+      `https://s5-evo-portal-hsn4lpd4u-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/`, `/login`,
+    `/anmeldung`, `/aenderungen` 200; Legacy-Domain 308;
+    `/api/competition` 200; `/api/results` 200; unauthenticated `/api/teams`
+    401; unauthenticated `/api/admin/pending-changes` 401.
+  - Targeted Live/API Smoke: `HEAD https://portal.s5evo.de/` 200;
+    `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200;
+    aktuelle API-Daten: `classes=9`, `teams=82`, `totalClasses=9`,
+    `competition.status=OPEN`.
+  - Authenticated Manual Smoke offen: Suchfeld/Filterpanel in `Teams`,
+    `Startlisten` und `Ergebnisse` mit eingeloggter Admin-Rolle visuell
+    pruefen, insbesondere Teammanager-Suche und Favoriten.
+
 - Production Release 2026-07-22 05:25 UTC:
   - CR: `docs/cr/2026-07-22-live-results-tabs.md`
   - Aenderung: `Live` ist als Wettkampftags-Cockpit geordnet:
