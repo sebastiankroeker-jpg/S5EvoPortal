@@ -1,8 +1,55 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 08:17 UTC
+Stand: 2026-07-22 08:46 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Local In-Progress CR 2026-07-22 08:46 UTC:
+  - CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`
+    Addendum `Legacy Result Parser V2 Staging Write`.
+  - Sebastian hat den Vorschlag angenommen:
+    - `Dry-run` bleibt Vorschau/Pruefung und schreibt nichts in die DB.
+    - Neue Import-Pakete verwenden nur noch `Produktionstest` / `PROD_TEST`.
+    - `Produktion` bleibt fuer spaetere Publikation/Siegerehrungs-/Release-
+      Workflows reserviert.
+  - Lokal umgesetzt, noch nicht committed/gepusht/deployed:
+    - Generischer V2-Endpunkt
+      `POST /api/admin/result-staging/legacy-results/import` schreibt bei
+      `dryRun:false` `PROD_TEST`-Batches mit Raw Records und Drafts.
+    - V2-Dry-run bleibt ohne DB-Write, liest aber fuer Matching Startnummer +
+      Disziplin gegen Teams/Teilnehmer:innen.
+    - Legacy-Laufen-Importer und Zeitnahme-Import akzeptieren serverseitig nur
+      noch `PROD_TEST` fuer neue Writes.
+    - Admin-UI entfernt Import-Zweck-Dropdowns; V2-CSV-Aktion macht
+      Dry-run-Zusammenfassung, Confirm, dann Staging-Testpaket.
+    - Alte Enum-Werte/Filter bleiben fuer historische Pakete kompatibel.
+  - Geaenderte Dateien:
+    `app/admin/ergebnisse/page.tsx`,
+    `app/api/admin/result-staging/legacy-results/import/route.ts`,
+    `app/api/admin/result-staging/legacy-running/import/route.ts`,
+    `app/api/admin/result-staging/timekeeping/import/route.ts`,
+    `scripts/verify-legacy-result-import.ts`,
+    `docs/cr/2026-07-21-legacy-result-import-v2.md`,
+    `SESSION_HANDOFF.md`.
+  - Checks gruen:
+    `npx eslint app/admin/ergebnisse/page.tsx app/api/admin/result-staging/legacy-results/import/route.ts app/api/admin/result-staging/legacy-running/import/route.ts app/api/admin/result-staging/timekeeping/import/route.ts scripts/verify-legacy-result-import.ts`,
+    `npx tsc --noEmit --incremental false`,
+    `npm run verify:legacy-result-import`,
+    `git diff --check`, `npm run build`.
+  - Local negative smoke:
+    unauthenticated V2 import `POST` -> 401 ohne Payload;
+    alter RUN-Importer mit `purpose=PRODUCTION` -> 400 `Ungueltiger purpose.`
+    ohne Payload.
+  - Check-Gap:
+    `npm run verify:tenant-scope` faellt aktuell wegen bestehenden,
+    unberuehrten Home-News-Routen
+    `app/api/admin/home-news/[entryId]/route.ts` und
+    `app/api/admin/home-news/route.ts`.
+  - Gate:
+    Noch auf Sebastian-Go fuer Commit/Push/Production-Deploy warten, weil dies
+    production DB staging writes aktiviert. Pushing `main` triggert Vercel
+    Production.
+  - Lokaler Dev-Server laeuft auf `http://localhost:3113`.
 
 - Production Release 2026-07-22 08:16 UTC:
   - Aenderung: Nachschliff fuer `Live`-Teams, Startlisten, Ergebnislisten und

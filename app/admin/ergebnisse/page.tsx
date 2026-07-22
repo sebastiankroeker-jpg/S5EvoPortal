@@ -236,6 +236,10 @@ type LegacyResultImportSummary = {
 };
 
 type LegacyResultImportResponse = {
+  batchId?: string;
+  label?: string | null;
+  status?: string;
+  purpose?: string;
   dryRun?: boolean;
   summary?: LegacyResultImportSummary;
   validation?: {
@@ -437,6 +441,7 @@ export default function ResultDataWorkbenchPage() {
   const [loadingTimekeeping, setLoadingTimekeeping] = useState(false);
   const [importingTimekeeping, setImportingTimekeeping] = useState(false);
   const [checkingLegacyResult, setCheckingLegacyResult] = useState(false);
+  const [importingLegacyResult, setImportingLegacyResult] = useState(false);
   const [importingLegacyRunning, setImportingLegacyRunning] = useState(false);
   const [resettingTestData, setResettingTestData] = useState(false);
   const legacyResultInputRef = useRef<HTMLInputElement | null>(null);
@@ -454,8 +459,6 @@ export default function ResultDataWorkbenchPage() {
   const [savingCorrection, setSavingCorrection] = useState(false);
   const [timekeepingSessions, setTimekeepingSessions] = useState<TimekeepingSessionSummary[]>([]);
   const [selectedTimekeepingSessionId, setSelectedTimekeepingSessionId] = useState("");
-  const [timekeepingPurpose, setTimekeepingPurpose] = useState("PROD_TEST");
-  const [legacyRunningPurpose, setLegacyRunningPurpose] = useState("PROD_TEST");
 
   const hasAdminAccess = !!session && can("config.edit");
 
@@ -579,7 +582,7 @@ export default function ResultDataWorkbenchPage() {
         body: JSON.stringify({
           competitionId: activeCompetition.id,
           sessionId: selectedTimekeepingSession.id,
-          purpose: timekeepingPurpose,
+          purpose: "PROD_TEST",
         }),
       });
       const data = (await response.json().catch(() => ({}))) as TimekeepingImportResponse;
@@ -624,36 +627,67 @@ export default function ResultDataWorkbenchPage() {
     ].join("\n");
   };
 
-  const handleLegacyResultDryRun = async (file: File | null) => {
-    if (!file || checkingLegacyResult) return;
+  const postLegacyResultImport = async (csv: string, dryRun: boolean) => {
+    if (!activeCompetition?.id) {
+      throw new Error("Es ist kein aktiver Wettkampf ausgewählt.");
+    }
+
+    const response = await fetch("/api/admin/result-staging/legacy-results/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        competitionId: activeCompetition.id,
+        csv,
+        dryRun,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as LegacyResultImportResponse;
+    if (!response.ok) {
+      throw new Error(data.error || "Legacy-Ergebnis-CSV konnte nicht verarbeitet werden.");
+    }
+    return data;
+  };
+
+  const handleLegacyResultImport = async (file: File | null) => {
+    if (!file || checkingLegacyResult || importingLegacyResult) return;
     if (!activeCompetition?.id) {
       setError("Es ist kein aktiver Wettkampf ausgewählt.");
       return;
     }
 
     setCheckingLegacyResult(true);
+    setImportingLegacyResult(true);
     setError(null);
     setLegacyResultFeedback(null);
     try {
       const csv = await readLegacyRunningCsvFile(file);
-      const response = await fetch("/api/admin/result-staging/legacy-results/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          competitionId: activeCompetition.id,
-          csv,
-          dryRun: true,
-        }),
-      });
-      const data = (await response.json().catch(() => ({}))) as LegacyResultImportResponse;
-      if (!response.ok) {
-        throw new Error(data.error || "Legacy-Ergebnis-CSV konnte nicht geprüft werden.");
+      const preview = await postLegacyResultImport(csv, true);
+      const summaryText = formatLegacyResultSummary(preview.summary);
+      const confirmed = window.confirm(
+        `Legacy-Ergebnis Dry-run geprüft.\n\n${summaryText}\n\nJetzt als Produktionstest-Paket stagen?`,
+      );
+      if (!confirmed) {
+        setLegacyResultFeedback(`Dry-run geprüft, kein Paket geschrieben.\n${summaryText}`);
+        return;
       }
-      setLegacyResultFeedback(`Legacy-Ergebnis Dry-run geprüft.\n${formatLegacyResultSummary(data.summary)}`);
+
+      const result = await postLegacyResultImport(csv, false);
+      setSource("LEGACY_IMPORT");
+      if (result.summary?.disciplineCode && result.summary.disciplineCode !== "MIXED" && result.summary.disciplineCode !== "UNKNOWN") {
+        setDiscipline(result.summary.disciplineCode);
+      }
+      setSelectedBatchId(result.batchId || "");
+      setBatchDetailTab("drafts");
+      setActiveTab("mapping");
+      setLegacyResultFeedback(
+        `Paket ${result.label || result.batchId} erstellt.\n${formatLegacyResultSummary(result.summary)}`,
+      );
+      await loadBatches();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Legacy-Ergebnis-CSV konnte nicht geprüft werden.");
+      setError(requestError instanceof Error ? requestError.message : "Legacy-Ergebnis-CSV konnte nicht verarbeitet werden.");
     } finally {
       setCheckingLegacyResult(false);
+      setImportingLegacyResult(false);
       if (legacyResultInputRef.current) {
         legacyResultInputRef.current.value = "";
       }
@@ -671,7 +705,7 @@ export default function ResultDataWorkbenchPage() {
       body: JSON.stringify({
         competitionId: activeCompetition.id,
         csv,
-        purpose: legacyRunningPurpose,
+        purpose: "PROD_TEST",
         dryRun,
       }),
     });
@@ -1276,7 +1310,7 @@ export default function ResultDataWorkbenchPage() {
                   <div className="space-y-1">
                     <p className="font-medium">Legacy-Ergebnis-CSV prüfen</p>
                     <p className="text-sm text-muted-foreground">
-                      V2-Dry-run für Laufen, Rennrad, MTB, Bankdrücken und Stockschießen. Es wird noch kein Paket geschrieben.
+                      V2-Dry-run für Laufen, Rennrad, MTB, Bankdrücken und Stockschießen, danach bewusst als Produktionstest-Paket stagen.
                     </p>
                   </div>
                   <div>
@@ -1285,15 +1319,15 @@ export default function ResultDataWorkbenchPage() {
                       type="file"
                       accept=".csv,text/csv"
                       className="hidden"
-                      onChange={(event) => void handleLegacyResultDryRun(event.target.files?.[0] ?? null)}
+                      onChange={(event) => void handleLegacyResultImport(event.target.files?.[0] ?? null)}
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => legacyResultInputRef.current?.click()}
-                      disabled={checkingLegacyResult || !activeCompetition?.id}
+                      disabled={checkingLegacyResult || importingLegacyResult || !activeCompetition?.id}
                     >
-                      {checkingLegacyResult ? "Prüfe..." : "CSV trocken prüfen"}
+                      {checkingLegacyResult || importingLegacyResult ? "Prüfe..." : "CSV auswählen"}
                     </Button>
                   </div>
                 </div>
@@ -1304,19 +1338,10 @@ export default function ResultDataWorkbenchPage() {
                   <div className="space-y-1">
                     <p className="font-medium">Legacy-Laufen-CSV importieren</p>
                     <p className="text-sm text-muted-foreground">
-                      Laufen-Ergebnisse als Preview prüfen und danach bewusst als Legacy-Paket ins Ergebnis-Staging übernehmen.
+                      Laufen-Ergebnisse als Preview prüfen und danach bewusst als Produktionstest-Paket ins Ergebnis-Staging übernehmen.
                     </p>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <select
-                      value={legacyRunningPurpose}
-                      onChange={(event) => setLegacyRunningPurpose(event.target.value)}
-                      className={selectClassName()}
-                    >
-                      <option value="PROD_TEST">Produktionstest</option>
-                      <option value="DRY_RUN">Dry Run</option>
-                      <option value="PRODUCTION">Produktion</option>
-                    </select>
+                  <div>
                     <input
                       ref={legacyRunningInputRef}
                       type="file"
@@ -1367,15 +1392,6 @@ export default function ResultDataWorkbenchPage() {
                         </option>
                       ))
                     )}
-                  </select>
-                  <select
-                    value={timekeepingPurpose}
-                    onChange={(event) => setTimekeepingPurpose(event.target.value)}
-                    className={selectClassName()}
-                  >
-                    <option value="PROD_TEST">Produktionstest</option>
-                    <option value="PRODUCTION">Produktion</option>
-                    <option value="DRY_RUN">Dry Run</option>
                   </select>
                   <Button
                     onClick={() => void importTimekeepingSession()}

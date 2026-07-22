@@ -8,7 +8,7 @@ import { requireTenantRoles } from "@/lib/server-permissions";
 
 export const dynamic = "force-dynamic";
 
-const RESULT_PURPOSES = ["PRODUCTION", "PROD_TEST", "DRY_RUN"] as const;
+const RESULT_PURPOSES = ["PROD_TEST"] as const;
 
 function parsePurpose(value: unknown) {
   if (typeof value !== "string") return null;

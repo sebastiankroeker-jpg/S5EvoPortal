@@ -14,7 +14,7 @@ import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 export const dynamic = "force-dynamic";
 
-const RESULT_PURPOSES = ["PRODUCTION", "PROD_TEST", "DRY_RUN"] as const;
+const RESULT_PURPOSES = ["PROD_TEST"] as const;
 
 type ResultPurpose = (typeof RESULT_PURPOSES)[number];
 
@@ -35,7 +35,7 @@ type StarterMatch = {
 };
 
 function parsePurpose(value: unknown): ResultPurpose | null {
-  if (typeof value !== "string") return "DRY_RUN";
+  if (typeof value !== "string") return "PROD_TEST";
   return RESULT_PURPOSES.includes(value as ResultPurpose) ? value as ResultPurpose : null;
 }
 

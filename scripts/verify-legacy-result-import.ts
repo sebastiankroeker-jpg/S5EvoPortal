@@ -78,6 +78,8 @@ for (const fixture of foundFixtures) {
 
 const route = readFileSync(join(root, "app/api/admin/result-staging/legacy-results/import/route.ts"), "utf8");
 assert.ok(route.includes("requireCompetitionTenantRoles(session, [\"ADMIN\"], competitionId)"));
-assert.ok(route.includes("Legacy-Ergebnisimport V2 unterstützt aktuell nur Dry-run."));
+assert.ok(route.includes("if (dryRun)"));
+assert.ok(route.includes("purpose: \"PROD_TEST\""));
+assert.ok(route.includes("RESULT_LEGACY_RESULT_CSV_V2_STAGED"));
 
 console.log(`legacy result import verification ok (${foundFixtures.length} inbound fixtures)`);

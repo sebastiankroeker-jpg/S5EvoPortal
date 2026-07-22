@@ -354,6 +354,150 @@ Production deploy:
 - `curl -sSI https://portal.s5evo.de/admin/ergebnisse`: 200.
 - Unauthenticated V2 dry-run API `POST`: 401.
 
+## Addendum: Legacy Result Parser V2 Staging Write
+
+Status: Implemented Locally
+
+Approved by Sebastian via "go" after accepting the import-mode simplification:
+`Dry-run` remains a preview/check action that does not write to the DB;
+`Produktionstest` is the only new staged package purpose; `Produktion` is
+reserved for a later publication/release workflow.
+
+Scope:
+
+- Enable the generic V2 endpoint
+  `POST /api/admin/result-staging/legacy-results/import` to write
+  `PROD_TEST` result-staging packages after an explicit dry-run confirmation.
+- Keep `dryRun:true` fully read-only.
+- Remove `Dry Run` and `Produktion` from import purpose selectors in the admin
+  import UI; imports write only `Produktionstest`.
+- Constrain the older RUN-only importer and timekeeping importer to
+  `PROD_TEST` for new writes, preserving old enum values only for existing
+  historical package/filter compatibility.
+- Keep official results/publications unchanged.
+
+Non-goals:
+
+- No schema migration.
+- No official publication.
+- No production-purpose result batches from CSV import.
+- No mutation of raw CSV payloads or official `Result` records.
+- No parser strategy changes beyond staging the already parsed V2 drafts/raw
+  records.
+
+Data / API Design:
+
+- V2 dry-run response remains unchanged.
+- V2 write response creates one `ResultDataBatch`, `ResultRawRecord` rows, and
+  `ResultDraft` rows for `PROD_TEST`.
+- Matching uses start number plus discipline:
+  one non-deleted team in the competition, then one non-deleted participant for
+  the parsed discipline.
+- Drafts with matching/validation errors become `CONFLICT`; otherwise `DRAFT`.
+- Raw records keep immutable legacy fields in payload. Drafts keep the parser
+  preview in `proposedResultSnapshot` so `Live -> Ergebnisse` with
+  `Staging-Testdaten` can display legacy points/ranks.
+
+Privacy / Security Review:
+
+- Data touched:
+  participant-linked legacy result rows, start numbers, legacy participant/class
+  IDs, participant/team IDs, ranks/points, raw discipline values, validation
+  messages, and admin audit metadata.
+- Purpose:
+  admins need staged production-test packages to verify legacy results in the
+  Live cockpit before any official publication step exists.
+- Visibility:
+  write API remains `ADMIN` only. Package detail/read workbench remains existing
+  admin/moderator gated behavior. Public `/api/results` exposes staging data
+  only when an admin requests `includeStagingTest=true`.
+- Persistence:
+  production DB staging tables only: `ResultDataBatch`, `ResultRawRecord`,
+  `ResultDraft`, plus one `AuditEvent`.
+- Offline/cache:
+  no service-worker, localStorage, IndexedDB, or offline read-model change.
+- Logs/mails/exports:
+  no CSV payloads or participant-linked rows are intentionally logged, mailed,
+  or exported.
+- Tests/smoke:
+  targeted fixture verification for V2 parser, tenant-scope verification,
+  unauthenticated API checks for 401, TypeScript, ESLint, build, and public
+  smoke after deploy.
+- Residual risk:
+  authenticated browser smoke requires Sebastian/admin session. Existing old
+  `DRY_RUN`/`PRODUCTION` enum values remain in the DB for compatibility, but
+  new import UI/API writes no longer use them.
+
+Acceptance Criteria:
+
+- V2 `dryRun:true` writes no DB rows.
+- V2 confirmed import creates a `PROD_TEST` package with raw records and drafts.
+- New V2 package is visible in the package workbench and usable in
+  `Live -> Ergebnisse` when `Staging-Testdaten` is enabled.
+- Import UI has no purpose dropdown for CSV result imports.
+- Server rejects new CSV/timekeeping imports with purpose other than
+  `PROD_TEST`.
+- Official results are not modified.
+
+Implementation Handoff:
+
+- Relevant files:
+  - `app/admin/ergebnisse/page.tsx`
+  - `app/api/admin/result-staging/legacy-results/import/route.ts`
+  - `app/api/admin/result-staging/legacy-running/import/route.ts`
+  - `app/api/admin/result-staging/timekeeping/import/route.ts`
+  - `docs/cr/2026-07-21-legacy-result-import-v2.md`
+  - `SESSION_HANDOFF.md`
+- Required checks:
+  - `npx eslint app/admin/ergebnisse/page.tsx app/api/admin/result-staging/legacy-results/import/route.ts app/api/admin/result-staging/legacy-running/import/route.ts app/api/admin/result-staging/timekeeping/import/route.ts`
+  - `npx tsc --noEmit --incremental false`
+  - `npm run verify:legacy-result-import`
+  - `npm run verify:tenant-scope`
+  - `git diff --check`
+  - `npm run build`
+- Gate:
+  explicit Sebastian approval is required before pushing/deploying because this
+  enables production DB staging writes.
+
+Implementation Notes:
+
+- Files changed:
+  - `app/api/admin/result-staging/legacy-results/import/route.ts`
+  - `app/api/admin/result-staging/legacy-running/import/route.ts`
+  - `app/api/admin/result-staging/timekeeping/import/route.ts`
+  - `app/admin/ergebnisse/page.tsx`
+  - `scripts/verify-legacy-result-import.ts`
+  - `docs/cr/2026-07-21-legacy-result-import-v2.md`
+- V2 import now keeps `dryRun:true` read-only and creates a `PROD_TEST` batch
+  only when called with `dryRun:false`.
+- V2 dry-run and write both run matching against the active competition by
+  start number plus discipline so operators see match conflicts before staging.
+- The admin UI now uses one V2 CSV action: pick file, dry-run summary,
+  confirmation prompt, then staged production-test package.
+- The older RUN-only CSV import and the timekeeping import no longer expose
+  purpose selectors in the UI and accept only `PROD_TEST` for new writes.
+- Historical enum/filter compatibility remains for existing old packages.
+
+Local Verification:
+
+- `npx eslint app/admin/ergebnisse/page.tsx app/api/admin/result-staging/legacy-results/import/route.ts app/api/admin/result-staging/legacy-running/import/route.ts app/api/admin/result-staging/timekeeping/import/route.ts scripts/verify-legacy-result-import.ts`: passed.
+- `npx tsc --noEmit --incremental false`: passed.
+- `npm run verify:legacy-result-import`: passed against 5 inbound legacy
+  fixtures.
+- `git diff --check`: passed.
+- `npm run build`: passed.
+- Local unauthenticated V2 import `POST` returned 401 without payload exposure.
+- Local invalid purpose smoke for old RUN importer returned 400
+  `Ungueltiger purpose.` without payload exposure.
+- `npm run verify:tenant-scope`: blocked by pre-existing unrelated
+  `app/api/admin/home-news/...` fallback tenant assertions; not touched in this
+  CR.
+
+Deploy:
+
+- Pending Sebastian `go`. Pushing functional code to `main` is production
+  deploy-relevant because Vercel auto-deploys.
+
 ## Verification
 
 - Local checks:
