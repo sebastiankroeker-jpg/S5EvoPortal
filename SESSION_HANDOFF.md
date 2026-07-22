@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 23:08 UTC
+Stand: 2026-07-22 23:14 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -63,7 +63,19 @@ Stand: 2026-07-22 23:08 UTC
     `npx tsc --noEmit --incremental false`, `npm run build`,
     `git diff --check`.
   - Deploy/status:
-    - Local fix ready; commit/deploy pending at handoff update time.
+    - Code/docs commit: `de94441 Refine sponsor layer list copy`
+    - Pushed `139af0c..de94441`.
+    - Vercel Deployment-ID: `dpl_A8kv9DMxXh2oEwSAPLT2PuyuGEtU`
+    - Vercel-URL:
+      `https://s5-evo-portal-fm0toxj6o-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-22 23:13 UTC
+  - Post-Deploy-Smoke gruen:
+    `HEAD https://portal.s5evo.de/karte` 200,
+    `npm run smoke:public`,
+    direct MapTiler raster tile for Bad Bayersoien z14/x8692/y5716 with
+    `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`.
 
 - Event Map Leaflet Fallback 2026-07-22 22:32 UTC:
   - Sebastian sent another iPhone screenshot after `885e062`: still only the
