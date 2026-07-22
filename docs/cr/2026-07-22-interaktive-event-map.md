@@ -774,6 +774,37 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
+## Sponsor Layer Copy And One-Line List
+
+- Tier / risk:
+  - Micro CR / low-risk copy and list-density refinement.
+  - No DB migration, no API change, no participant/team/account data touched.
+- Trigger:
+  - Sebastian requested on 2026-07-22 23:07 UTC:
+    - Rename the sponsor layer to `Vielen Dank an unsere Sponsoren 🫶`.
+    - Each sponsor list entry should be one line only.
+    - He will send front/back PDF Ausschreibung next so sponsor graphics can be
+      extracted and used as icons.
+- Change:
+  - Sponsor layer label renamed.
+  - Sponsor list rows are now one-line entries:
+    compact badge, sponsor name, and category separated by a dot.
+  - List badge size reduced from `size-10` to `size-8`.
+- Future work:
+  - Once PDFs arrive, extract sponsor logos/graphics and map them to sponsor
+    icons instead of initials.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after deploy.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.

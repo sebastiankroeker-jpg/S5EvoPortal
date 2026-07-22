@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 23:02 UTC
+Stand: 2026-07-22 23:08 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -43,6 +43,27 @@ Stand: 2026-07-22 23:02 UTC
     `Referer: https://portal.s5evo.de/karte` -> 200 `image/png`.
   - Weiter offen nach Deploy:
     authenticated iPhone visual smoke by Sebastian for popup behavior.
+
+- Event Map Sponsor Layer Copy / One-Line List 2026-07-22 23:08 UTC:
+  - Sebastian requested:
+    - Rename sponsor layer to `Vielen Dank an unsere Sponsoren 🫶`.
+    - Each list entry should be only one line.
+    - He will send front/back PDF Ausschreibung next; extract sponsor graphics
+      from PDFs and use them as icons.
+  - Fix in `app/components/event-map.tsx`:
+    - Sponsor layer label renamed.
+    - Sponsor list entries reduced to one line:
+      logo/text mark, sponsor name, and category separated by a dot.
+    - List badge reduced from `size-10` to `size-8`.
+  - Future work:
+    - After PDFs arrive, extract sponsor logos/graphics and map them to sponsor
+      icons instead of initials.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`.
+  - Deploy/status:
+    - Local fix ready; commit/deploy pending at handoff update time.
 
 - Event Map Leaflet Fallback 2026-07-22 22:32 UTC:
   - Sebastian sent another iPhone screenshot after `885e062`: still only the
