@@ -17,6 +17,7 @@ import { useSession } from "next-auth/react";
 import { APP_VERSION } from "@/lib/version";
 import RestoreCenter from "@/app/components/restore-center";
 import UserManagement from "@/app/components/user-management";
+import HomeNewsManagement from "@/app/components/home-news-management";
 import NavBar from "@/app/components/nav-bar";
 import BottomTabBar from "@/app/components/bottom-tab-bar";
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
@@ -195,7 +196,7 @@ type ParticipantDirectAuditEntry = {
   };
 };
 
-const ADMIN_TABS = new Set(["tenant", "competition", "users", "audits", "restore"]);
+const ADMIN_TABS = new Set(["tenant", "competition", "news", "users", "audits", "restore"]);
 const STATUS_OPTIONS = ["DRAFT", "OPEN", "RUNNING", "CLOSED"];
 const THEME_OPTIONS = ["LIGHT", "DARK", "ESV"];
 const BENCH_MODES = ["GROSS", "NETTO"];
@@ -907,6 +908,8 @@ export default function AdminPage() {
           <p className="text-muted-foreground">
             {activeAdminTab === "users"
               ? "Benutzer, Rollen und Team-Manager-Rechte verwalten."
+              : activeAdminTab === "news"
+                ? "Home-Nachrichten einstellen, bearbeiten und archivieren."
               : activeAdminTab === "audits"
                 ? "Betriebsprüfung, Mail-Protokoll und Claim-Auffälligkeiten prüfen."
                 : activeAdminTab === "restore"
@@ -963,13 +966,16 @@ export default function AdminPage() {
         )}
 
         <Tabs value={activeAdminTab} onValueChange={handleAdminTabChange} className="space-y-6">
-          {(activeAdminTab === "tenant" || activeAdminTab === "competition") && (
+          {(activeAdminTab === "tenant" || activeAdminTab === "competition" || activeAdminTab === "news") && (
             <TabsList className="w-full justify-start overflow-x-auto">
               <TabsTrigger value="tenant" className="px-3">
                 Tenant
               </TabsTrigger>
               <TabsTrigger value="competition" className="px-3">
                 Wettkampf
+              </TabsTrigger>
+              <TabsTrigger value="news" className="px-3">
+                News
               </TabsTrigger>
             </TabsList>
           )}
@@ -1939,6 +1945,12 @@ export default function AdminPage() {
                   {saving === 'competition' ? "Speichert..." : "💾 Wettkampf speichern"}
                 </Button>
               </div>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="news">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <HomeNewsManagement />
             </motion.div>
           </TabsContent>
 

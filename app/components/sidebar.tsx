@@ -255,6 +255,7 @@ export default function Sidebar() {
             {can("config.edit") && (
               <>
                 <SidebarItem icon="🏢" label="Tenant/Wettkampf" onClick={() => openAdminTab("competition")} isActive={pathname === "/admin" && (adminTab === "tenant" || adminTab === "competition")} isCollapsed={isCollapsed} />
+                <SidebarItem icon="🗞️" label="News" onClick={() => openAdminTab("news")} isActive={pathname === "/admin" && adminTab === "news"} isCollapsed={isCollapsed} />
                 <SidebarItem icon="📊" label="Ergebnisdaten" onClick={() => router.push("/admin/ergebnisse")} isActive={pathname === "/admin/ergebnisse"} isCollapsed={isCollapsed} />
                 <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} isCollapsed={isCollapsed} />
                 <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} isCollapsed={isCollapsed} />

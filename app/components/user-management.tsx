@@ -50,6 +50,7 @@ interface UserEntry {
   authentikSub?: string | null;
   lastSeenAt?: string | null;
   createdAt: string;
+  accountScope?: "TENANT_SCOPED" | "UNSCOPED_PORTAL";
   roles: UserRole[];
   teamCount: number;
   teamScopes: Array<{
@@ -93,7 +94,7 @@ interface UsersResponse {
   users: UserEntry[];
 }
 
-type UserRoleFilter = "all" | "admin" | "moderator" | "teamManager";
+type UserRoleFilter = "all" | "admin" | "moderator" | "teamManager" | "noRole";
 type UserMailFilter = "all" | "hasEmail" | "missingEmail";
 type UserLinkFilter = "all" | "linked" | "portal_account" | "invitation_open" | "placeholder_user" | "needs_attention";
 type UserSortField = "nameAsc" | "lastSeenDesc" | "createdDesc" | "teamCountDesc";
@@ -270,8 +271,24 @@ function getTeamScopeAccountMeta(user: UserEntry, team: UserEntry["teamScopes"][
   });
 }
 
+function getStandaloneUserAccountMeta(user: UserEntry) {
+  return deriveAccountLinkStatus({
+    entityLabel: "Portal-Benutzer",
+    hasEmail: Boolean(user.email),
+    hasEntityLink: false,
+    hasPortalAccount: Boolean(user.authentikSub),
+    hasPlaceholderUser: !user.authentikSub,
+    claimStatus: "none",
+  });
+}
+
+function getUserAccountStatusMetas(user: UserEntry) {
+  const teamMetas = user.teamScopes.map((team) => getTeamScopeAccountMeta(user, team));
+  return teamMetas.length > 0 ? teamMetas : [getStandaloneUserAccountMeta(user)];
+}
+
 function getUserLinkStatusSet(user: UserEntry) {
-  return new Set(user.teamScopes.map((team) => getTeamScopeAccountMeta(user, team).status));
+  return new Set(getUserAccountStatusMetas(user).map((meta) => meta.status));
 }
 
 function UserTeamScopeStatusDialog({ user, team }: { user: UserEntry; team: UserEntry["teamScopes"][number] }) {
@@ -520,6 +537,9 @@ export default function UserManagement() {
       if (roleFilter === "teamManager" && !(user.teamCount > 0 || user.roles.some((role) => role.role === "TEAMCHEF"))) {
         return false;
       }
+      if (roleFilter === "noRole" && user.roles.length > 0) {
+        return false;
+      }
 
       if (mailFilter === "hasEmail" && !user.email.trim()) {
         return false;
@@ -585,6 +605,7 @@ export default function UserManagement() {
       admins: entries.filter((user) => user.roles.some((role) => role.role === "ADMIN")).length,
       moderators: entries.filter((user) => user.roles.some((role) => role.role === "MODERATOR")).length,
       teamManagers: entries.filter((user) => user.teamCount > 0 || user.roles.some((role) => role.role === "TEAMCHEF")).length,
+      noRoles: entries.filter((user) => user.roles.length === 0).length,
       online: entries.filter((user) => getPresenceMeta(user.lastSeenAt, now).state === "online").length,
     });
 
@@ -608,6 +629,7 @@ export default function UserManagement() {
     admins: users.filter((user) => user.roles.some((role) => role.role === "ADMIN")).length,
     moderators: users.filter((user) => user.roles.some((role) => role.role === "MODERATOR")).length,
     teamManagers: users.filter((user) => user.teamCount > 0 || user.roles.some((role) => role.role === "TEAMCHEF")).length,
+    noRoles: users.filter((user) => user.roles.length === 0).length,
     hasEmail: users.filter((user) => user.email.trim()).length,
     missingEmail: users.filter((user) => !user.email.trim()).length,
     linked: users.filter((user) => getUserLinkStatusSet(user).has("linked")).length,
@@ -664,6 +686,16 @@ export default function UserManagement() {
       tone: "outline" as const,
       active: roleFilter === "teamManager",
       onClick: () => setRoleFilter((current) => (current === "teamManager" ? "all" : "teamManager")),
+    },
+    {
+      key: "noRoles",
+      label: "Ohne Rolle",
+      shortLabel: "ohne",
+      value: stats.filtered.noRoles,
+      total: stats.total.noRoles,
+      tone: "outline" as const,
+      active: roleFilter === "noRole",
+      onClick: () => setRoleFilter((current) => (current === "noRole" ? "all" : "noRole")),
     },
   ];
 
@@ -743,6 +775,9 @@ export default function UserManagement() {
                         </Button>
                         <Button type="button" size="sm" variant={roleFilter === "teamManager" ? "default" : "outline"} onClick={() => setRoleFilter("teamManager")}>
                           Teamchef:innen <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.teamManagers}</span>
+                        </Button>
+                        <Button type="button" size="sm" variant={roleFilter === "noRole" ? "default" : "outline"} onClick={() => setRoleFilter("noRole")}>
+                          ohne Rolle <span className="rounded bg-background/30 px-1 text-[10px]">{filterCounts.noRoles}</span>
                         </Button>
                       </div>
                     </div>
@@ -827,8 +862,7 @@ export default function UserManagement() {
         const isLastAdmin = adminCount === 1 && user.roles.some((role) => role.role === "ADMIN");
         const isDeleting = deletingUserId === user.id;
         const presence = getPresenceMeta(user.lastSeenAt, now);
-        const statusSummary = user.teamScopes.reduce((acc, team) => {
-          const meta = getTeamScopeAccountMeta(user, team);
+        const statusSummary = getUserAccountStatusMetas(user).reduce((acc, meta) => {
           const existing = acc.get(meta.status);
           acc.set(meta.status, {
             meta,

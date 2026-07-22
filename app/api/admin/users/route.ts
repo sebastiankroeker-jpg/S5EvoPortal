@@ -93,13 +93,62 @@ export async function GET(request: Request) {
   if ("error" in scopedTenant) return scopedTenant.error;
   const scopedTenantId = scopedTenant.tenantId;
   const scopedCompetitionId = scopedTenant.competitionId;
+  const teamCompetitionScope = {
+    tenantId: scopedTenantId,
+    ...(scopedCompetitionId ? { id: scopedCompetitionId } : {}),
+  };
 
   const users = await prisma.user.findMany({
     where: {
       deletedAt: null,
-      tenantRoles: {
-        some: { tenantId: scopedTenantId },
-      },
+      OR: [
+        { tenantRoles: { some: { tenantId: scopedTenantId } } },
+        {
+          ownedTeams: {
+            some: {
+              deletedAt: null,
+              competition: teamCompetitionScope,
+            },
+          },
+        },
+        {
+          chiefOfTeams: {
+            some: {
+              deletedAt: null,
+              competition: teamCompetitionScope,
+            },
+          },
+        },
+        {
+          linkedParticipants: {
+            some: {
+              deletedAt: null,
+              team: {
+                deletedAt: null,
+                competition: teamCompetitionScope,
+              },
+            },
+          },
+        },
+        {
+          teamMemberRoles: {
+            some: {
+              revokedAt: null,
+              team: {
+                deletedAt: null,
+                competition: teamCompetitionScope,
+              },
+            },
+          },
+        },
+        {
+          tenantRoles: { none: {} },
+          ownedTeams: { none: {} },
+          chiefOfTeams: { none: {} },
+          linkedParticipants: { none: {} },
+          teamMemberRoles: { none: {} },
+        },
+      ],
     },
     include: {
       tenantRoles: {
@@ -287,6 +336,7 @@ export async function GET(request: Request) {
           tenantName: tr.tenant.name,
         })),
         teamCount: teamScopes.size,
+        accountScope: visibleRoles.length > 0 || teamScopes.size > 0 ? "TENANT_SCOPED" : "UNSCOPED_PORTAL",
         teamScopes: Array.from(teamScopes.values()),
       };
     }),

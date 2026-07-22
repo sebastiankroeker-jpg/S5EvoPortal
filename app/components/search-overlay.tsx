@@ -107,6 +107,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "admin-competition":
         router.push("/admin?tab=competition");
         break;
+      case "admin-news":
+        router.push("/admin?tab=news");
+        break;
       case "admin-results":
         router.push("/admin/ergebnisse");
         break;

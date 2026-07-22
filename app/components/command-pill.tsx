@@ -196,6 +196,9 @@ export default function CommandPill() {
       case "admin-competition":
         navigateAndClose("/admin?tab=competition");
         break;
+      case "admin-news":
+        navigateAndClose("/admin?tab=news");
+        break;
       case "admin-results":
         navigateAndClose("/admin/ergebnisse");
         break;

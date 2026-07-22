@@ -246,6 +246,12 @@ enum ChangelogEntryStatus {
   DONE
 }
 
+enum HomeNewsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum ClaimTokenExpiryMode {
   FIXED_DAYS
   REGISTRATION_DEADLINE
@@ -357,6 +363,7 @@ model Tenant {
   resultDrafts         ResultDraft[]
   resultPublications   ResultPublication[]
   resultResetSnapshots ResultResetSnapshot[]
+  homeNewsEntries      HomeNewsEntry[]
 
   @@map("tenants")
 }
@@ -391,6 +398,8 @@ model User {
   participantAuditLogs        ParticipantAuditLog[]      @relation("ParticipantAuditActor")
   changelogEntriesCreated     ChangelogEntry[]           @relation("EntryCreator")
   changelogEntriesResolved    ChangelogEntry[]           @relation("EntryResolver")
+  homeNewsEntriesCreated      HomeNewsEntry[]             @relation("HomeNewsEntryCreator")
+  homeNewsEntriesUpdated      HomeNewsEntry[]             @relation("HomeNewsEntryUpdater")
   claimedRegistrationTokens   RegistrationClaimToken[]   @relation("ClaimedRegistrationTokens")
   claimedParticipantTokens    ParticipantClaimToken[]    @relation("ClaimedParticipantTokens")
   resetSnapshotsCreated       CompetitionResetSnapshot[] @relation("CompetitionResetSnapshotCreator")
@@ -480,6 +489,7 @@ model Competition {
   resultDrafts         ResultDraft[]
   resultPublications   ResultPublication[]
   resultResetSnapshots ResultResetSnapshot[]
+  homeNewsEntries      HomeNewsEntry[]
 
   @@index([tenantId, status, year, createdAt])
   @@index([status, year, createdAt])
@@ -1297,6 +1307,30 @@ model ResultResetSnapshot {
 }
 
 // ==================== CHANGELOG ENTRY ====================
+
+model HomeNewsEntry {
+  id          String         @id @default(cuid())
+  title       String
+  body        String
+  status      HomeNewsStatus @default(DRAFT)
+  publishedAt DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  createdById   String
+  createdBy     User         @relation("HomeNewsEntryCreator", fields: [createdById], references: [id])
+  updatedById   String?
+  updatedBy     User?        @relation("HomeNewsEntryUpdater", fields: [updatedById], references: [id])
+
+  @@index([tenantId, status, archivedAt, publishedAt])
+  @@index([competitionId, status, archivedAt, publishedAt])
+  @@map("home_news_entries")
+}
 
 model ChangelogEntry {
   id          String               @id @default(cuid())

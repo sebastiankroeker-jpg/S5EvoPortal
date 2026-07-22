@@ -18,6 +18,7 @@ export interface NavigationMenuItem {
     | "orga-links"
     | "administration"
     | "admin-competition"
+    | "admin-news"
     | "admin-results"
     | "admin-users"
     | "admin-audits"
@@ -145,6 +146,14 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Admin: Tenant & Wettkampf",
     keywords: ["tenant", "mandant", "wettkampf", "competition", "reset", "dry run", "orga mails", "konfiguration wettkampf"],
     icon: "🏆",
+    permission: "config.edit",
+    requiresAuth: true,
+  },
+  {
+    id: "admin-news",
+    label: "Admin: News",
+    keywords: ["news", "neuigkeiten", "aktuelles", "home news", "ankündigung", "ankuendigung"],
+    icon: "🗞️",
     permission: "config.edit",
     requiresAuth: true,
   },

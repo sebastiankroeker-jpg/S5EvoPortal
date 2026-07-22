@@ -28,6 +28,14 @@ interface TeamStats {
   totalClasses: number;
 }
 
+interface HomeNewsEntry {
+  id: string;
+  title: string;
+  body: string;
+  publishedAt: string | null;
+  updatedAt: string;
+}
+
 type TeamStatsSource = {
   category?: string | null;
   participants?: unknown[];
@@ -137,15 +145,29 @@ function CompetitionStatusFooter({ status }: { status?: string | null }) {
   );
 }
 
-function AnnouncementCard() {
+function AnnouncementCard({ entries }: { entries: HomeNewsEntry[] }) {
+  const visibleEntries = entries.length > 0
+    ? entries
+    : [{
+        id: "static-announcement",
+        title: HOME_ANNOUNCEMENT.title,
+        body: `${HOME_ANNOUNCEMENT.body}\n\n${HOME_ANNOUNCEMENT.signoff}`,
+        publishedAt: null,
+        updatedAt: "",
+      }];
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center text-base">{HOME_ANNOUNCEMENT.title}</CardTitle>
+        <CardTitle className="text-center text-base">Aktuelles & Neuigkeiten</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm leading-6">
-        <p>{HOME_ANNOUNCEMENT.body}</p>
-        <p className="font-medium">{HOME_ANNOUNCEMENT.signoff}</p>
+      <CardContent className="space-y-4 text-sm leading-6">
+        {visibleEntries.map((entry, index) => (
+          <div key={entry.id} className={index > 0 ? "border-t border-border/50 pt-4" : undefined}>
+            <p className="font-medium">{entry.title}</p>
+            <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{entry.body}</p>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
@@ -289,6 +311,7 @@ export default function HomeScreen() {
   const canViewAllTeams = can("team.view.all");
   const { theme } = useTheme();
   const [competitionInfo, setCompetitionInfo] = useState<CompetitionInfo | null>(null);
+  const [homeNewsEntries, setHomeNewsEntries] = useState<HomeNewsEntry[]>([]);
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthActionPending, setIsAuthActionPending] = useState(false);
@@ -313,6 +336,16 @@ export default function HomeScreen() {
           setCompetitionInfo(null);
         }
 
+        const newsParams = new URLSearchParams();
+        if (activeCompetition?.id) newsParams.set("competitionId", activeCompetition.id);
+        const newsResponse = await fetch(`/api/home-news${newsParams.size ? `?${newsParams}` : ""}`);
+        if (newsResponse.ok) {
+          const newsData = await newsResponse.json();
+          setHomeNewsEntries(Array.isArray(newsData.entries) ? newsData.entries : []);
+        } else {
+          setHomeNewsEntries([]);
+        }
+
         if (activeCompetition?.id && canViewAllTeams && !activeCompetition.hideForeignTeams) {
           const params = new URLSearchParams({
             competitionId: activeCompetition.id,
@@ -335,6 +368,7 @@ export default function HomeScreen() {
       } catch (error) {
         console.error('Error loading competition data:', error);
         setCompetitionInfo(null);
+        setHomeNewsEntries([]);
         setTeamStats(null);
       } finally {
         setIsLoading(false);
@@ -422,7 +456,7 @@ export default function HomeScreen() {
         </Card>
 
         <div className="max-w-3xl mx-auto space-y-6">
-          <AnnouncementCard />
+          <AnnouncementCard entries={homeNewsEntries} />
           <FlyerInfoCard
             onRegisterClick={() => { window.location.href = "/anmeldung"; }}
             onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
@@ -452,7 +486,7 @@ export default function HomeScreen() {
       {/* Competition Header */}
       <HomeBrandHeader dateLabel={formatCompetitionDate(competitionInfo)} />
 
-      <AnnouncementCard />
+      <AnnouncementCard entries={homeNewsEntries} />
 
       <FlyerInfoCard
         onRegisterClick={() => handleQuickAction("registration")}
