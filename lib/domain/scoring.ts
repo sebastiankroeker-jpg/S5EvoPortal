@@ -33,8 +33,10 @@ export const DISCIPLINE_SORT: Record<DisciplineCode, SortDirection> = {
 export interface DisciplineEntry {
   teamId: string;
   teamName: string;
+  startNumber?: string | null;
   participantName: string;
   rawValue: number | null; // null = nicht angetreten
+  rawValueText?: string | null;
   classCode: string;
 }
 
@@ -46,6 +48,7 @@ export interface RankedEntry extends DisciplineEntry {
 export interface TeamScore {
   teamId: string;
   teamName: string;
+  startNumber?: string | null;
   classCode: string;
   disciplinePoints: Record<DisciplineCode, number>;
   totalPoints: number;
@@ -126,6 +129,7 @@ export function calculateTeamScores(
         teamMap.set(entry.teamId, {
           teamId: entry.teamId,
           teamName: entry.teamName,
+          startNumber: entry.startNumber,
           classCode: entry.classCode,
           disciplinePoints: { RUN: 0, BENCH: 0, STOCK: 0, ROAD: 0, MTB: 0 },
           totalPoints: 0,

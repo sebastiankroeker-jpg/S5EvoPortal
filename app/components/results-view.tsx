@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCompetition } from "@/lib/competition-context";
+import { usePermissions } from "@/lib/permissions-context";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star } from "lucide-react";
@@ -15,8 +16,11 @@ type DisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
 interface RankedEntry {
   teamId: string;
   teamName: string;
+  startNumber?: string | null;
   participantName: string;
   rawValue: number | null;
+  rawValueText?: string | null;
+  classCode: string;
   rank: number;
   points: number;
 }
@@ -24,6 +28,7 @@ interface RankedEntry {
 interface TeamScore {
   teamId: string;
   teamName: string;
+  startNumber?: string | null;
   classCode: string;
   disciplinePoints: Record<DisciplineCode, number>;
   totalPoints: number;
@@ -74,7 +79,7 @@ function formatValue(val: number | null, disc: DisciplineCode): string {
   return String(val);
 }
 
-function RankBadge({ rank }: { rank: number }) {
+function RankBadge({ rank, showHash = false }: { rank: number; showHash?: boolean }) {
   const colors: Record<number, string> = {
     1: "bg-yellow-500/20 text-yellow-700 border-yellow-500/30",
     2: "bg-gray-300/20 text-gray-600 border-gray-400/30",
@@ -82,7 +87,23 @@ function RankBadge({ rank }: { rank: number }) {
   };
   return (
     <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold border ${colors[rank] || "bg-muted text-muted-foreground border-border"}`}>
-      {rank}
+      {showHash ? `#${rank}` : rank}
+    </span>
+  );
+}
+
+function StartNumberCell({ startNumber, showHash = true }: { startNumber?: string | null; showHash?: boolean }) {
+  return (
+    <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
+      {startNumber ? `${showHash ? "#" : ""}${startNumber}` : "–"}
+    </span>
+  );
+}
+
+function VerticalHeader({ children }: { children: string }) {
+  return (
+    <span className="inline-flex h-24 items-center justify-center [writing-mode:vertical-rl] rotate-180 text-[11px] leading-none">
+      {children}
     </span>
   );
 }
@@ -93,6 +114,7 @@ interface ResultsViewProps {
 
 export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps) {
   const { active: activeCompetition } = useCompetition();
+  const { activeRole } = usePermissions();
   const [data, setData] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -101,9 +123,11 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
   const [detailView, setDetailView] = useState<{ classCode: string; discipline: DisciplineCode } | null>(null);
+  const [showStagingTestData, setShowStagingTestData] = useState(false);
+  const canUseStagingTestMode = activeRole === "ADMIN";
   const cacheKey = useMemo(
-    () => activeCompetition?.id ? `s5evo.offline.results.v1.${activeCompetition.id}` : null,
-    [activeCompetition?.id],
+    () => activeCompetition?.id ? `s5evo.offline.results.v1.${activeCompetition.id}.${showStagingTestData ? "staging-test" : "official"}` : null,
+    [activeCompetition?.id, showStagingTestData],
   );
 
   const applyResultsData = useCallback((json: ResultsData) => {
@@ -119,7 +143,9 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
     if (mode === "refresh") setRefreshing(true);
 
     try {
-      const res = await fetch(`/api/results?competitionId=${activeCompetition.id}`);
+      const params = new URLSearchParams({ competitionId: activeCompetition.id });
+      if (canUseStagingTestMode && showStagingTestData) params.set("includeStagingTest", "true");
+      const res = await fetch(`/api/results?${params.toString()}`);
       const json = await res.json().catch(() => null) as ResultsData | { error?: string } | null;
       if (!res.ok || !json || !("results" in json)) {
         throw new Error((json as { error?: string } | null)?.error || "Ergebnisse konnten nicht geladen werden.");
@@ -142,7 +168,7 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
 
     setLoading(false);
     setRefreshing(false);
-  }, [activeCompetition?.id, applyResultsData, cacheKey]);
+  }, [activeCompetition?.id, applyResultsData, cacheKey, canUseStagingTestMode, showStagingTestData]);
 
   useEffect(() => {
     void loadResults("initial");
@@ -211,22 +237,41 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              {entries.map((e, i) => (
-                <div
-                  key={`${e.teamId}-${i}`}
-                  className="flex items-center gap-3 py-2 px-2 rounded-md hover:bg-muted/50 transition-colors"
-                >
-                  <RankBadge rank={e.rank} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{e.participantName}</p>
-                    <p className="text-xs text-muted-foreground truncate">{e.teamName}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono text-sm">{formatValue(e.rawValue, detailView.discipline)}</p>
-                    <p className="text-xs text-muted-foreground">{e.points} Pkt</p>
-                  </div>
-                </div>
-              ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground">
+                      <th className="py-2 pr-3 text-left"># Platz</th>
+                      <th className="px-3 py-2 text-left">Start Nr</th>
+                      <th className="px-3 py-2 text-left">Name</th>
+                      <th className="px-3 py-2 text-left">Mannschaft</th>
+                      <th className="px-3 py-2 text-left">Klasse</th>
+                      <th className="py-2 pl-3 text-right">Zeit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map((e, i) => (
+                      <tr
+                        key={`${e.teamId}-${i}`}
+                        className="border-b border-border/30 hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="py-2 pr-3">
+                          <RankBadge rank={e.rank} showHash />
+                        </td>
+                        <td className="px-3 py-2">
+                          <StartNumberCell startNumber={e.startNumber} showHash={false} />
+                        </td>
+                        <td className="px-3 py-2 font-medium">{e.participantName}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{e.teamName}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{classResult?.className ?? e.classCode}</td>
+                        <td className="py-2 pl-3 text-right font-mono tabular-nums">
+                          {e.rawValueText || formatValue(e.rawValue, detailView.discipline)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -246,8 +291,23 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
           <p className={`mt-1 text-xs ${cacheState?.fallback ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
             {cacheState?.fallback ? "Lokaler Stand" : "Datenstand"}: {formatOfflineCacheTimestamp(cacheState?.storedAt)}
           </p>
+          {showStagingTestData && (
+            <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+              Admin-Testmodus: gestagte Produktionstest-Daten
+            </p>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+          {canUseStagingTestMode && (
+            <Button
+              type="button"
+              variant={showStagingTestData ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setShowStagingTestData((value) => !value)}
+            >
+              {showStagingTestData ? "Testdaten sichtbar" : "Staging-Testdaten"}
+            </Button>
+          )}
           {canFilterWatchlist && (
             <Button
               type="button"
@@ -334,17 +394,20 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
 
                   {/* Team Rankings Table */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full min-w-[760px] text-sm">
                       <thead>
                         <tr className="border-b text-xs text-muted-foreground">
-                          <th className="text-left py-2 pr-2">#</th>
-                          <th className="text-left py-2">Team</th>
+                          <th className="w-16 py-2 pr-2 text-left align-bottom">Platz</th>
+                          <th className="w-20 px-2 py-2 text-left align-bottom">STRNR</th>
+                          <th className="py-2 text-left align-bottom">Team</th>
                           {(Object.keys(DISC_SHORT) as DisciplineCode[]).map((d) => (
-                            <th key={d} className="text-center py-2 px-1 min-w-[30px]">
-                              {DISC_SHORT[d]}
+                            <th key={d} className="min-w-[48px] px-1 py-2 text-center align-bottom">
+                              <VerticalHeader>{DISC_LABELS[d].replace(/^\S+\s+/, "")}</VerticalHeader>
                             </th>
                           ))}
-                          <th className="text-right py-2 pl-2 font-bold">Σ</th>
+                          <th className="w-16 py-2 pl-2 text-right align-bottom font-bold">
+                            <VerticalHeader>Gesamt</VerticalHeader>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -353,8 +416,11 @@ export default function ResultsView({ watchlistTeamIds = [] }: ResultsViewProps)
 
                           return (
                           <tr key={team.teamId} className="border-b border-border/30 hover:bg-muted/30 transition-colors">
-                            <td className="py-2 pr-2">
-                              <RankBadge rank={team.rank} />
+                            <td className="py-2 pr-2 font-semibold tabular-nums">
+                              {team.rank}
+                            </td>
+                            <td className="px-2 py-2">
+                              <StartNumberCell startNumber={team.startNumber} showHash={false} />
                             </td>
                             <td className="py-2 font-medium truncate max-w-[150px]">
                               <span className="inline-flex min-w-0 items-center gap-1.5">

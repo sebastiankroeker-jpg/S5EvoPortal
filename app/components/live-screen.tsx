@@ -23,6 +23,7 @@ type Segment = typeof SEGMENTS[number];
 interface Team {
   id: string;
   name: string;
+  startNumber?: string | null;
   teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH";
   category: string;
   contactName: string;
@@ -69,6 +70,10 @@ const getDisciplineDisplay = (disciplineCode?: string) => {
   const discipline = DISCIPLINES.find(d => d.id === disciplineCode);
   return discipline ? { label: discipline.label, icon: discipline.icon } : { label: disciplineCode, icon: "🏃" };
 };
+
+function formatStartNumber(startNumber?: string | null) {
+  return startNumber ? `#${startNumber}` : "";
+}
 
 export default function LiveScreen() {
   const [activeSegment, setActiveSegment] = useState<Segment>("teams");
@@ -234,7 +239,14 @@ export default function LiveScreen() {
                       {categoryTeams.map(team => (
                         <div key={team.id} className="border border-border/40 rounded p-3 space-y-2">
                           <div className="flex items-center justify-between">
-                            <h4 className="font-medium">{team.name}</h4>
+                            <h4 className="min-w-0 font-medium">
+                              {team.startNumber ? (
+                                <span className="mr-1.5 font-mono text-sm text-muted-foreground tabular-nums">
+                                  {formatStartNumber(team.startNumber)}
+                                </span>
+                              ) : null}
+                              {team.name}
+                            </h4>
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-muted-foreground">
                                 {team.participants?.length || 0}/5
@@ -315,7 +327,7 @@ export default function LiveScreen() {
     const disciplineGroups = DISCIPLINES.reduce((groups, discipline) => {
       groups[discipline.id] = {};
       return groups;
-    }, {} as Record<string, Record<string, Array<{ participant: Participant; teamName: string }>>>);
+    }, {} as Record<string, Record<string, Array<{ participant: Participant; teamName: string; startNumber?: string | null }>>>);
 
     // Populate groups
     sourceTeams.forEach(team => {
@@ -327,7 +339,8 @@ export default function LiveScreen() {
         }
         disciplineGroups[disciplineCode][team.category].push({
           participant,
-          teamName: team.name
+          teamName: team.name,
+          startNumber: team.startNumber,
         });
       });
     });
@@ -395,10 +408,12 @@ export default function LiveScreen() {
                                   transition={{ duration: 0.15 }}
                                 >
                                   <div className="px-3 pb-3 space-y-1 border-t border-border/40 pt-2">
-                                    {participants.map(({ participant, teamName }, i) => (
+                                    {participants.map(({ participant, teamName, startNumber }, i) => (
                                       <div key={i} className="text-sm flex items-center justify-between py-1">
                                         <span className="inline-flex min-w-0 items-center gap-1.5">
-                                          <span className="font-medium">{i + 1}.</span>
+                                          <span className="font-mono text-xs font-medium text-muted-foreground tabular-nums">
+                                            {formatStartNumber(startNumber) || `${i + 1}.`}
+                                          </span>
                                           <span className="truncate">{participant.firstName} {participant.lastName}</span>
                                           <ParticipantPublicationPreferenceIcon
                                             preference={participant.participantPublicationPreference}

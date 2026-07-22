@@ -13,8 +13,27 @@ import {
   calculateTeamScores,
   type DisciplineCode,
   type DisciplineEntry,
+  type RankedEntry,
 } from "@/lib/domain/scoring";
 import { compareClassificationCodes } from "@/lib/domain/classification";
+
+type ResultSnapshot = Record<string, unknown> | null;
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function asNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getClassScoring(snapshot: ResultSnapshot) {
+  const scoring = asRecord(snapshot?.classScoring);
+  return {
+    points: asNumber(scoring?.points),
+    rank: asNumber(scoring?.rank),
+  };
+}
 
 /**
  * GET /api/results?competitionId=xxx
@@ -24,6 +43,7 @@ import { compareClassificationCodes } from "@/lib/domain/classification";
  */
 export async function GET(request: NextRequest) {
   const competitionId = request.nextUrl.searchParams.get("competitionId");
+  const includeStagingTest = request.nextUrl.searchParams.get("includeStagingTest") === "true";
 
   if (!competitionId) {
     return NextResponse.json({ error: "competitionId required" }, { status: 400 });
@@ -53,6 +73,10 @@ export async function GET(request: NextRequest) {
     const canSeeFullPublication = canViewerSeeFullPublication({
       isPrivilegedViewer: Boolean(access?.isAdmin || access?.isModerator),
     });
+    const canSeeStartNumber = Boolean(access?.isAdmin);
+    if (includeStagingTest && !access?.isAdmin) {
+      return NextResponse.json({ error: "Staging test results require admin access" }, { status: 403 });
+    }
 
     // Load all teams with participants and discipline results
     const teams = await prisma.team.findMany({
@@ -75,6 +99,30 @@ export async function GET(request: NextRequest) {
     const classifications = await prisma.classification.findMany({
       where: { competitionId },
     });
+
+    const visibleTeamById = new Map<string, string>();
+    const visibleParticipantById = new Map<string, string>();
+    const teamClassCodeById = new Map<string, string>();
+    const teamStartNumberById = new Map<string, string | null>();
+
+    for (const team of teams) {
+      visibleTeamById.set(team.id, resolveVisibleTeamName({
+        actualTeamName: team.name,
+        teamPublicationLevel: team.teamPublicationLevel,
+        canSeeFullPublication,
+      }));
+      teamClassCodeById.set(team.id, team.classificationCode || "unclassified");
+      teamStartNumberById.set(team.id, canSeeStartNumber ? team.startNumber : null);
+
+      for (const participant of team.participants) {
+        visibleParticipantById.set(participant.id, resolveVisibleParticipantName({
+          actualName: `${participant.firstName} ${participant.lastName}`,
+          teamPublicationLevel: team.teamPublicationLevel,
+          participantPublicationPreference: participant.participantPublicationPreference,
+          canSeeFullPublication,
+        }));
+      }
+    }
 
     // Build discipline entries per class
     const classDisciplineEntries = new Map<
@@ -101,26 +149,71 @@ export async function GET(request: NextRequest) {
           const discCode = result.discipline.code as DisciplineCode;
           if (!classEntries[discCode]) continue;
 
-          const visibleTeamName = resolveVisibleTeamName({
-            actualTeamName: team.name,
-            teamPublicationLevel: team.teamPublicationLevel,
-            canSeeFullPublication,
-          });
-          const visibleParticipantName = resolveVisibleParticipantName({
-            actualName: `${participant.firstName} ${participant.lastName}`,
-            teamPublicationLevel: team.teamPublicationLevel,
-            participantPublicationPreference: participant.participantPublicationPreference,
-            canSeeFullPublication,
-          });
-
           classEntries[discCode].push({
             teamId: team.id,
-            teamName: visibleTeamName,
-            participantName: visibleParticipantName,
+            teamName: visibleTeamById.get(team.id) ?? "Mannschaft",
+            startNumber: teamStartNumberById.get(team.id) ?? null,
+            participantName: visibleParticipantById.get(participant.id) ?? "Teilnehmer:in",
             rawValue: result.rawValue,
             classCode,
           });
         }
+      }
+    }
+
+    const stagingDisciplineRankings = new Map<string, Partial<Record<DisciplineCode, RankedEntry[]>>>();
+    if (includeStagingTest && access?.isAdmin) {
+      const testDrafts = await prisma.resultDraft.findMany({
+        where: {
+          tenantId: competition.tenantId,
+          competitionId,
+          status: { notIn: ["REJECTED", "DISCARDED", "PUBLISHED"] },
+          batch: {
+            purpose: { in: ["PROD_TEST", "DRY_RUN"] },
+            status: { notIn: ["DISCARDED", "ERROR", "PUBLISHED"] },
+          },
+          teamId: { not: null },
+          participantId: { not: null },
+        },
+        orderBy: [
+          { disciplineCode: "asc" },
+          { createdAt: "desc" },
+        ],
+      });
+
+      const latestByKey = new Map<string, typeof testDrafts[number]>();
+      for (const draft of testDrafts) {
+        if (!draft.teamId || !draft.participantId) continue;
+        const key = `${draft.disciplineCode}:${draft.teamId}:${draft.participantId}`;
+        if (!latestByKey.has(key)) latestByKey.set(key, draft);
+      }
+
+      const draftRankings = new Map<string, Map<DisciplineCode, RankedEntry[]>>();
+      for (const draft of latestByKey.values()) {
+        if (!draft.teamId || !draft.participantId) continue;
+        const disciplineCode = draft.disciplineCode as DisciplineCode;
+        const classCode = teamClassCodeById.get(draft.teamId) ?? "unclassified";
+        const classScoring = getClassScoring(asRecord(draft.proposedResultSnapshot));
+        if (!draftRankings.has(classCode)) draftRankings.set(classCode, new Map());
+        const byDiscipline = draftRankings.get(classCode)!;
+        const entries = byDiscipline.get(disciplineCode) ?? [];
+
+        entries.push({
+          teamId: draft.teamId,
+          teamName: visibleTeamById.get(draft.teamId) ?? "Mannschaft",
+          startNumber: draft.startNumber ?? teamStartNumberById.get(draft.teamId) ?? null,
+          participantName: visibleParticipantById.get(draft.participantId) ?? "Teilnehmer:in",
+          rawValue: draft.normalizedValue ?? draft.rawValue,
+          rawValueText: draft.rawValueText,
+          classCode,
+          rank: classScoring.rank ?? entries.length + 1,
+          points: classScoring.points ?? 0,
+        } as RankedEntry & { rawValueText?: string | null });
+        byDiscipline.set(disciplineCode, entries);
+      }
+
+      for (const [classCode, byDiscipline] of draftRankings) {
+        stagingDisciplineRankings.set(classCode, Object.fromEntries(byDiscipline) as Partial<Record<DisciplineCode, RankedEntry[]>>);
       }
     }
 
@@ -139,13 +232,16 @@ export async function GET(request: NextRequest) {
       // Skip combined classifications for now (they aggregate from sub-classes)
       if (classification?.type === "COMBINED") continue;
 
-      // Rank each discipline
+      const stagingRankings = stagingDisciplineRankings.get(classCode) ?? {};
+
+      // Rank each discipline. In admin test mode, staged draft rankings override the
+      // corresponding official discipline so Legacy points/places stay inspectable.
       const disciplineRankings: Record<DisciplineCode, ReturnType<typeof rankDiscipline>> = {
-        RUN: rankDiscipline(entries.RUN, "RUN"),
-        BENCH: rankDiscipline(entries.BENCH, "BENCH"),
-        STOCK: rankDiscipline(entries.STOCK, "STOCK"),
-        ROAD: rankDiscipline(entries.ROAD, "ROAD"),
-        MTB: rankDiscipline(entries.MTB, "MTB"),
+        RUN: stagingRankings.RUN ?? rankDiscipline(entries.RUN, "RUN"),
+        BENCH: stagingRankings.BENCH ?? rankDiscipline(entries.BENCH, "BENCH"),
+        STOCK: stagingRankings.STOCK ?? rankDiscipline(entries.STOCK, "STOCK"),
+        ROAD: stagingRankings.ROAD ?? rankDiscipline(entries.ROAD, "ROAD"),
+        MTB: stagingRankings.MTB ?? rankDiscipline(entries.MTB, "MTB"),
       };
 
       // Calculate team scores
