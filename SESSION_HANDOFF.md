@@ -1,8 +1,57 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 07:42 UTC
+Stand: 2026-07-22 08:17 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Production Release 2026-07-22 08:16 UTC:
+  - Aenderung: Nachschliff fuer `Live`-Teams, Startlisten, Ergebnislisten und
+    Filterpanels.
+  - Teams:
+    - Disziplinanzeige in Teamkarten zeigt den Text vor dem Icon; Icon steht
+      direkt rechts neben dem Disziplintext.
+  - Startlisten:
+    - Startnummern werden ohne `#` angezeigt.
+    - Aufgeklappte Klassen haben Spaltenueberschriften fuer STRNR, Name,
+      Mannschaft und Geschlecht.
+    - Favoritenstern steht direkt rechts neben der Startnummer.
+  - Ergebnisse:
+    - Subtabs sind getauscht: `Einzelergebnisse` links,
+      `Gesamtergebnisse` rechts.
+    - Favoritenstern steht in Gesamt- und Einzelergebnislisten direkt neben der
+      Startnummer statt im Teamnamenbereich.
+  - Filterpanels:
+    - Filter-Toolbarbuttons in `Live` sind sichtbar beschriftet.
+    - Aufgeklappte Panels haben unten einen breiten Button
+      `Filter Ausblenden`.
+  - Geaenderte Dateien:
+    `app/components/dashboard-controls.tsx`,
+    `app/components/live-screen.tsx`,
+    `app/components/results-view.tsx`.
+  - Checks gruen: `npx eslint app/components/dashboard-controls.tsx
+    app/components/live-screen.tsx app/components/results-view.tsx`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Commit: `abc0f7f Adjust live cockpit table controls`.
+  - Push: `git push origin main` nach Sebastian-Go; dabei wurde der vorher
+    lokale Handoff-Commit `4676bb4 docs: record live display polish release`
+    mit gepusht.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_B4jHQA1yDn51YsQ4rCRj42yvFwUp`
+    - Vercel-URL:
+      `https://s5-evo-portal-b81x4ch5w-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen: `npm run smoke:public`; `/`, `/login`,
+    `/anmeldung`, `/aenderungen` 200; Legacy-Domain 308;
+    `/api/competition` 200; `/api/results` 200; unauthenticated `/api/teams`
+    401; unauthenticated `/api/admin/pending-changes` 401.
+  - Targeted Live/API Smoke: `HEAD https://portal.s5evo.de/` 200;
+    `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200;
+    aktuelle API-Daten: `totalClasses=9`, `totalTeams=82`,
+    `resultBuckets=9`.
+  - Authenticated Manual Smoke offen: Startlisten-Spalten/Favoritenstern und
+    Ergebnis-Subtab-Reihenfolge mit echter Live-Rolle visuell pruefen.
 
 - Production Release 2026-07-22 07:41 UTC:
   - Aenderung: Nachschliff fuer `Live` nach Screenshot-Feedback.
