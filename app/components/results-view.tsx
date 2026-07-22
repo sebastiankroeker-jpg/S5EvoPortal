@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCompetition } from "@/lib/competition-context";
 import { CLASSIFICATION_DISPLAY_ORDER, compareClassificationCodes } from "@/lib/domain/classification";
-import { calculateTeamScores, rankDiscipline } from "@/lib/domain/scoring";
+import { DISCIPLINES } from "@/lib/domain/team";
 import { usePermissions } from "@/lib/permissions-context";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
+import { DisciplineBrandIcon } from "./discipline-brand";
 import {
   DashboardControlsCard,
   DashboardPanel,
@@ -20,9 +21,9 @@ import {
 } from "./dashboard-controls";
 
 type DisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
+type DisciplineFilter = DisciplineCode | "all";
 type ResultTab = "overall" | "discipline";
-type OverallGroupCode = "damen-gesamt" | "herren-gesamt";
-type ResultClassFilter = string | OverallGroupCode;
+type ResultClassFilter = string;
 
 interface RankedEntry {
   teamId: string;
@@ -61,12 +62,6 @@ interface ResultsData {
   totalClasses: number;
 }
 
-interface OverallGroup {
-  code: OverallGroupCode;
-  label: string;
-  sourceClassCodes: string[];
-}
-
 interface ResultsViewProps {
   watchlistTeamIds?: string[];
   teamSearchContext?: ResultsTeamSearchContext[];
@@ -87,30 +82,13 @@ interface ResultsTeamSearchContext {
 const DISCIPLINE_CODES: DisciplineCode[] = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"];
 
 const DISC_LABELS: Record<DisciplineCode, string> = {
-  RUN: "🏃 Laufen",
-  BENCH: "🏋️ Bank",
-  STOCK: "🎯 Stock",
-  ROAD: "🚴 Rennrad",
-  MTB: "🚵 MTB",
+  RUN: "Laufen",
+  BENCH: "Bank",
+  STOCK: "Stock",
+  ROAD: "Rennrad",
+  MTB: "MTB",
 };
 
-const DISC_SHORT: Record<DisciplineCode, string> = {
-  RUN: "L",
-  BENCH: "B",
-  STOCK: "S",
-  ROAD: "R",
-  MTB: "M",
-};
-
-const OVERALL_GROUPS: OverallGroup[] = [
-  { code: "damen-gesamt", label: "Damen Gesamt", sourceClassCodes: ["damen-a", "damen-b"] },
-  { code: "herren-gesamt", label: "Herren Gesamt", sourceClassCodes: ["jungsters", "herren", "masters"] },
-];
-
-const OVERALL_CLASS_ORDER = new Map<string, number>([
-  ["damen-gesamt", 4.5],
-  ["herren-gesamt", 7.5],
-]);
 const SOURCE_CLASS_ORDER = new Map<string, number>(
   CLASSIFICATION_DISPLAY_ORDER.map((code, index) => [code, index]),
 );
@@ -125,19 +103,6 @@ function formatValue(val: number | null, disc: DisciplineCode): string {
   if (disc === "BENCH") return `${val.toFixed(1)} kg`;
   if (disc === "STOCK") return `${val}`;
   return String(val);
-}
-
-function RankBadge({ rank, showHash = false }: { rank: number; showHash?: boolean }) {
-  const colors: Record<number, string> = {
-    1: "border-yellow-500/30 bg-yellow-500/20 text-yellow-700",
-    2: "border-gray-400/30 bg-gray-300/20 text-gray-600",
-    3: "border-orange-400/30 bg-orange-400/20 text-orange-700",
-  };
-  return (
-    <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold ${colors[rank] || "border-border bg-muted text-muted-foreground"}`}>
-      {showHash ? `#${rank}` : rank}
-    </span>
-  );
 }
 
 function StartNumberCell({ startNumber, showHash = true }: { startNumber?: string | null; showHash?: boolean }) {
@@ -156,43 +121,6 @@ function VerticalHeader({ children }: { children: string }) {
   );
 }
 
-function buildOverallResults(results: ClassResult[]): ClassResult[] {
-  return OVERALL_GROUPS.map((group) => {
-    const sourceResults = results.filter((result) => group.sourceClassCodes.includes(result.classCode));
-    const disciplineEntries = Object.fromEntries(
-      DISCIPLINE_CODES.map((discipline) => [
-        discipline,
-        sourceResults.flatMap((sourceResult) =>
-          (sourceResult.disciplineRankings[discipline] ?? []).map((entry) => ({
-            ...entry,
-            classCode: group.code,
-          })),
-        ),
-      ]),
-    ) as Record<DisciplineCode, RankedEntry[]>;
-
-    const disciplineRankings = Object.fromEntries(
-      DISCIPLINE_CODES.map((discipline) => [
-        discipline,
-        rankDiscipline(disciplineEntries[discipline], discipline),
-      ]),
-    ) as Record<DisciplineCode, RankedEntry[]>;
-
-    const teamScores = calculateTeamScores(disciplineRankings).map((team) => ({
-      ...team,
-      classCode: group.code,
-    }));
-
-    return {
-      classCode: group.code,
-      className: group.label,
-      classType: "COMBINED",
-      teamScores,
-      disciplineRankings,
-    };
-  });
-}
-
 function normalizeSearchValue(value: string) {
   return value.trim().toLowerCase();
 }
@@ -202,12 +130,16 @@ function resultClassLabel(result: ClassResult) {
 }
 
 function compareResultClassCodes(left: string, right: string) {
-  const leftOrder = OVERALL_CLASS_ORDER.get(left) ?? SOURCE_CLASS_ORDER.get(left);
-  const rightOrder = OVERALL_CLASS_ORDER.get(right) ?? SOURCE_CLASS_ORDER.get(right);
+  const leftOrder = SOURCE_CLASS_ORDER.get(left);
+  const rightOrder = SOURCE_CLASS_ORDER.get(right);
   if (leftOrder !== undefined && rightOrder !== undefined && leftOrder !== rightOrder) return leftOrder - rightOrder;
   if (leftOrder !== undefined && rightOrder === undefined) return -1;
   if (leftOrder === undefined && rightOrder !== undefined) return 1;
   return compareClassificationCodes(left, right);
+}
+
+function getDisciplineLabel(disciplineCode: DisciplineCode) {
+  return DISCIPLINES.find((discipline) => discipline.id === disciplineCode)?.label ?? DISC_LABELS[disciplineCode];
 }
 
 function entryMatchesSearch(entry: Pick<RankedEntry, "teamName" | "participantName" | "startNumber">, query: string) {
@@ -306,9 +238,9 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
   const [activeTab, setActiveTab] = useState<ResultTab>("overall");
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selectedClassFilters, setSelectedClassFilters] = useState<ResultClassFilter[]>(["damen-gesamt", "herren-gesamt"]);
+  const [selectedClassFilters, setSelectedClassFilters] = useState<ResultClassFilter[]>([]);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const [selectedDiscipline, setSelectedDiscipline] = useState<DisciplineCode>("RUN");
+  const [selectedDiscipline, setSelectedDiscipline] = useState<DisciplineFilter>("all");
   const [showStagingTestData, setShowStagingTestData] = useState(false);
   const canUseStagingTestMode = activeRole === "ADMIN";
   const cacheKey = useMemo(
@@ -363,10 +295,9 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
     [teamSearchContext],
   );
   const canSearchTeamManagers = activeRole === "ADMIN";
-  const overallResults = useMemo(() => buildOverallResults(data?.results ?? []), [data?.results]);
   const availableResults = useMemo(
-    () => [...overallResults, ...(data?.results ?? [])].sort((left, right) => compareResultClassCodes(left.classCode, right.classCode)),
-    [data?.results, overallResults],
+    () => [...(data?.results ?? [])].sort((left, right) => compareResultClassCodes(left.classCode, right.classCode)),
+    [data?.results],
   );
   const selectedResults = useMemo(
     () => availableResults
@@ -398,7 +329,7 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
     () => availableResults.reduce((sum, result) => sum + result.teamScores.length, 0),
     [availableResults],
   );
-  const activeFilterCount = selectedClassFilters.length + (favoritesOnly ? 1 : 0);
+  const activeFilterCount = selectedClassFilters.length + (favoritesOnly ? 1 : 0) + (activeTab === "discipline" && selectedDiscipline !== "all" ? 1 : 0);
   const hasResettableState = Boolean(searchQuery.trim()) || activeFilterCount > 0;
 
   const toggleClassFilter = (classCode: ResultClassFilter) => {
@@ -509,6 +440,7 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
                 setSearchQuery("");
                 setSelectedClassFilters([]);
                 setFavoritesOnly(false);
+                setSelectedDiscipline("all");
               }}
             />
           </DashboardToolbar>
@@ -552,11 +484,6 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
                     </Button>
                   );
                 })}
-              </div>
-            </div>
-            {watchlistTeamIds.length > 0 && (
-              <div className="space-y-2 border-t border-border/50 pt-3">
-                <p className="text-xs font-medium text-muted-foreground">Favoriten</p>
                 <Button
                   type="button"
                   variant={favoritesOnly ? "default" : "outline"}
@@ -567,6 +494,35 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
                   <Star className={favoritesOnly ? "fill-current" : ""} />
                   Nur Favoriten ({watchlistTeamIds.length})
                 </Button>
+              </div>
+            </div>
+            {activeTab === "discipline" && (
+              <div className="space-y-2 border-t border-border/50 pt-3">
+                <p className="text-xs font-medium text-muted-foreground">Disziplinen</p>
+                <div className="flex min-w-0 flex-wrap gap-1.5">
+                  <Button
+                    type="button"
+                    variant={selectedDiscipline === "all" ? "default" : "outline"}
+                    size="xs"
+                    onClick={() => setSelectedDiscipline("all")}
+                    aria-pressed={selectedDiscipline === "all"}
+                  >
+                    Alle Disziplinen
+                  </Button>
+                  {DISCIPLINE_CODES.map((discipline) => (
+                    <Button
+                      key={discipline}
+                      type="button"
+                      variant={selectedDiscipline === discipline ? "default" : "outline"}
+                      size="xs"
+                      onClick={() => setSelectedDiscipline(discipline)}
+                      aria-pressed={selectedDiscipline === discipline}
+                    >
+                      <DisciplineBrandIcon code={discipline} label={getDisciplineLabel(discipline)} className="size-5 rounded" />
+                      <span>{getDisciplineLabel(discipline)}</span>
+                    </Button>
+                  ))}
+                </div>
               </div>
             )}
           </DashboardPanel>
@@ -585,7 +541,6 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
         <DisciplineResultsTables
           results={selectedResults}
           selectedDiscipline={selectedDiscipline}
-          onSelectDiscipline={setSelectedDiscipline}
           watchlistTeamIdSet={watchlistTeamIdSet}
         />
       )}
@@ -682,37 +637,24 @@ function OverallResultsTables({
 function DisciplineResultsTables({
   results,
   selectedDiscipline,
-  onSelectDiscipline,
   watchlistTeamIdSet,
 }: {
   results: ClassResult[];
-  selectedDiscipline: DisciplineCode;
-  onSelectDiscipline: (discipline: DisciplineCode) => void;
+  selectedDiscipline: DisciplineFilter;
   watchlistTeamIdSet: Set<string>;
 }) {
+  const visibleDisciplines = selectedDiscipline === "all" ? DISCIPLINE_CODES : [selectedDiscipline];
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {DISCIPLINE_CODES.map((discipline) => (
-          <Button
-            key={discipline}
-            type="button"
-            variant={selectedDiscipline === discipline ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => onSelectDiscipline(discipline)}
-          >
-            <span className="font-mono text-xs">{DISC_SHORT[discipline]}</span>
-            {DISC_LABELS[discipline]}
-          </Button>
-        ))}
-      </div>
+      {results.flatMap((classResult) =>
+        visibleDisciplines.map((discipline) => {
+          const entries = classResult.disciplineRankings[discipline] ?? [];
+          const disciplineLabel = getDisciplineLabel(discipline);
 
-      {results.map((classResult) => {
-        const entries = classResult.disciplineRankings[selectedDiscipline] ?? [];
-
-        return (
+          return (
           <motion.div
-            key={`${classResult.classCode}-${selectedDiscipline}`}
+            key={`${classResult.classCode}-${discipline}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18 }}
@@ -720,7 +662,8 @@ function DisciplineResultsTables({
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  {DISC_LABELS[selectedDiscipline]} - {classResult.className}
+                  <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
+                  {disciplineLabel} - {classResult.className}
                   <Badge variant="secondary" className="text-xs">
                     {entries.length} Starter:innen
                   </Badge>
@@ -733,14 +676,14 @@ function DisciplineResultsTables({
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[680px] text-sm">
+                    <table className="w-full min-w-[560px] table-fixed text-sm">
                       <thead>
                         <tr className="border-b text-xs text-muted-foreground">
-                          <th className="py-2 pr-3 text-left">Platz</th>
-                          <th className="px-3 py-2 text-left">STRNR</th>
-                          <th className="px-3 py-2 text-left">Name</th>
-                          <th className="px-3 py-2 text-left">Mannschaft</th>
-                          <th className="py-2 pl-3 text-right">Wert</th>
+                          <th className="w-12 py-2 pr-2 text-left">Platz</th>
+                          <th className="w-16 px-2 py-2 text-left">STRNR</th>
+                          <th className="w-[32%] px-2 py-2 text-left">Name</th>
+                          <th className="px-2 py-2 text-left">Mannschaft</th>
+                          <th className="w-24 py-2 pl-2 text-right">Wert</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -749,24 +692,24 @@ function DisciplineResultsTables({
 
                           return (
                             <tr
-                              key={`${entry.teamId}-${selectedDiscipline}-${index}`}
+                              key={`${entry.teamId}-${discipline}-${index}`}
                               className="border-b border-border/30 transition-colors hover:bg-muted/30"
                             >
-                              <td className="py-2 pr-3">
-                                <RankBadge rank={entry.rank} showHash />
+                              <td className="py-2 pr-2 font-semibold tabular-nums">
+                                {entry.rank}
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-2 py-2">
                                 <StartNumberCell startNumber={entry.startNumber} showHash={false} />
                               </td>
-                              <td className="px-3 py-2 font-medium">{entry.participantName}</td>
-                              <td className="px-3 py-2 text-muted-foreground">
+                              <td className="truncate px-2 py-2 font-medium">{entry.participantName}</td>
+                              <td className="truncate px-2 py-2 text-muted-foreground">
                                 <span className="inline-flex min-w-0 items-center gap-1.5">
                                   {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
                                   <span className="truncate">{entry.teamName}</span>
                                 </span>
                               </td>
-                              <td className="py-2 pl-3 text-right font-mono tabular-nums">
-                                {entry.rawValueText || formatValue(entry.rawValue, selectedDiscipline)}
+                              <td className="py-2 pl-2 text-right font-mono tabular-nums">
+                                {entry.rawValueText || formatValue(entry.rawValue, discipline)}
                               </td>
                             </tr>
                           );
@@ -778,8 +721,9 @@ function DisciplineResultsTables({
               </CardContent>
             </Card>
           </motion.div>
-        );
-      })}
+          );
+        }),
+      )}
     </div>
   );
 }

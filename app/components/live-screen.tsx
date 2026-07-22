@@ -13,6 +13,7 @@ import { DISCIPLINES } from "@/lib/domain/team";
 import { compareClassificationCodes } from "@/lib/domain/classification";
 import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
 import { SlidersHorizontal, Star, XCircle } from "lucide-react";
+import { DisciplineBrandIcon } from "./discipline-brand";
 import ResultsView from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 import {
@@ -47,13 +48,7 @@ interface Participant {
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
 }
 
-type OverallClassFilter = "damen-gesamt" | "herren-gesamt";
-type LiveClassFilter = string | OverallClassFilter;
-
-const overallClassFilters: Array<{ code: OverallClassFilter; label: string; shortLabel: string; sourceClassCodes: string[] }> = [
-  { code: "damen-gesamt", label: "Damen Gesamt", shortLabel: "DG", sourceClassCodes: ["damen-a", "damen-b"] },
-  { code: "herren-gesamt", label: "Herren Gesamt", shortLabel: "HG", sourceClassCodes: ["jungsters", "herren", "masters"] },
-];
+type LiveClassFilter = string;
 
 const categoryEmojis: Record<string, string> = {
   "schueler-a": "SA",
@@ -77,17 +72,16 @@ const categoryLabels: Record<string, string> = {
   "damen-b": "Damen B",
 };
 
-// Helper function to get discipline display
 const getDisciplineDisplay = (disciplineCode?: string) => {
   if (!disciplineCode || disciplineCode === "TBD") {
-    return { label: "Noch offen", icon: "❓" };
+    return { id: "TBD", label: "Noch offen" };
   }
   const discipline = DISCIPLINES.find(d => d.id === disciplineCode);
-  return discipline ? { label: discipline.label, icon: discipline.icon } : { label: disciplineCode, icon: "🏃" };
+  return discipline ? { id: discipline.id, label: discipline.label } : { id: disciplineCode, label: disciplineCode };
 };
 
-function formatStartNumber(startNumber?: string | null) {
-  return startNumber ? `#${startNumber}` : "";
+function formatStartNumber(startNumber?: string | null, showHash = true) {
+  return startNumber ? `${showHash ? "#" : ""}${startNumber}` : "";
 }
 
 function isCompetitionTeam(team: Team) {
@@ -140,17 +134,26 @@ function teamMetaMatchesSearch(team: Team, query: string, includeManager: boolea
   ].some((value) => value?.toLowerCase().includes(normalizedQuery));
 }
 
-function getClassFilterSourceCodes(filter: LiveClassFilter) {
-  return overallClassFilters.find((group) => group.code === filter)?.sourceClassCodes ?? [filter];
-}
-
 function teamMatchesClassFilters(team: Team, classFilters: LiveClassFilter[]) {
   if (classFilters.length === 0) return true;
-  return classFilters.some((filter) => getClassFilterSourceCodes(filter).includes(team.category));
+  return classFilters.includes(team.category);
 }
 
 function uniqueSortedCategories(teams: Team[]) {
   return [...new Set(teams.map((team) => team.category).filter(Boolean))].sort(compareClassificationCodes);
+}
+
+function startNumberSortValue(startNumber?: string | null) {
+  const trimmed = startNumber?.trim();
+  if (!trimmed) return Number.MAX_SAFE_INTEGER;
+  const numeric = Number.parseInt(trimmed, 10);
+  return Number.isFinite(numeric) ? numeric : Number.MAX_SAFE_INTEGER;
+}
+
+function compareByStartNumber<T extends { startNumber?: string | null; teamName?: string; name?: string }>(left: T, right: T) {
+  const startDiff = startNumberSortValue(left.startNumber) - startNumberSortValue(right.startNumber);
+  if (startDiff !== 0) return startDiff;
+  return (left.teamName || left.name || "").localeCompare(right.teamName || right.name || "", "de");
 }
 
 export default function LiveScreen() {
@@ -334,17 +337,6 @@ export default function LiveScreen() {
                 </Button>
               </div>
               <div className="flex min-w-0 flex-wrap gap-1.5">
-                {overallClassFilters.map((group) => (
-                  <Button
-                    key={group.code}
-                    size="xs"
-                    variant={classFilters.includes(group.code) ? "default" : "outline"}
-                    onClick={() => toggleClassFilter(group.code, setClassFilters)}
-                    aria-pressed={classFilters.includes(group.code)}
-                  >
-                    {group.shortLabel} {group.label}
-                  </Button>
-                ))}
                 {availableCategories.map((category) => (
                   <Button
                     key={category}
@@ -357,11 +349,6 @@ export default function LiveScreen() {
                     {categoryLabels[category] || category}
                   </Button>
                 ))}
-              </div>
-            </div>
-            {watchedTeamIds.length > 0 && (
-              <div className="space-y-2 border-t border-border/50 pt-3">
-                <p className="text-xs font-medium text-muted-foreground">Favoriten</p>
                 <Button
                   type="button"
                   variant={favoritesOnly ? "default" : "outline"}
@@ -373,7 +360,7 @@ export default function LiveScreen() {
                   Nur Favoriten ({watchedTeamIds.length})
                 </Button>
               </div>
-            )}
+            </div>
           </DashboardPanel>
         )}
       </DashboardControlsCard>
@@ -413,6 +400,7 @@ export default function LiveScreen() {
         {/* Team Groups */}
         {Object.entries(filteredGroupedTeams).sort(([a], [b]) => compareClassificationCodes(a, b)).map(([category, categoryTeams]) => {
           const isExpanded = expandedSections[`teams-${category}`];
+          const sortedCategoryTeams = [...categoryTeams].sort(compareByStartNumber);
 
           return (
             <Card key={category}>
@@ -439,22 +427,18 @@ export default function LiveScreen() {
                     transition={{ duration: 0.2 }}
                   >
                     <CardContent className="space-y-3">
-                      {categoryTeams.map(team => (
+                      {sortedCategoryTeams.map(team => (
                         <div key={team.id} className="border border-border/40 rounded p-3 space-y-2">
                           <div className="flex items-center justify-between">
                             <h4 className="min-w-0 font-medium">
                               {team.startNumber ? (
                                 <span className="mr-1.5 font-mono text-sm text-muted-foreground tabular-nums">
-                                  {formatStartNumber(team.startNumber)}
+                                  {formatStartNumber(team.startNumber, false)}
                                 </span>
                               ) : null}
                               {team.name}
                             </h4>
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                {team.participants?.length || 0}/5
-                              </span>
-                              {(team.participants?.length || 0) === 5 ? "✅" : "⏳"}
                               <Button
                                 type="button"
                                 variant={watchedTeamIdSet.has(team.id) ? "secondary" : "ghost"}
@@ -488,7 +472,7 @@ export default function LiveScreen() {
                                       />
                                     </span>
                                     <span className="flex items-center gap-1">
-                                      <span title={disc.label}>{disc.icon}</span>
+                                      <DisciplineBrandIcon code={disc.id} label={disc.label} className="size-5 rounded" />
                                       <span>{p.gender === "M" ? "♂" : "♀"}</span>
                                     </span>
                                   </div>
@@ -602,7 +586,9 @@ export default function LiveScreen() {
               >
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    {isDisciplineExpanded ? "▼" : "▶"} {discipline.icon} {discipline.label}
+                    {isDisciplineExpanded ? "▼" : "▶"}
+                    <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-6 rounded" />
+                    {discipline.label}
                   </span>
                   <Badge variant="outline">
                     {totalParticipants} Starter:innen
@@ -623,6 +609,7 @@ export default function LiveScreen() {
                         if (participants.length === 0) return null;
 
                         const isClassExpanded = expandedSections[`start-${discipline.id}-${category}`];
+                        const sortedParticipants = [...participants].sort(compareByStartNumber);
 
                         return (
                           <div key={category} className="border border-border/40 rounded">
@@ -647,7 +634,7 @@ export default function LiveScreen() {
                                   transition={{ duration: 0.15 }}
                                 >
                                   <div className="px-3 pb-3 space-y-1 border-t border-border/40 pt-2">
-                                    {participants.map(({ participant, teamName, startNumber }, i) => (
+                                    {sortedParticipants.map(({ participant, teamName, startNumber }, i) => (
                                       <div key={i} className="text-sm flex items-center justify-between py-1">
                                         <span className="inline-flex min-w-0 items-center gap-1.5">
                                           <span className="font-mono text-xs font-medium text-muted-foreground tabular-nums">
