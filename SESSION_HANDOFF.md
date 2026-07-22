@@ -4,6 +4,36 @@ Stand: 2026-07-22 08:56 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Production Data Ops 2026-07-22 09:20 UTC:
+  - CR: `docs/cr/2026-07-22-soier-lions-startnumber-legacy-csv-prep.md`.
+  - Direkte Production-DB-Korrektur nach Sebastian-Auftrag:
+    - `ESV Soier Lions` (`cmrv6vfd20002l404pbh1a4xr`) von Startnummer
+      `null` auf `96`, Klasse `masters`.
+    - `Schwaigers 5` (`cmrv4t1pw0002jr0467ytjihq`) von Startnummer `null`
+      auf `97`, Klasse `jungsters`.
+    - Fuer beide wurde ein `AuditEvent` mit Action
+      `TEAM_START_NUMBER_MANUAL_SET` geschrieben.
+  - Bereinigte Legacy-Ergebnis-Testdateien neu erzeugt:
+    `/home/ocadmin/.openclaw/workspace/exports/legacy-results-portal-startnumbers-2026-07-22/`.
+    Archiv:
+    `/home/ocadmin/.openclaw/workspace/exports/legacy-results-portal-startnumbers-2026-07-22.tar.gz`.
+  - CSV-Counts nach Portal-Startnummern/Klassen:
+    - Laufen: 76 Raw Records / 76 Drafts, `96` und `97` enthalten, `35`
+      fehlt.
+    - Rennrad: 76 Raw Records / 76 Drafts, `96` und `97` enthalten, `35`
+      fehlt.
+    - MTB: 76 Raw Records / 76 Drafts, `96` und `97` enthalten, `35` fehlt.
+    - Bank: 204 Raw Records / 76 Drafts, parserseitig 7 Fehler; nicht erster
+      Importtest.
+    - Stock: 924 Raw Records / 77 Drafts, `96`, `97` und `35` enthalten.
+  - Verification:
+    - Read-only DB Verify bestaetigt `96` und `97` eindeutig.
+    - `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt` 200 mit
+      `totalClasses=9`, `totalTeams=82`, `buckets=9`.
+  - Hinweis:
+    Als normales Team ohne Startnummer bleibt `Vier Läuche und ein Schrank`;
+    Sportlerboerse-Eintraege ohne Startnummer sind separat.
+
 - Production Release 2026-07-22 08:55 UTC:
   - CR: `docs/cr/2026-07-21-legacy-result-import-v2.md`
     Addendum `Legacy Result Parser V2 Staging Write`.
