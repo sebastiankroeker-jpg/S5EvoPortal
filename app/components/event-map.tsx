@@ -26,13 +26,6 @@ const MAP_STYLE = MAPTILER_KEY
   ? `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${MAPTILER_KEY}`
   : "https://demotiles.maplibre.org/style.json";
 
-function boundsForSponsors(sponsors: SponsorPoi[]) {
-  const bounds = new maplibregl.LngLatBounds();
-  bounds.extend(BAD_BAYERSOIEN_CENTER);
-  sponsors.forEach((sponsor) => bounds.extend(sponsor.coordinates));
-  return bounds;
-}
-
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
   return (
     <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
@@ -134,7 +127,7 @@ export default function EventMap() {
         container: mapContainerRef.current,
         style: MAP_STYLE,
         center: BAD_BAYERSOIEN_CENTER,
-        zoom: 12.6,
+        zoom: 14.2,
         attributionControl: false,
       });
 
@@ -143,10 +136,9 @@ export default function EventMap() {
       map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
       map.on("load", () => {
-        map.fitBounds(boundsForSponsors(SPONSOR_POIS), {
-          padding: { top: 70, bottom: 70, left: 70, right: 70 },
-          maxZoom: 13.2,
-          duration: 0,
+        map.jumpTo({
+          center: BAD_BAYERSOIEN_CENTER,
+          zoom: 14.2,
         });
 
         map.addSource("sponsors", {
@@ -229,7 +221,10 @@ export default function EventMap() {
   }, [scheduleLeaderLineUpdate]);
 
   return (
-    <div ref={shellRef} className="relative min-h-[calc(100vh-3rem)] overflow-hidden bg-background">
+    <div
+      ref={shellRef}
+      className="relative min-h-[calc(100svh-3rem)] overflow-x-hidden bg-background lg:h-[calc(100vh-3rem)] lg:overflow-hidden"
+    >
       {leaderLine && (
         <svg className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full lg:block" aria-hidden="true">
           <line
@@ -245,8 +240,8 @@ export default function EventMap() {
         </svg>
       )}
 
-      <div className="grid min-h-[calc(100vh-3rem)] grid-cols-1 lg:grid-cols-[minmax(300px,380px)_1fr]">
-        <aside className="z-10 order-2 flex max-h-[48vh] flex-col border-t border-border/50 bg-background/95 lg:order-1 lg:max-h-none lg:border-r lg:border-t-0">
+      <div className="grid min-h-[calc(100svh-3rem)] grid-cols-1 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(300px,380px)_1fr]">
+        <aside className="z-10 order-2 flex flex-col border-t border-border/50 bg-background/95 lg:order-1 lg:max-h-none lg:border-r lg:border-t-0">
           <div className="border-b border-border/50 px-4 py-4">
             <div className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
@@ -301,7 +296,7 @@ export default function EventMap() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-3 py-3">
+          <div className="px-3 py-3 lg:flex-1 lg:overflow-y-auto">
             <div className="space-y-2">
               {SPONSOR_POIS.map((sponsor) => {
                 const selected = sponsor.id === selectedSponsorId;
@@ -339,7 +334,7 @@ export default function EventMap() {
           </div>
         </aside>
 
-        <main className="relative order-1 min-h-[52vh] lg:order-2 lg:min-h-[calc(100vh-3rem)]">
+        <main className="relative order-1 h-[48svh] min-h-80 bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0">
           <div ref={mapContainerRef} className="absolute inset-0" />
 
           {!MAPTILER_KEY && (
