@@ -1,10 +1,10 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 17:56 UTC
+Stand: 2026-07-22 18:22 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- In Arbeit 2026-07-22 17:56 UTC:
+- Production Release 2026-07-22 18:22 UTC:
   - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
   - Sebastian hat Option 1 freigegeben: MapLibre GL JS + MapTiler Cloud,
     self-hosting-faehiger Pfad spaeter ueber MapLibre-kompatible Tiles/PMTiles.
@@ -43,12 +43,26 @@ Stand: 2026-07-22 17:56 UTC
     `npm run build`.
   - Lokaler Smoke:
     Dev-Server `http://127.0.0.1:3114`; `HEAD /karte` -> 200.
+  - Commit/Push:
+    - Commit: `8448f11 Add admin event map`
+    - Push: `git push origin main` -> `94e7e3a..8448f11`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_FqQzpadqm4ST2h7akUf4MhKDSwTC`
+    - Vercel-URL:
+      `https://s5-evo-portal-qrkn14w2q-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+  - Post-Deploy Smoke gruen:
+    `npm run smoke:public`; `HEAD https://portal.s5evo.de/` 200;
+    `HEAD https://portal.s5evo.de/karte` 200; unauthenticated
+    `GET /api/teams` -> 401 `Unauthorized`; Smoke bestaetigt auch
+    unauthenticated `/api/admin/pending-changes` -> 401.
+    Rueckgabe von `/karte` enthaelt keinen Demo-Key-Hinweis.
   - Offen:
     - Browser/Visual-Smoke mit echtem Key.
     - Sponsor-Liste/Adressen kurz plausibilisieren, insbesondere
       `needs_review`-Eintraege.
-    - Vor Production Deploy explizites Go einholen; dann Vercel Deploy und
-      `npm run smoke:public`.
+    - Authenticated Admin-Smoke durch Sebastian oder mit Admin-Cookie.
   - Git-Hinweis:
     Lokale `.git/info/exclude` ignoriert neue Dateien unter `app/`, `lib/` und
     `docs/`; beim Commit muessen neue Event-Map-Dateien gezielt mit

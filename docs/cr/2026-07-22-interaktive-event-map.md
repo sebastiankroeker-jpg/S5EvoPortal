@@ -1,6 +1,6 @@
 # CR: Interaktive Event-Map
 
-Status: In Progress
+Status: Deployed
 Date: 2026-07-22
 Type: feature
 Risk: medium
@@ -262,6 +262,7 @@ Existing context:
   - Set `NEXT_PUBLIC_MAPTILER_KEY` locally in `.env.local`.
   - Added `NEXT_PUBLIC_MAPTILER_KEY` to Vercel Production env; Vercel stores it
     encrypted, but it remains a public browser key at runtime.
+  - Commit `8448f11 Add admin event map` pushed to `origin/main`.
   - Kept sponsor data as typed static repo data, with `verified` vs
     `needs_review` confidence.
   - Added a MapTiler production style when `NEXT_PUBLIC_MAPTILER_KEY` is set.
@@ -290,34 +291,43 @@ Existing context:
   - Non-admin route protection follows the existing client permission pattern;
     unauthenticated static HTML initially shows loading state until hydration.
 - Authenticated role smoke:
-  - Not required for MVP unless nav/auth behavior changes.
+  - Pending Sebastian/admin browser smoke on production.
 - Manual smoke:
   - Browser visual smoke pending; Playwright is not installed in this project.
-  - Production MapTiler smoke pending until `NEXT_PUBLIC_MAPTILER_KEY` is
-    configured.
+  - Production unauthenticated `/karte` HTTP smoke returns 200 and no
+    Demo-Key warning was found in returned HTML.
 
 ## Deploy
 
 - Deployment needed: yes
 - Deployment ID:
-  - Pending.
+  - `dpl_FqQzpadqm4ST2h7akUf4MhKDSwTC`
 - Deployment URL:
-  - Pending.
+  - `https://s5-evo-portal-qrkn14w2q-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias:
   - `https://portal.s5evo.de`
 - Deployed at:
-  - Pending.
+  - 2026-07-22 18:18 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
-  - Pending.
+  - `npm run smoke:public` against `https://portal.s5evo.de` -> pass:
+    `/`, `/login`, `/anmeldung`, `/aenderungen` 200; legacy domain 308 to
+    production; `/api/competition` 200; `/api/results` 200.
+  - `HEAD https://portal.s5evo.de/` -> 200.
+  - `HEAD https://portal.s5evo.de/karte` -> 200.
 - API checks:
-  - Pending.
+  - `GET https://portal.s5evo.de/api/teams` without session -> 401
+    `{"error":"Unauthorized"}`.
+  - Smoke script also confirmed `/api/admin/pending-changes` without session
+    -> 401.
 - Sensitive-data/API leakage checks:
-  - Pending.
+  - No participant/team/account API serializers changed.
+  - `/karte` static HTML initially renders loading state before client auth
+    resolution; no protected API data included.
 - Result:
-  - Pending.
+  - Pass. Authenticated admin visual smoke remains the only gap.
 
 ## Follow-Ups
 
