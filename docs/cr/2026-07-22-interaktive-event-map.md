@@ -727,6 +727,40 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
+## Event Map Sponsor Popup UI
+
+- Tier / risk:
+  - Micro CR / low-risk UI refinement.
+  - No DB migration, no API change, no participant/team/account data touched.
+- Trigger:
+  - Sebastian confirmed the Leaflet map works on iPhone and requested:
+    sponsor list rows should show only name and Gewerbe/category; clicking a
+    sponsor should open a detail box with all further info in the map at the
+    sponsor Standort-Symbol/marker.
+- Change:
+  - Sponsor list rows now show logo, sponsor name, and category only.
+  - Removed the inline selected sponsor detail block from the sponsor tree.
+  - Added Leaflet popups bound to sponsor markers.
+  - List clicks and marker clicks select the sponsor and open the marker popup.
+  - Popup content includes logo, name, category, address, status, source note,
+    route link, and optional website link.
+  - Popup HTML is escaped before injection.
+- Styling:
+  - Added `.event-map-popup` CSS in `app/globals.css` so Leaflet popups use
+    portal background/foreground/border tokens and work in light/dark themes.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `app/globals.css`
+  - `docs/cr/2026-07-22-interaktive-event-map.md`
+  - `SESSION_HANDOFF.md`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `npm run build` -> pass
+  - `git diff --check` -> pass
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after deploy.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.

@@ -248,6 +248,27 @@
   scrollbar-color: rgba(128,128,128,0.2) transparent;
 }
 
+.event-map-popup .leaflet-popup-content-wrapper {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+}
+
+.event-map-popup .leaflet-popup-content {
+  margin: 0.75rem;
+}
+
+.event-map-popup .leaflet-popup-tip {
+  background: var(--background);
+  border: 1px solid var(--border);
+}
+
+.event-map-popup .leaflet-popup-close-button {
+  color: var(--muted-foreground);
+}
+
 .print-only {
   display: none;
 }

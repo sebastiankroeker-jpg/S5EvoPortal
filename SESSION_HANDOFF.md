@@ -1,8 +1,33 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 22:37 UTC
+Stand: 2026-07-22 22:56 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Event Map Sponsor Popup UI 2026-07-22 22:56 UTC:
+  - Sebastian confirmed "Mega!" after Leaflet deploy; iPhone screenshot showed
+    the map, sponsor markers, zoom control, attribution, and sponsor tree.
+  - Requested UI change:
+    - Sponsor list should show only name and Gewerbe/category.
+    - On click, open a detail box with all other sponsor info in the map at the
+      Standort-Symbol/marker instead of inline in the list.
+  - Fix in `app/components/event-map.tsx`:
+    - List rows now show logo, sponsor name, and category only.
+    - Removed inline selected sponsor detail block from the sponsor tree.
+    - Added Leaflet popups bound to sponsor markers.
+    - List click and marker click select the sponsor and open the marker popup.
+    - Popup contains logo, name, category, address, status, source note, route,
+      and optional website link.
+    - Popup HTML is escaped before injection.
+  - Styling:
+    - Added `.event-map-popup` CSS in `app/globals.css` so Leaflet popups use
+      portal background/foreground/border tokens and work in light/dark themes.
+  - Checks gruen:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `npm run build`,
+    `git diff --check`.
+  - Deploy/status:
+    - Local fix ready; commit/deploy pending at handoff update time.
 
 - Event Map Leaflet Fallback 2026-07-22 22:32 UTC:
   - Sebastian sent another iPhone screenshot after `885e062`: still only the

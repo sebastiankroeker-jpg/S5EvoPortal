@@ -1,14 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import {
-  AlertTriangle,
   Building2,
-  ExternalLink,
   Layers,
   MapPin,
-  Navigation,
   Route,
 } from "lucide-react";
 import { BAD_BAYERSOIEN_CENTER, SPONSOR_POIS, type SponsorPoi } from "@/lib/event-map/sponsor-pois";
@@ -23,23 +20,45 @@ function toLeafletLatLng(coordinates: [number, number]): [number, number] {
   return [coordinates[1], coordinates[0]];
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
+  const confidenceText = sponsor.confidence === "verified" ? "verifiziert" : "pruefen";
+  const websiteLink = sponsor.websiteUrl
+    ? `<a href="${escapeHtml(sponsor.websiteUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-accent">Website</a>`
+    : "";
+
+  return `
+    <div class="min-w-52 max-w-64 text-sm text-foreground">
+      <div class="flex items-start gap-3">
+        <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">${escapeHtml(sponsor.logoText)}</span>
+        <div class="min-w-0">
+          <p class="font-semibold leading-tight">${escapeHtml(sponsor.name)}</p>
+          <p class="mt-1 text-xs text-muted-foreground">${escapeHtml(sponsor.category)}</p>
+        </div>
+      </div>
+      <p class="mt-3 text-xs leading-snug text-muted-foreground">${escapeHtml(sponsor.address)}</p>
+      <p class="mt-2 text-xs leading-snug text-muted-foreground">Status: ${escapeHtml(confidenceText)}</p>
+      <p class="mt-2 text-xs leading-snug text-muted-foreground">${escapeHtml(sponsor.sourceNote)}</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <a href="${escapeHtml(sponsor.routeUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-accent">Route</a>
+        ${websiteLink}
+      </div>
+    </div>
+  `;
+}
+
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
   return (
     <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
       {sponsor.logoText}
-    </span>
-  );
-}
-
-function ConfidenceLabel({ confidence }: { confidence: SponsorPoi["confidence"] }) {
-  if (confidence === "verified") {
-    return <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">verifiziert</span>;
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-      <AlertTriangle className="h-3 w-3" />
-      pruefen
     </span>
   );
 }
@@ -55,14 +74,11 @@ export default function EventMap() {
   const [sponsorsVisible, setSponsorsVisible] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-
-  const selectedSponsor = useMemo(
-    () => SPONSOR_POIS.find((sponsor) => sponsor.id === selectedSponsorId) ?? SPONSOR_POIS[0],
-    [selectedSponsorId],
-  );
+  const [popupSponsorId, setPopupSponsorId] = useState<string | null>(null);
 
   const selectSponsor = useCallback((sponsor: SponsorPoi, flyTo = true) => {
     setSelectedSponsorId(sponsor.id);
+    setPopupSponsorId(sponsor.id);
     if (flyTo && mapRef.current) {
       mapRef.current.flyTo(toLeafletLatLng(sponsor.coordinates), 15, { duration: 0.65 });
     }
@@ -169,6 +185,11 @@ export default function EventMap() {
           }),
           title: sponsor.name,
         }).addTo(map);
+        marker.bindPopup(buildSponsorPopupHtml(sponsor), {
+          className: "event-map-popup",
+          closeButton: true,
+          maxWidth: 300,
+        });
         marker.on("click", () => selectSponsor(sponsor, false));
         markersRef.current.set(sponsor.id, marker);
       });
@@ -182,11 +203,15 @@ export default function EventMap() {
       element.classList.toggle("ring-4", sponsorId === selectedSponsorId);
       element.classList.toggle("ring-amber-300", sponsorId === selectedSponsorId);
       element.classList.toggle("scale-110", sponsorId === selectedSponsorId);
+
+      if (sponsorId === popupSponsorId && sponsorsVisible) {
+        marker.openPopup();
+      }
     });
 
     const selectedCard = cardRefs.current.get(selectedSponsorId);
     selectedCard?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [mapLoaded, selectedSponsorId, sponsorsVisible]);
+  }, [mapLoaded, popupSponsorId, selectedSponsorId, sponsorsVisible]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -262,42 +287,11 @@ export default function EventMap() {
                               <span className="flex gap-2">
                                 <SponsorBadge sponsor={sponsor} />
                                 <span className="min-w-0 flex-1">
-                                  <span className="flex items-start justify-between gap-2">
-                                    <span className="text-sm font-semibold leading-tight">{sponsor.name}</span>
-                                    <ConfidenceLabel confidence={sponsor.confidence} />
-                                  </span>
+                                  <span className="block truncate text-sm font-semibold leading-tight">{sponsor.name}</span>
                                   <span className="mt-1 block text-xs text-muted-foreground">{sponsor.category}</span>
-                                  <span className="mt-1 block text-xs leading-snug text-muted-foreground">{sponsor.address}</span>
                                 </span>
                               </span>
                             </button>
-                            {selected && selectedSponsor && (
-                              <div className="ml-12 mr-2 pb-2">
-                                <p className="text-xs leading-snug text-muted-foreground">{selectedSponsor.sourceNote}</p>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  <a
-                                    href={selectedSponsor.routeUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-accent"
-                                  >
-                                    <Navigation className="h-3.5 w-3.5" />
-                                    Route
-                                  </a>
-                                  {selectedSponsor.websiteUrl && (
-                                    <a
-                                      href={selectedSponsor.websiteUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-accent"
-                                    >
-                                      <ExternalLink className="h-3.5 w-3.5" />
-                                      Website
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
