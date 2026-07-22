@@ -598,6 +598,22 @@ Existing context:
   - `npx tsc --noEmit --incremental false` -> pass
   - `npm run build` -> pass
   - `git diff --check` -> pass
+- Deployment:
+  - Commit: `ffeeab7 Improve event map mobile diagnostics`
+  - Pushed to `origin/main`: `34d53c6..ffeeab7`
+  - Deployment ID: `dpl_5eUfNdSN3FDpFGsdF8pPmtE7rCMt`
+  - Deployment URL:
+    `https://s5-evo-portal-gmutbr4dh-sebastiankroeker-2781s-projects.vercel.app`
+  - Production alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-22 22:14 UTC
+- Post-deploy smoke:
+  - `HEAD https://portal.s5evo.de/` -> 200
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass
+  - MapTiler style request with `Referer: https://portal.s5evo.de/karte`
+    -> 200 `style ok`
+  - Client chunk contains the timeout diagnostic and MapLibre worker asset
+    reference.
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 

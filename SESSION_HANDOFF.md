@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 22:09 UTC
+Stand: 2026-07-22 22:14 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
@@ -21,8 +21,26 @@ Stand: 2026-07-22 22:09 UTC
     `npx eslint app/components/event-map.tsx`,
     `npx tsc --noEmit --incremental false`, `npm run build`,
     `git diff --check`.
-  - Deploy/status:
-    - Local fix ready; commit/deploy pending at handoff update time.
+  - Commit/Push:
+    - Code/docs commit: `ffeeab7 Improve event map mobile diagnostics`
+    - Pushed `34d53c6..ffeeab7`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_5eUfNdSN3FDpFGsdF8pPmtE7rCMt`
+    - Vercel-URL:
+      `https://s5-evo-portal-gmutbr4dh-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-22 22:14 UTC
+  - Post-Deploy-Smoke gruen:
+    `HEAD https://portal.s5evo.de/` 200,
+    `HEAD https://portal.s5evo.de/karte` 200, `npm run smoke:public`,
+    MapTiler style fetch with `Referer: https://portal.s5evo.de/karte` -> 200
+    `style ok`, client chunk contains the timeout diagnostic and worker asset
+    reference.
+  - Weiter offen nach Deploy:
+    authenticated iPhone visual smoke durch Sebastian. Expected next signal:
+    bottom-right controls/rendered map, visible loading label, or red timeout
+    error after 8s.
 
 - MapLibre Hydration Diagnostics Hotfix 2026-07-22 21:59 UTC:
   - CR: `docs/cr/2026-07-22-interaktive-event-map.md`.
