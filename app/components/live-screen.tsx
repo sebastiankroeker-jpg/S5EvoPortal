@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, type Dispatch, type SetStateAction } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, type Dispatch, type SetStateAction } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { canRoleViewAllTeams } from "@/lib/team-access-config";
@@ -40,6 +40,7 @@ interface Team {
 }
 
 interface Participant {
+  id?: string;
   firstName: string;
   lastName: string;
   gender: string;
@@ -160,6 +161,23 @@ function getTeamDisciplineSlots(team: Team) {
   }).filter((slot): slot is { discipline: (typeof DISCIPLINES)[number]; participant: Participant } => Boolean(slot.participant));
 }
 
+function getStartParticipantElementId(input: {
+  participant: Participant;
+  teamId: string;
+  disciplineId: string;
+}) {
+  if (input.participant.id) return `live-start-participant-${input.participant.id}`;
+
+  const fallback = [
+    input.teamId,
+    input.disciplineId,
+    input.participant.firstName,
+    input.participant.lastName,
+  ].join("-").replace(/[^a-zA-Z0-9_-]/g, "-");
+
+  return `live-start-participant-${fallback}`;
+}
+
 export default function LiveScreen() {
   const [activeSegment, setActiveSegment] = useState<Segment>("teams");
   const [teams, setTeams] = useState<Team[]>([]);
@@ -175,6 +193,9 @@ export default function LiveScreen() {
   const [startsClassFilters, setStartsClassFilters] = useState<LiveClassFilter[]>([]);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [watchedTeamIds, setWatchedTeamIds] = useState<string[]>([]);
+  const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
+  const [focusedStartParticipantElementId, setFocusedStartParticipantElementId] = useState<string | null>(null);
+  const pendingFocusElementIdRef = useRef<string | null>(null);
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const canViewTeamLists = canRoleViewAllTeams(activeRole, activeCompetition);
@@ -258,6 +279,58 @@ export default function LiveScreen() {
       return writeTeamWatchlist(activeCompetition.id, next);
     });
   };
+
+  const focusElement = useCallback((elementId: string) => {
+    pendingFocusElementIdRef.current = elementId;
+
+    const scroll = () => {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
+    window.requestAnimationFrame(() => {
+      scroll();
+      window.setTimeout(scroll, 260);
+    });
+  }, []);
+
+  const focusTeamInTeams = useCallback((teamId: string) => {
+    const team = teams.find((entry) => entry.id === teamId);
+    if (!team) return;
+
+    setActiveSegment("teams");
+    setFocusedStartParticipantElementId(null);
+    setFocusedTeamId(teamId);
+    setExpandedSections((current) => ({ ...current, [`teams-${team.category}`]: true }));
+    setTeamsFavoritesOnly((current) => (current && !watchedTeamIdSet.has(teamId) ? false : current));
+    setTeamsClassFilters((current) => (current.length > 0 && !current.includes(team.category) ? [] : current));
+    focusElement(`live-team-${teamId}`);
+  }, [focusElement, teams, watchedTeamIdSet]);
+
+  const focusParticipantInStartList = useCallback((team: Team, participant: Participant, disciplineId: string) => {
+    const elementId = getStartParticipantElementId({ participant, teamId: team.id, disciplineId });
+
+    setActiveSegment("start");
+    setFocusedTeamId(null);
+    setFocusedStartParticipantElementId(elementId);
+    setExpandedSections((current) => ({
+      ...current,
+      [`start-${disciplineId}`]: true,
+      [`start-${disciplineId}-${team.category}`]: true,
+    }));
+    setStartsFavoritesOnly((current) => (current && !watchedTeamIdSet.has(team.id) ? false : current));
+    setStartsClassFilters((current) => (current.length > 0 && !current.includes(team.category) ? [] : current));
+    focusElement(elementId);
+  }, [focusElement, watchedTeamIdSet]);
+
+  useEffect(() => {
+    const elementId = pendingFocusElementIdRef.current;
+    if (!elementId) return;
+
+    pendingFocusElementIdRef.current = null;
+    focusElement(elementId);
+  }, [activeSegment, expandedSections, focusElement, focusedStartParticipantElementId, focusedTeamId]);
 
   const toggleClassFilter = (
     filter: LiveClassFilter,
@@ -436,7 +509,15 @@ export default function LiveScreen() {
                   >
                     <CardContent className="space-y-3">
                       {sortedCategoryTeams.map(team => (
-                        <div key={team.id} className="border border-border/40 rounded p-3 space-y-2">
+                        <div
+                          key={team.id}
+                          id={`live-team-${team.id}`}
+                          className={`scroll-mt-24 space-y-2 rounded border p-3 transition-colors ${
+                            focusedTeamId === team.id
+                              ? "border-primary bg-primary/5 ring-2 ring-primary/30"
+                              : "border-border/40"
+                          }`}
+                        >
                           <div className="flex items-center justify-between">
                             <h4 className="min-w-0 font-medium">
                               {team.startNumber ? (
@@ -473,7 +554,14 @@ export default function LiveScreen() {
                                 return (
                                   <div key={`${discipline.id}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-sm text-muted-foreground">
                                     <span className="inline-flex min-w-0 items-center gap-1.5">
-                                      <span className="truncate">{p.firstName} {p.lastName}</span>
+                                      <button
+                                        type="button"
+                                        className="min-w-0 truncate text-left hover:text-primary hover:underline"
+                                        title={`${p.firstName} ${p.lastName} in Startliste fokussieren`}
+                                        onClick={() => focusParticipantInStartList(team, p, discipline.id)}
+                                      >
+                                        {p.firstName} {p.lastName}
+                                      </button>
                                       <ParticipantPublicationPreferenceIcon
                                         preference={p.participantPublicationPreference}
                                         teamPublicationLevel={team.teamPublicationLevel}
@@ -530,7 +618,13 @@ export default function LiveScreen() {
     const disciplineGroups = DISCIPLINES.reduce((groups, discipline) => {
       groups[discipline.id] = {};
       return groups;
-    }, {} as Record<string, Record<string, Array<{ participant: Participant; teamId: string; teamName: string; startNumber?: string | null }>>>);
+    }, {} as Record<string, Record<string, Array<{
+      participant: Participant;
+      teamId: string;
+      teamName: string;
+      teamCategory: string;
+      startNumber?: string | null;
+    }>>>);
 
     // Populate groups
     sourceTeams.forEach(team => {
@@ -546,6 +640,7 @@ export default function LiveScreen() {
           participant,
           teamId: team.id,
           teamName: team.name,
+          teamCategory: team.category,
           startNumber: team.startNumber,
         });
       });
@@ -643,19 +738,32 @@ export default function LiveScreen() {
                                   exit={{ height: 0, opacity: 0 }}
                                   transition={{ duration: 0.15 }}
                                 >
-                                  <div className="overflow-x-auto border-t border-border/40 px-2 pb-2 pt-1.5">
-                                    <div className="min-w-[480px] space-y-1">
-                                      <div className="grid grid-cols-[3.75rem_minmax(9rem,1.15fr)_minmax(8rem,1fr)] gap-2 px-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
-                                        <span>STRNR</span>
+                                  <div className="overflow-x-auto border-t border-border/40 px-1.5 pb-2 pt-1.5 sm:px-2">
+                                    <div className="min-w-[360px] space-y-1">
+                                      <div className="grid grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] gap-1.5 px-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+                                        <span>Nr.</span>
                                         <span>Name</span>
-                                        <span>Mannschaft</span>
+                                        <span>Team</span>
                                       </div>
-                                    {sortedParticipants.map(({ participant, teamId, teamName, startNumber }, i) => {
+                                    {sortedParticipants.map(({ participant, teamId, teamName, teamCategory, startNumber }, i) => {
                                       const watched = watchedTeamIdSet.has(teamId);
+                                      const participantElementId = getStartParticipantElementId({
+                                        participant,
+                                        teamId,
+                                        disciplineId: discipline.id,
+                                      });
 
                                       return (
-                                        <div key={`${teamId}-${i}-${participant.firstName}-${participant.lastName}`} className="grid grid-cols-[3.75rem_minmax(9rem,1.15fr)_minmax(8rem,1fr)] items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/30">
-                                          <span className="inline-flex min-w-0 items-center gap-1.5">
+                                        <div
+                                          key={`${teamId}-${i}-${participant.firstName}-${participant.lastName}`}
+                                          id={participantElementId}
+                                          className={`grid scroll-mt-24 grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] items-center gap-1.5 rounded px-1 py-1 text-sm transition-colors hover:bg-muted/30 ${
+                                            focusedStartParticipantElementId === participantElementId
+                                              ? "bg-primary/10 ring-2 ring-primary/30"
+                                              : ""
+                                          }`}
+                                        >
+                                          <span className="inline-flex min-w-0 items-center gap-1">
                                             <span className="font-mono text-xs font-medium text-muted-foreground tabular-nums">
                                               {formatStartNumber(startNumber, false) || `${i + 1}.`}
                                             </span>
@@ -667,7 +775,17 @@ export default function LiveScreen() {
                                               preference={participant.participantPublicationPreference}
                                             />
                                           </span>
-                                          <span className="truncate text-xs text-muted-foreground">{teamName}</span>
+                                          <button
+                                            type="button"
+                                            className="truncate text-left text-xs text-muted-foreground hover:text-primary hover:underline"
+                                            title={`${teamName} in Teams fokussieren`}
+                                            onClick={() => {
+                                              setTeamsClassFilters((current) => (current.length > 0 && !current.includes(teamCategory) ? [] : current));
+                                              focusTeamInTeams(teamId);
+                                            }}
+                                          >
+                                            {teamName}
+                                          </button>
                                         </div>
                                       );
                                     })}
