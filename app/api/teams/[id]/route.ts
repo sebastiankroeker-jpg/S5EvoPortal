@@ -997,6 +997,7 @@ export async function PUT(
       // Neue Klassifizierung berechnen
       const autoCategory = requestedTeamState.classification.code;
       const normalizedTeamName = teamData.teamName?.trim();
+      const normalizedContactPhone = teamData.contactPhone.trim();
       const requestedTeamPublicationLevel = teamData.teamPublicationLevel || existingTeam.teamPublicationLevel;
       
       // Team-Name beibehalten wenn leer
@@ -1817,6 +1818,7 @@ export async function PUT(
             teamPublicationLevel: requestedTeamPublicationLevel,
             contactName: body.contactName || existingTeam.contactName,
             contactEmail: body.contactEmail || existingTeam.contactEmail,
+            contactPhone: normalizedContactPhone,
             classificationCode: autoCategory,
             totalAge: totalAge || null,
             ...(existingTeam.teamChiefId && replacedUserIds.includes(existingTeam.teamChiefId)

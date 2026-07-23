@@ -104,6 +104,7 @@ interface Team {
   category: string;
   contactName: string;
   contactEmail: string;
+  contactPhone?: string | null;
   ownerId?: string | null;
   ownerHasPortalAccount?: boolean;
   ownerEmail?: string;
@@ -176,6 +177,7 @@ type EmailInvitationStatus = {
 
 type TeamEditPayload = {
   teamName: string;
+  contactPhone: string;
   teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH";
   participants: Participant[];
 };
@@ -6156,6 +6158,7 @@ function EditTeamModal({
   );
   const [formData, setFormData] = useState({
     teamName: team.name,
+    contactPhone: team.contactPhone || "",
     teamPublicationLevel: team.teamPublicationLevel || "TEAM_ANONYM",
     participants: team.participants || []
   });
@@ -6181,10 +6184,14 @@ function EditTeamModal({
     [formData.participants, formData.teamName, showAdminInfo, team.category],
   );
   const blockingValidationErrors = teamDraftEvaluation.blockingErrors;
+  const contactPhoneBlockingErrors = formData.contactPhone.trim()
+    ? []
+    : ["Telefonnummer fehlt"];
+  const allBlockingValidationErrors = [...blockingValidationErrors, ...contactPhoneBlockingErrors];
   const validationWarnings = teamDraftEvaluation.warnings;
-  const footerIssueCount = blockingValidationErrors.length + validationWarnings.length;
-  const footerIssueTone = blockingValidationErrors.length > 0 ? "error" : "warning";
-  const footerIssueLabel = blockingValidationErrors.length > 0 && validationWarnings.length > 0
+  const footerIssueCount = allBlockingValidationErrors.length + validationWarnings.length;
+  const footerIssueTone = allBlockingValidationErrors.length > 0 ? "error" : "warning";
+  const footerIssueLabel = allBlockingValidationErrors.length > 0 && validationWarnings.length > 0
     ? `${footerIssueCount} Hinweise`
     : footerIssueTone === "error"
       ? footerIssueCount === 1 ? "1 Fehler" : `${footerIssueCount} Fehler`
@@ -6223,6 +6230,7 @@ function EditTeamModal({
   const directChanges = useMemo(
     () =>
       formData.teamName !== team.name ||
+      formData.contactPhone.trim() !== (team.contactPhone || "").trim() ||
       (formData.teamPublicationLevel || "TEAM_ANONYM") !== (team.teamPublicationLevel || "TEAM_ANONYM") ||
       formData.participants.some((participant, index) => {
         const original = team.participants?.[index];
@@ -6236,7 +6244,7 @@ function EditTeamModal({
             (original.participantPublicationPreference || "NAME_VERBERGEN")
         );
       }),
-    [formData.participants, formData.teamName, formData.teamPublicationLevel, team.name, team.participants, team.teamPublicationLevel],
+    [formData.contactPhone, formData.participants, formData.teamName, formData.teamPublicationLevel, team.contactPhone, team.name, team.participants, team.teamPublicationLevel],
   );
   const replacementCount = useMemo(
     () => formData.participants.filter((participant) => participant.replaceParticipant === true).length,
@@ -6309,7 +6317,7 @@ function EditTeamModal({
   };
 
   const handleSubmit = async () => {
-    if (!teamDraftEvaluation.canSubmit || saving) return;
+    if (!teamDraftEvaluation.canSubmit || contactPhoneBlockingErrors.length > 0 || saving) return;
 
     const suspiciousIdentityChanges = formData.participants
       .map((participant, index) => ({
@@ -6540,6 +6548,25 @@ function EditTeamModal({
               onChange={(e) => setFormData({ ...formData, teamName: e.target.value })}
               className="mt-1 h-9"
             />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Telefonnummer</label>
+              {!showAdminInfo && <DirectFieldBadge />}
+            </div>
+            <Input
+              type="tel"
+              value={formData.contactPhone}
+              onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+              placeholder="+49 170 1234567"
+              className="mt-1 h-9"
+            />
+            {!formData.contactPhone.trim() ? (
+              <p className="mt-1 text-xs text-red-600">Telefonnummer ist für Mannschaftsänderungen erforderlich.</p>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">Für kurzfristige Rückfragen durch die Orga.</p>
+            )}
           </div>
 
           <div>
@@ -6955,7 +6982,7 @@ function EditTeamModal({
                 </button>
                 {footerIssuesExpanded ? (
                   <div className="space-y-1 border-t px-2.5 py-2 leading-5">
-                    {blockingValidationErrors.map((error, index) => (
+                    {allBlockingValidationErrors.map((error, index) => (
                       <div key={`error-${index}`}>{error}</div>
                     ))}
                     {validationWarnings.map((warning, index) => (
@@ -6971,7 +6998,7 @@ function EditTeamModal({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={saving || !teamDraftEvaluation.canSubmit}
+                disabled={saving || !teamDraftEvaluation.canSubmit || contactPhoneBlockingErrors.length > 0}
                 aria-busy={saving}
                 className="min-h-9 whitespace-normal text-center leading-tight sm:w-auto"
               >
