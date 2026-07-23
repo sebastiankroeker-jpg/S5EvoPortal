@@ -166,43 +166,47 @@ API/UI:
 
 ## Draft Privacy Notice Text
 
-Kurzfassung fuer `/datenschutz` and the consent dialog:
+Kurzfassung für `/datenschutz` and the consent dialog:
 
 > Wir verarbeiten die im Portal eingegebenen Daten, um den Soier 5Kampf zu
 > organisieren: Anmeldung, Mannschaftsverwaltung, Startnummern, Ergebnisse,
-> Nachrichten und organisatorische Rueckfragen. Dazu gehoeren je nach Nutzung
+> Nachrichten und organisatorische Rückfragen. Dazu gehören je nach Nutzung
 > Namen, Geburtsjahr bzw. Geburtsdatum, E-Mail-Adresse, Telefonnummer,
-> Mannschafts- und Teilnehmerdaten, Rollen, Nachrichten, Aenderungs- und
+> Mannschafts- und Teilnehmerdaten, Rollen, Nachrichten, Änderungs- und
 > Auditprotokolle.
 >
-> Wir geben Daten nicht an Dritte weiter, sofern dies fuer Betrieb und Nutzung
+> Verantwortlich ist Sebastian Kroeker, Bad Bayersoien, E-Mail:
+> esv@s5evo.de. Vor Live-Freigabe ist eine vollständige postalische Anschrift
+> mit Straße, Hausnummer und Postleitzahl zu ergänzen.
+>
+> Wir geben Daten nicht an Dritte weiter, sofern dies für Betrieb und Nutzung
 > des Portals nicht erforderlich ist. Erforderliche Dienstleister sind
 > insbesondere Hosting/Betrieb, Datenbank, Login-Dienst, E-Mail-Versand und
-> optional Kartendienste. Diese Dienstleister verarbeiten Daten nur fuer die
+> optional Kartendienste. Diese Dienstleister verarbeiten Daten nur für die
 > bereitgestellten Portalzwecke.
 >
-> Notwendige Cookies und Speicherungen nutzen wir fuer Login, Sicherheit,
+> Notwendige Cookies und Speicherungen nutzen wir für Login, Sicherheit,
 > Formularschutz, Session und die Speicherung deiner Datenschutzeinstellungen.
-> Optionale Speicherungen fuer Komfortfunktionen, lokale Entwuerfe, Offline-
+> Optionale Speicherungen für Komfortfunktionen, lokale Entwürfe, Offline-
 > Funktionen und externe Kartendienste werden nur genutzt, wenn du sie
 > aktivierst. Wenn du sie nicht aktivierst, bleiben die entsprechenden
-> Funktionen deaktiviert oder werden nur eingeschraenkt angezeigt.
+> Funktionen deaktiviert oder werden nur eingeschränkt angezeigt.
 >
 > E-Mail-Nachrichten senden wir ohne gesonderte Werbeeinwilligung nur, wenn sie
-> fuer deine Anmeldung, dein Konto, deine Mannschaft oder eine von dir
-> ausgeloeste Portalaktion erforderlich sind. Fuer zusaetzliche Portal-
+> für deine Anmeldung, dein Konto, deine Mannschaft oder eine von dir
+> ausgelöste Portalaktion erforderlich sind. Für zusätzliche Portal-
 > Benachrichtigungen per E-Mail fragen wir dich gesondert und du kannst diese
 > Einwilligung jederzeit widerrufen.
 
 Detailed service list for the full page:
 
-- S5Evo Portal / Verantwortliche Stelle: to be completed with association/legal
-  contact data.
+- S5Evo Portal / Verantwortliche Stelle: Sebastian Kroeker, Bad Bayersoien,
+  esv@s5evo.de; full postal address still needed before live release.
 - Vercel: hosting and delivery of the web application.
 - PostgreSQL/Prisma database: storage of portal records.
 - Authentik: login and account identity.
 - Resend: transactional e-mail delivery.
-- MapTiler/OpenStreetMap: optional map tiles on `/karte`.
+- MapTiler/OpenStreetMap: optional map images on `/karte`.
 - Google Maps: only when the user opens a route link.
 - Browser storage: essential session/security plus optional preferences/offline.
 
@@ -232,7 +236,8 @@ Detailed service list for the full page:
   - mail events should reference consent status but avoid broad message bodies.
 - Residual risk:
   - exact legal wording should be reviewed by the responsible Verein/DSB if this
-    becomes the public final Datenschutzerklaerung.
+    becomes the public final Datenschutzerklärung.
+  - complete postal contact address is still required before production release.
 
 ## Acceptance Criteria
 

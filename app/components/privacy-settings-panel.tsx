@@ -12,26 +12,26 @@ const OPTIONS = [
   {
     key: "FUNCTIONAL_STORAGE" as const,
     icon: MonitorCog,
-    title: "Komfort speichern",
-    description: "Theme, Navigation, Dashboard-Ansichten und ausgewaehlter Wettkampf dauerhaft speichern.",
+    title: "Ansichten merken",
+    description: "Wir merken uns z. B. Theme, geöffnete Navigation, Dashboard-Ansicht und ausgewählten Wettkampf. Ausgeschaltet funktioniert das Portal weiter, vergisst diese Einstellungen aber nach der Sitzung.",
   },
   {
     key: "EXTERNAL_MAPS" as const,
     icon: Map,
-    title: "Externe Karten laden",
-    description: "Sponsor-Karte mit MapTiler/OpenStreetMap-Kacheln aktivieren.",
+    title: "Karte laden",
+    description: "Die Sponsor-Karte lädt Kartenbilder von externen Kartendiensten. Ausgeschaltet bleibt die Karte blockiert, bis du sie aktiv freigibst.",
   },
   {
     key: "LOCAL_OFFLINE" as const,
     icon: WifiOff,
-    title: "Offline & lokale Entwuerfe",
-    description: "PWA-Offline-Funktionen, lokale Entwuerfe und lokale Zeitnahme-Daten erlauben.",
+    title: "Offline & Entwürfe",
+    description: "Das Portal darf Entwürfe und Offline-Daten lokal auf deinem Gerät speichern. Ausgeschaltet werden diese Daten nicht lokal behalten.",
   },
   {
     key: "PORTAL_MESSAGE_EMAIL" as const,
     icon: Mail,
     title: "Portal-Nachrichten per E-Mail",
-    description: "Optionale Hinweise zu neuen Portal-Nachrichten erhalten. Notwendige Mails bleiben unabhaengig.",
+    description: "Du bekommst optionale E-Mail-Hinweise, wenn im Portal neue Nachrichten für dich vorliegen. Wichtige Pflichtmails bleiben unabhängig davon möglich.",
   },
 ];
 
@@ -56,10 +56,10 @@ export default function PrivacySettingsPanel() {
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm leading-6 text-muted-foreground">
-        Notwendige Cookies fuer Login, Sicherheit und Consent-Status sind immer aktiv. Alles Weitere
+        Notwendige Cookies für Login, Sicherheit und deine Datenschutzeinstellungen sind immer aktiv. Alles Weitere
         kannst du hier ein- oder ausschalten. Details stehen in der{" "}
         <Link href="/datenschutz" className="font-medium text-primary hover:underline">
-          Datenschutzerklaerung
+          Datenschutzerklärung
         </Link>
         .
       </div>

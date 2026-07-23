@@ -12,38 +12,45 @@ type ConsentToggle = {
   key: keyof ConsentState;
   title: string;
   description: string;
+  consequence: string;
 };
 
 const TOGGLES: ConsentToggle[] = [
   {
     key: "FUNCTIONAL_STORAGE",
-    title: "Komfort speichern",
-    description: "Theme, Navigation, Dashboard-Ansichten und ausgewaehlter Wettkampf.",
+    title: "Ansichten merken",
+    description: "Wir merken uns z. B. Theme, geöffnete Navigation, Dashboard-Ansicht und ausgewählten Wettkampf.",
+    consequence: "Ausgeschaltet: Das Portal funktioniert weiter, vergisst diese Einstellungen aber nach der Sitzung.",
   },
   {
     key: "EXTERNAL_MAPS",
-    title: "Externe Karten laden",
-    description: "MapTiler/OpenStreetMap-Kacheln auf der Sponsor-Karte.",
+    title: "Karte laden",
+    description: "Die Sponsor-Karte lädt Kartenbilder von externen Kartendiensten.",
+    consequence: "Ausgeschaltet: Die Karte bleibt blockiert, bis du sie aktiv freigibst.",
   },
   {
     key: "LOCAL_OFFLINE",
-    title: "Offline & lokale Entwuerfe",
-    description: "PWA-Service-Worker, lokale Entwuerfe und lokale Zeitnahme-Daten.",
+    title: "Offline & Entwürfe",
+    description: "Das Portal darf Entwürfe und Offline-Daten lokal auf deinem Gerät speichern.",
+    consequence: "Ausgeschaltet: Entwürfe und Offline-Funktionen werden nicht lokal behalten.",
   },
   {
     key: "PORTAL_MESSAGE_EMAIL",
     title: "Portal-Nachrichten per E-Mail",
-    description: "Optionale Hinweise zu neuen Portal-Nachrichten. Pflichtmails bleiben davon getrennt.",
+    description: "Du bekommst optionale E-Mail-Hinweise, wenn im Portal neue Nachrichten für dich vorliegen.",
+    consequence: "Ausgeschaltet: Wichtige Pflichtmails bleiben möglich, freiwillige Portal-Hinweise bleiben aus.",
   },
 ];
 
 function ConsentCheckbox({
   checked,
+  consequence,
   description,
   onChange,
   title,
 }: {
   checked: boolean;
+  consequence: string;
   description: string;
   onChange: (checked: boolean) => void;
   title: string;
@@ -59,6 +66,7 @@ function ConsentCheckbox({
       <span className="min-w-0 space-y-1">
         <span className="block text-sm font-medium">{title}</span>
         <span className="block text-xs leading-5 text-muted-foreground">{description}</span>
+        <span className="block text-xs leading-5 text-muted-foreground/90">{consequence}</span>
       </span>
     </label>
   );
@@ -90,12 +98,12 @@ export default function PrivacyConsentBanner() {
             Datenschutz & Cookies
           </div>
           <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
-            Notwendige Cookies und Speicherungen nutzen wir fuer Login, Sicherheit und deine
-            Datenschutzeinstellungen. Optionale Karten, Offline-Funktionen, Komfortspeicher und
-            E-Mail-Hinweise bleiben aus, bis du sie aktivierst.
+            Notwendige Cookies brauchen wir für Login, Sicherheit und deine Datenschutzeinstellungen.
+            Alles Weitere ist freiwillig: Ansichten merken, Karte laden, Offline-Daten speichern und
+            E-Mail-Hinweise zu Portal-Nachrichten.
           </p>
           <Link href="/datenschutz" className="text-xs font-medium text-primary hover:underline">
-            Datenschutzerklaerung
+            Datenschutzerklärung
           </Link>
         </div>
 
@@ -118,6 +126,7 @@ export default function PrivacyConsentBanner() {
               key={toggle.key}
               title={toggle.title}
               description={toggle.description}
+              consequence={toggle.consequence}
               checked={draft[toggle.key]}
               onChange={(checked) => setDraft((current) => ({ ...current, [toggle.key]: checked }))}
             />

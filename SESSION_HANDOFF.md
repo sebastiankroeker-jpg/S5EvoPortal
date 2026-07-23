@@ -15,6 +15,9 @@ Stand: 2026-07-23 02:03 UTC
     - Authenticated `/api/privacy/preferences`.
     - Global consent banner and profile privacy settings.
     - Public `/datenschutz` page.
+    - Privacy copy polished to simpler German with user-facing umlauts,
+      "what happens if off" explanations, responsible person block
+      Sebastian Kroeker / Bad Bayersoien / esv@s5evo.de.
     - `/karte` external tile loading gated behind `EXTERNAL_MAPS` consent.
     - PWA service worker and message draft persistence gated behind
       `LOCAL_OFFLINE`.
@@ -34,6 +37,8 @@ Stand: 2026-07-23 02:03 UTC
     explicitly confirm DB migration + deploy; then authenticated smoke profile
     consent save/load, `/karte` before/after map consent, and optional message
     e-mail skip/allow behavior.
+    Privacy page still needs a complete postal address with street, house
+    number and postal code before public live release.
   - Functional-storage follow-up closed locally:
     sidebar/dashboard/list preference localStorage writes now require
     `FUNCTIONAL_STORAGE`; known functional keys are removed on withdrawal.
