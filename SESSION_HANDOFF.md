@@ -1,10 +1,96 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-23 02:03 UTC
+Stand: 2026-07-23 10:31 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Current production status 2026-07-23 10:31 UTC:
+  - `main` is synchronized with `origin/main` at
+    `3de8925 Fix results matrix point rendering`.
+  - Production alias `https://portal.s5evo.de` is live and Vercel READY.
+    Latest deployment:
+    `dpl_BerSBnUJUmviWDGTHKWEnbyhYpPZ`
+    (`s5-evo-portal-ccu0kleoe-sebastiankroeker-2781s-projects.vercel.app`).
+  - Last smoke after deployment was green:
+    `npm run smoke:public`, `HEAD https://portal.s5evo.de`, public
+    `/api/competition` and `/api/results` 200, protected APIs 401 without
+    session.
+  - Production DB migration status checked with
+    `npx prisma migrate status`: schema is up to date.
+  - Local git status after deploy: only known untracked workspace files remain
+    (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+
+- Result matrix hotfix live 2026-07-23 10:28 UTC:
+  - Sebastian reported missing points in result point matrices.
+  - Root cause: the overall result matrix rendered discipline points with
+    `team.disciplinePoints[discipline] || "-"`, so valid `0` points were
+    displayed as `-`.
+  - Fix in `app/components/results-view.tsx`:
+    valid zero points now render as `0`; `-` remains only for teams without any
+    result data.
+  - The previous width/padding fix for the right `Gesamt` column remains in
+    place.
+  - Commit/deploy:
+    `3de8925 Fix results matrix point rendering`.
+  - Checks green:
+    `npx eslint app/components/results-view.tsx`,
+    `npx tsc --noEmit --incremental false`,
+    `npm run build`, `git diff --check`, `npm run smoke:public`.
+  - CR note:
+    `docs/cr/2026-07-23-results-matrix-display-hotfix.md`.
+
+- Timekeeping configuration follow-ups live 2026-07-23:
+  - Commits:
+    - `71aefa2 Improve timekeeping configuration and device sync`
+    - `d790751 Restore per-clock timekeeping base time`
+  - Global timekeeping configuration now owns shared start blocks and
+    start-number source for all disciplines.
+  - Per-clock/device configuration is also present again:
+    device name, device ID metadata, per-clock base time, and linked
+    24h/Rad-CSV-style base-time editing.
+  - Timekeeping sync/raw package management carries base-time/device context so
+    later individual time-trial calculations can use the correct start time.
+  - Deployment for `d790751` was READY on `portal.s5evo.de` at 2026-07-23
+    09:18 UTC; checks included ESLint, TypeScript, build, diff check and public
+    smoke.
+  - CR note:
+    `docs/cr/2026-07-23-timekeeping-configuration-followups.md`.
+
+- Live/map/message UX follow-ups live 2026-07-23:
+  - Relevant commits:
+    `8838191`, `985cbe0`, `136bae8`, `5ff1d18`, `1b1ef94`, `bdb581a`,
+    `5211422`.
+  - Map:
+    sponsor selection/deselection stabilized; popup close clears amber marker
+    selection; selecting the same tile/list item can deselect/reselect without
+    the stuck state; map/list selection no longer reopens the box on scroll.
+    Sponsor data fixes included Fischerhaeusl website removal, `Oemer Blech`
+    rename, Metzgerei Joerg address, and Parkhotel/Kletterwald cleanup.
+  - Live:
+    start-list spacing/width optimized, gender column removed, mobile
+    horizontal scroll available where needed, team/start-list cross-links focus
+    the right section after navigation.
+  - Messages:
+    non-admin personal inbox compose action is a visible `Neue Nachricht`
+    button with paper-plane icon; side collapse/open controls removed.
+  - CR note:
+    `docs/cr/2026-07-23-live-map-message-ui-followups.md`.
+
+- Privacy/consent CR status correction 2026-07-23:
+  - The older block below still described this as local/pending. Current state:
+    privacy consent controls, `/datenschutz`, consent API, storage gating and
+    migration are deployed on production.
+  - Migration status checked 2026-07-23 10:31 UTC: schema up to date.
+  - CR updated:
+    `docs/cr/2026-07-23-privacy-consent-and-communications.md`.
+  - Remaining privacy follow-ups are policy/content review items, not a local
+    undeployed blocker: retention periods, whether to send a one-time consent
+    request, and authenticated UI smoke for profile consent save/load.
+
 - Local undeployed map/privacy follow-up 2026-07-23 05:22 UTC:
+  - Superseded by the current production status above. The described map,
+    sponsor-data and message-center changes were later committed, pushed and
+    deployed.
   - Sebastian asked not to deploy yet.
   - Datenschutz decision: no mandatory "I consent to the privacy notice"
     checkbox planned; privacy notice is information, real opt-ins remain only
@@ -25,12 +111,13 @@ Stand: 2026-07-23 02:03 UTC
     `Neue Nachricht` with paper-plane icon; side collapse/open controls and
     the narrow collapsed thread-list layout were removed.
 
-- Privacy/Consent CR local implementation 2026-07-23 02:03 UTC:
+- Privacy/Consent CR implementation 2026-07-23 02:03 UTC (deployed later;
+  see current status above):
   - New CR:
     `docs/cr/2026-07-23-privacy-consent-and-communications.md`
     (docs/cr is excluded from normal git status).
   - Sebastian approved implementation with "Go" at 2026-07-23 01:54 UTC.
-  - Implemented locally, not deployed:
+  - Implemented and later deployed:
     - Prisma `ConsentPreference` table plus enums and migration
       `20260723015620_privacy_consent_preferences`.
     - Authenticated `/api/privacy/preferences`.
@@ -53,12 +140,11 @@ Stand: 2026-07-23 02:03 UTC
     `npx prisma generate`, `npx tsc --noEmit --incremental false`,
     targeted ESLint for touched privacy/map/PWA/message/profile files,
     `git diff --check`, `npm run build`.
-  - Not yet done:
-    no production DB migration, no push, no Vercel deploy.
-  - Gate before deploy:
-    explicitly confirm DB migration + deploy; then authenticated smoke profile
-    consent save/load, `/karte` before/after map consent, and optional message
-    e-mail skip/allow behavior.
+  - Deployment note:
+    production DB migration is applied and production schema is up to date.
+    Current remaining gap is authenticated/manual smoke for profile consent
+    save/load, `/karte` before/after map consent, and optional message e-mail
+    skip/allow behavior.
   - Functional-storage follow-up closed locally:
     sidebar/dashboard/list preference localStorage writes now require
     `FUNCTIONAL_STORAGE`; known functional keys are removed on withdrawal.

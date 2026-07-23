@@ -1,6 +1,6 @@
 # CR: Privacy consent, cookie settings and communication opt-in
 
-Status: Implemented locally, pending migration/deploy approval
+Status: Deployed
 Date: 2026-07-23
 Type: feature
 Risk: high
@@ -406,16 +406,23 @@ Detailed service list for the full page:
 ## Deploy / Migration Gate
 
 - Deployment needed:
-  - yes, later.
+  - completed.
 - Production deploy status:
-  - blocked pending explicit deploy approval.
+  - deployed to `https://portal.s5evo.de`; current production alias also
+    contains the later follow-up commits through
+    `3de8925 Fix results matrix point rendering`.
 - Migration status:
-  - migration file prepared locally, not applied to production.
-- Required before deploy:
-  - run migration in the target DB with explicit approval.
-  - smoke authenticated profile consent save/load.
-  - smoke `/karte` before/after external-map consent.
-  - smoke message e-mail notification skip/allow behavior.
+  - applied; `npx prisma migrate status` on 2026-07-23 10:31 UTC reported
+    production schema up to date.
+- Deployment/verification notes:
+  - Local checks before deploy were green:
+    `npx prisma generate`, `npx tsc --noEmit --incremental false`,
+    targeted ESLint, `git diff --check`, `npm run build`.
+  - Public production smoke after later deploys remained green:
+    `npm run smoke:public`, `/api/competition` 200, `/api/results` 200,
+    protected APIs 401 without session.
+  - Authenticated browser smoke remains a manual gap for profile consent
+    save/load and optional message e-mail behavior.
 
 ## Follow-Ups
 
