@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 
 type CompetitionInfo = {
   id: string;
@@ -53,6 +54,8 @@ export function useCompetition() {
 const STORAGE_KEY = "s5evo-active-competition";
 
 export function CompetitionProvider({ children }: { children: ReactNode }) {
+  const { hasConsent } = usePrivacyConsent();
+  const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const [all, setAll] = useState<CompetitionInfo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +110,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
         setAll(comps);
 
         // Restore from localStorage, or default to first OPEN competition
-        const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
+        const stored = typeof window !== "undefined" && functionalStorageAllowed ? localStorage.getItem(STORAGE_KEY) : null;
         const storedValid = stored && comps.some((c) => c.id === stored);
         
         if (storedValid) {
@@ -124,16 +127,16 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [functionalStorageAllowed]);
 
   const switchTo = useCallback(
     (id: string) => {
       setActiveId(id);
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && functionalStorageAllowed) {
         localStorage.setItem(STORAGE_KEY, id);
       }
     },
-    []
+    [functionalStorageAllowed]
   );
 
   const active = all.find((c) => c.id === activeId) ?? null;

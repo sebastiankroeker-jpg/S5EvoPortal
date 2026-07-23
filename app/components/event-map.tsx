@@ -12,6 +12,7 @@ import {
   Route,
 } from "lucide-react";
 import { BAD_BAYERSOIEN_CENTER, SPONSOR_POIS, type SponsorPoi } from "@/lib/event-map/sponsor-pois";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 const MAPTILER_RASTER_TILE_URL = MAPTILER_KEY
@@ -93,6 +94,7 @@ function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
 }
 
 export default function EventMap() {
+  const { categories, hasConsent, saveConsent } = usePrivacyConsent();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapViewportRef = useRef<HTMLElement | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -108,6 +110,7 @@ export default function EventMap() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [popupSponsorId, setPopupSponsorId] = useState<string | null>(null);
   const [mapZoom, setMapZoom] = useState(14);
+  const externalMapsAllowed = hasConsent("EXTERNAL_MAPS");
   const visibleSponsorCount = visibleSponsorIds.size;
   const sponsorsVisible = visibleSponsorCount > 0;
   const allSponsorsVisible = visibleSponsorCount === SPONSOR_POIS.length;
@@ -142,6 +145,7 @@ export default function EventMap() {
   }, []);
 
   useEffect(() => {
+    if (!externalMapsAllowed) return;
     if (!mapContainerRef.current || mapRef.current) return;
 
     let cancelled = false;
@@ -227,7 +231,11 @@ export default function EventMap() {
       mapRef.current = null;
       leafletRef.current = null;
     };
-  }, []);
+  }, [externalMapsAllowed]);
+
+  const enableExternalMaps = useCallback(() => {
+    void saveConsent({ ...categories, EXTERNAL_MAPS: true }, "PROFILE");
+  }, [categories, saveConsent]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -442,19 +450,40 @@ export default function EventMap() {
         <main ref={mapViewportRef} className="relative order-1 h-[62svh] min-h-[420px] touch-none bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0">
           <div ref={mapContainerRef} className="absolute inset-0 touch-none" />
 
-          {!mapLoaded && !mapError && (
+          {!externalMapsAllowed && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-[oklch(0.94_0.025_145)] p-4">
+              <div className="max-w-sm rounded-md border border-border/70 bg-background/95 p-4 text-center shadow-sm">
+                <MapPin className="mx-auto mb-2 size-8 text-primary" />
+                <p className="text-sm font-semibold">Externe Karte laden?</p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  Die Sponsor-Karte nutzt externe Kartenkacheln von MapTiler/OpenStreetMap.
+                  Ohne Einwilligung bleibt die Kartenflaeche deaktiviert; die Sponsorenliste
+                  links funktioniert weiter.
+                </p>
+                <button
+                  type="button"
+                  onClick={enableExternalMaps}
+                  className="mt-3 inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Karte laden
+                </button>
+              </div>
+            </div>
+          )}
+
+          {externalMapsAllowed && !mapLoaded && !mapError && (
             <div className="absolute left-3 top-16 z-10 rounded-md border border-border/70 bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm lg:top-3">
               Karte wird geladen...
             </div>
           )}
 
-          {!MAPTILER_KEY && (
+          {externalMapsAllowed && !MAPTILER_KEY && (
             <div className="absolute left-3 top-3 z-10 max-w-[min(24rem,calc(100vw-1.5rem))] rounded-md border border-amber-300/70 bg-amber-50/95 px-3 py-2 text-xs text-amber-950 shadow-sm dark:border-amber-500/40 dark:bg-amber-950/90 dark:text-amber-100">
               Demo-Karte aktiv. Fuer Produktion bitte `NEXT_PUBLIC_MAPTILER_KEY` setzen.
             </div>
           )}
 
-          {mapError && (
+          {externalMapsAllowed && mapError && (
             <div className="absolute inset-x-3 top-16 z-10 rounded-md border border-destructive/40 bg-background/95 px-3 py-2 text-sm text-destructive shadow-sm lg:top-3">
               {mapError}
             </div>

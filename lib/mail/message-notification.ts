@@ -1,4 +1,7 @@
+import { ConsentCategory } from "@prisma/client";
+
 import { sendResendMail } from "@/lib/mail/resend";
+import { prisma } from "@/lib/prisma";
 
 type MessageNotificationPayload = {
   to: string[];
@@ -120,6 +123,26 @@ export async function sendMessageNotificationEmail(payload: MessageNotificationP
     return { status: "skipped" as const, reason: "no_recipients" };
   }
 
+  const consentedUsers = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      email: { in: recipients, mode: "insensitive" },
+      consentPreferences: {
+        some: {
+          category: ConsentCategory.PORTAL_MESSAGE_EMAIL,
+          granted: true,
+        },
+      },
+    },
+    select: { email: true },
+  });
+  const consentedEmails = new Set(consentedUsers.map((user) => user.email.trim().toLowerCase()));
+  const optedInRecipients = recipients.filter((recipient) => consentedEmails.has(recipient.toLowerCase()));
+
+  if (optedInRecipients.length === 0) {
+    return { status: "skipped" as const, reason: "missing_portal_message_email_consent" };
+  }
+
   const portalUrl = `${getPortalUrl()}/nachrichten`;
   const escapedSubject = escapeHtml(payload.conversationSubject);
   const escapedActor = escapeHtml(payload.actorName);
@@ -129,7 +152,7 @@ export async function sendMessageNotificationEmail(payload: MessageNotificationP
   const escapedPortalUrl = escapeHtml(portalUrl);
 
   await sendResendMail({
-    to: recipients,
+    to: optedInRecipients,
     subject: payload.subject,
     html: [
       "<div style=\"margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a\">",
@@ -175,5 +198,5 @@ export async function sendMessageNotificationEmail(payload: MessageNotificationP
     ].join("\n"),
   });
 
-  return { status: "sent" as const, recipients };
+  return { status: "sent" as const, recipients: optedInRecipients };
 }

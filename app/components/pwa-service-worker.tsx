@@ -1,12 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 
 export default function PwaServiceWorker() {
+  const { hasConsent } = usePrivacyConsent();
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const localOfflineAllowed = hasConsent("LOCAL_OFFLINE");
 
   useEffect(() => {
+    if (localOfflineAllowed || !("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => {
+        void registration.unregister();
+      });
+    });
+    if ("caches" in window) {
+      void caches.keys().then((keys) => keys.forEach((key) => void caches.delete(key)));
+    }
+  }, [localOfflineAllowed]);
+
+  useEffect(() => {
+    if (!localOfflineAllowed) {
+      return;
+    }
     if (!("serviceWorker" in navigator)) {
       return;
     }
@@ -46,9 +64,10 @@ export default function PwaServiceWorker() {
     return () => {
       window.removeEventListener("load", registerServiceWorker);
     };
-  }, []);
+  }, [localOfflineAllowed]);
 
   useEffect(() => {
+    if (!localOfflineAllowed) return;
     if (!("serviceWorker" in navigator)) return;
 
     const handleControllerChange = () => {
@@ -61,7 +80,7 @@ export default function PwaServiceWorker() {
     return () => {
       navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
     };
-  }, [refreshing]);
+  }, [localOfflineAllowed, refreshing]);
 
   if (!waitingWorker) {
     return null;

@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { openUserDashboard } from "@/lib/admin-routing";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 import { useTheme } from "@/lib/theme-context";
 import { cn } from "@/lib/utils";
 import {
@@ -403,6 +404,8 @@ function readReceiptLabel(conversation: ConversationSummary, message: Conversati
 
 export default function MessageCenter() {
   const { sparkleEnabled } = useTheme();
+  const { hasConsent } = usePrivacyConsent();
+  const localDraftsAllowed = hasConsent("LOCAL_OFFLINE");
   const [mode, setMode] = useState<"mine" | "admin">("mine");
   const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
   const [statusFilters, setStatusFilters] = useState<MessageStatusFilter[]>(DEFAULT_MESSAGE_STATUS_FILTERS);
@@ -528,7 +531,7 @@ export default function MessageCenter() {
   }, [mode, searchQuery, sortDirection, sortMode, statusFilters, unreadOnly]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || contexts.length === 0) return;
+    if (typeof window === "undefined" || contexts.length === 0 || !localDraftsAllowed) return;
     const draft = sanitizePersonalComposeDraft(readJsonRecord(window.localStorage.getItem(MESSAGE_COMPOSE_DRAFT_STORAGE_KEY)));
     const validContextId = draft.contextId && contexts.some((context) => `${context.type}:${context.id}` === draft.contextId)
       ? draft.contextId
@@ -537,10 +540,14 @@ export default function MessageCenter() {
     setSubject(draft.subject);
     setBody(draft.body);
     setContextId((current) => draft.contextId ? validContextId : current || validContextId);
-  }, [contexts]);
+  }, [contexts, localDraftsAllowed]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!localDraftsAllowed) {
+      window.localStorage.removeItem(MESSAGE_COMPOSE_DRAFT_STORAGE_KEY);
+      return;
+    }
     if (skipNextPersonalDraftPersistRef.current) {
       skipNextPersonalDraftPersistRef.current = false;
       return;
@@ -554,20 +561,24 @@ export default function MessageCenter() {
       MESSAGE_COMPOSE_DRAFT_STORAGE_KEY,
       JSON.stringify({ subject, body, contextId }),
     );
-  }, [body, contextId, subject]);
+  }, [body, contextId, localDraftsAllowed, subject]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !adminComposeTarget) return;
+    if (typeof window === "undefined" || !adminComposeTarget || !localDraftsAllowed) return;
     const drafts = readJsonRecord(window.localStorage.getItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY));
     const fallbackSubject = adminComposeSenderMode === "ORG" ? "Nachricht vom Orga-Team" : "Persönliche Nachricht";
     const draft = sanitizeAdminComposeDraft((drafts[adminComposeDraftKey(adminComposeTarget, adminComposeSenderMode)] ?? {}) as AdminComposeDraft, fallbackSubject);
     skipNextAdminDraftPersistRef.current = true;
     setAdminSubject(draft.subject);
     setAdminBody(draft.body);
-  }, [adminComposeSenderMode, adminComposeTarget]);
+  }, [adminComposeSenderMode, adminComposeTarget, localDraftsAllowed]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !adminComposeTarget) return;
+    if (!localDraftsAllowed) {
+      window.localStorage.removeItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY);
+      return;
+    }
     if (skipNextAdminDraftPersistRef.current) {
       skipNextAdminDraftPersistRef.current = false;
       return;
@@ -584,7 +595,7 @@ export default function MessageCenter() {
       return;
     }
     window.localStorage.setItem(MESSAGE_ADMIN_COMPOSE_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
-  }, [adminBody, adminComposeSenderMode, adminComposeTarget, adminSubject]);
+  }, [adminBody, adminComposeSenderMode, adminComposeTarget, adminSubject, localDraftsAllowed]);
 
   useEffect(() => {
     if (!navigationBurst) return;

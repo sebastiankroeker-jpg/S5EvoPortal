@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 
 export type Theme = "light" | "dark" | "bunt" | "esv";
 
@@ -27,8 +28,13 @@ function isTheme(value: string | null): value is Theme {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
+  const { hasConsent } = usePrivacyConsent();
+  const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === "undefined") return "light";
+    const rawConsent = localStorage.getItem("s5evo-privacy-consent-v1");
+    const consentAllowsFunctional = rawConsent?.includes("\"FUNCTIONAL_STORAGE\":true") ?? false;
+    if (!consentAllowsFunctional) return "light";
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     if (isTheme(savedTheme)) return savedTheme;
     for (const key of LEGACY_THEME_KEYS) {
@@ -39,6 +45,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   });
   const [sparkleByTheme, setSparkleByTheme] = useState<Partial<Record<Theme, boolean>>>(() => {
     if (typeof window === "undefined") return {};
+    const rawConsent = localStorage.getItem("s5evo-privacy-consent-v1");
+    const consentAllowsFunctional = rawConsent?.includes("\"FUNCTIONAL_STORAGE\":true") ?? false;
+    if (!consentAllowsFunctional) return {};
     try {
       const parsed = JSON.parse(localStorage.getItem(THEME_EFFECTS_STORAGE_KEY) || "{}");
       return typeof parsed === "object" && parsed !== null ? parsed : {};
@@ -49,9 +58,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   useEffect(() => {
     // Theme speichern und auf DOM anwenden
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-    for (const key of LEGACY_THEME_KEYS) {
-      localStorage.setItem(key, theme);
+    if (functionalStorageAllowed) {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+      for (const key of LEGACY_THEME_KEYS) {
+        localStorage.setItem(key, theme);
+      }
     }
     document.documentElement.setAttribute("data-theme", theme);
     
@@ -61,11 +72,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [theme]);
+  }, [functionalStorageAllowed, theme]);
 
   useEffect(() => {
+    if (!functionalStorageAllowed) return;
     localStorage.setItem(THEME_EFFECTS_STORAGE_KEY, JSON.stringify(sparkleByTheme));
-  }, [sparkleByTheme]);
+  }, [functionalStorageAllowed, sparkleByTheme]);
 
   const sparkleEnabled = Boolean(sparkleByTheme[theme]);
   const setSparkleEnabled = (enabled: boolean) => {

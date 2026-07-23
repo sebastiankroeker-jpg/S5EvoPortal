@@ -1,8 +1,40 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-23 01:42 UTC
+Stand: 2026-07-23 02:03 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Privacy/Consent CR local implementation 2026-07-23 02:03 UTC:
+  - New CR:
+    `docs/cr/2026-07-23-privacy-consent-and-communications.md`
+    (docs/cr is excluded from normal git status).
+  - Sebastian approved implementation with "Go" at 2026-07-23 01:54 UTC.
+  - Implemented locally, not deployed:
+    - Prisma `ConsentPreference` table plus enums and migration
+      `20260723015620_privacy_consent_preferences`.
+    - Authenticated `/api/privacy/preferences`.
+    - Global consent banner and profile privacy settings.
+    - Public `/datenschutz` page.
+    - `/karte` external tile loading gated behind `EXTERNAL_MAPS` consent.
+    - PWA service worker and message draft persistence gated behind
+      `LOCAL_OFFLINE`.
+    - Optional portal message notification e-mails gated behind
+      `PORTAL_MESSAGE_EMAIL`.
+    - Theme and active competition preference writes gated behind
+      `FUNCTIONAL_STORAGE`.
+  - Checks currently green:
+    `npx prisma generate`, `npx tsc --noEmit --incremental false`,
+    targeted ESLint for touched privacy/map/PWA/message/profile files,
+    `git diff --check`, `npm run build`.
+  - Not yet done:
+    no production DB migration, no push, no Vercel deploy.
+  - Gate before deploy:
+    explicitly confirm DB migration + deploy; then authenticated smoke profile
+    consent save/load, `/karte` before/after map consent, and optional message
+    e-mail skip/allow behavior.
+  - Known follow-up:
+    sidebar/dashboard/list preference localStorage writes are documented for
+    additional strict gating before release if needed.
 
 - Karten-Fokus-/Zoom-Deploy 2026-07-23 01:42 UTC:
   - Sebastian gab nach dem kompakten Popup-Deploy weitere Kartenkorrekturen frei:

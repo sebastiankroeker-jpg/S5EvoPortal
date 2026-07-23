@@ -331,6 +331,22 @@ enum MessageSenderDisplayMode {
   ORG
 }
 
+enum ConsentCategory {
+  FUNCTIONAL_STORAGE
+  EXTERNAL_MAPS
+  LOCAL_OFFLINE
+  PORTAL_MESSAGE_EMAIL
+}
+
+enum ConsentSource {
+  BANNER
+  SETTINGS
+  PROFILE
+  REGISTRATION
+  CLAIM
+  ADMIN
+}
+
 // ==================== TENANT ====================
 
 model Tenant {
@@ -364,6 +380,7 @@ model Tenant {
   resultPublications   ResultPublication[]
   resultResetSnapshots ResultResetSnapshot[]
   homeNewsEntries      HomeNewsEntry[]
+  consentPreferences   ConsentPreference[]
 
   @@map("tenants")
 }
@@ -411,6 +428,7 @@ model User {
   conversationsClosed         Conversation[]             @relation("ConversationCloser")
   conversationParticipants    ConversationParticipant[]
   messagesSent                Message[]                  @relation("MessageSender")
+  consentPreferences          ConsentPreference[]        @relation("ConsentPreferenceUser")
   timekeepingSessionsCreated  TimekeepingSession[]       @relation("TimekeepingSessionCreator")
   timekeepingEventsCreated    TimekeepingEvent[]         @relation("TimekeepingEventActor")
   resultDataBatchesCreated    ResultDataBatch[]          @relation("ResultDataBatchCreator")
@@ -490,6 +508,7 @@ model Competition {
   resultPublications   ResultPublication[]
   resultResetSnapshots ResultResetSnapshot[]
   homeNewsEntries      HomeNewsEntry[]
+  consentPreferences   ConsentPreference[]
 
   @@index([tenantId, status, year, createdAt])
   @@index([status, year, createdAt])
@@ -719,6 +738,7 @@ model Participant {
   pendingChanges PendingChange[]
   auditLogs      ParticipantAuditLog[]
   conversations  Conversation[]
+  consentPreferences ConsentPreference[] @relation("ConsentPreferenceParticipant")
 
   @@index([userId])
   @@index([userId, deletedAt])
@@ -726,6 +746,34 @@ model Participant {
   @@index([marketplaceReturnTeamId])
   @@index([lastName, firstName])
   @@map("participants")
+}
+
+model ConsentPreference {
+  id            String          @id @default(cuid())
+  category      ConsentCategory
+  granted       Boolean         @default(false)
+  noticeVersion String
+  source        ConsentSource   @default(BANNER)
+  grantedAt     DateTime?
+  withdrawnAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  userId        String?
+  user          User?           @relation("ConsentPreferenceUser", fields: [userId], references: [id], onDelete: Cascade)
+  participantId String?
+  participant   Participant?    @relation("ConsentPreferenceParticipant", fields: [participantId], references: [id], onDelete: Cascade)
+  tenantId      String?
+  tenant        Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String?
+  competition   Competition?    @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, category])
+  @@unique([participantId, category])
+  @@index([tenantId, category])
+  @@index([competitionId, category])
+  @@index([category, granted])
+  @@map("consent_preferences")
 }
 
 // ==================== MESSAGING ====================

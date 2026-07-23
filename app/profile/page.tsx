@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { useTheme } from "@/lib/theme-context";
 import NavBar from "@/app/components/nav-bar";
 import BottomTabBar from "@/app/components/bottom-tab-bar";
+import PrivacySettingsPanel from "@/app/components/privacy-settings-panel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -326,6 +327,18 @@ export default function ProfilePage() {
                   </button>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.28 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Datenschutz & Einwilligungen</CardTitle>
+              <CardDescription>Cookies, lokale Speicherung, Karten und E-Mail-Hinweise steuern</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PrivacySettingsPanel />
             </CardContent>
           </Card>
         </motion.div>
