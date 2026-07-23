@@ -270,18 +270,39 @@ Decision from 2026-07-23:
 
 ## Deploy
 
-- Deployment needed: yes, after separate Go
+- Deployment needed: done
+- Commit:
+  - `d7521b4 Add timekeeping result drafts`
 - Deployment ID:
+  - `dpl_BgPC8hiNsm95q8T81xpwHE7riekx`
 - Deployment URL:
+  - `https://s5-evo-portal-nsr20tp23-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias:
+  - `https://portal.s5evo.de`
 - Deployed at:
+  - 2026-07-23 21:06 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `npm run smoke:public`: passed.
+  - `HEAD https://portal.s5evo.de/`: 200.
+  - `HEAD https://portal.s5evo.de/admin/ergebnisse`: 200.
+  - `HEAD https://portal.s5evo.de/zeitnahme`: 200.
 - API checks:
+  - Unauthenticated `POST /api/admin/result-staging/timekeeping/import` with
+    empty JSON payload: 401 `{"error":"Unauthorized"}`.
+  - `GET /api/results?competitionId=cmn3a1piz0002l104372yx9yt`: 200 with
+    `totalClasses=9`, `totalTeams=86`.
 - Sensitive-data/API leakage checks:
+  - Protected timekeeping import still rejects unauthenticated requests before
+    any payload processing.
+  - No public endpoint was broadened.
 - Result:
+  - Production deploy READY on `portal.s5evo.de`.
+  - CR1 is live.
+  - Authenticated admin smoke remains pending because the agent has no admin
+    browser session.
 
 ## Follow-Ups
 
