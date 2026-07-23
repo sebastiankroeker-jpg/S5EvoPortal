@@ -361,6 +361,7 @@ model Tenant {
   privacyText       String?
   defaultTheme      String   @default("DARK")
   claimLinksEnabled Boolean  @default(true)
+  publicPortalRegistrationEnabled Boolean @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

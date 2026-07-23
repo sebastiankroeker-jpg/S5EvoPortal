@@ -32,6 +32,7 @@ type TenantConfig = {
   website: string;
   privacyText: string;
   defaultTheme: string;
+  publicPortalRegistrationEnabled: boolean;
 };
 
 type CompetitionConfig = {
@@ -344,6 +345,7 @@ export default function AdminPage() {
     website: "",
     privacyText: "",
     defaultTheme: "DARK",
+    publicPortalRegistrationEnabled: true,
   });
 
   const [competition, setCompetition] = useState<CompetitionConfig>({
@@ -566,6 +568,7 @@ export default function AdminPage() {
               website: tenantData.tenant.website || "",
               privacyText: tenantData.tenant.privacyText || "",
               defaultTheme: tenantData.tenant.defaultTheme || "DARK",
+              publicPortalRegistrationEnabled: tenantData.tenant.publicPortalRegistrationEnabled !== false,
             });
           }
         }
@@ -1085,6 +1088,29 @@ export default function AdminPage() {
                       placeholder="Ich erkläre mich einverstanden, dass meine persönlichen Daten..."
                     />
                   </FormField>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Portal-Zugänge</CardTitle>
+                  <CardDescription>Steuert öffentliche Kontoaktionen auf der Home-Seite</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <label className="flex items-start gap-3 rounded-md border border-border/50 p-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={tenant.publicPortalRegistrationEnabled}
+                      onChange={(e) => setTenant({ ...tenant, publicPortalRegistrationEnabled: e.target.checked })}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span className="space-y-1">
+                      <span className="block font-medium">Portal-Registrierung auf Home anzeigen</span>
+                      <span className="block text-muted-foreground">
+                        Wenn deaktiviert, bleibt der Login sichtbar, aber der öffentliche Button „Portal-Konto erstellen“ wird auf Home ausgeblendet.
+                      </span>
+                    </span>
+                  </label>
                 </CardContent>
               </Card>
 

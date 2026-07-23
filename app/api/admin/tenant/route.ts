@@ -67,7 +67,8 @@ export async function PUT(request: NextRequest) {
           contactEmail: body.contactEmail,
           website: body.website,
           privacyText: body.privacyText,
-          defaultTheme: body.defaultTheme || existingTenant.defaultTheme
+          defaultTheme: body.defaultTheme || existingTenant.defaultTheme,
+          publicPortalRegistrationEnabled: body.publicPortalRegistrationEnabled !== false,
         }
       });
 

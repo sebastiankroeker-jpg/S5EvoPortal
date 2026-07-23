@@ -20,6 +20,9 @@ interface CompetitionInfo {
   dateEnd: string | null;
   status: string;
   hideForeignTeams?: boolean;
+  tenant?: {
+    publicPortalRegistrationEnabled?: boolean;
+  };
 }
 
 interface TeamStats {
@@ -316,6 +319,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthActionPending, setIsAuthActionPending] = useState(false);
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
+  const publicPortalRegistrationEnabled = competitionInfo?.tenant?.publicPortalRegistrationEnabled === true;
 
   // Load competition info and stats
   useEffect(() => {
@@ -420,21 +424,23 @@ export default function HomeScreen() {
                 🧩 Zur Sportlerbörse
               </Button>
               <div className="space-y-2">
-                <Button
-                  variant="ghost"
-                  className="h-10 w-full bg-background/80"
-                  onClick={async () => {
-                    setIsAuthActionPending(true);
-                    try {
-                      await startPortalRegistration("/");
-                    } finally {
-                      setIsAuthActionPending(false);
-                    }
-                  }}
-                  disabled={isAuthActionPending}
-                >
-                  📝 Portal-Konto erstellen
-                </Button>
+                {publicPortalRegistrationEnabled && (
+                  <Button
+                    variant="ghost"
+                    className="h-10 w-full bg-background/80"
+                    onClick={async () => {
+                      setIsAuthActionPending(true);
+                      try {
+                        await startPortalRegistration("/");
+                      } finally {
+                        setIsAuthActionPending(false);
+                      }
+                    }}
+                    disabled={isAuthActionPending}
+                  >
+                    📝 Portal-Konto erstellen
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   onClick={async () => {

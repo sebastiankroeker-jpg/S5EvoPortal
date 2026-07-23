@@ -27,6 +27,11 @@ export async function GET(request: NextRequest) {
       maxTeams: true,
       teamSize: true,
       location: true,
+      tenant: {
+        select: {
+          publicPortalRegistrationEnabled: true,
+        },
+      },
     } as const;
 
     const competition = competitionId
