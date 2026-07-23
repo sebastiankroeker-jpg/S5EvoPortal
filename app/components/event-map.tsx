@@ -7,18 +7,27 @@ import {
   Building2,
   ChevronDown,
   ChevronRight,
+  LocateFixed,
   Layers,
   MapPin,
+  Maximize2,
+  Minimize2,
   Route,
 } from "lucide-react";
 import {
   COURSE_DISCIPLINES,
   COURSE_DISCIPLINE_LABELS,
+  COURSE_DISCIPLINE_NOTES,
   COURSE_POIS,
   COURSE_ROUTES,
+  EVENT_LOCATION_CATEGORIES,
+  EVENT_LOCATION_CATEGORY_LABELS,
+  EVENT_LOCATION_POIS,
   type CourseDiscipline,
   type CoursePoi,
   type CourseRoute,
+  type EventLocationCategory,
+  type EventLocationPoi,
 } from "@/lib/event-map/course-routes";
 import { BAD_BAYERSOIEN_CENTER, SPONSOR_POIS, type SponsorPoi } from "@/lib/event-map/sponsor-pois";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
@@ -69,11 +78,42 @@ function buildCourseRoutePopupHtml(route: CourseRoute): string {
 
 function buildCoursePoiPopupHtml(poi: CoursePoi): string {
   const typeLabel = poi.type === "start" ? "Start" : "Ziel";
+  const routeLink = poi.routeUrl
+    ? `<a href="${escapeHtml(poi.routeUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-sm font-medium text-primary hover:bg-accent">Route</a>`
+    : "";
   return `
     <div class="event-map-course-popup-card text-sm text-foreground">
       <p class="text-base font-semibold leading-snug">${escapeHtml(poi.name)}</p>
       <p class="text-sm leading-snug text-muted-foreground">${escapeHtml(COURSE_DISCIPLINE_LABELS[poi.discipline])} · ${typeLabel}</p>
-      <p class="text-xs leading-5 text-muted-foreground">Draft-POI aus PDF-Georeferenzierung; Position vor produktiver Nutzung pruefen.</p>
+      <p class="text-xs leading-5 text-muted-foreground">${escapeHtml(poi.note ?? "Draft-POI aus PDF-Georeferenzierung; Position vor produktiver Nutzung pruefen.")}</p>
+      ${routeLink}
+    </div>
+  `;
+}
+
+function getEventLocationColor(category: EventLocationCategory) {
+  const colors: Record<EventLocationCategory, string> = {
+    competition: "#7c3aed",
+    food: "#dc2626",
+    sanitary: "#0891b2",
+    office: "#2563eb",
+    parking: "#16a34a",
+  };
+
+  return colors[category];
+}
+
+function buildEventLocationPopupHtml(poi: EventLocationPoi): string {
+  const routeLink = poi.routeUrl
+    ? `<a href="${escapeHtml(poi.routeUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-sm font-medium text-primary hover:bg-accent">Route</a>`
+    : "";
+
+  return `
+    <div class="event-map-course-popup-card text-sm text-foreground">
+      <p class="text-base font-semibold leading-snug">${escapeHtml(poi.name)}</p>
+      <p class="text-sm leading-snug text-muted-foreground">${escapeHtml(EVENT_LOCATION_CATEGORY_LABELS[poi.category])}</p>
+      ${poi.note ? `<p class="text-xs leading-5 text-muted-foreground">${escapeHtml(poi.note)}</p>` : ""}
+      ${routeLink}
     </div>
   `;
 }
@@ -162,6 +202,8 @@ export default function EventMap() {
   const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
   const courseRouteLayersRef = useRef<Map<string, Polyline>>(new Map());
   const coursePoiLayersRef = useRef<Map<string, CircleMarker>>(new Map());
+  const eventLocationLayersRef = useRef<Map<string, CircleMarker>>(new Map());
+  const userLocationMarkerRef = useRef<CircleMarker | null>(null);
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const popupOpenTimerRef = useRef<number | null>(null);
   const suppressPopupCloseRef = useRef(false);
@@ -169,25 +211,37 @@ export default function EventMap() {
   const [visibleSponsorIds, setVisibleSponsorIds] = useState(() => new Set(SPONSOR_POIS.map((sponsor) => sponsor.id)));
   const [visibleCourseRouteIds, setVisibleCourseRouteIds] = useState(() => new Set(COURSE_ROUTES.map((route) => route.id)));
   const [visibleCoursePoiIds, setVisibleCoursePoiIds] = useState(() => new Set(COURSE_POIS.map((poi) => poi.id)));
+  const [visibleEventLocationIds, setVisibleEventLocationIds] = useState(() => new Set(EVENT_LOCATION_POIS.map((poi) => poi.id)));
   const [sponsorsExpanded, setSponsorsExpanded] = useState(true);
   const [coursesExpanded, setCoursesExpanded] = useState(true);
   const [expandedCourseDisciplines, setExpandedCourseDisciplines] = useState<Set<CourseDiscipline>>(() => new Set(COURSE_DISCIPLINES));
+  const [eventLocationsExpanded, setEventLocationsExpanded] = useState(true);
+  const [expandedEventLocationCategories, setExpandedEventLocationCategories] = useState<Set<EventLocationCategory>>(
+    () => new Set(EVENT_LOCATION_CATEGORIES),
+  );
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [popupSponsorId, setPopupSponsorId] = useState<string | null>(null);
   const [mapZoom, setMapZoom] = useState(14);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [locatingUser, setLocatingUser] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const externalMapsAllowed = hasConsent("EXTERNAL_MAPS");
   const visibleSponsorCount = visibleSponsorIds.size;
   const sponsorsVisible = visibleSponsorCount > 0;
   const allSponsorsVisible = visibleSponsorCount === SPONSOR_POIS.length;
-  const visibleCourseFeatureCount = visibleCourseRouteIds.size + visibleCoursePoiIds.size;
-  const allCourseFeaturesVisible = visibleCourseRouteIds.size === COURSE_ROUTES.length && visibleCoursePoiIds.size === COURSE_POIS.length;
+  const visibleCourseFeatureCount = visibleCourseRouteIds.size + visibleCoursePoiIds.size + visibleEventLocationIds.size;
+  const allCourseFeaturesVisible =
+    visibleCourseRouteIds.size === COURSE_ROUTES.length &&
+    visibleCoursePoiIds.size === COURSE_POIS.length &&
+    visibleEventLocationIds.size === EVENT_LOCATION_POIS.length;
   const someCourseFeaturesVisible = visibleCourseFeatureCount > 0;
 
   const setAllCourseFeaturesVisible = useCallback((visible: boolean) => {
     setVisibleCourseRouteIds(new Set(visible ? COURSE_ROUTES.map((route) => route.id) : []));
     setVisibleCoursePoiIds(new Set(visible ? COURSE_POIS.map((poi) => poi.id) : []));
+    setVisibleEventLocationIds(new Set(visible ? EVENT_LOCATION_POIS.map((poi) => poi.id) : []));
   }, []);
 
   const clearSponsorState = useCallback((sponsorId?: string) => {
@@ -264,6 +318,68 @@ export default function EventMap() {
     }, 520);
   }, []);
 
+  const focusEventLocation = useCallback((poi: EventLocationPoi) => {
+    const map = mapRef.current;
+    const layer = eventLocationLayersRef.current.get(poi.id);
+    if (!map || !layer) return;
+
+    mapViewportRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    map.invalidateSize();
+    map.flyTo(toLeafletLatLng(poi.coordinates), Math.max(map.getZoom(), 15.5), { duration: 0.45 });
+    window.setTimeout(() => {
+      eventLocationLayersRef.current.get(poi.id)?.openPopup();
+    }, 520);
+  }, []);
+
+  const centerOnUserLocation = useCallback(() => {
+    const map = mapRef.current;
+    const L = leafletRef.current;
+    if (!map || !L) return;
+
+    if (!("geolocation" in navigator)) {
+      setLocationError("Dieser Browser unterstuetzt keine Standortfreigabe.");
+      return;
+    }
+
+    setLocatingUser(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latLng: [number, number] = [position.coords.latitude, position.coords.longitude];
+        userLocationMarkerRef.current?.remove();
+        const marker = L.circleMarker(latLng, {
+          radius: 9,
+          color: "#ffffff",
+          weight: 3,
+          fillColor: "#0284c7",
+          fillOpacity: 0.95,
+        }).addTo(map);
+        marker.bindPopup(
+          `<div class="event-map-course-popup-card text-sm text-foreground"><p class="text-base font-semibold leading-snug">Meine Position</p><p class="text-xs leading-5 text-muted-foreground">Vom Browser freigegebener Standort. Wird nicht gespeichert.</p></div>`,
+          {
+            className: "event-map-course-popup",
+            closeButton: true,
+            maxWidth: 280,
+          },
+        );
+        userLocationMarkerRef.current = marker;
+        map.invalidateSize();
+        map.flyTo(latLng, Math.max(map.getZoom(), 16), { duration: 0.45 });
+        window.setTimeout(() => marker.openPopup(), 520);
+        setLocatingUser(false);
+      },
+      (error) => {
+        setLocationError(error.code === error.PERMISSION_DENIED ? "Standortfreigabe wurde abgelehnt." : "Standort konnte nicht ermittelt werden.");
+        setLocatingUser(false);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 30000,
+        timeout: 12000,
+      },
+    );
+  }, []);
+
   useEffect(() => {
     if (!externalMapsAllowed) return;
     if (!mapContainerRef.current || mapRef.current) return;
@@ -273,6 +389,7 @@ export default function EventMap() {
     const markers = markersRef.current;
     const courseRouteLayers = courseRouteLayersRef.current;
     const coursePoiLayers = coursePoiLayersRef.current;
+    const eventLocationLayers = eventLocationLayersRef.current;
     setMapLoaded(false);
 
     const initializeMap = async () => {
@@ -353,6 +470,10 @@ export default function EventMap() {
       courseRouteLayers.clear();
       coursePoiLayers.forEach((layer) => layer.remove());
       coursePoiLayers.clear();
+      eventLocationLayers.forEach((layer) => layer.remove());
+      eventLocationLayers.clear();
+      userLocationMarkerRef.current?.remove();
+      userLocationMarkerRef.current = null;
       suppressPopupCloseRef.current = false;
       if (popupOpenTimerRef.current) window.clearTimeout(popupOpenTimerRef.current);
       if (loadTimeout) window.clearTimeout(loadTimeout);
@@ -416,6 +537,8 @@ export default function EventMap() {
     courseRouteLayersRef.current.clear();
     coursePoiLayersRef.current.forEach((layer) => layer.remove());
     coursePoiLayersRef.current.clear();
+    eventLocationLayersRef.current.forEach((layer) => layer.remove());
+    eventLocationLayersRef.current.clear();
 
     COURSE_ROUTES.filter((route) => visibleCourseRouteIds.has(route.id)).forEach((route) => {
       const layer = L.polyline(toLeafletLatLngs(route.coordinates), {
@@ -449,7 +572,24 @@ export default function EventMap() {
       });
       coursePoiLayersRef.current.set(poi.id, layer);
     });
-  }, [mapReady, visibleCoursePoiIds, visibleCourseRouteIds]);
+
+    EVENT_LOCATION_POIS.filter((poi) => visibleEventLocationIds.has(poi.id)).forEach((poi) => {
+      const color = getEventLocationColor(poi.category);
+      const layer = L.circleMarker(toLeafletLatLng(poi.coordinates), {
+        radius: 8,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 0.95,
+      }).addTo(map);
+      layer.bindPopup(buildEventLocationPopupHtml(poi), {
+        className: "event-map-course-popup",
+        closeButton: true,
+        maxWidth: 300,
+      });
+      eventLocationLayersRef.current.set(poi.id, layer);
+    });
+  }, [mapReady, visibleCoursePoiIds, visibleCourseRouteIds, visibleEventLocationIds]);
 
   useEffect(() => {
     const L = leafletRef.current;
@@ -488,13 +628,44 @@ export default function EventMap() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!mapFullscreen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMapFullscreen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    window.setTimeout(() => mapRef.current?.invalidateSize(), 0);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+      window.setTimeout(() => mapRef.current?.invalidateSize(), 0);
+    };
+  }, [mapFullscreen]);
+
   return (
     <div
       ref={shellRef}
-      className="relative min-h-[calc(100svh-3rem)] overflow-x-hidden bg-background lg:h-[calc(100vh-3rem)] lg:overflow-hidden"
+      className={`${
+        mapFullscreen
+          ? "fixed inset-0 z-50 h-[100svh] min-h-[100svh] overflow-hidden"
+          : "relative min-h-[calc(100svh-3rem)] overflow-x-hidden lg:h-[calc(100vh-3rem)] lg:overflow-hidden"
+      } bg-background`}
     >
-      <div className="grid min-h-[calc(100svh-3rem)] grid-cols-1 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(300px,380px)_1fr]">
-        <aside className="z-10 order-2 flex min-h-0 flex-col border-t border-border/50 bg-background/95 lg:order-1 lg:max-h-none lg:border-r lg:border-t-0">
+      <div
+        className={`grid grid-cols-1 lg:min-h-0 ${
+          mapFullscreen ? "h-full min-h-[100svh]" : "min-h-[calc(100svh-3rem)] lg:h-full lg:grid-cols-[minmax(300px,380px)_1fr]"
+        }`}
+      >
+        <aside
+          className={`z-10 order-2 min-h-0 flex-col border-t border-border/50 bg-background/95 lg:order-1 lg:max-h-none lg:border-r lg:border-t-0 ${
+            mapFullscreen ? "hidden" : "flex"
+          }`}
+        >
           <div className="border-b border-border/50 px-4 py-4">
             <div className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
@@ -502,7 +673,7 @@ export default function EventMap() {
             </div>
             <h1 className="mt-1 text-2xl font-semibold">Event-Karte</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Sponsoren als erster Layer. Strecken und Infrastruktur sind vorbereitet.
+              Sponsoren, Wettkampf-Orte, Strecken und Versorgung als Layer.
             </p>
           </div>
 
@@ -609,17 +780,6 @@ export default function EventMap() {
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                disabled
-                className="flex cursor-not-allowed items-center justify-between rounded-md border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Infrastruktur
-                </span>
-                <span className="text-[11px]">spaeter</span>
-              </button>
               <div className="rounded-md border border-border/60 bg-card">
                 <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                   <button
@@ -722,6 +882,12 @@ export default function EventMap() {
 
                             {disciplineExpanded && (
                               <div className="ml-4 mt-1 space-y-1 border-l border-border/60 pl-2">
+                                {COURSE_DISCIPLINE_NOTES[discipline] && (
+                                  <p className="rounded-md bg-muted/40 px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
+                                    {COURSE_DISCIPLINE_NOTES[discipline]}
+                                  </p>
+                                )}
+
                                 {disciplineRoutes.map((route) => {
                                   const routeVisible = visibleCourseRouteIds.has(route.id);
                                   return (
@@ -807,9 +973,152 @@ export default function EventMap() {
                           </div>
                         );
                       })}
+
+                      <div className="rounded-md">
+                        <div className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${visibleEventLocationIds.size > 0 ? "" : "opacity-55"}`}>
+                          <button
+                            type="button"
+                            onClick={() => setEventLocationsExpanded((expanded) => !expanded)}
+                            className="inline-flex min-w-0 flex-1 items-center gap-2 text-left"
+                            aria-expanded={eventLocationsExpanded}
+                          >
+                            {eventLocationsExpanded ? (
+                              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate text-sm font-semibold">Orte &amp; Infrastruktur</span>
+                          </button>
+                          <input
+                            type="checkbox"
+                            ref={(node) => {
+                              if (node) {
+                                node.indeterminate =
+                                  visibleEventLocationIds.size > 0 && visibleEventLocationIds.size < EVENT_LOCATION_POIS.length;
+                              }
+                            }}
+                            checked={visibleEventLocationIds.size === EVENT_LOCATION_POIS.length}
+                            onChange={(event) => {
+                              setVisibleEventLocationIds(
+                                new Set(event.target.checked ? EVENT_LOCATION_POIS.map((poi) => poi.id) : []),
+                              );
+                            }}
+                            aria-label="Alle Orte und Infrastruktur ein- oder ausblenden"
+                            className="h-4 w-4 shrink-0 accent-primary"
+                          />
+                        </div>
+
+                        {eventLocationsExpanded && (
+                          <div className="ml-4 mt-1 space-y-2 border-l border-border/60 pl-2">
+                            {EVENT_LOCATION_CATEGORIES.map((category) => {
+                              const categoryPois = EVENT_LOCATION_POIS.filter((poi) => poi.category === category);
+                              const visibleCategoryPois = categoryPois.filter((poi) => visibleEventLocationIds.has(poi.id));
+                              const allCategoryVisible = visibleCategoryPois.length === categoryPois.length;
+                              const someCategoryVisible = visibleCategoryPois.length > 0;
+                              const categoryExpanded = expandedEventLocationCategories.has(category);
+
+                              return (
+                                <div key={category} className="rounded-md">
+                                  <div className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${someCategoryVisible ? "" : "opacity-55"}`}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedEventLocationCategories((current) => {
+                                          const next = new Set(current);
+                                          if (next.has(category)) next.delete(category);
+                                          else next.add(category);
+                                          return next;
+                                        });
+                                      }}
+                                      className="inline-flex min-w-0 flex-1 items-center gap-2 text-left"
+                                      aria-expanded={categoryExpanded}
+                                    >
+                                      {categoryExpanded ? (
+                                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                      )}
+                                      <span
+                                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                        style={{ backgroundColor: getEventLocationColor(category) }}
+                                      />
+                                      <span className="min-w-0 flex-1 truncate text-sm">{EVENT_LOCATION_CATEGORY_LABELS[category]}</span>
+                                    </button>
+                                    <input
+                                      type="checkbox"
+                                      ref={(node) => {
+                                        if (node) node.indeterminate = someCategoryVisible && !allCategoryVisible;
+                                      }}
+                                      checked={allCategoryVisible}
+                                      onChange={(event) => {
+                                        const visible = event.target.checked;
+                                        const ids = categoryPois.map((poi) => poi.id);
+                                        setVisibleEventLocationIds((current) => {
+                                          const next = new Set(current);
+                                          ids.forEach((id) => {
+                                            if (visible) next.add(id);
+                                            else next.delete(id);
+                                          });
+                                          return next;
+                                        });
+                                      }}
+                                      aria-label={`${EVENT_LOCATION_CATEGORY_LABELS[category]} ein- oder ausblenden`}
+                                      className="h-4 w-4 shrink-0 accent-primary"
+                                    />
+                                  </div>
+
+                                  {categoryExpanded && (
+                                    <div className="ml-4 mt-1 space-y-1 border-l border-border/60 pl-2">
+                                      {categoryPois.map((poi) => {
+                                        const poiVisible = visibleEventLocationIds.has(poi.id);
+                                        return (
+                                          <div
+                                            key={poi.id}
+                                            className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                                              poiVisible ? "hover:bg-accent/60" : "opacity-55"
+                                            }`}
+                                          >
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (poiVisible) focusEventLocation(poi);
+                                              }}
+                                              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                            >
+                                              <MapPin
+                                                className="h-4 w-4 shrink-0"
+                                                style={{ color: getEventLocationColor(poi.category) }}
+                                              />
+                                              <span className="min-w-0 flex-1 truncate text-sm">{poi.name}</span>
+                                            </button>
+                                            <input
+                                              type="checkbox"
+                                              checked={poiVisible}
+                                              onChange={(event) => {
+                                                setVisibleEventLocationIds((current) => {
+                                                  const next = new Set(current);
+                                                  if (event.target.checked) next.add(poi.id);
+                                                  else next.delete(poi.id);
+                                                  return next;
+                                                });
+                                              }}
+                                              aria-label={`${poi.name} ein- oder ausblenden`}
+                                              className="h-4 w-4 shrink-0 accent-primary"
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <p className="mt-2 px-2 text-[11px] leading-4 text-muted-foreground">
-                      Draft aus PDF-Georeferenzierung. Genauere Tracks koennen spaeter hier ersetzt werden.
+                      Strecken teils als Draft aus PDF-Georeferenzierung. Orte aus den gelieferten Google-Maps-Links.
                     </p>
                   </div>
                 )}
@@ -818,8 +1127,37 @@ export default function EventMap() {
           </div>
         </aside>
 
-        <main ref={mapViewportRef} className="relative order-1 h-[62svh] min-h-[420px] touch-none bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0">
+        <main
+          ref={mapViewportRef}
+          className={`relative order-1 touch-none bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0 ${
+            mapFullscreen ? "h-full min-h-[100svh]" : "h-[62svh] min-h-[420px]"
+          }`}
+        >
           <div ref={mapContainerRef} className="absolute inset-0 touch-none" />
+
+          <div className="absolute right-3 top-3 z-30 flex touch-auto items-center gap-2">
+            {externalMapsAllowed && (
+              <button
+                type="button"
+                onClick={centerOnUserLocation}
+                disabled={!mapReady || locatingUser}
+                title="Auf meine Position zentrieren"
+                aria-label="Auf meine Position zentrieren"
+                className="inline-flex size-10 items-center justify-center rounded-md border border-border/70 bg-background/95 text-foreground shadow-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <LocateFixed className={`h-4 w-4 ${locatingUser ? "animate-pulse" : ""}`} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setMapFullscreen((fullscreen) => !fullscreen)}
+              title={mapFullscreen ? "Vollbild verlassen" : "Karte im Vollbild anzeigen"}
+              aria-label={mapFullscreen ? "Vollbild verlassen" : "Karte im Vollbild anzeigen"}
+              className="inline-flex size-10 items-center justify-center rounded-md border border-border/70 bg-background/95 text-foreground shadow-sm hover:bg-accent"
+            >
+              {mapFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          </div>
 
           {!externalMapsAllowed && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-[oklch(0.94_0.025_145)] p-4">
@@ -857,6 +1195,12 @@ export default function EventMap() {
           {externalMapsAllowed && mapError && (
             <div className="absolute inset-x-3 top-16 z-10 rounded-md border border-destructive/40 bg-background/95 px-3 py-2 text-sm text-destructive shadow-sm lg:top-3">
               {mapError}
+            </div>
+          )}
+
+          {externalMapsAllowed && locationError && (
+            <div className="absolute right-3 top-16 z-30 max-w-[min(22rem,calc(100vw-1.5rem))] rounded-md border border-amber-300/70 bg-amber-50/95 px-3 py-2 text-xs text-amber-950 shadow-sm dark:border-amber-500/40 dark:bg-amber-950/90 dark:text-amber-100">
+              {locationError}
             </div>
           )}
         </main>

@@ -1,4 +1,4 @@
-export type CourseDiscipline = "road_cycling" | "mtb";
+export type CourseDiscipline = "running" | "road_cycling" | "mtb";
 
 export type CourseRouteStatus = "draft_digitization" | "verified";
 
@@ -23,12 +23,47 @@ export type CoursePoi = {
   className?: string;
   coordinates: [number, number];
   status: CourseRouteStatus;
+  note?: string;
+  routeUrl?: string;
+};
+
+export type EventLocationCategory = "competition" | "food" | "sanitary" | "office" | "parking";
+
+export type EventLocationPoi = {
+  id: string;
+  name: string;
+  category: EventLocationCategory;
+  coordinates: [number, number];
+  routeUrl?: string;
+  note?: string;
+  status: CourseRouteStatus;
 };
 
 export const COURSE_DISCIPLINE_LABELS: Record<CourseDiscipline, string> = {
+  running: "Lauf",
   road_cycling: "Rennrad",
   mtb: "MTB",
 };
+
+export const COURSE_DISCIPLINE_NOTES: Partial<Record<CourseDiscipline, string>> = {
+  running: "Runden im Uhrzeigersinn: Schueler 1, Jugend/Damen 3, Herren 3.",
+};
+
+export const EVENT_LOCATION_CATEGORY_LABELS: Record<EventLocationCategory, string> = {
+  competition: "Wettkampfstaetten",
+  food: "Verpflegung",
+  sanitary: "Sanitaer",
+  office: "Organisation",
+  parking: "Parken",
+};
+
+export const EVENT_LOCATION_CATEGORIES: EventLocationCategory[] = [
+  "competition",
+  "food",
+  "sanitary",
+  "office",
+  "parking",
+];
 
 const DRAFT_SOURCE_NOTE =
   "Draft aus PDF-Kartenbild und bestaetigtem Startpunkt georeferenziert; vor produktiver Nutzung vor Ort pruefen.";
@@ -261,6 +296,26 @@ export const COURSE_ROUTES: CourseRoute[] = [
 
 export const COURSE_POIS: CoursePoi[] = [
   {
+    id: "run-start",
+    name: "Start Lauf",
+    discipline: "running",
+    type: "start",
+    coordinates: [11.0058083, 47.688563],
+    status: "verified",
+    routeUrl: "https://maps.app.goo.gl/HeJX9uLEjxRnMKj39?g_st=ic",
+    note: "Von Sebastian per Google-Maps-Link geliefert.",
+  },
+  {
+    id: "run-finish",
+    name: "Ziel Lauf",
+    discipline: "running",
+    type: "finish",
+    coordinates: [11.0045443, 47.6885925],
+    status: "verified",
+    routeUrl: "https://maps.app.goo.gl/K3MUA5NLjtTHtJ5B7?g_st=ic",
+    note: "Ziel nach x Runden im Uhrzeigersinn; Schueler 1 Runde, Jugend/Damen/Herren 3 Runden.",
+  },
+  {
     id: "road-start",
     name: "Start Rennrad (A)",
     discipline: "road_cycling",
@@ -313,4 +368,90 @@ export const COURSE_POIS: CoursePoi[] = [
   },
 ];
 
-export const COURSE_DISCIPLINES: CourseDiscipline[] = ["road_cycling", "mtb"];
+export const EVENT_LOCATION_POIS: EventLocationPoi[] = [
+  {
+    id: "stockschiessen",
+    name: "Wettkampfstaette Stockschiessen",
+    category: "competition",
+    coordinates: [10.99879, 47.6891848],
+    routeUrl: "https://maps.app.goo.gl/zZB9j3R9GkmqtDaq6?g_st=ic",
+    status: "verified",
+  },
+  {
+    id: "bankdruecken",
+    name: "Wettkampfstaette Bankdruecken",
+    category: "competition",
+    coordinates: [10.9981734, 47.6890243],
+    routeUrl: "https://maps.app.goo.gl/qBqC7s8721jX1vtj9?g_st=ic",
+    note: "Auf der Buehne im Bierzelt.",
+    status: "verified",
+  },
+  {
+    id: "bierzelt-verpflegung",
+    name: "Bierzelt mit Verpflegung",
+    category: "food",
+    coordinates: [10.9981734, 47.6890243],
+    routeUrl: "https://maps.app.goo.gl/qBqC7s8721jX1vtj9?g_st=ic",
+    status: "verified",
+  },
+  {
+    id: "toiletten-wettkampfzentrum",
+    name: "Toiletten Wettkampfzentrum",
+    category: "sanitary",
+    coordinates: [10.9988889, 47.688841],
+    routeUrl: "https://maps.app.goo.gl/JZXqp6wWSTeW9Ztx8?g_st=ic",
+    status: "verified",
+  },
+  {
+    id: "toiletten-dorfstrasse",
+    name: "Toiletten Dorfstrasse",
+    category: "sanitary",
+    coordinates: [10.993961, 47.6918018],
+    routeUrl: "https://maps.app.goo.gl/JLovjAhtMixLXDJd9?g_st=ic",
+    status: "verified",
+  },
+  {
+    id: "toiletten-fischerhaeusl",
+    name: "Toiletten Fischerhaeusl/Soier See",
+    category: "sanitary",
+    coordinates: [11.0034806, 47.6882527],
+    routeUrl: "https://maps.app.goo.gl/vNj6buuTZ8w1w6Jx5?g_st=ic",
+    note: "Google-Place-Link ohne Koordinaten im Redirect; Position ueber zugehoerige Route-Seite aufgeloest.",
+    status: "verified",
+  },
+  {
+    id: "duschen",
+    name: "Duschen",
+    category: "sanitary",
+    coordinates: [10.9988242, 47.6887629],
+    routeUrl: "https://maps.app.goo.gl/gNEELtDqa4fuR5mt7?g_st=ic",
+    status: "verified",
+  },
+  {
+    id: "wettkampf-buero",
+    name: "Wettkampf-Buero",
+    category: "office",
+    coordinates: [10.9988477, 47.688804],
+    routeUrl: "https://maps.app.goo.gl/5xHwKJxzbRoaywUH7?g_st=ic",
+    status: "verified",
+  },
+  {
+    id: "parken-zentrum",
+    name: "Parken Wettkampfzentrum",
+    category: "parking",
+    coordinates: [10.9995196, 47.6890514],
+    routeUrl: "https://maps.app.goo.gl/9PxHKagwboVHoybB8?g_st=ic",
+    status: "verified",
+  },
+  {
+    id: "parken-trahtweg",
+    name: "Parken Trahtweg am Bauhof",
+    category: "parking",
+    coordinates: [10.999529957771, 47.687373330813],
+    routeUrl: "https://maps.app.goo.gl/F5kqDkz9v4vALayi7?g_st=ic",
+    note: "Google-Place-Link ohne Koordinaten im Redirect; Position ueber Tourismus-Route-Link aufgeloest.",
+    status: "verified",
+  },
+];
+
+export const COURSE_DISCIPLINES: CourseDiscipline[] = ["running", "road_cycling", "mtb"];
