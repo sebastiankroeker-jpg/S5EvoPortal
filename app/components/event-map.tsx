@@ -45,26 +45,20 @@ function buildSponsorLogoHtml(sponsor: SponsorPoi, className: string): string {
 }
 
 function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
-  const confidenceText = sponsor.confidence === "verified" ? "verifiziert" : "pruefen";
   const websiteLink = sponsor.websiteUrl
-    ? `<a href="${escapeHtml(sponsor.websiteUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-accent">Website</a>`
+    ? `<a href="${escapeHtml(sponsor.websiteUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-9 items-center rounded-md border border-border/70 bg-background px-3 text-sm font-medium text-primary hover:bg-accent">Website</a>`
     : "";
 
   return `
-    <div class="min-w-52 max-w-64 text-sm text-foreground">
-      <div class="flex items-start gap-3">
-        ${buildSponsorLogoHtml(sponsor, "inline-flex size-12 shrink-0 items-center justify-center rounded-md border border-border/60")}
-        <div class="min-w-0">
-          <p class="font-semibold leading-tight">${escapeHtml(sponsor.name)}</p>
-          <p class="mt-1 text-xs text-muted-foreground">${escapeHtml(sponsor.category)}</p>
+    <div class="event-map-popup-card text-sm text-foreground">
+      ${buildSponsorLogoHtml(sponsor, "event-map-popup-logo inline-flex items-center justify-center rounded-md border border-border/60")}
+      <div class="event-map-popup-details">
+        <p class="text-base font-semibold leading-snug">${escapeHtml(sponsor.name)} - ${escapeHtml(sponsor.category)}</p>
+        <p class="text-sm leading-snug text-muted-foreground">${escapeHtml(sponsor.address)}</p>
+        <div class="flex flex-wrap gap-2">
+          <a href="${escapeHtml(sponsor.routeUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-9 items-center rounded-md border border-border/70 bg-background px-3 text-sm font-medium text-primary hover:bg-accent">Route</a>
+          ${websiteLink}
         </div>
-      </div>
-      <p class="mt-3 text-xs leading-snug text-muted-foreground">${escapeHtml(sponsor.address)}</p>
-      <p class="mt-2 text-xs leading-snug text-muted-foreground">Status: ${escapeHtml(confidenceText)}</p>
-      <p class="mt-2 text-xs leading-snug text-muted-foreground">${escapeHtml(sponsor.sourceNote)}</p>
-      <div class="mt-3 flex flex-wrap gap-2">
-        <a href="${escapeHtml(sponsor.routeUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium hover:bg-accent">Route</a>
-        ${websiteLink}
       </div>
     </div>
   `;
@@ -219,7 +213,7 @@ export default function EventMap() {
         marker.bindPopup(buildSponsorPopupHtml(sponsor), {
           className: "event-map-popup",
           closeButton: true,
-          maxWidth: 300,
+          maxWidth: 340,
         });
         marker.on("click", () => selectSponsor(sponsor, false));
         markersRef.current.set(sponsor.id, marker);

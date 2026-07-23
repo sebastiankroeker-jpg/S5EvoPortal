@@ -260,6 +260,31 @@
   margin: 0.75rem;
 }
 
+.event-map-popup-card {
+  display: grid;
+  width: min(19rem, calc(100vw - 5.5rem));
+  grid-template-rows: minmax(12rem, 1fr) auto;
+  gap: 0.85rem;
+}
+
+.event-map-popup-logo {
+  min-height: 12rem;
+  overflow: hidden;
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.event-map-popup-logo img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+}
+
+.event-map-popup-details {
+  display: grid;
+  gap: 0.7rem;
+}
+
 .event-map-popup .leaflet-popup-tip {
   background: var(--background);
   border: 1px solid var(--border);
