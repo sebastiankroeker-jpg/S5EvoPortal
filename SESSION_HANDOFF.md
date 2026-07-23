@@ -1,8 +1,41 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-23 01:20 UTC
+Stand: 2026-07-23 01:42 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Karten-Fokus-/Zoom-Deploy 2026-07-23 01:42 UTC:
+  - Sebastian gab nach dem kompakten Popup-Deploy weitere Kartenkorrekturen frei:
+    Kartenklick auf Logo-Kachel darf nicht mehr zur Layer-Liste scrollen,
+    Listenklick soll die vollstaendige Karte mit geoeffneter Box fokussieren,
+    Logo-Kacheln sollen ab tieferem Zoom sinnvoll mitskalieren, und Zoomstufen
+    sollen feiner sein.
+  - Implementiert in `app/components/event-map.tsx` und `app/globals.css`:
+    - Sponsor-Auswahl trennt Kartenfokus von Listen-Scroll.
+    - Kartenklick fokussiert innerhalb der Karte auf die Popup-Position und
+      oeffnet die Box nach `flyTo`.
+    - Listenklick scrollt auf Mobile zur Karte und oeffnet dort die Box.
+    - Leaflet `zoomSnap`/`zoomDelta` stehen auf `0.5`.
+    - Sponsor-Logo-Marker bleiben bis Zoom 15 stabil und skalieren danach bis
+      ca. `2.15x`.
+  - Commit/Push:
+    - `aee0ec3 Refine sponsor map focus and zoom`
+    - Pushed `b4cbe9d..aee0ec3`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_2WbTEmw7JuexCz3VEuva6qFqXns9`
+    - Vercel-URL:
+      `https://s5-evo-portal-hyy4qmadl-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-23 01:41 UTC
+  - Checks gruen:
+    `npx tsc --noEmit --incremental false`,
+    `npx eslint app/components/event-map.tsx`, `git diff --check`,
+    `npm run build`, lokaler `/karte` HTTP 200, `npm run smoke:public`,
+    `HEAD https://portal.s5evo.de/karte` 200.
+  - Remaining gap:
+    Sebastian sollte am iPhone hart refreshen und Kartenklick/Listenklick,
+    Popup-Fokus sowie feinere Zoomstufen visuell testen.
 
 - Karten-Popup-Compact-Deploy 2026-07-23 01:20 UTC:
   - Sebastian bestaetigte den geschlossenen Anmeldeschluss und bat um kleine
