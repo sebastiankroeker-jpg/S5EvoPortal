@@ -53,6 +53,37 @@ export async function DELETE(
           },
         },
       },
+      chiefOfTeams: {
+        include: {
+          competition: {
+            select: { tenantId: true },
+          },
+        },
+      },
+      linkedParticipants: {
+        include: {
+          team: {
+            select: {
+              deletedAt: true,
+              competition: {
+                select: { tenantId: true },
+              },
+            },
+          },
+        },
+      },
+      teamMemberRoles: {
+        include: {
+          team: {
+            select: {
+              deletedAt: true,
+              competition: {
+                select: { tenantId: true },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -60,15 +91,39 @@ export async function DELETE(
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
   }
 
+  const activeOwnedTeams = targetUser.ownedTeams.filter((team) => !team.deletedAt);
+  const activeChiefTeams = targetUser.chiefOfTeams.filter((team) => !team.deletedAt);
+  const activeLinkedParticipants = targetUser.linkedParticipants.filter(
+    (participant) => !participant.deletedAt && !participant.team.deletedAt,
+  );
+  const activeTeamMemberRoles = targetUser.teamMemberRoles.filter((role) => !role.revokedAt && !role.team.deletedAt);
+  const isStandalonePortalUser =
+    targetUser.tenantRoles.length === 0 &&
+    activeOwnedTeams.length === 0 &&
+    activeChiefTeams.length === 0 &&
+    activeLinkedParticipants.length === 0 &&
+    activeTeamMemberRoles.length === 0;
+
   const tenantScopedRoles = targetUser.tenantRoles.filter((role) => role.tenantId === scopedTenantId);
-  if (tenantScopedRoles.length === 0) {
+  if (tenantScopedRoles.length === 0 && !isStandalonePortalUser) {
     return NextResponse.json({ error: "User gehört nicht zu deinem Tenant" }, { status: 404 });
   }
 
   const hasForeignTenantRoles = targetUser.tenantRoles.some((role) => role.tenantId !== scopedTenantId);
-  const hasForeignOwnedTeams = targetUser.ownedTeams.some((team) => team.competition.tenantId !== scopedTenantId && !team.deletedAt);
+  const hasForeignOwnedTeams = activeOwnedTeams.some((team) => team.competition.tenantId !== scopedTenantId);
+  const hasForeignChiefTeams = activeChiefTeams.some((team) => team.competition.tenantId !== scopedTenantId);
+  const hasForeignLinkedParticipants = activeLinkedParticipants.some(
+    (participant) => participant.team.competition.tenantId !== scopedTenantId,
+  );
+  const hasForeignTeamMemberRoles = activeTeamMemberRoles.some((role) => role.team.competition.tenantId !== scopedTenantId);
 
-  if (hasForeignTenantRoles || hasForeignOwnedTeams) {
+  if (
+    hasForeignTenantRoles ||
+    hasForeignOwnedTeams ||
+    hasForeignChiefTeams ||
+    hasForeignLinkedParticipants ||
+    hasForeignTeamMemberRoles
+  ) {
     return NextResponse.json(
       { error: "User ist noch anderen Tenants zugeordnet und kann nicht tenant-lokal geloescht werden" },
       { status: 409 },
@@ -90,7 +145,7 @@ export async function DELETE(
   }
 
   const now = new Date();
-  const teamIds = targetUser.ownedTeams
+  const teamIds = activeOwnedTeams
     .filter((team) => team.competition.tenantId === scopedTenantId)
     .map((team) => team.id);
   const { archivedEmail, archivedAuthentikSub } = buildDeletedUserIdentity(targetUser.email, targetUser.id, now);

@@ -883,6 +883,9 @@ export default function UserManagement() {
           ];
           return order.indexOf(left.meta.status) - order.indexOf(right.meta.status);
         });
+        const deleteDescription = user.teamCount > 0
+          ? `${user.name || user.email} wird im Portal deaktiviert. Eigene Teams und Teilnehmer werden dabei ebenfalls ausgeblendet.`
+          : `${user.name || user.email} wird im Portal deaktiviert. Es sind keine aktiven Teams oder Teilnehmer mit diesem Konto verbunden.`;
 
         return (
           <motion.div key={user.id} layout>
@@ -1104,8 +1107,7 @@ export default function UserManagement() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Benutzer wirklich löschen?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            {user.name || user.email} wird im Portal deaktiviert. Eigene Teams und Teilnehmer werden
-                            dabei ebenfalls ausgeblendet.
+                            {deleteDescription}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
