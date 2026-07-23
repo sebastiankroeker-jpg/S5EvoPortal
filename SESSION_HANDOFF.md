@@ -1,24 +1,51 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-23 10:31 UTC
+Stand: 2026-07-23 11:02 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
-- Current production status 2026-07-23 10:31 UTC:
-  - `main` is synchronized with `origin/main` at
-    `3de8925 Fix results matrix point rendering`.
+- Current production status 2026-07-23 11:02 UTC:
+  - `origin/main` is at `f7f2f2f Add event map route layer`.
+  - Local `main` may be one docs-only commit ahead if the handoff update commit
+    exists; do not push docs-only unless Sebastian explicitly wants it, because
+    it can trigger another Vercel production build.
   - Production alias `https://portal.s5evo.de` is live and Vercel READY.
     Latest deployment:
-    `dpl_BerSBnUJUmviWDGTHKWEnbyhYpPZ`
-    (`s5-evo-portal-ccu0kleoe-sebastiankroeker-2781s-projects.vercel.app`).
+    `dpl_UhLoKNk8UoCwHag71kpY4myCKvfd`
+    (`s5-evo-portal-2lzadtn5c-sebastiankroeker-2781s-projects.vercel.app`).
   - Last smoke after deployment was green:
-    `npm run smoke:public`, `HEAD https://portal.s5evo.de`, public
-    `/api/competition` and `/api/results` 200, protected APIs 401 without
-    session.
+    `npm run smoke:public`, `HEAD https://portal.s5evo.de/karte` 200,
+    public `/api/competition` and `/api/results` 200, protected APIs 401
+    without session.
   - Production DB migration status checked with
     `npx prisma migrate status`: schema is up to date.
-  - Local git status after deploy: only known untracked workspace files remain
+  - Known untracked workspace files remain
     (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`, `SOUL.md`).
+
+- Event map route layer live 2026-07-23 11:01 UTC:
+  - Sebastian sent PDF-derived GeoJSON from ChatGPT and asked to turn the old
+    `Strecken` placeholder into `Wettkampf Orte & Strecken` with a discipline
+    tree.
+  - Implemented in `f7f2f2f Add event map route layer`:
+    - New tracked route source `lib/event-map/course-routes.ts`.
+    - `Wettkampf Orte & Strecken` layer in `app/components/event-map.tsx`.
+    - Discipline nodes `Rennrad` and `MTB`.
+    - Per-discipline route and Start/Ziel POI entries.
+    - Leaflet polylines for routes and circle markers for Start/Ziel POIs.
+    - Clicking visible route/POI focuses map and opens popup.
+    - Popup copy labels all route/POI data as PDF-georeferenced draft.
+  - Pre-deploy checks green:
+    `npx eslint app/components/event-map.tsx lib/event-map/course-routes.ts`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Deployment:
+    `dpl_UhLoKNk8UoCwHag71kpY4myCKvfd`, alias `portal.s5evo.de`, READY.
+  - Post-deploy smoke green:
+    `npm run smoke:public`; `HEAD https://portal.s5evo.de/karte` 200.
+  - Remaining data-quality gap:
+    route geometry is still draft. Better GPX/GeoJSON or on-site validation
+    should replace/confirm Rennrad finish, MTB Jugend/Damen finish, and
+    repeated MTB Herren segments before treating the map as official.
 
 - Result matrix hotfix live 2026-07-23 10:28 UTC:
   - Sebastian reported missing points in result point matrices.

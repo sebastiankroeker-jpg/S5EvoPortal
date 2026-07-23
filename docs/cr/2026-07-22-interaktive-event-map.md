@@ -893,6 +893,16 @@ Existing context:
   - `git diff --check` -> pass
   - `npm run build` -> pass
   - Local `/karte` on `localhost:3109` -> 200
+- Deployment:
+  - Commit: `f7f2f2f Add event map route layer`
+  - Deployment ID: `dpl_UhLoKNk8UoCwHag71kpY4myCKvfd`
+  - Deployment URL:
+    `https://s5-evo-portal-2lzadtn5c-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-23 11:01 UTC
+- Post-deploy smoke:
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `npm run smoke:public` -> pass
 
 ## Follow-Ups
 
