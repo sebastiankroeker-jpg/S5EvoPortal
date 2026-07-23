@@ -7,9 +7,8 @@ Stand: 2026-07-23 00:39 UTC
 - Nachtabschluss 2026-07-23 00:39 UTC:
   - Sebastian beendet die Session und bat darum, relevante Dinge zu
     dokumentieren und das Session Handoff zu aktualisieren.
-  - Wichtigster offener Gate: der Registration-Deadline-Hotfix ist lokal
-    vorbereitet und verifiziert, aber noch nicht deployed. Fuer Prod-Deploy
-    braucht es Sebastians explizites `deploy`.
+  - Registration-Deadline-Hotfix wurde nach Sebastians Freigabe
+    "Bitte noch ausliefern :)" deployed.
   - Wichtigster Karten-Follow-up: Sponsorinfos morgen verifizieren. Die
     Arbeitsliste liegt in `docs/sponsorenliste-2026-07-23.md` mit 42 Eintraegen
     (34 `verified`, 8 `needs_review`).
@@ -43,7 +42,7 @@ Stand: 2026-07-23 00:39 UTC
 - Registration Deadline Closed UI Hotfix 2026-07-23 00:36 UTC:
   - Sebastian set Admin-Wettkampf Anmeldeschluss to 2026-07-22 and reported
     that logged-in user `NDBS` still sees registration as open.
-  - Local hotfix prepared, not deployed yet:
+  - Hotfix deployed:
     - `/api/competition` now returns `Cache-Control: no-store, max-age=0`.
     - Client competition status fetches in `TeamRegistration` and
       `CompetitionProvider` use `{ cache: "no-store" }`.
@@ -59,8 +58,23 @@ Stand: 2026-07-23 00:39 UTC
     (only existing `react-hooks/exhaustive-deps` warning),
     `npx tsc --noEmit --incremental false`, `git diff --check`,
     `npm run build`.
-  - Deploy open: requires Sebastian approval before production deploy. After
-    deploy, authenticated NDBS smoke should verify the registration UI is closed.
+  - Commit/Push:
+    - `257a407 Fix registration deadline freshness`
+    - Pushed `3604cbf..257a407`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_9etNRAM7vJyYZSMC9AKpKTf9s6JT`
+    - Vercel-URL:
+      `https://s5-evo-portal-7p2gv5dcy-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-23 00:48 UTC
+  - Post-Deploy-Smoke gruen:
+    `npm run smoke:public`, `HEAD https://portal.s5evo.de/` 200,
+    `HEAD https://portal.s5evo.de/api/competition` 200 with
+    `Cache-Control: no-store, max-age=0`, unauthenticated `/api/teams` 401.
+  - Remaining gap:
+    authenticated NDBS browser smoke by Sebastian should verify the visible
+    closed-registration UI.
 
 - Event Map PDF Sponsor Logos 2026-07-22 23:31 UTC:
   - Sebastian sent front/back 2025 flyer PDFs and asked to extract sponsor

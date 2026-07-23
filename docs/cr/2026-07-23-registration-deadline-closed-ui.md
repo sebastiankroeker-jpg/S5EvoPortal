@@ -1,6 +1,6 @@
 # CR: Registration deadline closed UI freshness
 
-Status: Draft
+Status: Deployed
 Date: 2026-07-23
 Type: hotfix
 Risk: medium
@@ -41,7 +41,7 @@ list: `docs/sponsorenliste-2026-07-23.md`.
   - Changing existing team/participant edit-after-deadline approval rules.
   - Blocking admin back-office operations such as MTC finalization or
     start-number import/team creation.
-  - Production deploy until Sebastian explicitly approves.
+  - Production deploy before Sebastian explicitly approves.
 
 ## Affected Flows
 
@@ -59,7 +59,8 @@ list: `docs/sponsorenliste-2026-07-23.md`.
   - `/api/competition` responses now send `Cache-Control: no-store`.
   - Client fetches for competition status use `{ cache: "no-store" }`.
 - Production/deploy impact:
-  - Functional hotfix, deploy requires explicit approval.
+  - Functional hotfix deployed after Sebastian approved delivery on
+    2026-07-23 00:42 UTC.
 
 ## Privacy / Security Review
 
@@ -114,7 +115,7 @@ list: `docs/sponsorenliste-2026-07-23.md`.
   - Treat the current bug as stale/read-model/UI signalling, not as a DB change.
   - Keep POST-side deadline blocks unchanged.
 - Open decisions:
-  - Whether to deploy immediately after checks.
+  - None for the hotfix deploy.
 - Non-goals:
   - No production data mutation.
   - No registration deadline admin UI redesign.
@@ -152,8 +153,8 @@ list: `docs/sponsorenliste-2026-07-23.md`.
 - Reason: production deploy is externally visible.
 - Sensitive-data/production-data reason: no sensitive-data broadening; no
   production data mutation.
-- Approved by: pending
-- Approval timestamp: pending
+- Approved by: Sebastian via Telegram, "Bitte noch ausliefern :)"
+- Approval timestamp: 2026-07-23 00:42 UTC
 
 ## Implementation Notes
 
@@ -194,24 +195,40 @@ list: `docs/sponsorenliste-2026-07-23.md`.
 
 ## Deploy
 
-- Deployment needed: yes, after approval.
-- Deployment ID: pending
-- Deployment URL: pending
-- Production alias: `https://portal.s5evo.de`
-- Deployed at: pending
+- Deployment needed: yes, completed.
+- Commit:
+  - `257a407 Fix registration deadline freshness`
+- Deployment ID:
+  - `dpl_9etNRAM7vJyYZSMC9AKpKTf9s6JT`
+- Deployment URL:
+  - `https://s5-evo-portal-7p2gv5dcy-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias:
+  - `https://portal.s5evo.de`
+- Deployed at:
+  - 2026-07-23 00:48 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
-  - Pending.
+  - `npm run smoke:public` against `https://portal.s5evo.de` -> pass:
+    `/`, `/login`, `/anmeldung`, `/aenderungen`, `/api/competition`,
+    `/api/results`; protected `/api/teams` and
+    `/api/admin/pending-changes` return 401 without session.
+  - `HEAD https://portal.s5evo.de/` -> 200.
 - API checks:
-  - Pending.
+  - `HEAD https://portal.s5evo.de/api/competition` -> 200 with
+    `Cache-Control: no-store, max-age=0`.
+  - `GET https://portal.s5evo.de/api/competition` reports
+    `registrationDeadline: 2026-07-22T00:00:00.000Z`.
+  - `GET https://portal.s5evo.de/api/teams` without session -> 401
+    `{"error":"Unauthorized"}`.
 - Sensitive-data/API leakage checks:
-  - Pending.
+  - Public smoke confirms protected team/admin APIs remain unauthorized without
+    session.
 - Result:
-  - Pending.
+  - Pass.
 
 ## Follow-Ups
 
-- After deploy, Sebastian should refresh the logged-in `NDBS` session and verify
-  that the registration form is closed.
+- Sebastian should refresh the logged-in `NDBS` session and verify that the
+  registration form is closed in the browser.
