@@ -196,6 +196,7 @@ export default function LiveScreen() {
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [focusedStartParticipantElementId, setFocusedStartParticipantElementId] = useState<string | null>(null);
   const pendingFocusElementIdRef = useRef<string | null>(null);
+  const focusRequestIdRef = useRef(0);
   const { active: activeCompetition } = useCompetition();
   const { activeRole } = usePermissions();
   const canViewTeamLists = canRoleViewAllTeams(activeRole, activeCompetition);
@@ -282,16 +283,37 @@ export default function LiveScreen() {
 
   const focusElement = useCallback((elementId: string) => {
     pendingFocusElementIdRef.current = elementId;
+    const requestId = focusRequestIdRef.current + 1;
+    focusRequestIdRef.current = requestId;
+    const startedAt = window.performance.now();
 
     const scroll = () => {
+      if (pendingFocusElementIdRef.current !== elementId || focusRequestIdRef.current !== requestId) return;
+
       const element = document.getElementById(elementId);
-      if (!element) return;
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      const elapsed = window.performance.now() - startedAt;
+
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        if (elapsed >= 900) {
+          if (focusRequestIdRef.current === requestId) {
+            pendingFocusElementIdRef.current = null;
+          }
+          return;
+        }
+
+        window.setTimeout(scroll, 120);
+        return;
+      }
+
+      if (elapsed < 1400) {
+        window.setTimeout(scroll, 80);
+      }
     };
 
     window.requestAnimationFrame(() => {
       scroll();
-      window.setTimeout(scroll, 260);
     });
   }, []);
 
@@ -328,7 +350,6 @@ export default function LiveScreen() {
     const elementId = pendingFocusElementIdRef.current;
     if (!elementId) return;
 
-    pendingFocusElementIdRef.current = null;
     focusElement(elementId);
   }, [activeSegment, expandedSections, focusElement, focusedStartParticipantElementId, focusedTeamId]);
 
