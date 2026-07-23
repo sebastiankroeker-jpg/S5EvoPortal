@@ -103,11 +103,13 @@ export default function EventMap() {
   const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const popupOpenTimerRef = useRef<number | null>(null);
+  const suppressPopupCloseRef = useRef(false);
   const [selectedSponsorId, setSelectedSponsorId] = useState("");
   const [visibleSponsorIds, setVisibleSponsorIds] = useState(() => new Set(SPONSOR_POIS.map((sponsor) => sponsor.id)));
   const [sponsorsExpanded, setSponsorsExpanded] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [popupSponsorId, setPopupSponsorId] = useState<string | null>(null);
   const [mapZoom, setMapZoom] = useState(14);
   const externalMapsAllowed = hasConsent("EXTERNAL_MAPS");
@@ -194,6 +196,7 @@ export default function EventMap() {
         });
 
         mapRef.current = map;
+        setMapReady(true);
         setMapZoom(map.getZoom());
         map.on("zoomend", () => setMapZoom(map.getZoom()));
         setMapError(null);
@@ -240,13 +243,16 @@ export default function EventMap() {
 
     return () => {
       cancelled = true;
+      suppressPopupCloseRef.current = true;
       markers.forEach((marker) => marker.remove());
       markers.clear();
+      suppressPopupCloseRef.current = false;
       if (popupOpenTimerRef.current) window.clearTimeout(popupOpenTimerRef.current);
       if (loadTimeout) window.clearTimeout(loadTimeout);
       mapRef.current?.remove();
       mapRef.current = null;
       leafletRef.current = null;
+      setMapReady(false);
     };
   }, [externalMapsAllowed]);
 
@@ -259,8 +265,10 @@ export default function EventMap() {
     const L = leafletRef.current;
     if (!map || !L) return;
 
+    suppressPopupCloseRef.current = true;
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current.clear();
+    suppressPopupCloseRef.current = false;
 
     const visibleSponsors = SPONSOR_POIS.filter((sponsor) => visibleSponsorIds.has(sponsor.id));
     if (visibleSponsors.length > 0) {
@@ -288,16 +296,16 @@ export default function EventMap() {
           autoPanPaddingBottomRight: [18, 72],
         });
         marker.on("click", () => {
-          marker.closePopup();
           selectSponsor(sponsor);
         });
         marker.on("popupclose", () => {
+          if (suppressPopupCloseRef.current) return;
           clearSponsorSelection(sponsor.id);
         });
         markersRef.current.set(sponsor.id, marker);
       });
     }
-  }, [clearSponsorSelection, mapLoaded, mapZoom, selectSponsor, visibleSponsorIds]);
+  }, [clearSponsorSelection, mapReady, mapZoom, selectSponsor, visibleSponsorIds]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, sponsorId) => {
