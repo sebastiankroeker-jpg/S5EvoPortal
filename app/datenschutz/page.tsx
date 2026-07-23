@@ -72,8 +72,8 @@ export default function PrivacyPage() {
               Formularschutz, Session und die Speicherung deiner Datenschutzeinstellungen.
             </p>
             <p>
-              Optionale Speicherungen für Komfortfunktionen, lokale Entwürfe, Offline-
-              Funktionen und externe Kartendienste werden nur genutzt, wenn du sie aktivierst.
+              Optionale Speicherungen für Komfortfunktionen, lokale Entwürfe,
+              Offlinefunktionen und externe Kartendienste werden nur genutzt, wenn du sie aktivierst.
               Wenn du sie nicht aktivierst, bleiben die entsprechenden Funktionen deaktiviert
               oder werden nur eingeschränkt angezeigt.
             </p>

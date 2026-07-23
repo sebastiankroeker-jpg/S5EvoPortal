@@ -186,8 +186,8 @@ Kurzfassung für `/datenschutz` and the consent dialog:
 >
 > Notwendige Cookies und Speicherungen nutzen wir für Login, Sicherheit,
 > Formularschutz, Session und die Speicherung deiner Datenschutzeinstellungen.
-> Optionale Speicherungen für Komfortfunktionen, lokale Entwürfe, Offline-
-> Funktionen und externe Kartendienste werden nur genutzt, wenn du sie
+> Optionale Speicherungen für Komfortfunktionen, lokale Entwürfe,
+> Offlinefunktionen und externe Kartendienste werden nur genutzt, wenn du sie
 > aktivierst. Wenn du sie nicht aktivierst, bleiben die entsprechenden
 > Funktionen deaktiviert oder werden nur eingeschränkt angezeigt.
 >
