@@ -405,6 +405,7 @@ function readReceiptLabel(conversation: ConversationSummary, message: Conversati
 export default function MessageCenter() {
   const { sparkleEnabled } = useTheme();
   const { hasConsent } = usePrivacyConsent();
+  const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const localDraftsAllowed = hasConsent("LOCAL_OFFLINE");
   const [mode, setMode] = useState<"mine" | "admin">("mine");
   const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
@@ -476,6 +477,10 @@ export default function MessageCenter() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY);
+      return;
+    }
     const stored = window.localStorage.getItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY);
     if (!stored) return;
     try {
@@ -483,15 +488,23 @@ export default function MessageCenter() {
     } catch {
       setVisibleColumns(DEFAULT_MESSAGE_LIST_VISIBLE_COLUMNS);
     }
-  }, []);
+  }, [functionalStorageAllowed]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY);
+      return;
+    }
     window.localStorage.setItem(MESSAGE_LIST_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
-  }, [visibleColumns]);
+  }, [functionalStorageAllowed, visibleColumns]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(MESSAGE_FILTERS_STORAGE_KEY);
+      return;
+    }
     const stored = window.localStorage.getItem(MESSAGE_FILTERS_STORAGE_KEY);
     if (!stored) return;
     try {
@@ -506,10 +519,14 @@ export default function MessageCenter() {
       setSortMode(next.sortMode);
       setSortDirection(next.sortDirection);
     } catch {}
-  }, [mode]);
+  }, [functionalStorageAllowed, mode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(MESSAGE_FILTERS_STORAGE_KEY);
+      return;
+    }
     if (skipNextFilterPersistRef.current) {
       skipNextFilterPersistRef.current = false;
       return;
@@ -528,7 +545,7 @@ export default function MessageCenter() {
         [mode]: { statuses: statusFilters, searchQuery, unreadOnly, sortMode, sortDirection },
       }),
     );
-  }, [mode, searchQuery, sortDirection, sortMode, statusFilters, unreadOnly]);
+  }, [functionalStorageAllowed, mode, searchQuery, sortDirection, sortMode, statusFilters, unreadOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined" || contexts.length === 0 || !localDraftsAllowed) return;

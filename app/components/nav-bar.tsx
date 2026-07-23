@@ -13,6 +13,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 import { Check, EllipsisVertical, FlaskConical, LogOut, Map, MessageCircle, Search, Sparkles, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
@@ -31,6 +32,8 @@ export default function NavBar() {
   const pathname = usePathname();
   const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
   const { activeRole, roles, setSimulatedRole, isSimulating } = usePermissions();
+  const { hasConsent } = usePrivacyConsent();
+  const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
@@ -53,8 +56,17 @@ export default function NavBar() {
 
   useEffect(() => {
     const handleStorageChange = () => {
-      const saved = localStorage.getItem("sidebar-collapsed");
-      if (saved) setIsCollapsed(JSON.parse(saved));
+      if (!functionalStorageAllowed) {
+        setIsCollapsed(false);
+        return;
+      }
+
+      try {
+        const saved = localStorage.getItem("sidebar-collapsed");
+        setIsCollapsed(saved ? JSON.parse(saved) : false);
+      } catch {
+        setIsCollapsed(false);
+      }
     };
     handleStorageChange();
     window.addEventListener("storage", handleStorageChange);
@@ -63,7 +75,7 @@ export default function NavBar() {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("sidebar-toggle", handleStorageChange);
     };
-  }, []);
+  }, [functionalStorageAllowed]);
 
   useEffect(() => {
     if (status !== "authenticated") {

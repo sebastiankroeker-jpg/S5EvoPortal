@@ -37,6 +37,7 @@ import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
 import { useNotifications } from "@/lib/notification-context";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 import { canRoleViewAllTeams, isOwnerFilterVisibleForRole } from "@/lib/team-access-config";
 import {
   TEAM_DASHBOARD_FOCUS_EVENT,
@@ -958,8 +959,8 @@ function sanitizeDashboardFilterPreferences(value: unknown): DashboardFilterPref
   return preferences;
 }
 
-function getStoredDashboardFilterPreferences(storageKey: string) {
-  if (typeof window === "undefined") {
+function getStoredDashboardFilterPreferences(storageKey: string, functionalStorageAllowed: boolean) {
+  if (typeof window === "undefined" || !functionalStorageAllowed) {
     return null;
   }
 
@@ -1686,8 +1687,8 @@ function compareDates(a?: string, b?: string) {
   return aTime - bTime;
 }
 
-function getStoredVisibleColumns() {
-  if (typeof window === "undefined") {
+function getStoredVisibleColumns(functionalStorageAllowed: boolean) {
+  if (typeof window === "undefined" || !functionalStorageAllowed) {
     return null;
   }
 
@@ -1747,6 +1748,8 @@ function areLayoutConfigsEqual(left: TeamDashboardLayoutConfig, right: TeamDashb
 export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplaceFocus = false }: DashboardProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
   const { can, activeRole } = usePermissions();
+  const { hasConsent } = usePrivacyConsent();
+  const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshingTeams, setRefreshingTeams] = useState(false);
@@ -1854,7 +1857,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       return;
     }
 
-    const preferences = getStoredDashboardFilterPreferences(preferenceStorageKey);
+    if (!functionalStorageAllowed) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(preferenceStorageKey);
+      }
+      setPreferencesLoadedForKey(preferenceStorageKey);
+      return;
+    }
+
+    const preferences = getStoredDashboardFilterPreferences(preferenceStorageKey, functionalStorageAllowed);
     if (preferences) {
       if (typeof preferences.searchQuery === "string") setSearchQuery(preferences.searchQuery);
       if (preferences.categoryFilters) {
@@ -1883,10 +1894,15 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
 
     setPreferencesLoadedForKey(preferenceStorageKey);
-  }, [initialOwnerFilter, marketplaceFocus, preferenceStorageKey, sessionStatus, showOwnerFilter]);
+  }, [functionalStorageAllowed, initialOwnerFilter, marketplaceFocus, preferenceStorageKey, sessionStatus, showOwnerFilter]);
 
   useEffect(() => {
     if (typeof window === "undefined" || preferencesLoadedForKey !== preferenceStorageKey) {
+      return;
+    }
+
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(preferenceStorageKey);
       return;
     }
 
@@ -1915,6 +1931,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     categoryFilters,
     createdFrom,
     createdTo,
+    functionalStorageAllowed,
     incompleteOnly,
     marketplaceKindFilter,
     marketplacePublicationFilter,
@@ -2015,11 +2032,22 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       return;
     }
 
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(selectedLayoutStorageKey);
+      setSelectedLayoutId("");
+      return;
+    }
+
     setSelectedLayoutId(window.localStorage.getItem(selectedLayoutStorageKey) || "");
-  }, [selectedLayoutStorageKey]);
+  }, [functionalStorageAllowed, selectedLayoutStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(selectedLayoutStorageKey);
       return;
     }
 
@@ -2028,7 +2056,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     } else {
       window.localStorage.removeItem(selectedLayoutStorageKey);
     }
-  }, [selectedLayoutId, selectedLayoutStorageKey]);
+  }, [functionalStorageAllowed, selectedLayoutId, selectedLayoutStorageKey]);
 
   useEffect(() => {
     if (!layoutsLoaded) {
@@ -2680,7 +2708,14 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
   }, [viewMode]);
 
   useEffect(() => {
-    const storedColumns = getStoredVisibleColumns();
+    if (!functionalStorageAllowed) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY);
+      }
+      return;
+    }
+
+    const storedColumns = getStoredVisibleColumns(functionalStorageAllowed);
     if (!storedColumns) return;
 
     let nextColumns: TeamOptionalColumnKey[] = [...storedColumns];
@@ -2701,15 +2736,20 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     }
 
     setVisibleColumns(nextColumns);
-  }, []);
+  }, [functionalStorageAllowed]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem(TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY);
+      return;
+    }
+
     window.localStorage.setItem(TEAM_LIST_VISIBLE_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
-  }, [visibleColumns]);
+  }, [functionalStorageAllowed, visibleColumns]);
 
   useEffect(() => {
     const allowedKeys = new Set(listOptionalColumns.map((column) => column.key));

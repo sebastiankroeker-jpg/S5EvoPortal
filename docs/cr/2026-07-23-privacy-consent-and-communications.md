@@ -362,12 +362,12 @@ Detailed service list for the full page:
     `PORTAL_MESSAGE_EMAIL`; users without opt-in do not receive these optional
     notification mails. Transactional registration/account/support mails remain
     unchanged.
-  - Gated theme and active-competition preference writes behind
-    `FUNCTIONAL_STORAGE`.
+  - Gated theme, active-competition preference, sidebar collapse state,
+    dashboard preferences, selected dashboard layout, team list columns, and
+    message list filters/columns behind `FUNCTIONAL_STORAGE`.
+  - Added cleanup for known functional localStorage keys/prefixes when
+    `FUNCTIONAL_STORAGE` is not granted or is withdrawn.
 - Current local caveat:
-  - Existing sidebar/dashboard/list preference writes still need follow-up
-    hardening if we want every comfort preference to be strictly gated before
-    first production release.
   - Registration/claim forms do not yet include the communication opt-in; the
     current MVP asks in the global banner/profile and blocks optional portal
     notification e-mails unless consent exists.
@@ -378,6 +378,8 @@ Detailed service list for the full page:
   - `npx prisma generate` -> pass.
   - `npx tsc --noEmit --incremental false` -> pass.
   - targeted ESLint for privacy/map/PWA/message/profile/provider files -> pass.
+  - targeted ESLint for sidebar/dashboard/list functional-storage follow-up
+    files -> pass.
   - `git diff --check` -> pass.
 - Build:
   - `npm run build` -> pass.
@@ -407,8 +409,6 @@ Detailed service list for the full page:
 - Migration status:
   - migration file prepared locally, not applied to production.
 - Required before deploy:
-  - decide whether to complete sidebar/dashboard/list preference gating now or
-    accept as a documented follow-up.
   - run migration in the target DB with explicit approval.
   - smoke authenticated profile consent save/load.
   - smoke `/karte` before/after external-map consent.

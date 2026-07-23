@@ -20,7 +20,9 @@ Stand: 2026-07-23 02:03 UTC
       `LOCAL_OFFLINE`.
     - Optional portal message notification e-mails gated behind
       `PORTAL_MESSAGE_EMAIL`.
-    - Theme and active competition preference writes gated behind
+    - Theme, active competition, sidebar collapse, dashboard preferences,
+      selected dashboard layout, team list columns, and message list
+      filters/columns gated behind
       `FUNCTIONAL_STORAGE`.
   - Checks currently green:
     `npx prisma generate`, `npx tsc --noEmit --incremental false`,
@@ -32,9 +34,9 @@ Stand: 2026-07-23 02:03 UTC
     explicitly confirm DB migration + deploy; then authenticated smoke profile
     consent save/load, `/karte` before/after map consent, and optional message
     e-mail skip/allow behavior.
-  - Known follow-up:
-    sidebar/dashboard/list preference localStorage writes are documented for
-    additional strict gating before release if needed.
+  - Functional-storage follow-up closed locally:
+    sidebar/dashboard/list preference localStorage writes now require
+    `FUNCTIONAL_STORAGE`; known functional keys are removed on withdrawal.
 
 - Karten-Fokus-/Zoom-Deploy 2026-07-23 01:42 UTC:
   - Sebastian gab nach dem kompakten Popup-Deploy weitere Kartenkorrekturen frei:

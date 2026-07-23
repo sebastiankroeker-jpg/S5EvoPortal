@@ -27,6 +27,39 @@ type PrivacyConsentContextValue = {
 
 const PrivacyConsentContext = createContext<PrivacyConsentContextValue | null>(null);
 
+const FUNCTIONAL_STORAGE_KEYS = [
+  "sidebar-collapsed",
+  "s5evo-active-competition",
+  "s5evo-dashboard.visibleColumns",
+  "s5evo-messages.visibleColumns.v1",
+  "s5evo.messages.visibleColumns.v1",
+  "s5evo.messages.filters.v1",
+  "s5evo-theme",
+  "s5evo-theme-effects",
+  "theme",
+  "app-theme",
+  "color-theme",
+];
+const FUNCTIONAL_STORAGE_PREFIXES = [
+  "s5evo.dashboard.preferences.v1",
+  "s5evo.dashboard.selectedLayout.v1",
+];
+
+function removeFunctionalStorage() {
+  if (typeof window === "undefined") return;
+
+  for (const key of FUNCTIONAL_STORAGE_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+
+  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.localStorage.key(index);
+    if (key && FUNCTIONAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      window.localStorage.removeItem(key);
+    }
+  }
+}
+
 function readLocalSnapshot(): ConsentSnapshot | null {
   if (typeof window === "undefined") return null;
 
@@ -47,6 +80,9 @@ function readLocalSnapshot(): ConsentSnapshot | null {
 function writeLocalSnapshot(snapshot: ConsentSnapshot) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(snapshot));
+  if (!snapshot.categories.FUNCTIONAL_STORAGE) {
+    removeFunctionalStorage();
+  }
 }
 
 async function persistRemote(categories: ConsentState, source: "BANNER" | "PROFILE") {

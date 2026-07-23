@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Sidebar from "./sidebar";
 import CommandPill from "./command-pill";
 import RoleSwitcher from "./role-switcher";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 
 interface LayoutWrapperProps {
   children: React.ReactNode;
@@ -12,15 +13,24 @@ interface LayoutWrapperProps {
 
 export default function LayoutWrapper({ children }: LayoutWrapperProps) {
   const { status } = useSession();
+  const { hasConsent } = usePrivacyConsent();
+  const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const showDesktopSidebar = status === "authenticated";
 
   // Sidebar State synchronisieren
   useEffect(() => {
     const handleStorageChange = () => {
-      const saved = localStorage.getItem("sidebar-collapsed");
-      if (saved) {
-        setIsCollapsed(JSON.parse(saved));
+      if (!functionalStorageAllowed) {
+        setIsCollapsed(false);
+        return;
+      }
+
+      try {
+        const saved = localStorage.getItem("sidebar-collapsed");
+        setIsCollapsed(saved ? JSON.parse(saved) : false);
+      } catch {
+        setIsCollapsed(false);
       }
     };
 
@@ -37,7 +47,7 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("sidebar-toggle", handleStorageChange);
     };
-  }, []);
+  }, [functionalStorageAllowed]);
 
   return (
     <>

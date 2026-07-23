@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 import { isClaimNavigationPath } from "@/lib/navigation-menu";
 import { useCompetition } from "@/lib/competition-context";
+import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 import { canRoleViewAllTeams } from "@/lib/team-access-config";
 import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
 
@@ -35,8 +36,8 @@ function getTabFromHash() {
   return isMainTab(hashValue) ? hashValue : null;
 }
 
-function SidebarItem({ icon, label, onClick, isActive, isCollapsed }: {
-  icon: string; label: string; onClick: () => void; isActive?: boolean; isCollapsed: boolean;
+function SidebarItem({ icon, label, onClick, isActive, sidebarCollapsed }: {
+  icon: string; label: string; onClick: () => void; isActive?: boolean; sidebarCollapsed: boolean;
 }) {
   return (
     <button
@@ -45,21 +46,21 @@ function SidebarItem({ icon, label, onClick, isActive, isCollapsed }: {
         isActive
           ? "bg-primary/10 text-primary font-medium shadow-sm ring-1 ring-primary/20 dark:bg-primary/20"
           : "text-muted-foreground"
-      } ${isCollapsed ? "justify-center" : ""}`}
-      title={isCollapsed ? label : undefined}
+      } ${sidebarCollapsed ? "justify-center" : ""}`}
+      title={sidebarCollapsed ? label : undefined}
       aria-current={isActive ? "page" : undefined}
     >
-      {isActive && !isCollapsed && (
+      {isActive && !sidebarCollapsed && (
         <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-primary" />
       )}
       <span className="text-sm shrink-0">{icon}</span>
-      {!isCollapsed && <span className="truncate">{label}</span>}
+      {!sidebarCollapsed && <span className="truncate">{label}</span>}
     </button>
   );
 }
 
-function SectionLabel({ label, isCollapsed }: { label: string; isCollapsed: boolean }) {
-  if (isCollapsed) return <div className="h-px bg-border mx-1 my-1" />;
+function SectionLabel({ label, sidebarCollapsed }: { label: string; sidebarCollapsed: boolean }) {
+  if (sidebarCollapsed) return <div className="h-px bg-border mx-1 my-1" />;
   return (
     <div className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider px-2 pt-2 pb-0.5">
       {label}
@@ -73,12 +74,21 @@ export default function Sidebar() {
   const { data: session } = useSession();
   const { can, activeRole } = usePermissions();
   const { active: activeCompetition } = useCompetition();
+  const { hasConsent } = usePrivacyConsent();
   const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
-  const [isCollapsed, setIsCollapsed] = useState(() => {
+  const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
+  const [storedSidebarCollapsed, setStoredSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
+    const rawConsent = window.localStorage.getItem("s5evo-privacy-consent-v1");
+    const consentAllowsFunctional = rawConsent?.includes("\"FUNCTIONAL_STORAGE\":true") ?? false;
+    if (!consentAllowsFunctional) return false;
 
-    const saved = localStorage.getItem("sidebar-collapsed");
-    return saved ? JSON.parse(saved) : false;
+    try {
+      const saved = window.localStorage.getItem("sidebar-collapsed");
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
   });
   const [searchOpen, setSearchOpen] = useState(false);
   const [adminTab, setAdminTab] = useState(() => {
@@ -100,6 +110,19 @@ export default function Sidebar() {
   const participantCanBrowseTeams = canRoleViewAllTeams(activeRole, activeCompetition);
   const teamLabel = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "Mein Team" : "Mannschaften";
   const teamIcon = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "🏃" : "📋";
+  const sidebarCollapsed = functionalStorageAllowed ? storedSidebarCollapsed : false;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!functionalStorageAllowed) {
+      window.localStorage.removeItem("sidebar-collapsed");
+      window.dispatchEvent(new Event("sidebar-toggle"));
+      return;
+    }
+
+    window.dispatchEvent(new Event("sidebar-toggle"));
+  }, [functionalStorageAllowed]);
 
   useEffect(() => {
     if (pathname !== "/") return;
@@ -125,9 +148,13 @@ export default function Sidebar() {
   }, [pathname]);
 
   const toggleCollapsed = () => {
-    const next = !isCollapsed;
-    setIsCollapsed(next);
-    localStorage.setItem("sidebar-collapsed", JSON.stringify(next));
+    const next = !sidebarCollapsed;
+    setStoredSidebarCollapsed(next);
+    if (functionalStorageAllowed) {
+      localStorage.setItem("sidebar-collapsed", JSON.stringify(next));
+    } else {
+      localStorage.removeItem("sidebar-collapsed");
+    }
     window.dispatchEvent(new Event("sidebar-toggle"));
   };
 
@@ -165,15 +192,15 @@ export default function Sidebar() {
   return (
     <motion.div
       className={`fixed left-0 top-0 h-full bg-card border-r border-border/30 z-40 flex flex-col sidebar-scroll ${
-        isCollapsed ? "w-12" : "w-52"
+        sidebarCollapsed ? "w-12" : "w-52"
       }`}
       initial={false}
-      animate={{ width: isCollapsed ? 48 : 208 }}
+      animate={{ width: sidebarCollapsed ? 48 : 208 }}
       transition={{ duration: 0.2 }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-2 border-b border-border/30">
-        {!isCollapsed ? (
+        {!sidebarCollapsed ? (
           <Link href="/" className="relative block size-8 overflow-hidden rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
             <Image
               src={FIVE_KAMPF_BRAND.mark}
@@ -197,13 +224,13 @@ export default function Sidebar() {
           </Link>
         )}
         <Button variant="ghost" size="sm" onClick={toggleCollapsed} className="h-6 w-6 p-0">
-          {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          {sidebarCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
         </Button>
       </div>
 
       {/* Search */}
       <div className="px-2 py-2">
-        {isCollapsed ? (
+        {sidebarCollapsed ? (
           <Button
             variant="ghost"
             size="sm"
@@ -226,50 +253,50 @@ export default function Sidebar() {
 
       {/* Navigation — kompakt, kein Scroll nötig */}
       <div className="flex-1 py-1.5 px-1 space-y-0.5 overflow-y-auto">
-        <SectionLabel label="Navigation" isCollapsed={isCollapsed} />
-        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} isCollapsed={isCollapsed} />
-        <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} isCollapsed={isCollapsed} />
-        <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} isCollapsed={isCollapsed} />
+        <SectionLabel label="Navigation" sidebarCollapsed={sidebarCollapsed} />
+        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} sidebarCollapsed={sidebarCollapsed} />
+        <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} sidebarCollapsed={sidebarCollapsed} />
+        <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} sidebarCollapsed={sidebarCollapsed} />
         {can("config.edit") && (
-          <SidebarItem icon="🗺️" label="Karte" onClick={() => router.push("/karte")} isActive={pathname === "/karte"} isCollapsed={isCollapsed} />
+          <SidebarItem icon="🗺️" label="Karte" onClick={() => router.push("/karte")} isActive={pathname === "/karte"} sidebarCollapsed={sidebarCollapsed} />
         )}
         {showTimekeepingSection && (
-          <SidebarItem icon="⏱️" label="Zeitnahme" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} isCollapsed={isCollapsed} />
+          <SidebarItem icon="⏱️" label="Zeitnahme" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} sidebarCollapsed={sidebarCollapsed} />
         )}
-        <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} isCollapsed={isCollapsed} />
-        <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} isCollapsed={isCollapsed} />
+        <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} sidebarCollapsed={sidebarCollapsed} />
+        <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} sidebarCollapsed={sidebarCollapsed} />
 
         {showOrgaSection && (
           <>
-            <SectionLabel label="Orga" isCollapsed={isCollapsed} />
-            <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isActive={pathname === "/" && activeTab === "orga"} isCollapsed={isCollapsed} />
+            <SectionLabel label="Orga" sidebarCollapsed={sidebarCollapsed} />
+            <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isActive={pathname === "/" && activeTab === "orga"} sidebarCollapsed={sidebarCollapsed} />
             {can("team.view.all") && (
-              <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard", { dashboardScope: "all" })} isActive={pathname === "/" && activeTab === "dashboard"} isCollapsed={isCollapsed} />
+              <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard", { dashboardScope: "all" })} isActive={pathname === "/" && activeTab === "dashboard"} sidebarCollapsed={sidebarCollapsed} />
             )}
             {can("team.view.all") && (
-              <SidebarItem icon="🧩" label="Sportler-Börse" onClick={() => router.push("/sportlerboerse-dashboard")} isActive={pathname === "/sportlerboerse-dashboard"} isCollapsed={isCollapsed} />
+              <SidebarItem icon="🧩" label="Sportler-Börse" onClick={() => router.push("/sportlerboerse-dashboard")} isActive={pathname === "/sportlerboerse-dashboard"} sidebarCollapsed={sidebarCollapsed} />
             )}
             {can("team.view.all") && (
-              <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} isCollapsed={isCollapsed} />
+              <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} sidebarCollapsed={sidebarCollapsed} />
             )}
             {showTimekeepingSection && (
-              <SidebarItem icon="✏️" label="Erfassung" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} isCollapsed={isCollapsed} />
+              <SidebarItem icon="✏️" label="Erfassung" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} sidebarCollapsed={sidebarCollapsed} />
             )}
             {can("config.edit") && (
               <>
-                <SidebarItem icon="🏢" label="Tenant/Wettkampf" onClick={() => openAdminTab("competition")} isActive={pathname === "/admin" && (adminTab === "tenant" || adminTab === "competition")} isCollapsed={isCollapsed} />
-                <SidebarItem icon="🗞️" label="News" onClick={() => openAdminTab("news")} isActive={pathname === "/admin" && adminTab === "news"} isCollapsed={isCollapsed} />
-                <SidebarItem icon="📊" label="Ergebnisdaten" onClick={() => router.push("/admin/ergebnisse")} isActive={pathname === "/admin/ergebnisse"} isCollapsed={isCollapsed} />
-                <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} isCollapsed={isCollapsed} />
-                <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} isCollapsed={isCollapsed} />
+                <SidebarItem icon="🏢" label="Tenant/Wettkampf" onClick={() => openAdminTab("competition")} isActive={pathname === "/admin" && (adminTab === "tenant" || adminTab === "competition")} sidebarCollapsed={sidebarCollapsed} />
+                <SidebarItem icon="🗞️" label="News" onClick={() => openAdminTab("news")} isActive={pathname === "/admin" && adminTab === "news"} sidebarCollapsed={sidebarCollapsed} />
+                <SidebarItem icon="📊" label="Ergebnisdaten" onClick={() => router.push("/admin/ergebnisse")} isActive={pathname === "/admin/ergebnisse"} sidebarCollapsed={sidebarCollapsed} />
+                <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} sidebarCollapsed={sidebarCollapsed} />
+                <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} sidebarCollapsed={sidebarCollapsed} />
               </>
             )}
-            <SidebarItem icon="🗂️" label="Orga-Links" onClick={() => router.push("/orga-links")} isActive={pathname === "/orga-links"} isCollapsed={isCollapsed} />
+            <SidebarItem icon="🗂️" label="Orga-Links" onClick={() => router.push("/orga-links")} isActive={pathname === "/orga-links"} sidebarCollapsed={sidebarCollapsed} />
           </>
         )}
 
-        <SectionLabel label="Themes" isCollapsed={isCollapsed} />
-        <div className={`${isCollapsed ? "flex flex-col items-center gap-1" : "flex gap-1 justify-center px-2"}`}>
+        <SectionLabel label="Themes" sidebarCollapsed={sidebarCollapsed} />
+        <div className={`${sidebarCollapsed ? "flex flex-col items-center gap-1" : "flex gap-1 justify-center px-2"}`}>
           {THEME_OPTIONS.map((t) => (
             <button
               key={t.id}
@@ -290,12 +317,12 @@ export default function Sidebar() {
             sparkleEnabled
               ? "border-amber-400 bg-amber-400/10 text-amber-700 dark:text-amber-200"
               : "border-border/50 text-muted-foreground hover:text-foreground"
-          } ${isCollapsed ? "mx-auto w-7 px-0" : "w-[calc(100%-1rem)]"}`}
+          } ${sidebarCollapsed ? "mx-auto w-7 px-0" : "w-[calc(100%-1rem)]"}`}
           title={sparkleEnabled ? "Sparkle-Effekt für dieses Theme deaktivieren" : "Sparkle-Effekt für dieses Theme aktivieren"}
           aria-label={sparkleEnabled ? "Sparkle-Effekt deaktivieren" : "Sparkle-Effekt aktivieren"}
         >
           <Sparkles className="size-3.5" />
-          {!isCollapsed && <span>Sparkle</span>}
+          {!sidebarCollapsed && <span>Sparkle</span>}
         </button>
       </div>
 
