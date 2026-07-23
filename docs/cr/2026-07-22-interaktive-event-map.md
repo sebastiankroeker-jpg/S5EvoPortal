@@ -858,9 +858,46 @@ Existing context:
   - Authenticated iPhone visual smoke by Sebastian after the latest popup
     layout.
 
+## Wettkampf-Orte-und-Strecken Draft Layer
+
+- Trigger:
+  - Sebastian sent ChatGPT/PDF-derived GeoJSON route data on 2026-07-23 and
+    requested that the old `Strecken` placeholder become a real
+    `Wettkampf Orte & Strecken` layer with a discipline tree below it.
+- Change:
+  - Added static draft route data in `lib/event-map/course-routes.ts`.
+  - Added the new layer tree in `app/components/event-map.tsx`:
+    - top-level `Wettkampf Orte & Strecken` checkbox.
+    - discipline nodes for `Rennrad` and `MTB`.
+    - per-discipline route and Start/Ziel POI entries.
+  - Routes render as Leaflet vector polylines over the existing MapTiler/OSM
+    raster basemap.
+  - Start/Ziel POIs render as Leaflet circle markers.
+  - Clicking a visible route or POI focuses the map and opens the relevant
+    popup.
+  - Route/POI popups explicitly label the data as PDF-georeferenced draft data
+    so the UI does not imply official track accuracy yet.
+- Data quality notes:
+  - Current draft is good enough for visual orientation and layer plumbing.
+  - Exact course geometry, MTB meadow passages, repeated Herren/MTB segments,
+    and some finish-point positions still need validation with better source
+    data or on-site knowledge.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `app/globals.css`
+  - `lib/event-map/course-routes.ts`
+- Verification before deploy:
+  - `npx eslint app/components/event-map.tsx lib/event-map/course-routes.ts`
+    -> pass
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `git diff --check` -> pass
+  - `npm run build` -> pass
+  - Local `/karte` on `localhost:3109` -> 200
+
 ## Follow-Ups
 
-- Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.
+- Replace draft route layers with better GPX/GeoJSON data for Lauf, Rennrad,
+  and MTB once available.
 - Add infrastructure POIs: Start/Ziel, Parken, WC, Erste Hilfe, Bierzelt/Bar.
 - Add admin-managed POI CRUD if annual sponsor/location changes should be
   editable without code changes.

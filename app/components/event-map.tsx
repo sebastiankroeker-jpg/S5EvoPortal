@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+import type { CircleMarker, Map as LeafletMap, Marker as LeafletMarker, Polyline } from "leaflet";
 import Image from "next/image";
 import {
   Building2,
@@ -11,6 +11,15 @@ import {
   MapPin,
   Route,
 } from "lucide-react";
+import {
+  COURSE_DISCIPLINES,
+  COURSE_DISCIPLINE_LABELS,
+  COURSE_POIS,
+  COURSE_ROUTES,
+  type CourseDiscipline,
+  type CoursePoi,
+  type CourseRoute,
+} from "@/lib/event-map/course-routes";
 import { BAD_BAYERSOIEN_CENTER, SPONSOR_POIS, type SponsorPoi } from "@/lib/event-map/sponsor-pois";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 
@@ -24,6 +33,10 @@ function toLeafletLatLng(coordinates: [number, number]): [number, number] {
   return [coordinates[1], coordinates[0]];
 }
 
+function toLeafletLatLngs(coordinates: [number, number][]) {
+  return coordinates.map(toLeafletLatLng);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -31,6 +44,38 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function formatCourseClasses(classes: string[]) {
+  const labels: Record<string, string> = {
+    schueler: "Schueler",
+    jugend: "Jugend",
+    damen: "Damen",
+    herren: "Herren",
+  };
+
+  return classes.map((className) => labels[className] ?? className).join(", ");
+}
+
+function buildCourseRoutePopupHtml(route: CourseRoute): string {
+  return `
+    <div class="event-map-course-popup-card text-sm text-foreground">
+      <p class="text-base font-semibold leading-snug">${escapeHtml(route.name)}</p>
+      <p class="text-sm leading-snug text-muted-foreground">${escapeHtml(COURSE_DISCIPLINE_LABELS[route.discipline])} · ${escapeHtml(formatCourseClasses(route.classes))}</p>
+      <p class="text-xs leading-5 text-muted-foreground">${escapeHtml(route.sourceNote)}</p>
+    </div>
+  `;
+}
+
+function buildCoursePoiPopupHtml(poi: CoursePoi): string {
+  const typeLabel = poi.type === "start" ? "Start" : "Ziel";
+  return `
+    <div class="event-map-course-popup-card text-sm text-foreground">
+      <p class="text-base font-semibold leading-snug">${escapeHtml(poi.name)}</p>
+      <p class="text-sm leading-snug text-muted-foreground">${escapeHtml(COURSE_DISCIPLINE_LABELS[poi.discipline])} · ${typeLabel}</p>
+      <p class="text-xs leading-5 text-muted-foreground">Draft-POI aus PDF-Georeferenzierung; Position vor produktiver Nutzung pruefen.</p>
+    </div>
+  `;
 }
 
 function buildSponsorLogoHtml(sponsor: SponsorPoi, className: string): string {
@@ -115,12 +160,18 @@ export default function EventMap() {
   const mapRef = useRef<LeafletMap | null>(null);
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
+  const courseRouteLayersRef = useRef<Map<string, Polyline>>(new Map());
+  const coursePoiLayersRef = useRef<Map<string, CircleMarker>>(new Map());
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const popupOpenTimerRef = useRef<number | null>(null);
   const suppressPopupCloseRef = useRef(false);
   const [selectedSponsorId, setSelectedSponsorId] = useState("");
   const [visibleSponsorIds, setVisibleSponsorIds] = useState(() => new Set(SPONSOR_POIS.map((sponsor) => sponsor.id)));
+  const [visibleCourseRouteIds, setVisibleCourseRouteIds] = useState(() => new Set(COURSE_ROUTES.map((route) => route.id)));
+  const [visibleCoursePoiIds, setVisibleCoursePoiIds] = useState(() => new Set(COURSE_POIS.map((poi) => poi.id)));
   const [sponsorsExpanded, setSponsorsExpanded] = useState(true);
+  const [coursesExpanded, setCoursesExpanded] = useState(true);
+  const [expandedCourseDisciplines, setExpandedCourseDisciplines] = useState<Set<CourseDiscipline>>(() => new Set(COURSE_DISCIPLINES));
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -130,6 +181,14 @@ export default function EventMap() {
   const visibleSponsorCount = visibleSponsorIds.size;
   const sponsorsVisible = visibleSponsorCount > 0;
   const allSponsorsVisible = visibleSponsorCount === SPONSOR_POIS.length;
+  const visibleCourseFeatureCount = visibleCourseRouteIds.size + visibleCoursePoiIds.size;
+  const allCourseFeaturesVisible = visibleCourseRouteIds.size === COURSE_ROUTES.length && visibleCoursePoiIds.size === COURSE_POIS.length;
+  const someCourseFeaturesVisible = visibleCourseFeatureCount > 0;
+
+  const setAllCourseFeaturesVisible = useCallback((visible: boolean) => {
+    setVisibleCourseRouteIds(new Set(visible ? COURSE_ROUTES.map((route) => route.id) : []));
+    setVisibleCoursePoiIds(new Set(visible ? COURSE_POIS.map((poi) => poi.id) : []));
+  }, []);
 
   const clearSponsorState = useCallback((sponsorId?: string) => {
     if (popupOpenTimerRef.current) {
@@ -181,6 +240,30 @@ export default function EventMap() {
     }, 520);
   }, []);
 
+  const focusCourseRoute = useCallback((route: CourseRoute) => {
+    const map = mapRef.current;
+    const layer = courseRouteLayersRef.current.get(route.id);
+    if (!map || !layer) return;
+
+    mapViewportRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    map.invalidateSize();
+    map.fitBounds(layer.getBounds().pad(0.18), { maxZoom: 15.5 });
+    layer.openPopup();
+  }, []);
+
+  const focusCoursePoi = useCallback((poi: CoursePoi) => {
+    const map = mapRef.current;
+    const layer = coursePoiLayersRef.current.get(poi.id);
+    if (!map || !layer) return;
+
+    mapViewportRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    map.invalidateSize();
+    map.flyTo(toLeafletLatLng(poi.coordinates), Math.max(map.getZoom(), 15.5), { duration: 0.45 });
+    window.setTimeout(() => {
+      coursePoiLayersRef.current.get(poi.id)?.openPopup();
+    }, 520);
+  }, []);
+
   useEffect(() => {
     if (!externalMapsAllowed) return;
     if (!mapContainerRef.current || mapRef.current) return;
@@ -188,6 +271,8 @@ export default function EventMap() {
     let cancelled = false;
     let loadTimeout: number | null = null;
     const markers = markersRef.current;
+    const courseRouteLayers = courseRouteLayersRef.current;
+    const coursePoiLayers = coursePoiLayersRef.current;
     setMapLoaded(false);
 
     const initializeMap = async () => {
@@ -264,6 +349,10 @@ export default function EventMap() {
       suppressPopupCloseRef.current = true;
       markers.forEach((marker) => marker.remove());
       markers.clear();
+      courseRouteLayers.forEach((layer) => layer.remove());
+      courseRouteLayers.clear();
+      coursePoiLayers.forEach((layer) => layer.remove());
+      coursePoiLayers.clear();
       suppressPopupCloseRef.current = false;
       if (popupOpenTimerRef.current) window.clearTimeout(popupOpenTimerRef.current);
       if (loadTimeout) window.clearTimeout(loadTimeout);
@@ -317,6 +406,50 @@ export default function EventMap() {
       suppressPopupCloseRef.current = false;
     }, 0);
   }, [clearSponsorState, mapReady, selectSponsor, visibleSponsorIds]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const L = leafletRef.current;
+    if (!map || !L) return;
+
+    courseRouteLayersRef.current.forEach((layer) => layer.remove());
+    courseRouteLayersRef.current.clear();
+    coursePoiLayersRef.current.forEach((layer) => layer.remove());
+    coursePoiLayersRef.current.clear();
+
+    COURSE_ROUTES.filter((route) => visibleCourseRouteIds.has(route.id)).forEach((route) => {
+      const layer = L.polyline(toLeafletLatLngs(route.coordinates), {
+        color: route.color,
+        weight: 5,
+        opacity: 0.9,
+        lineCap: "round",
+        lineJoin: "round",
+      }).addTo(map);
+      layer.bindPopup(buildCourseRoutePopupHtml(route), {
+        className: "event-map-course-popup",
+        closeButton: true,
+        maxWidth: 300,
+      });
+      courseRouteLayersRef.current.set(route.id, layer);
+    });
+
+    COURSE_POIS.filter((poi) => visibleCoursePoiIds.has(poi.id)).forEach((poi) => {
+      const color = poi.type === "start" ? "#16a34a" : "#f97316";
+      const layer = L.circleMarker(toLeafletLatLng(poi.coordinates), {
+        radius: 7,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 0.95,
+      }).addTo(map);
+      layer.bindPopup(buildCoursePoiPopupHtml(poi), {
+        className: "event-map-course-popup",
+        closeButton: true,
+        maxWidth: 300,
+      });
+      coursePoiLayersRef.current.set(poi.id, layer);
+    });
+  }, [mapReady, visibleCoursePoiIds, visibleCourseRouteIds]);
 
   useEffect(() => {
     const L = leafletRef.current;
@@ -487,17 +620,200 @@ export default function EventMap() {
                 </span>
                 <span className="text-[11px]">spaeter</span>
               </button>
-              <button
-                type="button"
-                disabled
-                className="flex cursor-not-allowed items-center justify-between rounded-md border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Route className="h-4 w-4" />
-                  Strecken
-                </span>
-                <span className="text-[11px]">spaeter</span>
-              </button>
+              <div className="rounded-md border border-border/60 bg-card">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setCoursesExpanded((expanded) => !expanded)}
+                    className="inline-flex min-w-0 flex-1 items-center gap-2 text-left"
+                    aria-expanded={coursesExpanded}
+                  >
+                    {coursesExpanded ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <Route className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="truncate">Wettkampf Orte &amp; Strecken</span>
+                  </button>
+                  <input
+                    type="checkbox"
+                    ref={(node) => {
+                      if (node) node.indeterminate = someCourseFeaturesVisible && !allCourseFeaturesVisible;
+                    }}
+                    checked={allCourseFeaturesVisible}
+                    onChange={(event) => setAllCourseFeaturesVisible(event.target.checked)}
+                    aria-label="Alle Wettkampf-Orte und Strecken ein- oder ausblenden"
+                    className="h-4 w-4 accent-primary"
+                  />
+                </div>
+
+                {coursesExpanded && (
+                  <div className="border-t border-border/50 px-2 py-2">
+                    <div className="space-y-2 border-l border-border/70 pl-2">
+                      {COURSE_DISCIPLINES.map((discipline) => {
+                        const disciplineRoutes = COURSE_ROUTES.filter((route) => route.discipline === discipline);
+                        const disciplinePois = COURSE_POIS.filter((poi) => poi.discipline === discipline);
+                        const visibleDisciplineRoutes = disciplineRoutes.filter((route) => visibleCourseRouteIds.has(route.id));
+                        const visibleDisciplinePois = disciplinePois.filter((poi) => visibleCoursePoiIds.has(poi.id));
+                        const allDisciplineVisible =
+                          visibleDisciplineRoutes.length === disciplineRoutes.length &&
+                          visibleDisciplinePois.length === disciplinePois.length;
+                        const someDisciplineVisible = visibleDisciplineRoutes.length + visibleDisciplinePois.length > 0;
+                        const disciplineExpanded = expandedCourseDisciplines.has(discipline);
+
+                        return (
+                          <div key={discipline} className="rounded-md">
+                            <div className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${someDisciplineVisible ? "" : "opacity-55"}`}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedCourseDisciplines((current) => {
+                                    const next = new Set(current);
+                                    if (next.has(discipline)) next.delete(discipline);
+                                    else next.add(discipline);
+                                    return next;
+                                  });
+                                }}
+                                className="inline-flex min-w-0 flex-1 items-center gap-2 text-left"
+                                aria-expanded={disciplineExpanded}
+                              >
+                                {disciplineExpanded ? (
+                                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                )}
+                                <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                                  {COURSE_DISCIPLINE_LABELS[discipline]}
+                                </span>
+                              </button>
+                              <input
+                                type="checkbox"
+                                ref={(node) => {
+                                  if (node) node.indeterminate = someDisciplineVisible && !allDisciplineVisible;
+                                }}
+                                checked={allDisciplineVisible}
+                                onChange={(event) => {
+                                  const visible = event.target.checked;
+                                  const routeIds = disciplineRoutes.map((route) => route.id);
+                                  const poiIds = disciplinePois.map((poi) => poi.id);
+
+                                  setVisibleCourseRouteIds((current) => {
+                                    const next = new Set(current);
+                                    routeIds.forEach((id) => {
+                                      if (visible) next.add(id);
+                                      else next.delete(id);
+                                    });
+                                    return next;
+                                  });
+                                  setVisibleCoursePoiIds((current) => {
+                                    const next = new Set(current);
+                                    poiIds.forEach((id) => {
+                                      if (visible) next.add(id);
+                                      else next.delete(id);
+                                    });
+                                    return next;
+                                  });
+                                }}
+                                aria-label={`${COURSE_DISCIPLINE_LABELS[discipline]} ein- oder ausblenden`}
+                                className="h-4 w-4 shrink-0 accent-primary"
+                              />
+                            </div>
+
+                            {disciplineExpanded && (
+                              <div className="ml-4 mt-1 space-y-1 border-l border-border/60 pl-2">
+                                {disciplineRoutes.map((route) => {
+                                  const routeVisible = visibleCourseRouteIds.has(route.id);
+                                  return (
+                                    <div
+                                      key={route.id}
+                                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                                        routeVisible ? "hover:bg-accent/60" : "opacity-55"
+                                      }`}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (routeVisible) focusCourseRoute(route);
+                                        }}
+                                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                      >
+                                        <span
+                                          className="h-1.5 w-7 shrink-0 rounded-full"
+                                          style={{ backgroundColor: route.color }}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate text-sm">{route.name}</span>
+                                      </button>
+                                      <input
+                                        type="checkbox"
+                                        checked={routeVisible}
+                                        onChange={(event) => {
+                                          setVisibleCourseRouteIds((current) => {
+                                            const next = new Set(current);
+                                            if (event.target.checked) next.add(route.id);
+                                            else next.delete(route.id);
+                                            return next;
+                                          });
+                                        }}
+                                        aria-label={`${route.name} ein- oder ausblenden`}
+                                        className="h-4 w-4 shrink-0 accent-primary"
+                                      />
+                                    </div>
+                                  );
+                                })}
+
+                                {disciplinePois.map((poi) => {
+                                  const poiVisible = visibleCoursePoiIds.has(poi.id);
+                                  return (
+                                    <div
+                                      key={poi.id}
+                                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                                        poiVisible ? "hover:bg-accent/60" : "opacity-55"
+                                      }`}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (poiVisible) focusCoursePoi(poi);
+                                        }}
+                                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                      >
+                                        <MapPin
+                                          className={`h-4 w-4 shrink-0 ${
+                                            poi.type === "start" ? "text-emerald-600" : "text-orange-500"
+                                          }`}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate text-sm">{poi.name}</span>
+                                      </button>
+                                      <input
+                                        type="checkbox"
+                                        checked={poiVisible}
+                                        onChange={(event) => {
+                                          setVisibleCoursePoiIds((current) => {
+                                            const next = new Set(current);
+                                            if (event.target.checked) next.add(poi.id);
+                                            else next.delete(poi.id);
+                                            return next;
+                                          });
+                                        }}
+                                        aria-label={`${poi.name} ein- oder ausblenden`}
+                                        className="h-4 w-4 shrink-0 accent-primary"
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 px-2 text-[11px] leading-4 text-muted-foreground">
+                      Draft aus PDF-Georeferenzierung. Genauere Tracks koennen spaeter hier ersetzt werden.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </aside>
