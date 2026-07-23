@@ -46,7 +46,7 @@ function buildSponsorLogoHtml(sponsor: SponsorPoi, className: string): string {
 
 function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
   const websiteLink = sponsor.websiteUrl
-    ? `<a href="${escapeHtml(sponsor.websiteUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-9 items-center rounded-md border border-border/70 bg-background px-3 text-sm font-medium text-primary hover:bg-accent">Website</a>`
+    ? `<a href="${escapeHtml(sponsor.websiteUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-sm font-medium text-primary hover:bg-accent">Website</a>`
     : "";
 
   return `
@@ -56,7 +56,7 @@ function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
         <p class="text-base font-semibold leading-snug">${escapeHtml(sponsor.name)} - ${escapeHtml(sponsor.category)}</p>
         <p class="text-sm leading-snug text-muted-foreground">${escapeHtml(sponsor.address)}</p>
         <div class="flex flex-wrap gap-2">
-          <a href="${escapeHtml(sponsor.routeUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-9 items-center rounded-md border border-border/70 bg-background px-3 text-sm font-medium text-primary hover:bg-accent">Route</a>
+          <a href="${escapeHtml(sponsor.routeUrl)}" target="_blank" rel="noreferrer" class="inline-flex h-8 items-center rounded-md border border-border/70 bg-background px-2.5 text-sm font-medium text-primary hover:bg-accent">Route</a>
           ${websiteLink}
         </div>
       </div>
@@ -87,6 +87,7 @@ export default function EventMap() {
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const popupOpenTimerRef = useRef<number | null>(null);
   const [selectedSponsorId, setSelectedSponsorId] = useState(SPONSOR_POIS[0]?.id ?? "");
   const [visibleSponsorIds, setVisibleSponsorIds] = useState(() => new Set(SPONSOR_POIS.map((sponsor) => sponsor.id)));
   const [sponsorsExpanded, setSponsorsExpanded] = useState(true);
@@ -99,10 +100,19 @@ export default function EventMap() {
 
   const selectSponsor = useCallback((sponsor: SponsorPoi, flyTo = true) => {
     setSelectedSponsorId(sponsor.id);
-    setPopupSponsorId(sponsor.id);
     if (flyTo && mapRef.current) {
-      mapRef.current.flyTo(toLeafletLatLng(sponsor.coordinates), 15, { duration: 0.65 });
+      setPopupSponsorId(null);
+      if (popupOpenTimerRef.current) {
+        window.clearTimeout(popupOpenTimerRef.current);
+      }
+      mapRef.current.flyTo(toLeafletLatLng(sponsor.coordinates), 15, { duration: 0.5 });
+      popupOpenTimerRef.current = window.setTimeout(() => {
+        setPopupSponsorId(sponsor.id);
+        popupOpenTimerRef.current = null;
+      }, 560);
+      return;
     }
+    setPopupSponsorId(sponsor.id);
   }, []);
 
   useEffect(() => {
@@ -180,6 +190,7 @@ export default function EventMap() {
       cancelled = true;
       markers.forEach((marker) => marker.remove());
       markers.clear();
+      if (popupOpenTimerRef.current) window.clearTimeout(popupOpenTimerRef.current);
       if (loadTimeout) window.clearTimeout(loadTimeout);
       mapRef.current?.remove();
       mapRef.current = null;
@@ -213,7 +224,11 @@ export default function EventMap() {
         marker.bindPopup(buildSponsorPopupHtml(sponsor), {
           className: "event-map-popup",
           closeButton: true,
-          maxWidth: 340,
+          maxWidth: 312,
+          autoPan: true,
+          keepInView: true,
+          autoPanPaddingTopLeft: [18, 18],
+          autoPanPaddingBottomRight: [18, 72],
         });
         marker.on("click", () => selectSponsor(sponsor, false));
         markersRef.current.set(sponsor.id, marker);

@@ -254,24 +254,30 @@
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+  max-height: min(22rem, calc(62svh - 1.5rem));
+  overflow-y: auto;
 }
 
 .event-map-popup .leaflet-popup-content {
-  margin: 0.75rem;
+  margin: 0.55rem;
+}
+
+.event-map-popup .leaflet-popup-content p {
+  margin: 0;
 }
 
 .event-map-popup-card {
   display: grid;
-  width: min(19rem, calc(100vw - 5.5rem));
-  grid-template-rows: minmax(12rem, 1fr) auto;
-  gap: 0.85rem;
+  width: min(18rem, calc(100vw - 5.5rem));
+  grid-template-rows: minmax(clamp(8rem, 22svh, 10rem), 1fr) auto;
+  gap: 0.55rem;
 }
 
 .event-map-popup-logo {
-  min-height: 12rem;
+  min-height: clamp(8rem, 22svh, 10rem);
   overflow: hidden;
   background: #fff;
-  padding: 0.75rem;
+  padding: 0.45rem;
 }
 
 .event-map-popup-logo img {
@@ -282,7 +288,7 @@
 
 .event-map-popup-details {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.45rem;
 }
 
 .event-map-popup .leaflet-popup-tip {
