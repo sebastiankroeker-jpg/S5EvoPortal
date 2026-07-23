@@ -609,7 +609,7 @@ function OverallResultsTables({
                           <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
                         </th>
                       ))}
-                      <th className="w-12 py-2 pl-1 text-right align-bottom font-bold">
+                      <th className="w-16 py-2 pl-1 pr-3 text-right align-bottom font-bold">
                         <VerticalHeader>Gesamt</VerticalHeader>
                       </th>
                     </tr>
@@ -641,10 +641,10 @@ function OverallResultsTables({
                           </td>
                           {DISCIPLINE_CODES.map((discipline) => (
                             <td key={discipline} className="px-0.5 py-2 text-center text-xs text-muted-foreground tabular-nums">
-                              {team.hasAnyResult === false ? "-" : team.disciplinePoints[discipline] || "-"}
+                              {team.hasAnyResult === false ? "-" : team.disciplinePoints[discipline]}
                             </td>
                           ))}
-                          <td className="py-2 pl-1 text-right font-bold tabular-nums">
+                          <td className="py-2 pl-1 pr-3 text-right font-bold tabular-nums">
                             {team.hasAnyResult === false ? "-" : team.totalPoints}
                           </td>
                         </tr>
