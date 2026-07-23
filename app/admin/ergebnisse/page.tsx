@@ -18,7 +18,7 @@ import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 
 type WorkbenchTab = "overview" | "packages" | "mapping";
-type BatchDetailTab = "overview" | "drafts" | "raw" | "conflicts" | "corrections";
+type BatchDetailTab = "overview" | "drafts" | "raw" | "conflicts" | "corrections" | "publish";
 
 type ResultStagingBatch = {
   id: string;
@@ -159,6 +159,45 @@ type CorrectionFormState = {
 
 type CorrectionResponse = {
   ok?: boolean;
+  error?: string;
+};
+
+type PublishPreviewItem = {
+  draftId: string;
+  action: "CREATE" | "UPDATE" | "UNCHANGED" | "SKIP";
+  executable: boolean;
+  blockers: string[];
+  disciplineCode: string;
+  startNumber: string | null;
+  participantName: string | null;
+  teamName: string | null;
+  resultId: string | null;
+  before: {
+    rawValue: number | null;
+    points: number | null;
+    rank: number | null;
+  } | null;
+  after: {
+    rawValue: number | null;
+    rawValueText: string | null;
+    points: number | null;
+    rank: number | null;
+    resultStatus: string | null;
+  };
+};
+
+type PublishPreviewResponse = {
+  executable?: boolean;
+  counts?: {
+    drafts: number;
+    create: number;
+    update: number;
+    unchanged: number;
+    skipped: number;
+    blockers: number;
+  };
+  warnings?: string[];
+  items?: PublishPreviewItem[];
   error?: string;
 };
 
@@ -340,6 +379,12 @@ function concernVariant(count: number): "destructive" | "outline" | "secondary" 
   return count > 0 ? "destructive" : "secondary";
 }
 
+function publishActionVariant(action: PublishPreviewItem["action"]): "destructive" | "outline" | "secondary" {
+  if (action === "SKIP") return "destructive";
+  if (action === "UNCHANGED") return "secondary";
+  return "outline";
+}
+
 function packageTitle(batch: ResultStagingBatch) {
   return batch.label || batch.externalRef || batch.id;
 }
@@ -465,6 +510,8 @@ export default function ResultDataWorkbenchPage() {
   const [batchDetails, setBatchDetails] = useState<ResultStagingBatchDetails | null>(null);
   const [batchDetailTab, setBatchDetailTab] = useState<BatchDetailTab>("drafts");
   const [loadingBatchDetails, setLoadingBatchDetails] = useState(false);
+  const [publishPreview, setPublishPreview] = useState<PublishPreviewResponse | null>(null);
+  const [loadingPublishPreview, setLoadingPublishPreview] = useState(false);
   const [correctionForm, setCorrectionForm] = useState<CorrectionFormState | null>(null);
   const [savingCorrection, setSavingCorrection] = useState(false);
   const [timekeepingSessions, setTimekeepingSessions] = useState<TimekeepingSessionSummary[]>([]);
@@ -505,11 +552,13 @@ export default function ResultDataWorkbenchPage() {
   const loadBatchDetails = useCallback(async (batchId: string) => {
     if (!activeCompetition?.id || !hasAdminAccess || !batchId) {
       setBatchDetails(null);
+      setPublishPreview(null);
       return;
     }
 
     setLoadingBatchDetails(true);
     setError(null);
+    setPublishPreview(null);
     try {
       const params = new URLSearchParams({ competitionId: activeCompetition.id });
       const response = await fetch(`/api/admin/result-staging/batches/${encodeURIComponent(batchId)}?${params.toString()}`, {
@@ -530,6 +579,33 @@ export default function ResultDataWorkbenchPage() {
       setError(requestError instanceof Error ? requestError.message : "Paketdetails konnten nicht geladen werden.");
     } finally {
       setLoadingBatchDetails(false);
+    }
+  }, [activeCompetition?.id, hasAdminAccess]);
+
+  const loadPublishPreview = useCallback(async (batchId: string) => {
+    if (!activeCompetition?.id || !hasAdminAccess || !batchId) {
+      setPublishPreview(null);
+      return;
+    }
+
+    setLoadingPublishPreview(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ competitionId: activeCompetition.id });
+      const response = await fetch(`/api/admin/result-staging/batches/${encodeURIComponent(batchId)}/publish-preview?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => ({}))) as PublishPreviewResponse;
+      if (!response.ok) {
+        throw new Error(data.error || "Publish-Preview konnte nicht geladen werden.");
+      }
+      setPublishPreview(data);
+      setBatchDetailTab("publish");
+    } catch (requestError) {
+      setPublishPreview(null);
+      setError(requestError instanceof Error ? requestError.message : "Publish-Preview konnte nicht geladen werden.");
+    } finally {
+      setLoadingPublishPreview(false);
     }
   }, [activeCompetition?.id, hasAdminAccess]);
 
@@ -1575,7 +1651,10 @@ export default function ResultDataWorkbenchPage() {
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <select
                         value={selectedBatchId}
-                        onChange={(event) => setSelectedBatchId(event.target.value)}
+                        onChange={(event) => {
+                          setSelectedBatchId(event.target.value);
+                          setPublishPreview(null);
+                        }}
                         className={selectClassName()}
                       >
                         {filteredBatches.map((batch) => (
@@ -1590,6 +1669,13 @@ export default function ResultDataWorkbenchPage() {
                         disabled={!selectedBatchId || loadingBatchDetails}
                       >
                         {loadingBatchDetails ? "Lade..." : "Details laden"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => void loadPublishPreview(selectedBatchId)}
+                        disabled={!selectedBatchId || loadingPublishPreview}
+                      >
+                        {loadingPublishPreview ? "Prüfe..." : "Publish Preview"}
                       </Button>
                     </div>
                   </div>
@@ -1673,6 +1759,17 @@ export default function ResultDataWorkbenchPage() {
                         onClick={() => setBatchDetailTab("corrections")}
                       >
                         Korrekturen
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={batchDetailTab === "publish" ? "default" : "outline"}
+                        onClick={() => {
+                          if (!publishPreview && selectedBatchId) void loadPublishPreview(selectedBatchId);
+                          setBatchDetailTab("publish");
+                        }}
+                      >
+                        Publish Preview
                       </Button>
                     </div>
                   </div>
@@ -1974,6 +2071,126 @@ export default function ResultDataWorkbenchPage() {
                           </tbody>
                         </table>
                       </div>
+                    </div>
+                  ) : batchDetailTab === "publish" ? (
+                    <div className="space-y-4">
+                      <div className="rounded-md border border-border/60 bg-muted/20 px-4 py-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-medium">Publish Preview</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Vorschau auf offizielle Ergebnisse. Diese Ansicht schreibt keine produktiven Resultate.
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void loadPublishPreview(selectedBatchId)}
+                            disabled={!selectedBatchId || loadingPublishPreview}
+                          >
+                            {loadingPublishPreview ? "Prüfe..." : "Neu prüfen"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {!publishPreview ? (
+                        <EmptyState
+                          title="Noch keine Publish Preview geladen."
+                          text="Starte die Prüfung, um Create/Update/Unchanged und Blocker für dieses Paket zu sehen."
+                        />
+                      ) : (
+                        <>
+                          <div className="grid gap-3 md:grid-cols-6">
+                            <div className="rounded-md border border-border/60 px-4 py-3">
+                              <p className="text-xs text-muted-foreground">Drafts</p>
+                              <p className="mt-1 text-2xl font-semibold">{publishPreview.counts?.drafts ?? 0}</p>
+                            </div>
+                            <div className="rounded-md border border-border/60 px-4 py-3">
+                              <p className="text-xs text-muted-foreground">Neu</p>
+                              <p className="mt-1 text-2xl font-semibold">{publishPreview.counts?.create ?? 0}</p>
+                            </div>
+                            <div className="rounded-md border border-border/60 px-4 py-3">
+                              <p className="text-xs text-muted-foreground">Update</p>
+                              <p className="mt-1 text-2xl font-semibold">{publishPreview.counts?.update ?? 0}</p>
+                            </div>
+                            <div className="rounded-md border border-border/60 px-4 py-3">
+                              <p className="text-xs text-muted-foreground">Unverändert</p>
+                              <p className="mt-1 text-2xl font-semibold">{publishPreview.counts?.unchanged ?? 0}</p>
+                            </div>
+                            <div className="rounded-md border border-border/60 px-4 py-3">
+                              <p className="text-xs text-muted-foreground">Skip</p>
+                              <p className="mt-1 text-2xl font-semibold">{publishPreview.counts?.skipped ?? 0}</p>
+                            </div>
+                            <div className="rounded-md border border-border/60 px-4 py-3">
+                              <p className="text-xs text-muted-foreground">Blocker</p>
+                              <p className="mt-1 text-2xl font-semibold">{publishPreview.counts?.blockers ?? 0}</p>
+                            </div>
+                          </div>
+
+                          {(publishPreview.warnings ?? []).length > 0 ? (
+                            <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                              {(publishPreview.warnings ?? []).join(" ")}
+                            </div>
+                          ) : null}
+
+                          <div className="overflow-x-auto rounded-md border border-border/60">
+                            <table className="w-full min-w-[1220px] text-left text-sm">
+                              <thead className="border-b border-border/60 bg-muted/30 text-xs text-muted-foreground">
+                                <tr>
+                                  <th className="px-3 py-2 font-medium">Aktion</th>
+                                  <th className="px-3 py-2 font-medium">Disz.</th>
+                                  <th className="px-3 py-2 font-medium">#</th>
+                                  <th className="px-3 py-2 font-medium">Team</th>
+                                  <th className="px-3 py-2 font-medium">Teilnehmer</th>
+                                  <th className="px-3 py-2 font-medium text-right">Alt Wert</th>
+                                  <th className="px-3 py-2 font-medium text-right">Neu Wert</th>
+                                  <th className="px-3 py-2 font-medium text-right">Alt Pkt.</th>
+                                  <th className="px-3 py-2 font-medium text-right">Neu Pkt.</th>
+                                  <th className="px-3 py-2 font-medium text-right">Alt Rang</th>
+                                  <th className="px-3 py-2 font-medium text-right">Neu Rang</th>
+                                  <th className="px-3 py-2 font-medium">Blocker</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(publishPreview.items ?? []).length === 0 ? (
+                                  <tr>
+                                    <td colSpan={12} className="px-3 py-8 text-center text-muted-foreground">
+                                      Keine Drafts in der Publish Preview.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  (publishPreview.items ?? []).map((item) => (
+                                    <tr key={item.draftId} className="border-b border-border/40">
+                                      <td className="px-3 py-2">
+                                        <Badge variant={publishActionVariant(item.action)}>{item.action}</Badge>
+                                      </td>
+                                      <td className="px-3 py-2">{item.disciplineCode}</td>
+                                      <td className="px-3 py-2 font-medium tabular-nums">{item.startNumber ? `#${item.startNumber}` : "—"}</td>
+                                      <td className="px-3 py-2">
+                                        <div className="max-w-[220px] truncate">{item.teamName || "—"}</div>
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <div className="max-w-[190px] truncate">{item.participantName || "—"}</div>
+                                      </td>
+                                      <td className="px-3 py-2 text-right tabular-nums">{item.before?.rawValue ?? "—"}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums">{item.after.rawValueText || (item.after.rawValue ?? "—")}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums">{item.before?.points ?? "—"}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums">{item.after.points ?? "—"}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums">{item.before?.rank ?? "—"}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums">{item.after.rank ?? "—"}</td>
+                                      <td className="px-3 py-2">
+                                        <div className="max-w-[320px] truncate text-xs text-muted-foreground" title={item.blockers.join(", ")}>
+                                          {item.blockers.length > 0 ? item.blockers.join(", ") : "—"}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="overflow-x-auto rounded-md border border-border/60">
