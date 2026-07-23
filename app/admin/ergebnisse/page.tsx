@@ -195,6 +195,7 @@ type TimekeepingImportResponse = {
   counts?: {
     finishEvents: number;
     importedRecords: number;
+    draftsCreated: number;
     skippedDuplicates: number;
     missingStartNumber: number;
     missingElapsed: number;
@@ -602,7 +603,7 @@ export default function ResultDataWorkbenchPage() {
       setSource("TIMEKEEPING_SYNC");
       setActiveTab("packages");
       setTimekeepingFeedback(
-        `Paket ${data.label || data.batchId} erstellt: ${data.counts?.importedRecords ?? 0} Raw Records, ${data.counts?.warnings ?? 0} Warnungen.`,
+        `Paket ${data.label || data.batchId} erstellt: ${data.counts?.importedRecords ?? 0} Raw Records, ${data.counts?.draftsCreated ?? 0} Drafts, ${data.counts?.warnings ?? 0} Warnungen.`,
       );
       await Promise.all([loadBatches(), loadTimekeepingSessions()]);
     } catch (requestError) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import type { Prisma } from "@prisma/client";
+import type { $Enums, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +9,20 @@ import { requireTenantRoles } from "@/lib/server-permissions";
 export const dynamic = "force-dynamic";
 
 const RESULT_PURPOSES = ["PROD_TEST"] as const;
+const DRAFT_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
+
+type ValidationMessage = {
+  code: string;
+  severity: "warning" | "error";
+  message?: string;
+};
+
+type StarterMatch = {
+  teamId: string | null;
+  participantId: string | null;
+  classCode: string | null;
+  messages: ValidationMessage[];
+};
 
 function parsePurpose(value: unknown) {
   if (typeof value !== "string") return null;
@@ -55,6 +69,213 @@ function parsePayloadBaseTime(payload: unknown) {
   if (!baseTimeIso) return null;
   const date = new Date(baseTimeIso);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function draftStatusFor(messages: ValidationMessage[]): $Enums.ResultDraftStatus {
+  return messages.some((message) => message.severity === "error") ? "CONFLICT" : "DRAFT";
+}
+
+function conflictStatusFor(messages: ValidationMessage[]): $Enums.ResultConflictStatus {
+  return messages.some((message) => message.severity === "error") ? "CONFLICT" : "UNCHECKED";
+}
+
+function buildTimekeepingDraftSnapshot(input: {
+  timekeepingSession: {
+    id: string;
+    deviceId: string | null;
+    deviceName: string | null;
+    disciplineCode: $Enums.DisciplineCode;
+    startBlockName: string;
+    status: string;
+  };
+  event: {
+    id: string;
+    clientEventId: string;
+    eventType: string;
+    startNumber: string | null;
+    recordedAt: Date;
+    capturedAt: Date;
+    rawElapsedMs: number | null;
+    netElapsedMs: number | null;
+    note: string | null;
+    payload: Prisma.JsonValue | null;
+  };
+  elapsedMs: number | null;
+  baseTime: Date | null;
+  baseTimeClock: string | null;
+  roadCsvBaseTime: string | null;
+  validationMessages: ValidationMessage[];
+}) {
+  const { event, timekeepingSession, elapsedMs, baseTime, baseTimeClock, roadCsvBaseTime, validationMessages } = input;
+
+  return {
+    source: "TIMEKEEPING_SYNC",
+    disciplineCode: timekeepingSession.disciplineCode,
+    startNumber: event.startNumber,
+    result: {
+      rawValue: elapsedMs,
+      rawValueText: formatElapsedMs(elapsedMs),
+      status: elapsedMs === null ? "missing_time" : "valid",
+    },
+    classScoring: {
+      points: null,
+      rank: null,
+    },
+    overallGenderScoring: {
+      points: null,
+      rank: null,
+    },
+    legacy: {
+      sourceRowNumbers: [],
+      details: {
+        uhrGueltig: elapsedMs === null ? "0" : "1",
+        stopzeitUhr1: formatElapsedMs(event.rawElapsedMs),
+        stopzeitNetto: formatElapsedMs(event.netElapsedMs),
+        zeitBasis: roadCsvBaseTime,
+        basiszeit: baseTimeClock,
+        fields: {
+          Au1Startnr: event.startNumber,
+          Au1Disziplin: timekeepingSession.disciplineCode,
+          AuZeit: formatElapsedMs(elapsedMs),
+          AuZeitNetto: formatElapsedMs(event.netElapsedMs),
+          AuZeitBrutto: formatElapsedMs(event.rawElapsedMs),
+          AuZeitBasis: roadCsvBaseTime,
+          Basiszeit: baseTimeClock,
+        },
+      },
+    },
+    timekeeping: {
+      timekeepingSessionId: timekeepingSession.id,
+      timekeepingEventId: event.id,
+      clientEventId: event.clientEventId,
+      deviceId: timekeepingSession.deviceId,
+      deviceName: timekeepingSession.deviceName,
+      eventType: event.eventType,
+      startBlockName: timekeepingSession.startBlockName,
+      status: timekeepingSession.status,
+      recordedAt: event.recordedAt.toISOString(),
+      capturedAt: event.capturedAt.toISOString(),
+      rawElapsedMs: event.rawElapsedMs,
+      netElapsedMs: event.netElapsedMs,
+      selectedElapsedMs: elapsedMs,
+      baseTimeIso: baseTime?.toISOString() ?? null,
+      baseTimeClock,
+      roadCsvBaseTime,
+      note: event.note,
+      validationMessages,
+    },
+  };
+}
+
+async function buildStarterMatches(
+  competitionId: string,
+  tenantId: string,
+  disciplineCode: $Enums.DisciplineCode,
+  events: Array<{ id: string; startNumber: string | null }>,
+) {
+  const startNumbers = [...new Set(events.map((event) => event.startNumber?.trim()).filter((value): value is string => Boolean(value)))];
+  const matches = new Map<string, StarterMatch>();
+
+  if (startNumbers.length === 0) {
+    for (const event of events) {
+      matches.set(event.id, {
+        teamId: null,
+        participantId: null,
+        classCode: null,
+        messages: [{ code: "missing_start_number", severity: "error" }],
+      });
+    }
+    return matches;
+  }
+
+  const teams = await prisma.team.findMany({
+    where: {
+      competitionId,
+      deletedAt: null,
+      startNumber: { in: startNumbers },
+      competition: { tenantId },
+    },
+    select: {
+      id: true,
+      startNumber: true,
+      classificationCode: true,
+      participants: {
+        where: { deletedAt: null },
+        select: { id: true, disciplineCode: true },
+      },
+    },
+  });
+
+  const teamsByStartNumber = new Map<string, typeof teams>();
+  for (const team of teams) {
+    if (!team.startNumber) continue;
+    teamsByStartNumber.set(team.startNumber, [...(teamsByStartNumber.get(team.startNumber) ?? []), team]);
+  }
+
+  for (const event of events) {
+    const startNumber = event.startNumber?.trim() ?? "";
+    if (!startNumber) {
+      matches.set(event.id, {
+        teamId: null,
+        participantId: null,
+        classCode: null,
+        messages: [{ code: "missing_start_number", severity: "error" }],
+      });
+      continue;
+    }
+
+    const candidates = teamsByStartNumber.get(startNumber) ?? [];
+    if (candidates.length === 0) {
+      matches.set(event.id, {
+        teamId: null,
+        participantId: null,
+        classCode: null,
+        messages: [{ code: "unmatched_start_number", severity: "error" }],
+      });
+      continue;
+    }
+
+    if (candidates.length > 1) {
+      matches.set(event.id, {
+        teamId: null,
+        participantId: null,
+        classCode: null,
+        messages: [{ code: "ambiguous_start_number", severity: "error" }],
+      });
+      continue;
+    }
+
+    const [team] = candidates;
+    const participants = team.participants.filter((participant) => participant.disciplineCode === disciplineCode);
+    if (participants.length === 0) {
+      matches.set(event.id, {
+        teamId: team.id,
+        participantId: null,
+        classCode: team.classificationCode || null,
+        messages: [{ code: "missing_discipline_participant", severity: "error" }],
+      });
+      continue;
+    }
+
+    if (participants.length > 1) {
+      matches.set(event.id, {
+        teamId: team.id,
+        participantId: null,
+        classCode: team.classificationCode || null,
+        messages: [{ code: "ambiguous_discipline_participant", severity: "error" }],
+      });
+      continue;
+    }
+
+    matches.set(event.id, {
+      teamId: team.id,
+      participantId: participants[0].id,
+      classCode: team.classificationCode || null,
+      messages: [],
+    });
+  }
+
+  return matches;
 }
 
 export async function POST(request: NextRequest) {
@@ -137,6 +358,16 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
+    if (!DRAFT_DISCIPLINES.includes(timekeepingSession.disciplineCode as (typeof DRAFT_DISCIPLINES)[number])) {
+      return NextResponse.json({ error: "Diese Zeitnahme-Disziplin kann noch nicht als Draft übernommen werden." }, { status: 400 });
+    }
+
+    const starterMatches = await buildStarterMatches(
+      competitionId,
+      auth.tenantId,
+      timekeepingSession.disciplineCode,
+      newEvents,
+    );
     const sessionBaseTime = timekeepingSession.manualStartedAt;
     const sessionBaseTimeClock = formatClock(sessionBaseTime);
     const sessionRoadCsvBaseTime = formatRoadCsvBaseTime(sessionBaseTime);
@@ -244,6 +475,57 @@ export async function POST(request: NextRequest) {
         }),
       });
 
+      const rawRecordIds = await tx.resultRawRecord.findMany({
+        where: {
+          batchId: batch.id,
+          rowKey: { in: newEvents.map((event) => `timekeeping:${event.id}`) },
+        },
+        select: { id: true, rowKey: true },
+      });
+      const rawRecordIdByRowKey = new Map(rawRecordIds.map((record) => [record.rowKey, record.id]));
+
+      await tx.resultDraft.createMany({
+        data: newEvents.map((event) => {
+          const elapsedMs = event.netElapsedMs ?? event.rawElapsedMs;
+          const eventBaseTime = parsePayloadBaseTime(event.payload) ?? sessionBaseTime;
+          const eventBaseTimeClock = formatClock(eventBaseTime);
+          const eventRoadCsvBaseTime = formatRoadCsvBaseTime(eventBaseTime);
+          const validationMessages: ValidationMessage[] = [
+            ...(elapsedMs === null ? [{ code: "missing_elapsed", severity: "error" as const }] : []),
+            ...(starterMatches.get(event.id)?.messages ?? []),
+          ];
+          const match = starterMatches.get(event.id);
+
+          return {
+            batchId: batch.id,
+            sourceRawRecordId: rawRecordIdByRowKey.get(`timekeeping:${event.id}`) ?? null,
+            tenantId: auth.tenantId,
+            competitionId,
+            status: draftStatusFor(validationMessages),
+            conflictStatus: conflictStatusFor(validationMessages),
+            disciplineCode: timekeepingSession.disciplineCode,
+            participantId: match?.participantId ?? null,
+            teamId: match?.teamId ?? null,
+            startNumber: event.startNumber,
+            rawValue: elapsedMs,
+            rawValueText: formatElapsedMs(elapsedMs),
+            normalizedValue: elapsedMs,
+            netElapsedMs: elapsedMs,
+            timekeepingEventId: event.id,
+            proposedResultSnapshot: jsonValue(buildTimekeepingDraftSnapshot({
+              timekeepingSession,
+              event,
+              elapsedMs,
+              baseTime: eventBaseTime,
+              baseTimeClock: eventBaseTimeClock,
+              roadCsvBaseTime: eventRoadCsvBaseTime,
+              validationMessages,
+            })),
+            validationMessages: jsonValue(validationMessages),
+          };
+        }),
+      });
+
       await tx.auditEvent.create({
         data: {
           tenantId: auth.tenantId,
@@ -262,6 +544,7 @@ export async function POST(request: NextRequest) {
             roadCsvBaseTime: sessionRoadCsvBaseTime,
             purpose,
             importedRecords: newEvents.length,
+            draftsCreated: newEvents.length,
             skippedDuplicates: timekeepingSession.events.length - newEvents.length,
             warningCount,
           }),
@@ -274,6 +557,7 @@ export async function POST(request: NextRequest) {
         counts: {
           finishEvents: timekeepingSession.events.length,
           importedRecords: newEvents.length,
+          draftsCreated: newEvents.length,
           skippedDuplicates: timekeepingSession.events.length - newEvents.length,
           missingStartNumber: withoutStartNumber,
           missingElapsed: withoutElapsed,
