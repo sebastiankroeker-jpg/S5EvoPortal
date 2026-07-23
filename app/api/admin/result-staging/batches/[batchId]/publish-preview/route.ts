@@ -8,6 +8,9 @@ import { requireCompetitionTenantRoles } from "@/lib/server-permissions";
 
 export const dynamic = "force-dynamic";
 
+const DISCIPLINE_CODES = new Set<$Enums.DisciplineCode>(["RUN", "BENCH", "STOCK", "ROAD", "MTB"]);
+const SUPERSEDED_DRAFT_BLOCKER = "Aelterer Draft fuer dasselbe offizielle Ergebnis; neuerer Draft wird verwendet.";
+
 type PreviewItem = {
   draftId: string;
   action: "CREATE" | "UPDATE" | "UNCHANGED" | "SKIP";
@@ -68,6 +71,14 @@ function resultUnchanged(
   return valuesEqual(before.rawValue, after.rawValue) && before.points === after.points && before.rank === after.rank;
 }
 
+function targetKeyFor(draft: { disciplineCode: $Enums.DisciplineCode; participantId: string | null }) {
+  return draft.participantId ? `${draft.disciplineCode}:${draft.participantId}` : null;
+}
+
+function isBlockingPublish(message: string) {
+  return message !== SUPERSEDED_DRAFT_BLOCKER;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ batchId: string }> },
@@ -116,18 +127,24 @@ export async function GET(
       ],
     });
 
-    const disciplines = await prisma.discipline.findMany({
-      where: { competitionId },
-      select: { id: true, code: true },
-    });
-    const disciplineIdByCode = new Map(disciplines.map((discipline) => [discipline.code, discipline.id]));
     const participantIds = [...new Set(drafts.map((draft) => draft.participantId).filter((id): id is string => Boolean(id)))];
     const teamIds = [...new Set(drafts.map((draft) => draft.teamId).filter((id): id is string => Boolean(id)))];
 
-    const targetKeys = drafts
-      .filter((draft) => draft.participantId)
-      .map((draft) => `${draft.disciplineCode}:${draft.participantId}`);
-    const duplicateTargetKeys = new Set(targetKeys.filter((key, index) => targetKeys.indexOf(key) !== index));
+    const publishableDraftByTarget = new Map<string, { id: string; createdAt: Date }>();
+    const duplicateTargetKeys = new Set<string>();
+    for (const draft of drafts) {
+      const targetKey = targetKeyFor(draft);
+      if (!targetKey) continue;
+      const current = publishableDraftByTarget.get(targetKey);
+      if (!current) {
+        publishableDraftByTarget.set(targetKey, { id: draft.id, createdAt: draft.createdAt });
+        continue;
+      }
+      duplicateTargetKeys.add(targetKey);
+      if (draft.createdAt > current.createdAt || (draft.createdAt.getTime() === current.createdAt.getTime() && draft.id > current.id)) {
+        publishableDraftByTarget.set(targetKey, { id: draft.id, createdAt: draft.createdAt });
+      }
+    }
 
     const [existingResults, participants, teams] = await Promise.all([
       participantIds.length > 0
@@ -182,7 +199,7 @@ export async function GET(
     const items: PreviewItem[] = drafts.map((draft) => {
       const after = getSnapshotResult(draft.proposedResultSnapshot);
       const blockers: string[] = [];
-      const targetKey = draft.participantId ? `${draft.disciplineCode}:${draft.participantId}` : null;
+      const targetKey = targetKeyFor(draft);
       const existingResult = targetKey ? resultByTarget.get(targetKey) ?? null : null;
       const participant = draft.participantId ? participantById.get(draft.participantId) ?? null : null;
       const team = draft.teamId ? teamById.get(draft.teamId) ?? null : null;
@@ -204,13 +221,17 @@ export async function GET(
         blockers.push("Draft ist nicht mehr publizierbar.");
       }
       if (!draft.participantId) blockers.push("Teilnehmer-Zuordnung fehlt.");
-      if (!disciplineIdByCode.has(draft.disciplineCode)) blockers.push("Disziplin im Wettkampf fehlt.");
-      if (targetKey && duplicateTargetKeys.has(targetKey)) blockers.push("Mehrere Drafts zielen auf dasselbe offizielle Ergebnis.");
+      if (!DISCIPLINE_CODES.has(draft.disciplineCode)) blockers.push("Disziplin-Code ist ungueltig.");
+      if (targetKey && duplicateTargetKeys.has(targetKey) && publishableDraftByTarget.get(targetKey)?.id !== draft.id) {
+        blockers.push(SUPERSEDED_DRAFT_BLOCKER);
+      }
       if (after.rawValue === null && after.resultStatus !== "dnf") blockers.push("Publizierbarer Wert fehlt.");
 
-      const executable = blockers.length === 0;
+      const executable = blockers.every((blocker) => !isBlockingPublish(blocker));
       const action = !executable
         ? "SKIP"
+        : blockers.includes(SUPERSEDED_DRAFT_BLOCKER)
+          ? "SKIP"
         : before
           ? resultUnchanged(before, after) ? "UNCHANGED" : "UPDATE"
           : "CREATE";
@@ -238,7 +259,7 @@ export async function GET(
       update: items.filter((item) => item.action === "UPDATE").length,
       unchanged: items.filter((item) => item.action === "UNCHANGED").length,
       skipped: items.filter((item) => item.action === "SKIP").length,
-      blockers: items.reduce((sum, item) => sum + item.blockers.length, 0),
+      blockers: items.reduce((sum, item) => sum + item.blockers.filter(isBlockingPublish).length, 0),
     };
 
     return NextResponse.json({
