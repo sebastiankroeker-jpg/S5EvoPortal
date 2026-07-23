@@ -817,6 +817,47 @@ Existing context:
 - Remaining gap:
   - Authenticated iPhone visual smoke by Sebastian after deploy.
 
+## Sponsor Verification Working List
+
+- Trigger:
+  - Sebastian requested on 2026-07-23 00:19 UTC that the already collected
+    sponsor information should be captured as a list for later verification.
+- Artifact:
+  - `docs/sponsorenliste-2026-07-23.md`
+  - Contains all 42 current `SPONSOR_POIS` entries with name, Gewerbe/category,
+    address, coordinates, website, route query, logo path, confidence flag, and
+    source note.
+- Verification status:
+  - 34 entries currently marked `verified`.
+  - 8 entries currently marked `needs_review`.
+  - Sebastian explicitly deferred re-verification of sponsor information to the
+    next day.
+
+## Sponsor Popup Detail Layout
+
+- Trigger:
+  - Sebastian requested on 2026-07-22 23:59 UTC that sponsor detail boxes should
+    reserve at least half of the box height for the logo and show the details
+    below in this structure:
+    - `Firmenname - Gewerbe`
+    - `Anschrift`
+    - `Route Website`
+- Change:
+  - Leaflet sponsor popup markup now places the sponsor logo in a larger visual
+    block above the textual details.
+  - Text details are reduced to name/category, address, and route/website
+    actions.
+  - Popup styling moved into `.event-map-popup-*` CSS in `app/globals.css` so
+    the map popup can enforce a stable logo area and compact detail layout.
+- Files changed:
+  - `app/components/event-map.tsx`
+  - `app/globals.css`
+- Commit:
+  - `3604cbf Refine sponsor popup detail layout`
+- Remaining gap:
+  - Authenticated iPhone visual smoke by Sebastian after the latest popup
+    layout.
+
 ## Follow-Ups
 
 - Add route layers from GPX/GeoJSON for Lauf, Rennrad, and MTB.
@@ -825,3 +866,5 @@ Existing context:
   editable without code changes.
 - Evaluate PMTiles/offline basemap once MVP is live and traffic pattern is
   known.
+- Verify the sponsor working list from `docs/sponsorenliste-2026-07-23.md`,
+  especially the 8 entries marked `needs_review`.

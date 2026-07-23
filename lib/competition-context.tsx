@@ -61,9 +61,9 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/admin/competitions");
+        const res = await fetch("/api/admin/competitions", { cache: "no-store" });
         if (!res.ok) {
-          const publicRes = await fetch("/api/competition");
+          const publicRes = await fetch("/api/competition", { cache: "no-store" });
           if (!publicRes.ok) {
             setLoading(false);
             return;

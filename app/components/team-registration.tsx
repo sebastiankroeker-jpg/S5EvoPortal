@@ -357,7 +357,7 @@ export default function TeamRegistration({
     (async () => {
       try {
         const query = activeCompetition?.id ? `?id=${activeCompetition.id}` : "";
-        const res = await fetch(`/api/competition${query}`);
+        const res = await fetch(`/api/competition${query}`, { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         setCompetitionInfo(data.competition || null);
@@ -789,13 +789,30 @@ export default function TeamRegistration({
           </div>
         </CardHeader>
         <CardContent>
+              {!publicRegistrationStatus.canRegister && (
+                <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">{publicRegistrationStatus.availabilityLabel}</Badge>
+                  </div>
+                  <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    <p>{publicRegistrationStatus.detail}</p>
+                    {competitionInfo?.registrationDeadline && (
+                      <p>Anmeldeschluss: {new Date(competitionInfo.registrationDeadline).toLocaleDateString("de-DE")}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div
+                className={!publicRegistrationStatus.canRegister ? "pointer-events-none select-none opacity-55" : undefined}
+                aria-disabled={!publicRegistrationStatus.canRegister}
+              >
               <div className="flex gap-2 mb-6">
                 {[1, 2, 3].map((s) => (
                   <div key={s} className={`flex-1 h-1 rounded-full transition-colors ${s <= step ? "bg-primary/60" : "bg-muted/40"}`} />
                 ))}
               </div>
 
-              {allowAnonymous && (
+              {allowAnonymous && publicRegistrationStatus.canRegister && (
                 <div className="mb-6 rounded-lg border border-border/60 bg-muted/20 p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={publicRegistrationStatus.canRegister ? "default" : "secondary"}>
@@ -1722,6 +1739,7 @@ export default function TeamRegistration({
               )}
             </>
           )}
+              </div>
         </CardContent>
       </Card>
     </motion.div>

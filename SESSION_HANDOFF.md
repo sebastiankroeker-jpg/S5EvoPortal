@@ -1,8 +1,66 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-22 23:31 UTC
+Stand: 2026-07-23 00:39 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Nachtabschluss 2026-07-23 00:39 UTC:
+  - Sebastian beendet die Session und bat darum, relevante Dinge zu
+    dokumentieren und das Session Handoff zu aktualisieren.
+  - Wichtigster offener Gate: der Registration-Deadline-Hotfix ist lokal
+    vorbereitet und verifiziert, aber noch nicht deployed. Fuer Prod-Deploy
+    braucht es Sebastians explizites `deploy`.
+  - Wichtigster Karten-Follow-up: Sponsorinfos morgen verifizieren. Die
+    Arbeitsliste liegt in `docs/sponsorenliste-2026-07-23.md` mit 42 Eintraegen
+    (34 `verified`, 8 `needs_review`).
+  - Karten-Code ist auf `origin/main` bei `3604cbf Refine sponsor popup detail
+    layout`. Der letzte Popup-Layout-Wunsch ist damit committed/pushed.
+  - Untracked Workspace-Startdateien (`AGENTS.md`, `HEARTBEAT.md`,
+    `MEMORY.md`, `SOUL.md`) gehoeren nicht zu diesem CR/Feature und wurden
+    ignoriert.
+
+- Event Map Sponsor Popup Detail Layout 2026-07-23 00:18 UTC:
+  - Sebastian requested popup details in this order:
+    - logo at least half the popup/card height
+    - `Firmenname - Gewerbe`
+    - `Anschrift`
+    - `Route Website`
+  - Implemented in `app/components/event-map.tsx` and `app/globals.css`.
+  - Current behavior:
+    - Sponsor list remains one-line with name/category.
+    - Selecting a list entry focuses the marker and opens a Leaflet popup at the
+      marker.
+    - Popup shows the logo as a large top area, then the requested details and
+      route/website links below.
+  - Commit/Push:
+    - `3604cbf Refine sponsor popup detail layout`
+    - `origin/main` points to this commit.
+  - Checks recorded during the work:
+    targeted map ESLint, TypeScript, build, `git diff --check`, and public
+    smoke were run successfully in the previous map iterations. Re-run before
+    any further deploy if code changes again.
+
+- Registration Deadline Closed UI Hotfix 2026-07-23 00:36 UTC:
+  - Sebastian set Admin-Wettkampf Anmeldeschluss to 2026-07-22 and reported
+    that logged-in user `NDBS` still sees registration as open.
+  - Local hotfix prepared, not deployed yet:
+    - `/api/competition` now returns `Cache-Control: no-store, max-age=0`.
+    - Client competition status fetches in `TeamRegistration` and
+      `CompetitionProvider` use `{ cache: "no-store" }`.
+    - `TeamRegistration` now shows a visible `geschlossen` notice for logged-in
+      users too, and visually disables the form body after deadline.
+  - Backend POST deadline blocks in `app/api/teams/route.ts` were reviewed and
+    remain in place for normal team registration, Sportlerboerse, and MTC draft.
+  - CR: `docs/cr/2026-07-23-registration-deadline-closed-ui.md` (local file;
+    docs are excluded by `.git/info/exclude`, force-add if this CR should be
+    committed).
+  - Checks gruen:
+    `npx eslint app/api/competition/route.ts app/components/team-registration.tsx lib/competition-context.tsx`
+    (only existing `react-hooks/exhaustive-deps` warning),
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`.
+  - Deploy open: requires Sebastian approval before production deploy. After
+    deploy, authenticated NDBS smoke should verify the registration UI is closed.
 
 - Event Map PDF Sponsor Logos 2026-07-22 23:31 UTC:
   - Sebastian sent front/back 2025 flyer PDFs and asked to extract sponsor

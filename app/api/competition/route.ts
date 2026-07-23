@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeCompetitionTeamAccessConfig } from "@/lib/team-access-config";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0",
+};
+
 export async function GET(request: NextRequest) {
   try {
     const competitionId = request.nextUrl.searchParams.get("id");
@@ -41,7 +45,7 @@ export async function GET(request: NextRequest) {
         });
 
     if (!competition) {
-      return NextResponse.json({ error: "No competition found" }, { status: 404 });
+      return NextResponse.json({ error: "No competition found" }, { status: 404, headers: NO_STORE_HEADERS });
     }
 
     const teamCount = await prisma.team.count({
@@ -52,15 +56,18 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      competition: {
-        ...competition,
-        ...normalizeCompetitionTeamAccessConfig(competition),
-        teamCount: competition.hideForeignTeams ? null : teamCount,
+    return NextResponse.json(
+      {
+        competition: {
+          ...competition,
+          ...normalizeCompetitionTeamAccessConfig(competition),
+          teamCount: competition.hideForeignTeams ? null : teamCount,
+        },
       },
-    });
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error) {
     console.error("Failed to load public competition:", error);
-    return NextResponse.json({ error: "Failed to load competition" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load competition" }, { status: 500, headers: NO_STORE_HEADERS });
   }
 }
