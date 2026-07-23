@@ -125,6 +125,12 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       case "live":
         switchToTab("live");
         break;
+      case "map":
+        router.push("/karte");
+        break;
+      case "timekeeping":
+        router.push("/zeitnahme");
+        break;
       case "profile":
         router.push("/profile");
         break;

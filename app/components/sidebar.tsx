@@ -254,21 +254,40 @@ export default function Sidebar() {
       {/* Navigation — kompakt, kein Scroll nötig */}
       <div className="flex-1 py-1.5 px-1 space-y-0.5 overflow-y-auto">
         <SectionLabel label="Navigation" sidebarCollapsed={sidebarCollapsed} />
-        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} sidebarCollapsed={sidebarCollapsed} />
         <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} sidebarCollapsed={sidebarCollapsed} />
         <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} sidebarCollapsed={sidebarCollapsed} />
         {can("config.edit") && (
           <SidebarItem icon="🗺️" label="Karte" onClick={() => router.push("/karte")} isActive={pathname === "/karte"} sidebarCollapsed={sidebarCollapsed} />
         )}
-        {showTimekeepingSection && (
-          <SidebarItem icon="⏱️" label="Zeitnahme" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} sidebarCollapsed={sidebarCollapsed} />
-        )}
         <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} sidebarCollapsed={sidebarCollapsed} />
+        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} sidebarCollapsed={sidebarCollapsed} />
         <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} sidebarCollapsed={sidebarCollapsed} />
 
         {showOrgaSection && (
           <>
-            <SectionLabel label="Orga" sidebarCollapsed={sidebarCollapsed} />
+            <SectionLabel label="Orga-Team" sidebarCollapsed={sidebarCollapsed} />
+            {can("config.edit") && (
+              <>
+                <SidebarItem icon="🗞️" label="Admin: News" onClick={() => openAdminTab("news")} isActive={pathname === "/admin" && adminTab === "news"} sidebarCollapsed={sidebarCollapsed} />
+              </>
+            )}
+            {can("team.view.all") && (
+              <SidebarItem icon="📝" label="Änderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} sidebarCollapsed={sidebarCollapsed} />
+            )}
+            {showTimekeepingSection && (
+              <SidebarItem icon="✏️" label="Zeiterfassung" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} sidebarCollapsed={sidebarCollapsed} />
+            )}
+            {can("config.edit") && (
+              <>
+                <SidebarItem icon="📊" label="Ergebnisdaten" onClick={() => router.push("/admin/ergebnisse")} isActive={pathname === "/admin/ergebnisse"} sidebarCollapsed={sidebarCollapsed} />
+                <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} sidebarCollapsed={sidebarCollapsed} />
+                <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} sidebarCollapsed={sidebarCollapsed} />
+              </>
+            )}
+            <SidebarItem icon="🗂️" label="Orga Links" onClick={() => router.push("/orga-links")} isActive={pathname === "/orga-links"} sidebarCollapsed={sidebarCollapsed} />
+            {can("config.edit") && (
+              <SidebarItem icon="🏢" label="Tenant/Wettkampf" onClick={() => openAdminTab("competition")} isActive={pathname === "/admin" && (adminTab === "tenant" || adminTab === "competition")} sidebarCollapsed={sidebarCollapsed} />
+            )}
             <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isActive={pathname === "/" && activeTab === "orga"} sidebarCollapsed={sidebarCollapsed} />
             {can("team.view.all") && (
               <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard", { dashboardScope: "all" })} isActive={pathname === "/" && activeTab === "dashboard"} sidebarCollapsed={sidebarCollapsed} />
@@ -276,22 +295,6 @@ export default function Sidebar() {
             {can("team.view.all") && (
               <SidebarItem icon="🧩" label="Sportler-Börse" onClick={() => router.push("/sportlerboerse-dashboard")} isActive={pathname === "/sportlerboerse-dashboard"} sidebarCollapsed={sidebarCollapsed} />
             )}
-            {can("team.view.all") && (
-              <SidebarItem icon="📝" label="Aenderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} sidebarCollapsed={sidebarCollapsed} />
-            )}
-            {showTimekeepingSection && (
-              <SidebarItem icon="✏️" label="Erfassung" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} sidebarCollapsed={sidebarCollapsed} />
-            )}
-            {can("config.edit") && (
-              <>
-                <SidebarItem icon="🏢" label="Tenant/Wettkampf" onClick={() => openAdminTab("competition")} isActive={pathname === "/admin" && (adminTab === "tenant" || adminTab === "competition")} sidebarCollapsed={sidebarCollapsed} />
-                <SidebarItem icon="🗞️" label="News" onClick={() => openAdminTab("news")} isActive={pathname === "/admin" && adminTab === "news"} sidebarCollapsed={sidebarCollapsed} />
-                <SidebarItem icon="📊" label="Ergebnisdaten" onClick={() => router.push("/admin/ergebnisse")} isActive={pathname === "/admin/ergebnisse"} sidebarCollapsed={sidebarCollapsed} />
-                <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} sidebarCollapsed={sidebarCollapsed} />
-                <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} sidebarCollapsed={sidebarCollapsed} />
-              </>
-            )}
-            <SidebarItem icon="🗂️" label="Orga-Links" onClick={() => router.push("/orga-links")} isActive={pathname === "/orga-links"} sidebarCollapsed={sidebarCollapsed} />
           </>
         )}
 

@@ -178,6 +178,9 @@ export default function CommandPill() {
       case "all-teams":
         switchToTab("dashboard", { dashboardScope: "all" });
         break;
+      case "sportlerboerse-dashboard":
+        navigateAndClose("/sportlerboerse-dashboard");
+        break;
       case "sportlerboerse-mtc":
         navigateAndClose("/sportlerboerse/mtc");
         break;
@@ -213,6 +216,12 @@ export default function CommandPill() {
         break;
       case "live":
         switchToTab("live");
+        break;
+      case "map":
+        navigateAndClose("/karte");
+        break;
+      case "timekeeping":
+        navigateAndClose("/zeitnahme");
         break;
       case "profile":
         navigateAndClose("/profile");

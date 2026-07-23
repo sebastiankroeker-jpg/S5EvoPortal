@@ -101,12 +101,14 @@ export function buildSearchResults(input: {
   teams: SearchableTeam[];
 }): SearchResult[] {
   const lowerQuery = normalizeQuery(input.query);
+  const menuOrder = new Map(input.permittedMenuItems.map((item, index) => [item.id, index]));
 
   const menuResults: SearchResult[] = input.permittedMenuItems
     .filter((item) => !lowerQuery || scoreMenuItem(item, lowerQuery) >= 0)
     .sort((left, right) => {
-      if (!lowerQuery) return left.label.localeCompare(right.label, "de");
+      if (!lowerQuery) return (menuOrder.get(left.id) ?? 0) - (menuOrder.get(right.id) ?? 0);
       return scoreMenuItem(right, lowerQuery) - scoreMenuItem(left, lowerQuery) ||
+        (menuOrder.get(left.id) ?? 0) - (menuOrder.get(right.id) ?? 0) ||
         left.label.localeCompare(right.label, "de");
     })
     .map((item) => ({
