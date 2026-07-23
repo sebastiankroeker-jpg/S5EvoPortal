@@ -4,6 +4,23 @@ Stand: 2026-07-23 02:03 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
 
+- Local undeployed map/privacy follow-up 2026-07-23 05:22 UTC:
+  - Sebastian asked not to deploy yet.
+  - Datenschutz decision: no mandatory "I consent to the privacy notice"
+    checkbox planned; privacy notice is information, real opt-ins remain only
+    for optional purposes.
+  - Map interaction local changes in `app/components/event-map.tsx`:
+    initial sponsor selection removed; closing a Leaflet info popup clears the
+    selected sponsor and amber marker ring; clicking the selected sponsor in
+    the layer list clears selection as well, preventing scroll/zoom from
+    reopening a closed popup.
+  - Sponsor data local changes in `lib/event-map/sponsor-pois.ts`:
+    Fischerhäusl website removed; visible name uses umlaut.
+    `Onkel Blech` renamed to `Ömer Blech`.
+    `Metzgerei Jörg` moved to `Hechenrainerstr. 1, 82449 Uffing` with
+    coordinates `[11.1505168, 47.7157602]`.
+    Parkhotel entry no longer includes `Kletterwald`.
+
 - Privacy/Consent CR local implementation 2026-07-23 02:03 UTC:
   - New CR:
     `docs/cr/2026-07-23-privacy-consent-and-communications.md`

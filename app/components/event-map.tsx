@@ -103,7 +103,7 @@ export default function EventMap() {
   const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const popupOpenTimerRef = useRef<number | null>(null);
-  const [selectedSponsorId, setSelectedSponsorId] = useState(SPONSOR_POIS[0]?.id ?? "");
+  const [selectedSponsorId, setSelectedSponsorId] = useState("");
   const [visibleSponsorIds, setVisibleSponsorIds] = useState(() => new Set(SPONSOR_POIS.map((sponsor) => sponsor.id)));
   const [sponsorsExpanded, setSponsorsExpanded] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -114,6 +114,23 @@ export default function EventMap() {
   const visibleSponsorCount = visibleSponsorIds.size;
   const sponsorsVisible = visibleSponsorCount > 0;
   const allSponsorsVisible = visibleSponsorCount === SPONSOR_POIS.length;
+
+  const clearSponsorSelection = useCallback((sponsorId?: string) => {
+    if (popupOpenTimerRef.current) {
+      window.clearTimeout(popupOpenTimerRef.current);
+      popupOpenTimerRef.current = null;
+    }
+
+    setSelectedSponsorId((current) => (!sponsorId || current === sponsorId ? "" : current));
+    setPopupSponsorId((current) => (!sponsorId || current === sponsorId ? null : current));
+
+    if (sponsorId) {
+      markersRef.current.get(sponsorId)?.closePopup();
+      return;
+    }
+
+    markersRef.current.forEach((marker) => marker.closePopup());
+  }, []);
 
   const selectSponsor = useCallback((sponsor: SponsorPoi, options: { scrollMapIntoView?: boolean } = {}) => {
     setSelectedSponsorId(sponsor.id);
@@ -274,10 +291,13 @@ export default function EventMap() {
           marker.closePopup();
           selectSponsor(sponsor);
         });
+        marker.on("popupclose", () => {
+          clearSponsorSelection(sponsor.id);
+        });
         markersRef.current.set(sponsor.id, marker);
       });
     }
-  }, [mapLoaded, mapZoom, selectSponsor, visibleSponsorIds]);
+  }, [clearSponsorSelection, mapLoaded, mapZoom, selectSponsor, visibleSponsorIds]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, sponsorId) => {
@@ -384,7 +404,12 @@ export default function EventMap() {
                                 }}
                                 type="button"
                                 onClick={() => {
-                                  if (sponsorVisible) selectSponsor(sponsor, { scrollMapIntoView: true });
+                                  if (!sponsorVisible) return;
+                                  if (selected) {
+                                    clearSponsorSelection(sponsor.id);
+                                    return;
+                                  }
+                                  selectSponsor(sponsor, { scrollMapIntoView: true });
                                 }}
                                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
                                 aria-pressed={selected}
