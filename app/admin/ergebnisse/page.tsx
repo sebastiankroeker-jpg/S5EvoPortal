@@ -499,6 +499,7 @@ export default function ResultDataWorkbenchPage() {
   const [importingLegacyResult, setImportingLegacyResult] = useState(false);
   const [importingLegacyRunning, setImportingLegacyRunning] = useState(false);
   const [resettingTestData, setResettingTestData] = useState(false);
+  const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
   const legacyResultInputRef = useRef<HTMLInputElement | null>(null);
   const legacyRunningInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -926,6 +927,79 @@ export default function ResultDataWorkbenchPage() {
       setError(requestError instanceof Error ? requestError.message : "Ergebnis-Testdaten konnten nicht gelöscht werden.");
     } finally {
       setResettingTestData(false);
+    }
+  };
+
+  const canDeleteBatch = (batch: ResultStagingBatch) => (
+    ["STAGED", "VALIDATED", "REVIEWED", "ERROR"].includes(batch.status) && batch.counts.publications === 0
+  );
+
+  const deleteResultBatch = async (batch: ResultStagingBatch) => {
+    if (!activeCompetition?.id || deletingBatchId) return;
+
+    setDeletingBatchId(batch.id);
+    setError(null);
+    setLegacyResultFeedback(null);
+    setLegacyRunningFeedback(null);
+    setTimekeepingFeedback(null);
+    try {
+      const previewResponse = await fetch("/api/admin/result-staging/reset/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          scope: "RAW_BATCH",
+          batchId: batch.id,
+        }),
+      });
+      const preview = (await previewResponse.json().catch(() => ({}))) as ResultResetPreviewResponse;
+      if (!previewResponse.ok) {
+        throw new Error(preview.error || "Paket-Löschung konnte nicht geprüft werden.");
+      }
+      if (!preview.executable) {
+        throw new Error(preview.blockers?.join("\n") || "Dieses Paket kann aktuell nicht gelöscht werden.");
+      }
+
+      const counts = preview.counts || {};
+      const rawRecords = counts.rawRecords ?? batch.counts.rawRecords;
+      const drafts = counts.drafts ?? batch.counts.drafts;
+      const confirmed = window.confirm(
+        `Ergebnis-Paket löschen?\n\nPaket: ${packageTitle(batch)}\nQuelle: ${batch.sourceLabel}\nZweck: ${batch.purposeLabel}\nStatus: ${batch.statusLabel}\nRaw Records: ${rawRecords}\nDrafts: ${drafts}\n\nBestätigung:\n${preview.expectedConfirmationText}\n\nOffizielle Ergebnisse werden nicht gelöscht.`,
+      );
+      if (!confirmed) {
+        setLegacyRunningFeedback("Paket-Löschung abgebrochen.");
+        return;
+      }
+
+      const resetResponse = await fetch("/api/admin/result-staging/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          scope: "RAW_BATCH",
+          batchId: batch.id,
+          reason: `Admin Ergebnis-Paket gelöscht: ${packageTitle(batch)}`.slice(0, 240),
+          confirmationText: preview.expectedConfirmationText,
+        }),
+      });
+      const result = (await resetResponse.json().catch(() => ({}))) as ResultResetExecutionResponse;
+      if (!resetResponse.ok) {
+        throw new Error(result.error || "Ergebnis-Paket konnte nicht gelöscht werden.");
+      }
+
+      setLegacyRunningFeedback(
+        `Paket gelöscht: ${result.deletedCounts?.batches ?? 1} Paket, ${result.deletedCounts?.rawRecords ?? rawRecords} Raw Records, ${result.deletedCounts?.drafts ?? drafts} Drafts.`,
+      );
+      if (selectedBatchId === batch.id) {
+        setSelectedBatchId("");
+        setBatchDetails(null);
+        setPublishPreview(null);
+      }
+      await Promise.all([loadBatches(), loadTimekeepingSessions()]);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Ergebnis-Paket konnte nicht gelöscht werden.");
+    } finally {
+      setDeletingBatchId(null);
     }
   };
 
@@ -1590,17 +1664,28 @@ export default function ResultDataWorkbenchPage() {
                           <td className="py-3 pr-3 text-right tabular-nums">{batch.counts.publications}</td>
                           <td className="py-3 pr-3">{formatDateTime(batch.createdAt)}</td>
                           <td className="py-3 pr-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedBatchId(batch.id);
-                                setBatchDetailTab("raw");
-                                setActiveTab("mapping");
-                              }}
-                            >
-                              Records ansehen
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBatchId(batch.id);
+                                  setBatchDetailTab("raw");
+                                  setActiveTab("mapping");
+                                }}
+                              >
+                                Records ansehen
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => void deleteResultBatch(batch)}
+                                disabled={!canDeleteBatch(batch) || deletingBatchId === batch.id}
+                                title={canDeleteBatch(batch) ? "Paket inklusive Raw Records und Drafts löschen" : "Nur offene, nicht publizierte Pakete können gelöscht werden"}
+                              >
+                                {deletingBatchId === batch.id ? "Lösche..." : "Löschen"}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1770,6 +1855,16 @@ export default function ResultDataWorkbenchPage() {
                         }}
                       >
                         Publish Preview
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => void deleteResultBatch(batchDetails.batch)}
+                        disabled={!canDeleteBatch(batchDetails.batch) || deletingBatchId === batchDetails.batch.id}
+                        title={canDeleteBatch(batchDetails.batch) ? "Paket inklusive Raw Records und Drafts löschen" : "Nur offene, nicht publizierte Pakete können gelöscht werden"}
+                      >
+                        {deletingBatchId === batchDetails.batch.id ? "Lösche..." : "Paket löschen"}
                       </Button>
                     </div>
                   </div>
