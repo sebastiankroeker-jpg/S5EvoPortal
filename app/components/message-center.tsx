@@ -8,10 +8,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  Inbox,
   MessageCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
   RefreshCw,
   Search,
   Send,
@@ -416,7 +413,6 @@ export default function MessageCenter() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [listOptionsOpen, setListOptionsOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
   const [threadDetailsOpen, setThreadDetailsOpen] = useState(false);
   const [navigationBurst, setNavigationBurst] = useState<{ id: number; target: NavigationBurstTarget } | null>(null);
@@ -1388,11 +1384,9 @@ export default function MessageCenter() {
         </DialogContent>
       </Dialog>
 
-      <div className={cn("grid gap-4", sidebarOpen ? "lg:grid-cols-[minmax(280px,360px)_1fr]" : "lg:grid-cols-[72px_1fr]")}>
-        <Card className={cn("relative overflow-hidden transition-all", mobileThreadOpen && "hidden lg:block", !sidebarOpen && "lg:min-h-[520px]")}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px)_1fr]">
+        <Card className={cn("relative overflow-hidden transition-all", mobileThreadOpen && "hidden lg:block")}>
           <NavigationSparkleBurst active={sparkleEnabled && navigationBurst?.target === "list"} burstId={navigationBurst?.id} label="Postfach" />
-          {sidebarOpen ? (
-            <>
               <CardHeader className="space-y-2 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -1403,13 +1397,15 @@ export default function MessageCenter() {
                     {mode === "mine" && !canManageSupport && contexts.length > 0 && (
                       <Button
                         type="button"
-                        size="icon"
-                        variant="ghost"
+                        size="sm"
+                        variant="default"
+                        className="gap-1.5"
                         onClick={openPersonalCompose}
                         aria-label="Neue Nachricht schreiben"
                         title="Neue Nachricht schreiben"
                       >
                         <Send className="h-4 w-4" />
+                        Neue Nachricht
                       </Button>
                     )}
                     {mode === "mine" && canManageSupport && (
@@ -1438,9 +1434,6 @@ export default function MessageCenter() {
                         <Send className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button type="button" size="icon" variant="ghost" onClick={() => setSidebarOpen(false)} aria-label="Threadliste zuklappen">
-                      <PanelLeftClose className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
                 <div className="space-y-2 rounded-md border border-border/60 bg-muted/15 p-2">
@@ -1753,20 +1746,6 @@ export default function MessageCenter() {
                   </div>
                 )}
               </CardContent>
-            </>
-          ) : (
-            <CardContent className="flex min-h-0 items-center justify-between gap-3 p-3 lg:min-h-[520px] lg:flex-col lg:justify-start">
-              <Button type="button" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)} aria-label="Threadliste aufklappen">
-                <PanelLeftOpen className="h-4 w-4" />
-              </Button>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
-                {mode === "admin" ? <UsersRound className="h-4 w-4" /> : <Inbox className="h-4 w-4" />}
-              </div>
-              <div className="min-w-0 flex-1 text-right text-xs font-medium text-muted-foreground lg:flex-none lg:text-center lg:[writing-mode:vertical-rl]">
-                {filteredConversations.length} Threads
-              </div>
-            </CardContent>
-          )}
         </Card>
 
         <Card className={cn("relative min-h-[520px] overflow-hidden", !mobileThreadOpen && "hidden lg:block")}>

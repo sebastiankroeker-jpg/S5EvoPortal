@@ -20,6 +20,10 @@ Stand: 2026-07-23 02:03 UTC
     `Metzgerei Jörg` moved to `Hechenrainerstr. 1, 82449 Uffing` with
     coordinates `[11.1505168, 47.7157602]`.
     Parkhotel entry no longer includes `Kletterwald`.
+  - Local messages UI follow-up in `app/components/message-center.tsx`:
+    non-admin personal inbox compose action is now a visible labeled button
+    `Neue Nachricht` with paper-plane icon; side collapse/open controls and
+    the narrow collapsed thread-list layout were removed.
 
 - Privacy/Consent CR local implementation 2026-07-23 02:03 UTC:
   - New CR:
