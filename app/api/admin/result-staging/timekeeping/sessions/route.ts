@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
         return {
           id: timekeepingSession.id,
           deviceId: timekeepingSession.deviceId,
+          deviceName: timekeepingSession.deviceName,
           disciplineCode: timekeepingSession.disciplineCode,
           startBlockName: timekeepingSession.startBlockName,
           status: timekeepingSession.status,

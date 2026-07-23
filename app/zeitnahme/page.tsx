@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -10,6 +10,8 @@ import {
   Clock3,
   Cloud,
   CloudOff,
+  CornerDownLeft,
+  Delete,
   ExternalLink,
   Filter,
   Plus,
@@ -114,6 +116,7 @@ type ListedTimekeepingEvent = {
 
 type PersistedState = {
   deviceId: string;
+  deviceName?: string | null;
   competitionId: string;
   snapshotVersion: string;
   cachedSnapshot?: SnapshotResponse;
@@ -132,6 +135,7 @@ const ROAD_CLOCK_PRIORITY = new Map([
   ["Schüler", 0],
   ["Herren", 1],
 ]);
+const START_NUMBER_KEYPAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 const FILTERS = [
   { id: "all", label: "Alle" },
@@ -213,12 +217,52 @@ function formatClock(iso: string | null) {
   }).format(new Date(iso));
 }
 
-function formatDateTimeLocal(iso: string | null) {
+function formatBaseTimeClock(iso: string | null) {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 19);
+  return [
+    date.getHours().toString().padStart(2, "0"),
+    date.getMinutes().toString().padStart(2, "0"),
+    date.getSeconds().toString().padStart(2, "0"),
+  ].join(":");
+}
+
+function formatRoadCsvBaseTime(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return String(date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds());
+}
+
+function baseTimeClockToIso(value: string, currentIso: string | null) {
+  const trimmed = value.trim();
+  if (!trimmed) return { isValid: true, iso: null };
+  const match = /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/.exec(trimmed);
+  if (!match) return { isValid: false, iso: currentIso };
+  const [, hoursValue, minutesValue, secondsValue] = match;
+  const baseDate = currentIso ? new Date(currentIso) : new Date();
+  if (Number.isNaN(baseDate.getTime())) return { isValid: false, iso: currentIso };
+  baseDate.setHours(
+    Number.parseInt(hoursValue, 10),
+    Number.parseInt(minutesValue, 10),
+    Number.parseInt(secondsValue, 10),
+    0,
+  );
+  return { isValid: true, iso: baseDate.toISOString() };
+}
+
+function roadCsvBaseTimeToIso(value: string, currentIso: string | null) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const secondsSinceMidnight = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(secondsSinceMidnight)) return currentIso;
+  const clampedSeconds = Math.max(0, Math.min(86_399, secondsSinceMidnight));
+  const baseDate = currentIso ? new Date(currentIso) : new Date();
+  if (Number.isNaN(baseDate.getTime())) return currentIso;
+  baseDate.setHours(0, 0, 0, 0);
+  baseDate.setSeconds(clampedSeconds);
+  return baseDate.toISOString();
 }
 
 function toInputNumber(value: number | null) {
@@ -370,12 +414,13 @@ export default function TimekeepingPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [assigningEventId, setAssigningEventId] = useState<string | null>(null);
   const [assignValue, setAssignValue] = useState("");
-  const [configOpenSessionIds, setConfigOpenSessionIds] = useState<Record<string, boolean>>({});
+  const [globalConfigOpen, setGlobalConfigOpen] = useState(false);
   const [roadClockSessionIds, setRoadClockSessionIds] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [startNumberSource, setStartNumberSource] = useState<StartNumberSource>("official");
+  const [baseTimeDrafts, setBaseTimeDrafts] = useState<Record<string, string>>({});
   const [helperColumns, setHelperColumns] = useState<Record<HelperColumn, boolean>>({
     recordedAt: false,
     status: false,
@@ -419,6 +464,7 @@ export default function TimekeepingPage() {
         const deviceId = parsed?.deviceId ?? createId("device");
         const nextState: PersistedState = {
           deviceId,
+          deviceName: parsed?.deviceName ?? null,
           competitionId: activeCompetition.id,
           snapshotVersion: data.snapshotVersion,
           cachedSnapshot: data,
@@ -501,16 +547,18 @@ export default function TimekeepingPage() {
     return disciplineSnapshot.starters.filter((starter) => classifications.has(starter.classificationCode));
   }, [activeSession, disciplineSnapshot]);
   const getSessionStarters = useCallback((session: TimekeepingSessionState) => {
-    if (!disciplineSnapshot) return [];
+    const sessionDisciplineSnapshot = snapshot?.disciplines.find((discipline) => discipline.code === session.disciplineCode);
+    if (!sessionDisciplineSnapshot) return [];
     const classifications = new Set(session.classificationCodes);
-    return disciplineSnapshot.starters.filter((starter) => classifications.has(starter.classificationCode));
-  }, [disciplineSnapshot]);
+    return sessionDisciplineSnapshot.starters.filter((starter) => classifications.has(starter.classificationCode));
+  }, [snapshot?.disciplines]);
   const getSessionClassLabels = useCallback((session: TimekeepingSessionState) => {
-    const labels = (disciplineSnapshot?.classifications ?? [])
+    const sessionDisciplineSnapshot = snapshot?.disciplines.find((discipline) => discipline.code === session.disciplineCode);
+    const labels = (sessionDisciplineSnapshot?.classifications ?? [])
       .filter((classification) => session.classificationCodes.includes(classification.code))
       .map((classification) => classification.label);
     return labels.length > 0 ? labels.join(", ") : "keine Klassen";
-  }, [disciplineSnapshot?.classifications]);
+  }, [snapshot?.disciplines]);
   const resolveFinishSession = useCallback((startNumber: string | null) => {
     if (!activeSession) return null;
     if (activeDiscipline !== "ROAD") return activeSession;
@@ -611,9 +659,33 @@ export default function TimekeepingPage() {
     });
   }, []);
 
-  const updateSession = useCallback((updater: (session: TimekeepingSessionState) => TimekeepingSessionState) => {
-    updateSessionById(activeSessionId, updater);
-  }, [activeSessionId, updateSessionById]);
+  const recalculateEditableFinishEvents = (session: TimekeepingSessionState) => ({
+    ...session,
+    events: session.events.map((event) => {
+      if (event.syncStatus === "synced" || event.eventType !== "FINISH") return event;
+      const { rawElapsedMs, netElapsedMs } = calculateNetMs(session, event.startNumber, new Date(event.recordedAt));
+      return { ...event, rawElapsedMs, netElapsedMs };
+    }),
+  });
+
+  const updateLinkedStartBlocks = useCallback((
+    sessionId: string,
+    updater: (session: TimekeepingSessionState, isSource: boolean) => TimekeepingSessionState,
+  ) => {
+    setState((current) => {
+      if (!current) return current;
+      const sourceSession = current.sessions.find((session) => session.id === sessionId);
+      if (!sourceSession) return current;
+      return {
+        ...current,
+        sessions: current.sessions.map((session) => {
+          const isSource = session.id === sessionId;
+          if (!isSource && session.startBlockName !== sourceSession.startBlockName) return session;
+          return updater(session, isSource);
+        }),
+      };
+    });
+  }, []);
 
   const setActiveSessionByDiscipline = (disciplineCode: DisciplineCode) => {
     const nextSession = state?.sessions.find((session) =>
@@ -623,66 +695,94 @@ export default function TimekeepingPage() {
     setActiveSessionId(nextSession?.id ?? null);
   };
 
-  const addStartBlock = () => {
-    if (!disciplineSnapshot || !state) return;
-    const currentDisciplineSessions = state.sessions.filter((session) => session.disciplineCode === activeDiscipline);
-    const allClassificationCodes = disciplineSnapshot.classifications.map((classification) => classification.code);
-    const nextSession: TimekeepingSessionState = {
-      id: createId("tks"),
-      deviceId: state.deviceId,
-      disciplineCode: activeDiscipline,
-      startBlockName: `Block ${currentDisciplineSessions.length + 1}`,
-      classificationCodes: allClassificationCodes,
-      firstStartNumber: getFirstStartNumber(disciplineSnapshot.starters, allClassificationCodes) ?? disciplineSnapshot.firstStartNumber,
-      startIntervalSeconds: disciplineSnapshot.defaultStartIntervalSeconds,
-      manualStartedAt: null,
-      manualStoppedAt: null,
-      events: [],
-    };
-    setState((current) => current ? { ...current, sessions: [...current.sessions, nextSession] } : current);
-    if (activeDiscipline === "ROAD") {
-      const currentSlotId = visibleClockSessions.find((session) => configOpenSessionIds[session.id])?.id ?? activeSessionId;
+  const addStartBlock = (disciplineCode: DisciplineCode) => {
+    if (!snapshot || !state) return;
+    const targetDiscipline = snapshot.disciplines.find((discipline) => discipline.code === disciplineCode);
+    if (!targetDiscipline) return;
+    const currentDisciplineSessions = state.sessions.filter((session) => session.disciplineCode === disciplineCode);
+    const startBlockName = `Block ${currentDisciplineSessions.length + 1}`;
+    const firstStartNumber = targetDiscipline.firstStartNumber;
+    const defaultStartIntervalSeconds = snapshot.disciplines.find((discipline) => discipline.code === "ROAD")?.defaultStartIntervalSeconds
+      ?? targetDiscipline.defaultStartIntervalSeconds;
+    const nextSessions = snapshot.disciplines.flatMap((discipline) => {
+      if (state.sessions.some((session) => session.disciplineCode === discipline.code && session.startBlockName === startBlockName)) {
+        return [];
+      }
+      const allClassificationCodes = discipline.classifications.map((classification) => classification.code);
+      return [{
+        id: createId("tks"),
+        deviceId: state.deviceId,
+        disciplineCode: discipline.code,
+        startBlockName,
+        classificationCodes: allClassificationCodes,
+        firstStartNumber: firstStartNumber ?? discipline.firstStartNumber,
+        startIntervalSeconds: defaultStartIntervalSeconds,
+        manualStartedAt: null,
+        manualStoppedAt: null,
+        events: [],
+      } satisfies TimekeepingSessionState];
+    });
+    const nextSession = nextSessions.find((session) => session.disciplineCode === disciplineCode) ?? nextSessions[0];
+    if (!nextSession) return;
+    setState((current) => current ? { ...current, sessions: [...current.sessions, ...nextSessions] } : current);
+    if (disciplineCode === "ROAD") {
       setRoadClockSessionIds((current) => {
         const baseIds = current.length > 0 ? current : visibleClockSessions.map((session) => session.id);
-        const nextIds = baseIds.length > 0
-          ? baseIds.map((sessionId) => sessionId === currentSlotId ? nextSession.id : sessionId)
-          : [nextSession.id];
+        const nextIds = baseIds.length < ROAD_CLOCK_SLOT_COUNT ? [...baseIds, nextSession.id] : baseIds;
         return Array.from(new Set(nextIds)).slice(0, ROAD_CLOCK_SLOT_COUNT);
       });
     }
+    setActiveDiscipline(disciplineCode);
     setActiveSessionId(nextSession.id);
-    setConfigOpenSessionIds({ [nextSession.id]: true });
   };
 
-  const selectStartBlockForConfig = (sessionId: string, slotSessionId: string) => {
-    if (activeDiscipline === "ROAD") {
+  const toggleRoadClockSession = (sessionId: string) => {
+    const session = state?.sessions.find((item) => item.id === sessionId);
+    if (session?.disciplineCode !== "ROAD") return;
+    setRoadClockSessionIds((current) => {
+      const baseIds = current.length > 0 ? current : visibleClockSessions.map((visibleSession) => visibleSession.id);
+      if (baseIds.includes(sessionId)) return baseIds.filter((currentSessionId) => currentSessionId !== sessionId);
+      return [...baseIds, sessionId].slice(-ROAD_CLOCK_SLOT_COUNT);
+    });
+    setActiveDiscipline("ROAD");
+    setActiveSessionId(sessionId);
+  };
+
+  const selectStartBlock = (sessionId: string) => {
+    const session = state?.sessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    if (session.disciplineCode === "ROAD") {
       setRoadClockSessionIds((current) => {
         const baseIds = current.length > 0 ? current : visibleClockSessions.map((session) => session.id);
-        const selectedAlreadyVisible = baseIds.includes(sessionId);
-        if (selectedAlreadyVisible && sessionId !== slotSessionId) return baseIds.slice(0, ROAD_CLOCK_SLOT_COUNT);
-        const nextIds = baseIds.map((currentSessionId) => currentSessionId === slotSessionId ? sessionId : currentSessionId);
-        return Array.from(new Set(nextIds)).slice(0, ROAD_CLOCK_SLOT_COUNT);
+        if (baseIds.includes(sessionId)) return baseIds.slice(0, ROAD_CLOCK_SLOT_COUNT);
+        return [...baseIds.slice(1), sessionId].slice(0, ROAD_CLOCK_SLOT_COUNT);
       });
     }
+    setActiveDiscipline(session.disciplineCode);
     setActiveSessionId(sessionId);
-    setConfigOpenSessionIds({ [sessionId]: true });
   };
 
   const removeStartBlock = (sessionId: string) => {
     if (!state) return;
     const sessionToRemove = state.sessions.find((session) => session.id === sessionId);
     if (!sessionToRemove) return;
-    const disciplineSessions = state.sessions.filter((session) => session.disciplineCode === activeDiscipline);
-    if (disciplineSessions.length <= 1) return;
-    const hasLocalBlockData = sessionToRemove.events.length > 0 || Boolean(sessionToRemove.manualStartedAt);
+    const sessionsToRemove = state.sessions.filter((session) => session.startBlockName === sessionToRemove.startBlockName);
+    const remainingSessions = state.sessions.filter((session) => session.startBlockName !== sessionToRemove.startBlockName);
+    const wouldRemoveLastDisciplineBlock = snapshot?.disciplines.some((discipline) =>
+      !remainingSessions.some((session) => session.disciplineCode === discipline.code)
+    );
+    if (wouldRemoveLastDisciplineBlock) return;
+    const hasLocalBlockData = sessionsToRemove.some((session) => session.events.length > 0 || Boolean(session.manualStartedAt));
     if (hasLocalBlockData) {
-      const confirmed = window.confirm("Startblock inklusive lokaler Zeiten und Uhr-Status löschen?");
+      const confirmed = window.confirm("Startblock in allen Disziplinen inklusive lokaler Zeiten und Uhr-Status löschen?");
       if (!confirmed) return;
     }
-    const remainingSessions = state.sessions.filter((session) => session.id !== sessionToRemove.id);
-    const nextSession = remainingSessions.find((session) => session.disciplineCode === activeDiscipline) ?? remainingSessions[0] ?? null;
+    const nextSession = remainingSessions.find((session) => session.disciplineCode === sessionToRemove.disciplineCode)
+      ?? remainingSessions[0]
+      ?? null;
     setState({ ...state, sessions: remainingSessions });
-    setRoadClockSessionIds((current) => current.filter((currentSessionId) => currentSessionId !== sessionToRemove.id));
+    const removedIds = new Set(sessionsToRemove.map((session) => session.id));
+    setRoadClockSessionIds((current) => current.filter((currentSessionId) => !removedIds.has(currentSessionId)));
     setActiveSessionId(nextSession?.id ?? null);
     setActiveDiscipline(nextSession?.disciplineCode ?? activeDiscipline);
     setAssigningEventId(null);
@@ -692,12 +792,13 @@ export default function TimekeepingPage() {
 
   const toggleSessionClassification = (sessionId: string, classificationCode: string) => {
     updateSessionById(sessionId, (session) => {
+      const sessionDisciplineSnapshot = snapshot?.disciplines.find((discipline) => discipline.code === session.disciplineCode);
       const hasClassification = session.classificationCodes.includes(classificationCode);
       const classificationCodes = hasClassification
         ? session.classificationCodes.filter((code) => code !== classificationCode)
         : [...session.classificationCodes, classificationCode];
-      const nextFirstStartNumber = disciplineSnapshot
-        ? getFirstStartNumber(disciplineSnapshot.starters, classificationCodes)
+      const nextFirstStartNumber = sessionDisciplineSnapshot
+        ? getFirstStartNumber(sessionDisciplineSnapshot.starters, classificationCodes)
         : null;
       return {
         ...session,
@@ -708,21 +809,45 @@ export default function TimekeepingPage() {
   };
 
   const updateSessionBaseTime = (sessionId: string, value: string) => {
-    const manualStartedAt = value ? new Date(value).toISOString() : null;
-    updateSessionById(sessionId, (session) => {
+    setBaseTimeDrafts((current) => ({ ...current, [sessionId]: value }));
+    const sourceSession = state?.sessions.find((session) => session.id === sessionId);
+    const { isValid, iso: manualStartedAt } = baseTimeClockToIso(value, sourceSession?.manualStartedAt ?? null);
+    if (!isValid) return;
+    setBaseTimeDrafts((current) => {
+      const next = { ...current };
+      delete next[sessionId];
+      return next;
+    });
+    updateLinkedStartBlocks(sessionId, (session) => {
       const nextSession = {
         ...session,
         manualStartedAt,
         manualStoppedAt: manualStartedAt ? session.manualStoppedAt : null,
       };
-      return {
-        ...nextSession,
-        events: nextSession.events.map((event) => {
-          if (event.syncStatus === "synced" || event.eventType !== "FINISH") return event;
-          const { rawElapsedMs, netElapsedMs } = calculateNetMs(nextSession, event.startNumber, new Date(event.recordedAt));
-          return { ...event, rawElapsedMs, netElapsedMs };
-        }),
+      return recalculateEditableFinishEvents(nextSession);
+    });
+  };
+
+  const resetSessionBaseTimeDraft = (sessionId: string) => {
+    setBaseTimeDrafts((current) => {
+      if (!(sessionId in current)) return current;
+      const next = { ...current };
+      delete next[sessionId];
+      return next;
+    });
+  };
+
+  const updateSessionRoadCsvBaseTime = (sessionId: string, value: string) => {
+    const sourceSession = state?.sessions.find((session) => session.id === sessionId);
+    const manualStartedAt = roadCsvBaseTimeToIso(value, sourceSession?.manualStartedAt ?? null);
+    if (manualStartedAt === sourceSession?.manualStartedAt && value.trim()) return;
+    updateLinkedStartBlocks(sessionId, (session) => {
+      const nextSession = {
+        ...session,
+        manualStartedAt,
+        manualStoppedAt: manualStartedAt ? session.manualStoppedAt : null,
       };
+      return recalculateEditableFinishEvents(nextSession);
     });
   };
 
@@ -782,22 +907,8 @@ export default function TimekeepingPage() {
     setStartNumberInput("");
   };
 
-  const resetLocalData = () => {
-    if (!activeSession || unsyncedCount === 0) return;
-    const confirmed = window.confirm("Ungesyncte Zeiten dieses Blocks lokal löschen?");
-    if (!confirmed) return;
-    updateSession((session) => {
-      const remainingEvents = session.events.filter((event) => event.syncStatus === "synced");
-      return {
-        ...session,
-        manualStartedAt: remainingEvents.length > 0 ? session.manualStartedAt : null,
-        manualStoppedAt: remainingEvents.length > 0 ? session.manualStoppedAt : null,
-        events: remainingEvents,
-      };
-    });
-    setAssigningEventId(null);
-    setAssignValue("");
-    setStartNumberInput("");
+  const setSanitizedStartNumberInput = (value: string) => {
+    setStartNumberInput(value.replace(/\D/g, ""));
   };
 
   const captureFinish = () => {
@@ -822,6 +933,35 @@ export default function TimekeepingPage() {
     window.requestAnimationFrame(() => {
       startNumberInputRef.current?.focus();
     });
+  };
+
+  const appendStartNumberDigit = (digit: string) => {
+    if (!anyClockIsRunning) return;
+    setStartNumberInput((current) => `${current}${digit}`.replace(/\D/g, ""));
+    startNumberInputRef.current?.focus();
+  };
+
+  const deleteStartNumberDigit = () => {
+    if (!anyClockIsRunning) return;
+    setStartNumberInput((current) => current.slice(0, -1));
+    startNumberInputRef.current?.focus();
+  };
+
+  const handleStartNumberKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      captureFinish();
+      return;
+    }
+    if (event.key === "Backspace") {
+      event.preventDefault();
+      deleteStartNumberDigit();
+      return;
+    }
+    if (/^\d$/.test(event.key)) {
+      event.preventDefault();
+      appendStartNumberDigit(event.key);
+    }
   };
 
   const assignStartNumber = (sessionId: string, eventId: string) => {
@@ -870,6 +1010,7 @@ export default function TimekeepingPage() {
           session: {
             id: activeSession.id,
             deviceId: state.deviceId,
+            deviceName: state.deviceName?.trim() || null,
             disciplineCode: activeSession.disciplineCode,
             startBlockName: activeSession.startBlockName,
             classificationCodes: activeSession.classificationCodes,
@@ -970,6 +1111,40 @@ export default function TimekeepingPage() {
       });
   }, [disciplineSnapshot?.starters, filter, finishOrderById, listedEvents, query, sort, sortDirection]);
 
+  const resetVisibleData = () => {
+    if (filteredEvents.length === 0) return;
+    const finishEventIdsBySession = new Map<string, Set<string>>();
+    filteredEvents.forEach(({ event, session }) => {
+      const sessionEventIds = finishEventIdsBySession.get(session.id) ?? new Set<string>();
+      sessionEventIds.add(event.clientEventId);
+      finishEventIdsBySession.set(session.id, sessionEventIds);
+    });
+    const confirmed = window.confirm(`${filteredEvents.length} sichtbare Zeit${filteredEvents.length === 1 ? "" : "en"} lokal löschen?`);
+    if (!confirmed) return;
+    setState((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        sessions: current.sessions.map((session) => {
+          const finishEventIds = finishEventIdsBySession.get(session.id);
+          if (!finishEventIds) return session;
+          return {
+            ...session,
+            events: session.events.filter((event) => {
+              if (finishEventIds.has(event.clientEventId)) return false;
+              if (event.eventType !== "ASSIGN_START_NUMBER") return true;
+              const assignedToClientEventId = event.payload?.assignedToClientEventId;
+              return typeof assignedToClientEventId !== "string" || !finishEventIds.has(assignedToClientEventId);
+            }),
+          };
+        }),
+      };
+    });
+    setAssigningEventId(null);
+    setAssignValue("");
+    setStartNumberInput("");
+  };
+
   const renderSortHeader = (nextSort: SortId, label: string, title = label) => (
     <button
       type="button"
@@ -1002,8 +1177,6 @@ export default function TimekeepingPage() {
     const finishedKnownInSession = sessionStarters.filter((starter) =>
       sessionFinishedStartNumbers.has(normalizeStartNumber(starter.startNumber))
     ).length;
-    const configOpen = Boolean(configOpenSessionIds[session.id]);
-    const sessionCount = disciplineSessions.length;
 
     return (
       <section
@@ -1030,20 +1203,6 @@ export default function TimekeepingPage() {
                   ? `${finishedKnownInSession}/${sessionStarters.length} im Ziel · ab ${session.firstStartNumber ?? "-"} · ${session.startIntervalSeconds}s`
                   : `${finishedKnownInSession}/${sessionStarters.length} im Ziel`}
               </span>
-              <Button
-                type="button"
-                size="sm"
-                variant={configOpen ? "secondary" : "ghost"}
-                className="h-8 gap-1.5 px-2"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setActiveSessionId(session.id);
-                  setConfigOpenSessionIds((current) => ({ ...current, [session.id]: !current[session.id] }));
-                }}
-              >
-                <Settings2 className="size-4" />
-                Konfiguration
-              </Button>
             </div>
           </div>
 
@@ -1091,163 +1250,235 @@ export default function TimekeepingPage() {
               Reset
             </Button>
           </div>
+        </div>
+      </section>
+    );
+  };
 
-          {configOpen && (
-            <div className="grid gap-3 rounded-md border border-border/60 bg-background p-2" onClick={(event) => event.stopPropagation()}>
-              <div className="grid gap-1.5">
-                <p className="text-xs font-medium">Startblock</p>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {disciplineSessions.map((disciplineSession) => (
-                    <Button
-                      key={disciplineSession.id}
-                      type="button"
-                      size="sm"
-                      variant={disciplineSession.id === session.id ? "default" : "outline"}
-                      className="h-8 px-2 text-xs"
-                      onClick={() => selectStartBlockForConfig(disciplineSession.id, session.id)}
-                    >
-                      {disciplineSession.startBlockName}
-                    </Button>
-                  ))}
+  const renderGlobalConfiguration = () => {
+    if (!snapshot || !state) return null;
+    const selectedRoadClockSessionIds = new Set(
+      roadClockSessionIds.length > 0 ? roadClockSessionIds : visibleClockSessions.map((session) => session.id),
+    );
+
+    return (
+      <section className="grid gap-3 rounded-md border border-border/60 bg-card p-3 shadow-sm">
+        <div className="grid gap-1">
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+            <label className="grid gap-1 text-xs font-medium">
+              Startnummernquelle
+              <select
+                value={startNumberSource}
+                onChange={(event) => setStartNumberSource(event.target.value as StartNumberSource)}
+                className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground"
+              >
+                {START_NUMBER_SOURCE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-medium">
+              Gerätename
+              <Input
+                value={state.deviceName ?? ""}
+                onChange={(event) => setState((current) => current ? { ...current, deviceName: event.target.value } : current)}
+                placeholder="z. B. Zielgerät 1"
+                className="h-9"
+              />
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {START_NUMBER_SOURCE_OPTIONS.find((option) => option.value === startNumberSource)?.hint}
+            {" "}Geräte-ID: <span className="font-mono">{state.deviceId}</span>
+          </p>
+        </div>
+
+        <div className="grid gap-3">
+          {snapshot.disciplines.map((discipline) => {
+            const sessionsForDiscipline = state.sessions.filter((session) => session.disciplineCode === discipline.code);
+            return (
+              <div key={discipline.code} className="grid gap-2 rounded-md border border-border/60 bg-background p-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">{DISCIPLINE_LABELS[discipline.code]}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {sessionsForDiscipline.length} Startblock{sessionsForDiscipline.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
                   <Button
                     type="button"
                     size="sm"
                     variant="secondary"
                     className="h-8 gap-1.5 px-2 text-xs"
-                    onClick={addStartBlock}
-                    disabled={!disciplineSnapshot || !state}
+                    onClick={() => addStartBlock(discipline.code)}
                   >
                     <Plus className="size-4" />
                     Block hinzufügen
                   </Button>
                 </div>
-              </div>
 
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                <label className="grid gap-1 text-xs font-medium">
-                  Blockname
-                  <Input
-                    value={session.startBlockName}
-                    onChange={(event) => updateSessionById(session.id, (currentSession) => ({
-                      ...currentSession,
-                      startBlockName: event.target.value,
-                    }))}
-                    className="h-9"
-                  />
-                </label>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-9 gap-1.5 text-muted-foreground"
-                  onClick={() => removeStartBlock(session.id)}
-                  disabled={sessionCount <= 1}
-                >
-                  <Trash2 className="size-4" />
-                  Entfernen
-                </Button>
-              </div>
-
-              <div className="grid gap-1">
-                <p className="text-xs font-medium">Klassen in diesem Block</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(disciplineSnapshot?.classifications ?? []).map((classification) => {
-                    const isSelected = session.classificationCodes.includes(classification.code);
+                <div className="grid gap-2">
+                  {sessionsForDiscipline.map((session) => {
+                    const sessionStarters = getSessionStarters(session);
+                    const canRemove = sessionsForDiscipline.length > 1;
+                    const isVisibleRoadClock = session.disciplineCode === "ROAD" && selectedRoadClockSessionIds.has(session.id);
                     return (
-                      <Button
-                        key={classification.code}
-                        type="button"
-                        size="sm"
-                        variant={isSelected ? "default" : "outline"}
-                        className="h-8 px-2 text-xs"
-                        onClick={() => toggleSessionClassification(session.id, classification.code)}
+                      <div
+                        key={session.id}
+                        className={cn(
+                          "grid gap-2 rounded-md border p-2",
+                          session.id === activeSessionId ? "border-primary/60 bg-primary/5" : "border-border/60 bg-card",
+                        )}
                       >
-                        {classification.label}
-                      </Button>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={session.id === activeSessionId ? "default" : "outline"}
+                            className="h-8 px-2 text-xs"
+                            onClick={() => selectStartBlock(session.id)}
+                          >
+                            {session.startBlockName}
+                          </Button>
+                          <div className="flex flex-wrap items-center gap-1">
+                            {session.disciplineCode === "ROAD" && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={isVisibleRoadClock ? "secondary" : "ghost"}
+                                className="h-8 px-2 text-xs"
+                                onClick={() => toggleRoadClockSession(session.id)}
+                              >
+                                {isVisibleRoadClock ? "In Uhr sichtbar" : "In Uhr anzeigen"}
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
+                              onClick={() => removeStartBlock(session.id)}
+                              disabled={!canRemove}
+                            >
+                              <Trash2 className="size-4" />
+                              Entfernen
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.8fr))]">
+                          <label className="grid gap-1 text-xs font-medium">
+                            Blockname global
+                            <Input
+                              value={session.startBlockName}
+                              onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => ({
+                                ...currentSession,
+                                startBlockName: event.target.value,
+                              }))}
+                              className="h-9"
+                            />
+                          </label>
+                          <label className="grid gap-1 text-xs font-medium">
+                            Erste STRNR global
+                            <Input
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={toInputNumber(session.firstStartNumber)}
+                              onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => recalculateEditableFinishEvents({
+                                ...currentSession,
+                                firstStartNumber: event.target.value ? Number.parseInt(event.target.value, 10) : null,
+                              }))}
+                              className="h-9"
+                            />
+                          </label>
+                          <label className="grid gap-1 text-xs font-medium">
+                            Abstand Sek. global
+                            <Input
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={toInputNumber(session.startIntervalSeconds)}
+                              onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => recalculateEditableFinishEvents({
+                                ...currentSession,
+                                startIntervalSeconds: event.target.value ? Number.parseInt(event.target.value, 10) : 0,
+                              }))}
+                              className="h-9"
+                            />
+                          </label>
+                          <label className="grid gap-1 text-xs font-medium">
+                            Basiszeit (HH:mm:ss)
+                            <Input
+                              inputMode="text"
+                              pattern="[0-2][0-9]:[0-5][0-9]:[0-5][0-9]"
+                              placeholder="08:30:00"
+                              value={baseTimeDrafts[session.id] ?? formatBaseTimeClock(session.manualStartedAt)}
+                              onChange={(event) => updateSessionBaseTime(session.id, event.target.value)}
+                              onBlur={() => resetSessionBaseTimeDraft(session.id)}
+                              className="h-9"
+                            />
+                          </label>
+                          <label className="grid gap-1 text-xs font-medium">
+                            Rad-CSV Basis
+                            <Input
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={formatRoadCsvBaseTime(session.manualStartedAt)}
+                              onChange={(event) => updateSessionRoadCsvBaseTime(session.id, event.target.value)}
+                              placeholder="Sek. ab 00:00"
+                              className="h-9"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="grid gap-1">
+                          <p className="text-xs font-medium">Klassen in diesem Block</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {discipline.classifications.map((classification) => {
+                              const isSelected = session.classificationCodes.includes(classification.code);
+                              return (
+                                <Button
+                                  key={classification.code}
+                                  type="button"
+                                  size="sm"
+                                  variant={isSelected ? "default" : "outline"}
+                                  className="h-8 px-2 text-xs"
+                                  onClick={() => toggleSessionClassification(session.id, classification.code)}
+                                >
+                                  {classification.label}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {sessionStarters.length > 0 && (
+                          <div className="rounded-md border border-border/60 bg-background">
+                            <div className="border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                              Starter im Block
+                            </div>
+                            <div className="max-h-32 overflow-auto">
+                              {sessionStarters.slice(0, 30).map((starter) => (
+                                <div
+                                  key={`${starter.participantId}-${starter.startNumber}`}
+                                  className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-0"
+                                >
+                                  <span className="font-mono font-semibold tabular-nums">
+                                    {starter.startNumber}
+                                    {starter.isTestStartNumber && <span className="ml-1 text-[10px] text-amber-700">Test</span>}
+                                  </span>
+                                  <span className="min-w-0 truncate">
+                                    {starter.firstName} {starter.lastName} · {starter.teamName} · {starter.classificationLabel}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
               </div>
-
-              <div className="grid gap-2 sm:grid-cols-3">
-                <label className="grid gap-1 text-xs font-medium">
-                  Erste Startnr.
-                  <Input
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={toInputNumber(session.firstStartNumber)}
-                    onChange={(event) => updateSessionById(session.id, (currentSession) => ({
-                      ...currentSession,
-                      firstStartNumber: event.target.value ? Number.parseInt(event.target.value, 10) : null,
-                    }))}
-                    className="h-9"
-                  />
-                </label>
-                <label className="grid gap-1 text-xs font-medium">
-                  Abstand Sek.
-                  <Input
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={toInputNumber(session.startIntervalSeconds)}
-                    onChange={(event) => updateSessionById(session.id, (currentSession) => ({
-                      ...currentSession,
-                      startIntervalSeconds: event.target.value ? Number.parseInt(event.target.value, 10) : 0,
-                    }))}
-                    className="h-9"
-                  />
-                </label>
-                <label className="grid gap-1 text-xs font-medium">
-                  Basiszeit
-                  <Input
-                    type="datetime-local"
-                    step="1"
-                    value={formatDateTimeLocal(session.manualStartedAt)}
-                    onChange={(event) => updateSessionBaseTime(session.id, event.target.value)}
-                    className="h-9"
-                  />
-                </label>
-              </div>
-
-              <label className="grid gap-1 text-xs font-medium">
-                Startnummernquelle
-                <select
-                  value={startNumberSource}
-                  onChange={(event) => setStartNumberSource(event.target.value as StartNumberSource)}
-                  className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground"
-                >
-                  {START_NUMBER_SOURCE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-                <span className="text-xs text-muted-foreground">
-                  {START_NUMBER_SOURCE_OPTIONS.find((option) => option.value === startNumberSource)?.hint}
-                </span>
-              </label>
-
-              {sessionStarters.length > 0 && (
-                <div className="rounded-md border border-border/60 bg-card">
-                  <div className="border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    Starter im Block
-                  </div>
-                  <div className="max-h-40 overflow-auto">
-                    {sessionStarters.slice(0, 30).map((starter) => (
-                      <div
-                        key={`${starter.participantId}-${starter.startNumber}`}
-                        className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-0"
-                      >
-                        <span className="font-mono font-semibold tabular-nums">
-                          {starter.startNumber}
-                          {starter.isTestStartNumber && <span className="ml-1 text-[10px] text-amber-700">Test</span>}
-                        </span>
-                        <span className="min-w-0 truncate">
-                          {starter.firstName} {starter.lastName} · {starter.teamName} · {starter.classificationLabel}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })}
         </div>
       </section>
     );
@@ -1282,7 +1513,19 @@ export default function TimekeepingPage() {
       <main className="mx-auto flex max-w-5xl flex-col gap-3 px-3 py-3 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold leading-tight">Zeitnahme</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold leading-tight">Zeitnahme</h1>
+              <Button
+                type="button"
+                size="sm"
+                variant={globalConfigOpen ? "secondary" : "outline"}
+                className="h-8 gap-1.5 px-2"
+                onClick={() => setGlobalConfigOpen((open) => !open)}
+              >
+                <Settings2 className="size-4" />
+                Konfiguration
+              </Button>
+            </div>
             <p className="truncate text-xs text-muted-foreground">
               {snapshot?.competition.name ?? activeCompetition?.name ?? "Wettkampf"} · {activeSession?.startBlockName ?? "Block"}
             </p>
@@ -1315,6 +1558,8 @@ export default function TimekeepingPage() {
             )}
           </div>
         </div>
+
+        {globalConfigOpen && renderGlobalConfiguration()}
 
         {error && (
           <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">
@@ -1351,24 +1596,23 @@ export default function TimekeepingPage() {
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <div className="relative">
               <Timer className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={startNumberInputRef}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                enterKeyHint="enter"
-                placeholder="Startnummer optional"
-                value={startNumberInput}
-                onChange={(event) => setStartNumberInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    captureFinish();
-                  }
-                }}
-                className="h-24 pl-12 text-2xl"
-                disabled={!anyClockIsRunning}
-              />
-            </div>
+	              <Input
+	                ref={startNumberInputRef}
+	                inputMode="none"
+	                enterKeyHint="enter"
+	                placeholder="Startnummer optional"
+	                value={startNumberInput}
+	                readOnly
+	                onChange={(event) => setSanitizedStartNumberInput(event.target.value)}
+	                onKeyDown={handleStartNumberKeyDown}
+	                onPaste={(event) => {
+	                  event.preventDefault();
+	                  setSanitizedStartNumberInput(event.clipboardData.getData("text"));
+	                }}
+	                className="h-24 pl-12 text-2xl"
+	                disabled={!anyClockIsRunning}
+	              />
+	            </div>
             <Button
               type="button"
               className="h-24 gap-2 text-lg"
@@ -1376,11 +1620,60 @@ export default function TimekeepingPage() {
               onPointerDown={(event) => event.preventDefault()}
               onClick={captureFinish}
             >
-              <Clock3 className="size-4" />
-              Zieleinlauf
-            </Button>
-          </div>
-          {startNumberInput.trim() && (
+	              <Clock3 className="size-4" />
+	              Zieleinlauf
+	            </Button>
+	          </div>
+	          <div className="mt-2 grid grid-cols-3 gap-2 sm:max-w-md">
+	            {START_NUMBER_KEYPAD_KEYS.map((digit) => (
+	              <Button
+	                key={digit}
+	                type="button"
+	                variant="outline"
+	                className="h-14 text-xl font-semibold tabular-nums"
+	                disabled={!anyClockIsRunning}
+	                onPointerDown={(event) => event.preventDefault()}
+	                onClick={() => appendStartNumberDigit(digit)}
+	                aria-label={`Startnummer ${digit}`}
+	              >
+	                {digit}
+	              </Button>
+	            ))}
+	            <Button
+	              type="button"
+	              variant="outline"
+	              className="h-14 gap-2"
+	              disabled={!anyClockIsRunning || !startNumberInput}
+	              onPointerDown={(event) => event.preventDefault()}
+	              onClick={deleteStartNumberDigit}
+	              aria-label="Letzte Ziffer löschen"
+	            >
+	              <Delete className="size-5" />
+	            </Button>
+	            <Button
+	              type="button"
+	              variant="outline"
+	              className="h-14 text-xl font-semibold tabular-nums"
+	              disabled={!anyClockIsRunning}
+	              onPointerDown={(event) => event.preventDefault()}
+	              onClick={() => appendStartNumberDigit("0")}
+	              aria-label="Startnummer 0"
+	            >
+	              0
+	            </Button>
+	            <Button
+	              type="button"
+	              className="h-14 gap-2 text-base font-semibold"
+	              disabled={!finishTargetIsRunning}
+	              onPointerDown={(event) => event.preventDefault()}
+	              onClick={captureFinish}
+	              aria-label="Enter, Zieleinlauf erfassen"
+	            >
+	              <CornerDownLeft className="size-5" />
+	              Enter
+	            </Button>
+	          </div>
+	          {startNumberInput.trim() && (
             <div className={cn(
               "mt-2 rounded-md border px-3 py-2 text-sm",
               startNumberPreviewStarter
@@ -1434,7 +1727,7 @@ export default function TimekeepingPage() {
                 <ExternalLink className="size-4" />
                 Monitor
               </Button>
-              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={resetLocalData} disabled={syncing || unsyncedCount === 0}>
+              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={resetVisibleData} disabled={syncing || filteredEvents.length === 0}>
                 <Trash2 className="size-4" />
                 Reset
               </Button>

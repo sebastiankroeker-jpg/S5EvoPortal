@@ -165,6 +165,7 @@ type CorrectionResponse = {
 type TimekeepingSessionSummary = {
   id: string;
   deviceId: string;
+  deviceName: string | null;
   disciplineCode: string;
   startBlockName: string;
   status: string;
@@ -408,7 +409,8 @@ function recordValue(record: ResultRawRecordDetail, key: string) {
 }
 
 function timekeepingSessionTitle(timekeepingSession: TimekeepingSessionSummary) {
-  return `${timekeepingSession.disciplineCode} • ${timekeepingSession.startBlockName} • ${formatDateTime(timekeepingSession.updatedAt)}`;
+  const deviceLabel = timekeepingSession.deviceName?.trim() || timekeepingSession.deviceId;
+  return `${timekeepingSession.disciplineCode} • ${timekeepingSession.startBlockName} • ${deviceLabel} • ${formatDateTime(timekeepingSession.updatedAt)}`;
 }
 
 function correctionFieldLabel(field: string) {
@@ -1433,7 +1435,12 @@ export default function ResultDataWorkbenchPage() {
                     </div>
                     <div className="rounded-md border border-border bg-background px-3 py-2">
                       <p className="text-xs text-muted-foreground">Gerät</p>
-                      <p className="truncate text-sm font-medium">{selectedTimekeepingSession.deviceId}</p>
+                      <p className="truncate text-sm font-medium">
+                        {selectedTimekeepingSession.deviceName?.trim() || selectedTimekeepingSession.deviceId}
+                      </p>
+                      {selectedTimekeepingSession.deviceName?.trim() && (
+                        <p className="truncate text-[11px] text-muted-foreground">{selectedTimekeepingSession.deviceId}</p>
+                      )}
                     </div>
                   </div>
                 ) : (

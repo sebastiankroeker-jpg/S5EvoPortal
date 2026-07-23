@@ -74,6 +74,7 @@ export type TimekeepingEventState = {
 
 export type PersistedTimekeepingState = {
   deviceId: string;
+  deviceName?: string | null;
   competitionId: string;
   snapshotVersion: string;
   cachedSnapshot?: SnapshotResponse;

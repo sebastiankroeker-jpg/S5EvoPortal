@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
             type: "TIMEKEEPING_SESSION_IMPORT",
             timekeepingSessionId: timekeepingSession.id,
             deviceId: timekeepingSession.deviceId,
+            deviceName: timekeepingSession.deviceName,
             disciplineCode: timekeepingSession.disciplineCode,
             startBlockName: timekeepingSession.startBlockName,
             status: timekeepingSession.status,
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
           summary: jsonValue({
             disciplineCode: timekeepingSession.disciplineCode,
             startBlockName: timekeepingSession.startBlockName,
+            deviceName: timekeepingSession.deviceName,
             timekeepingSessionId: timekeepingSession.id,
             finishEvents: timekeepingSession.events.length,
             importedRecords: newEvents.length,

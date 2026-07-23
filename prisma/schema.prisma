@@ -1116,6 +1116,7 @@ model AuditEvent {
 model TimekeepingSession {
   id                   String         @id @default(cuid())
   deviceId             String
+  deviceName           String?
   disciplineCode       DisciplineCode
   startBlockName       String
   firstStartNumber     Int?

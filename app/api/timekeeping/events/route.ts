@@ -79,6 +79,9 @@ export async function POST(request: NextRequest) {
   const deviceId = typeof sessionPayload.deviceId === "string" && sessionPayload.deviceId.length > 0
     ? sessionPayload.deviceId
     : "unknown-device";
+  const deviceName = typeof sessionPayload.deviceName === "string" && sessionPayload.deviceName.trim()
+    ? sessionPayload.deviceName.trim()
+    : null;
   const startBlockName = typeof sessionPayload.startBlockName === "string" && sessionPayload.startBlockName.trim()
     ? sessionPayload.startBlockName.trim()
     : "Block 1";
@@ -125,6 +128,7 @@ export async function POST(request: NextRequest) {
             competitionId,
             createdById: auth.user.id,
             deviceId,
+            deviceName,
             disciplineCode: disciplineCode as (typeof TIMEKEEPING_DISCIPLINES)[number],
             startBlockName,
             firstStartNumber,
@@ -133,6 +137,7 @@ export async function POST(request: NextRequest) {
           },
           update: {
             deviceId,
+            deviceName,
             startBlockName,
             firstStartNumber,
             startIntervalSeconds,
@@ -145,6 +150,7 @@ export async function POST(request: NextRequest) {
             competitionId,
             createdById: auth.user.id,
             deviceId,
+            deviceName,
             disciplineCode: disciplineCode as (typeof TIMEKEEPING_DISCIPLINES)[number],
             startBlockName,
             firstStartNumber,
@@ -177,6 +183,8 @@ export async function POST(request: NextRequest) {
           afterData: {
             disciplineCode,
             startBlockName,
+            deviceId,
+            deviceName,
             received: validEvents.length,
             accepted: createResult.count,
           },
