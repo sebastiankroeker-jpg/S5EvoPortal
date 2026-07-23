@@ -33,17 +33,13 @@ export default function PrivacyPage() {
           <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
             <p>
               Verantwortlich für die Datenverarbeitung im S5Evo-Portal ist Sebastian Kroeker,
-              Bad Bayersoien.
+              Schleifmühlweg 8, 82435 Bad Bayersoien.
             </p>
             <p>
               Kontakt:{" "}
               <a href="mailto:esv@s5evo.de" className="font-medium text-primary hover:underline">
                 esv@s5evo.de
               </a>
-            </p>
-            <p className="rounded-md border border-amber-300/70 bg-amber-50 p-3 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/30 dark:text-amber-100">
-              Hinweis vor Live-Freigabe: Eine vollständige postalische Anschrift mit Straße,
-              Hausnummer und Postleitzahl sollte hier noch ergänzt werden.
             </p>
           </CardContent>
         </Card>

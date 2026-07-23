@@ -175,9 +175,8 @@ Kurzfassung für `/datenschutz` and the consent dialog:
 > Mannschafts- und Teilnehmerdaten, Rollen, Nachrichten, Änderungs- und
 > Auditprotokolle.
 >
-> Verantwortlich ist Sebastian Kroeker, Bad Bayersoien, E-Mail:
-> esv@s5evo.de. Vor Live-Freigabe ist eine vollständige postalische Anschrift
-> mit Straße, Hausnummer und Postleitzahl zu ergänzen.
+> Verantwortlich ist Sebastian Kroeker, Schleifmühlweg 8, 82435 Bad Bayersoien,
+> E-Mail: esv@s5evo.de.
 >
 > Wir geben Daten nicht an Dritte weiter, sofern dies für Betrieb und Nutzung
 > des Portals nicht erforderlich ist. Erforderliche Dienstleister sind
@@ -200,8 +199,8 @@ Kurzfassung für `/datenschutz` and the consent dialog:
 
 Detailed service list for the full page:
 
-- S5Evo Portal / Verantwortliche Stelle: Sebastian Kroeker, Bad Bayersoien,
-  esv@s5evo.de; full postal address still needed before live release.
+- S5Evo Portal / Verantwortliche Stelle: Sebastian Kroeker, Schleifmühlweg 8,
+  82435 Bad Bayersoien, esv@s5evo.de.
 - Vercel: hosting and delivery of the web application.
 - PostgreSQL/Prisma database: storage of portal records.
 - Authentik: login and account identity.
@@ -237,7 +236,6 @@ Detailed service list for the full page:
 - Residual risk:
   - exact legal wording should be reviewed by the responsible Verein/DSB if this
     becomes the public final Datenschutzerklärung.
-  - complete postal contact address is still required before production release.
 
 ## Acceptance Criteria
 
