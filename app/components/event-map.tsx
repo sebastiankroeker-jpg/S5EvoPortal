@@ -64,6 +64,18 @@ function buildSponsorPopupHtml(sponsor: SponsorPoi): string {
   `;
 }
 
+function getSponsorMarkerSize(zoom: number) {
+  const scale = zoom <= 15 ? 1 : Math.min(2.15, 1 + (zoom - 15) * 0.28);
+  const width = Math.round(44 * scale);
+  const height = Math.round(36 * scale);
+  return {
+    width,
+    height,
+    anchorX: Math.round(width / 2),
+    anchorY: Math.round(height / 2),
+  };
+}
+
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
   if (sponsor.logoSrc) {
     return (
@@ -82,6 +94,7 @@ function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
 
 export default function EventMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapViewportRef = useRef<HTMLElement | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
@@ -94,25 +107,38 @@ export default function EventMap() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [popupSponsorId, setPopupSponsorId] = useState<string | null>(null);
+  const [mapZoom, setMapZoom] = useState(14);
   const visibleSponsorCount = visibleSponsorIds.size;
   const sponsorsVisible = visibleSponsorCount > 0;
   const allSponsorsVisible = visibleSponsorCount === SPONSOR_POIS.length;
 
-  const selectSponsor = useCallback((sponsor: SponsorPoi, flyTo = true) => {
+  const selectSponsor = useCallback((sponsor: SponsorPoi, options: { scrollMapIntoView?: boolean } = {}) => {
     setSelectedSponsorId(sponsor.id);
-    if (flyTo && mapRef.current) {
-      setPopupSponsorId(null);
-      if (popupOpenTimerRef.current) {
-        window.clearTimeout(popupOpenTimerRef.current);
-      }
-      mapRef.current.flyTo(toLeafletLatLng(sponsor.coordinates), 15, { duration: 0.5 });
-      popupOpenTimerRef.current = window.setTimeout(() => {
-        setPopupSponsorId(sponsor.id);
-        popupOpenTimerRef.current = null;
-      }, 560);
+    setPopupSponsorId(null);
+
+    if (popupOpenTimerRef.current) {
+      window.clearTimeout(popupOpenTimerRef.current);
+    }
+
+    const map = mapRef.current;
+    if (!map) {
+      setPopupSponsorId(sponsor.id);
       return;
     }
-    setPopupSponsorId(sponsor.id);
+
+    if (options.scrollMapIntoView) {
+      mapViewportRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+
+    const targetZoom = Math.max(map.getZoom(), 15);
+    const markerLatLng = toLeafletLatLng(sponsor.coordinates);
+    const popupFocusLatLng = map.unproject(map.project(markerLatLng, targetZoom).subtract([0, 110]), targetZoom);
+    map.invalidateSize();
+    map.flyTo(popupFocusLatLng, targetZoom, { duration: 0.45 });
+    popupOpenTimerRef.current = window.setTimeout(() => {
+      setPopupSponsorId(sponsor.id);
+      popupOpenTimerRef.current = null;
+    }, 520);
   }, []);
 
   useEffect(() => {
@@ -133,6 +159,8 @@ export default function EventMap() {
         const map = L.map(mapContainerRef.current, {
           center: toLeafletLatLng(BAD_BAYERSOIEN_CENTER),
           zoom: 14,
+          zoomSnap: 0.5,
+          zoomDelta: 0.5,
           zoomControl: false,
           attributionControl: false,
           dragging: true,
@@ -141,9 +169,12 @@ export default function EventMap() {
           doubleClickZoom: true,
           boxZoom: false,
           keyboard: true,
+          wheelPxPerZoomLevel: 120,
         });
 
         mapRef.current = map;
+        setMapZoom(map.getZoom());
+        map.on("zoomend", () => setMapZoom(map.getZoom()));
         setMapError(null);
         L.control.zoom({ position: "bottomright" }).addTo(map);
         L.control.attribution({ position: "bottomleft", prefix: false }).addTo(map);
@@ -209,15 +240,16 @@ export default function EventMap() {
     const visibleSponsors = SPONSOR_POIS.filter((sponsor) => visibleSponsorIds.has(sponsor.id));
     if (visibleSponsors.length > 0) {
       visibleSponsors.forEach((sponsor) => {
+        const markerSize = getSponsorMarkerSize(mapZoom);
         const marker = L.marker(toLeafletLatLng(sponsor.coordinates), {
           icon: L.divIcon({
             className: "",
             html: buildSponsorLogoHtml(
               sponsor,
-              "event-map-marker inline-flex h-9 w-11 items-center justify-center rounded-md border-2 border-white shadow-lg transition-transform hover:scale-110",
+              "event-map-marker inline-flex items-center justify-center rounded-md border-2 border-white shadow-lg transition-transform hover:scale-110",
             ),
-            iconSize: [44, 36],
-            iconAnchor: [22, 18],
+            iconSize: [markerSize.width, markerSize.height],
+            iconAnchor: [markerSize.anchorX, markerSize.anchorY],
           }),
           title: sponsor.name,
         }).addTo(map);
@@ -230,11 +262,14 @@ export default function EventMap() {
           autoPanPaddingTopLeft: [18, 18],
           autoPanPaddingBottomRight: [18, 72],
         });
-        marker.on("click", () => selectSponsor(sponsor, false));
+        marker.on("click", () => {
+          marker.closePopup();
+          selectSponsor(sponsor);
+        });
         markersRef.current.set(sponsor.id, marker);
       });
     }
-  }, [mapLoaded, selectSponsor, visibleSponsorIds]);
+  }, [mapLoaded, mapZoom, selectSponsor, visibleSponsorIds]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, sponsorId) => {
@@ -248,10 +283,7 @@ export default function EventMap() {
         marker.openPopup();
       }
     });
-
-    const selectedCard = cardRefs.current.get(selectedSponsorId);
-    selectedCard?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [mapLoaded, popupSponsorId, selectedSponsorId, visibleSponsorIds]);
+  }, [mapLoaded, mapZoom, popupSponsorId, selectedSponsorId, visibleSponsorIds]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -344,7 +376,7 @@ export default function EventMap() {
                                 }}
                                 type="button"
                                 onClick={() => {
-                                  if (sponsorVisible) selectSponsor(sponsor);
+                                  if (sponsorVisible) selectSponsor(sponsor, { scrollMapIntoView: true });
                                 }}
                                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
                                 aria-pressed={selected}
@@ -407,7 +439,7 @@ export default function EventMap() {
           </div>
         </aside>
 
-        <main className="relative order-1 h-[62svh] min-h-[420px] touch-none bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0">
+        <main ref={mapViewportRef} className="relative order-1 h-[62svh] min-h-[420px] touch-none bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0">
           <div ref={mapContainerRef} className="absolute inset-0 touch-none" />
 
           {!mapLoaded && !mapError && (

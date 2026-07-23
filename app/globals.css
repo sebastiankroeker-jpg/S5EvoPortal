@@ -266,6 +266,11 @@
   margin: 0;
 }
 
+.event-map-marker {
+  height: 100%;
+  width: 100%;
+}
+
 .event-map-popup-card {
   display: grid;
   width: min(18rem, calc(100vw - 5.5rem));
