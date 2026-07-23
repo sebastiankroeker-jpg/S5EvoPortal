@@ -2014,6 +2014,11 @@ export default function ResultDataWorkbenchPage() {
                                 <td className="px-3 py-2">{recordValue(record, "Au1Klasse")}</td>
                                 <td className="px-3 py-2 tabular-nums">
                                   {recordValue(record, "rawValueText")}
+                                  {fieldValue(record.fields, "AuZeitBasis") !== "—" ? (
+                                    <div className="text-[11px] text-muted-foreground">
+                                      Basis {fieldValue(record.fields, "Basiszeit")} / {fieldValue(record.fields, "AuZeitBasis")}
+                                    </div>
+                                  ) : null}
                                   {record.effectiveRawValueText !== record.rawValueText ? (
                                     <div className="text-[11px] text-amber-700">Overlay</div>
                                   ) : null}

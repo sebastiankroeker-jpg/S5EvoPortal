@@ -29,6 +29,34 @@ function formatElapsedMs(value: number | null) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}.${millis.toString().padStart(3, "0")}`;
 }
 
+function formatClock(value: Date | null) {
+  if (!value) return null;
+  return [
+    value.getHours().toString().padStart(2, "0"),
+    value.getMinutes().toString().padStart(2, "0"),
+    value.getSeconds().toString().padStart(2, "0"),
+  ].join(":");
+}
+
+function formatRoadCsvBaseTime(value: Date | null) {
+  if (!value) return null;
+  return String(value.getHours() * 3600 + value.getMinutes() * 60 + value.getSeconds());
+}
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parsePayloadBaseTime(payload: unknown) {
+  const record = asRecord(payload);
+  const baseTimeIso = typeof record?.baseTimeIso === "string" ? record.baseTimeIso : null;
+  if (!baseTimeIso) return null;
+  const date = new Date(baseTimeIso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -109,6 +137,9 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
+    const sessionBaseTime = timekeepingSession.manualStartedAt;
+    const sessionBaseTimeClock = formatClock(sessionBaseTime);
+    const sessionRoadCsvBaseTime = formatRoadCsvBaseTime(sessionBaseTime);
     const withoutStartNumber = newEvents.filter((event) => !event.startNumber?.trim()).length;
     const withoutElapsed = newEvents.filter((event) => event.netElapsedMs === null && event.rawElapsedMs === null).length;
     const warningCount = withoutStartNumber + withoutElapsed;
@@ -133,6 +164,9 @@ export async function POST(request: NextRequest) {
             deviceName: timekeepingSession.deviceName,
             disciplineCode: timekeepingSession.disciplineCode,
             startBlockName: timekeepingSession.startBlockName,
+            baseTimeIso: sessionBaseTime?.toISOString() ?? null,
+            baseTimeClock: sessionBaseTimeClock,
+            roadCsvBaseTime: sessionRoadCsvBaseTime,
             status: timekeepingSession.status,
             importedAt: new Date().toISOString(),
           }),
@@ -141,6 +175,9 @@ export async function POST(request: NextRequest) {
             startBlockName: timekeepingSession.startBlockName,
             deviceName: timekeepingSession.deviceName,
             timekeepingSessionId: timekeepingSession.id,
+            baseTimeIso: sessionBaseTime?.toISOString() ?? null,
+            baseTimeClock: sessionBaseTimeClock,
+            roadCsvBaseTime: sessionRoadCsvBaseTime,
             finishEvents: timekeepingSession.events.length,
             importedRecords: newEvents.length,
             skippedDuplicates: timekeepingSession.events.length - newEvents.length,
@@ -161,6 +198,9 @@ export async function POST(request: NextRequest) {
       await tx.resultRawRecord.createMany({
         data: newEvents.map((event) => {
           const elapsedMs = event.netElapsedMs ?? event.rawElapsedMs;
+          const eventBaseTime = parsePayloadBaseTime(event.payload) ?? sessionBaseTime;
+          const eventBaseTimeClock = formatClock(eventBaseTime);
+          const eventRoadCsvBaseTime = formatRoadCsvBaseTime(eventBaseTime);
           const validationMessages = [
             ...(!event.startNumber?.trim() ? ["missing_start_number"] : []),
             ...(elapsedMs === null ? ["missing_elapsed"] : []),
@@ -185,6 +225,16 @@ export async function POST(request: NextRequest) {
               capturedAt: event.capturedAt,
               rawElapsedMs: event.rawElapsedMs,
               netElapsedMs: event.netElapsedMs,
+              baseTimeIso: eventBaseTime?.toISOString() ?? null,
+              baseTimeClock: eventBaseTimeClock,
+              roadCsvBaseTime: eventRoadCsvBaseTime,
+              fields: {
+                Au1Startnr: event.startNumber,
+                Au1Disziplin: timekeepingSession.disciplineCode,
+                AuZeit: formatElapsedMs(elapsedMs),
+                AuZeitBasis: eventRoadCsvBaseTime,
+                Basiszeit: eventBaseTimeClock,
+              },
               note: event.note,
               payload: event.payload,
             }),
@@ -207,6 +257,9 @@ export async function POST(request: NextRequest) {
           afterData: jsonValue({
             batchId: batch.id,
             timekeepingSessionId: timekeepingSession.id,
+            baseTimeIso: sessionBaseTime?.toISOString() ?? null,
+            baseTimeClock: sessionBaseTimeClock,
+            roadCsvBaseTime: sessionRoadCsvBaseTime,
             purpose,
             importedRecords: newEvents.length,
             skippedDuplicates: timekeepingSession.events.length - newEvents.length,

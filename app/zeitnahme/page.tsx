@@ -235,6 +235,14 @@ function formatRoadCsvBaseTime(iso: string | null) {
   return String(date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds());
 }
 
+function buildBaseTimePayload(manualStartedAt: string | null) {
+  return {
+    baseTimeIso: manualStartedAt,
+    baseTimeClock: formatBaseTimeClock(manualStartedAt),
+    roadCsvBaseTime: formatRoadCsvBaseTime(manualStartedAt),
+  };
+}
+
 function baseTimeClockToIso(value: string, currentIso: string | null) {
   const trimmed = value.trim();
   if (!trimmed) return { isValid: true, iso: null };
@@ -664,7 +672,15 @@ export default function TimekeepingPage() {
     events: session.events.map((event) => {
       if (event.syncStatus === "synced" || event.eventType !== "FINISH") return event;
       const { rawElapsedMs, netElapsedMs } = calculateNetMs(session, event.startNumber, new Date(event.recordedAt));
-      return { ...event, rawElapsedMs, netElapsedMs };
+      return {
+        ...event,
+        rawElapsedMs,
+        netElapsedMs,
+        payload: {
+          ...(event.payload ?? {}),
+          ...buildBaseTimePayload(session.manualStartedAt),
+        },
+      };
     }),
   });
 
@@ -818,7 +834,7 @@ export default function TimekeepingPage() {
       delete next[sessionId];
       return next;
     });
-    updateLinkedStartBlocks(sessionId, (session) => {
+    updateSessionById(sessionId, (session) => {
       const nextSession = {
         ...session,
         manualStartedAt,
@@ -841,7 +857,7 @@ export default function TimekeepingPage() {
     const sourceSession = state?.sessions.find((session) => session.id === sessionId);
     const manualStartedAt = roadCsvBaseTimeToIso(value, sourceSession?.manualStartedAt ?? null);
     if (manualStartedAt === sourceSession?.manualStartedAt && value.trim()) return;
-    updateLinkedStartBlocks(sessionId, (session) => {
+    updateSessionById(sessionId, (session) => {
       const nextSession = {
         ...session,
         manualStartedAt,
@@ -872,6 +888,7 @@ export default function TimekeepingPage() {
           startBlockName: session.startBlockName,
           classificationCodes: session.classificationCodes,
           resumed: Boolean(session.manualStartedAt && session.manualStoppedAt),
+          ...buildBaseTimePayload(manualStartedAt),
         },
       };
       return {
@@ -924,6 +941,7 @@ export default function TimekeepingPage() {
       startNumber,
       rawElapsedMs,
       netElapsedMs,
+      payload: buildBaseTimePayload(targetSession.manualStartedAt),
       syncStatus: "local",
     };
     updateSessionById(targetSession.id, (session) => ({ ...session, events: [finishEvent, ...session.events] }));
@@ -979,14 +997,27 @@ export default function TimekeepingPage() {
       rawElapsedMs,
       netElapsedMs,
       syncStatus: "local",
-      payload: { assignedToClientEventId: eventId },
+      payload: {
+        assignedToClientEventId: eventId,
+        ...buildBaseTimePayload(sourceSession.manualStartedAt),
+      },
     };
     updateSessionById(sessionId, (session) => ({
       ...session,
       events: [
         assignmentEvent,
         ...session.events.map((event) => event.clientEventId === eventId
-          ? { ...event, startNumber: nextStartNumber, rawElapsedMs, netElapsedMs, syncStatus: "local" as const }
+          ? {
+              ...event,
+              startNumber: nextStartNumber,
+              rawElapsedMs,
+              netElapsedMs,
+              payload: {
+                ...(event.payload ?? {}),
+                ...buildBaseTimePayload(sourceSession.manualStartedAt),
+              },
+              syncStatus: "local" as const,
+            }
           : event),
       ],
     }));
@@ -1250,6 +1281,34 @@ export default function TimekeepingPage() {
               Reset
             </Button>
           </div>
+
+          <div className="grid gap-2 rounded-md border border-border/60 bg-background p-2 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-medium">
+              Basiszeit (HH:mm:ss)
+              <Input
+                inputMode="text"
+                pattern="[0-2][0-9]:[0-5][0-9]:[0-5][0-9]"
+                placeholder="08:30:00"
+                value={baseTimeDrafts[session.id] ?? formatBaseTimeClock(session.manualStartedAt)}
+                onChange={(event) => updateSessionBaseTime(session.id, event.target.value)}
+                onBlur={() => resetSessionBaseTimeDraft(session.id)}
+                onClick={(event) => event.stopPropagation()}
+                className="h-9"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium">
+              Rad-CSV Basis
+              <Input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={formatRoadCsvBaseTime(session.manualStartedAt)}
+                onChange={(event) => updateSessionRoadCsvBaseTime(session.id, event.target.value)}
+                onClick={(event) => event.stopPropagation()}
+                placeholder="Sek. ab 00:00"
+                className="h-9"
+              />
+            </label>
+          </div>
         </div>
       </section>
     );
@@ -1365,7 +1424,7 @@ export default function TimekeepingPage() {
                           </div>
                         </div>
 
-                        <div className="grid gap-2 sm:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.8fr))]">
+                        <div className="grid gap-2 sm:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))]">
                           <label className="grid gap-1 text-xs font-medium">
                             Blockname global
                             <Input
@@ -1400,29 +1459,6 @@ export default function TimekeepingPage() {
                                 ...currentSession,
                                 startIntervalSeconds: event.target.value ? Number.parseInt(event.target.value, 10) : 0,
                               }))}
-                              className="h-9"
-                            />
-                          </label>
-                          <label className="grid gap-1 text-xs font-medium">
-                            Basiszeit (HH:mm:ss)
-                            <Input
-                              inputMode="text"
-                              pattern="[0-2][0-9]:[0-5][0-9]:[0-5][0-9]"
-                              placeholder="08:30:00"
-                              value={baseTimeDrafts[session.id] ?? formatBaseTimeClock(session.manualStartedAt)}
-                              onChange={(event) => updateSessionBaseTime(session.id, event.target.value)}
-                              onBlur={() => resetSessionBaseTimeDraft(session.id)}
-                              className="h-9"
-                            />
-                          </label>
-                          <label className="grid gap-1 text-xs font-medium">
-                            Rad-CSV Basis
-                            <Input
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={formatRoadCsvBaseTime(session.manualStartedAt)}
-                              onChange={(event) => updateSessionRoadCsvBaseTime(session.id, event.target.value)}
-                              placeholder="Sek. ab 00:00"
                               className="h-9"
                             />
                           </label>
