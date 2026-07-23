@@ -77,6 +77,20 @@ function getSponsorMarkerSize(zoom: number) {
   };
 }
 
+function buildSponsorMarkerIcon(L: typeof import("leaflet"), sponsor: SponsorPoi, zoom: number) {
+  const markerSize = getSponsorMarkerSize(zoom);
+
+  return L.divIcon({
+    className: "",
+    html: buildSponsorLogoHtml(
+      sponsor,
+      "event-map-marker inline-flex items-center justify-center rounded-md border-2 border-white shadow-lg transition-transform hover:scale-110",
+    ),
+    iconSize: [markerSize.width, markerSize.height],
+    iconAnchor: [markerSize.anchorX, markerSize.anchorY],
+  });
+}
+
 function SponsorBadge({ sponsor }: { sponsor: SponsorPoi }) {
   if (sponsor.logoSrc) {
     return (
@@ -117,7 +131,7 @@ export default function EventMap() {
   const sponsorsVisible = visibleSponsorCount > 0;
   const allSponsorsVisible = visibleSponsorCount === SPONSOR_POIS.length;
 
-  const clearSponsorSelection = useCallback((sponsorId?: string) => {
+  const clearSponsorState = useCallback((sponsorId?: string) => {
     if (popupOpenTimerRef.current) {
       window.clearTimeout(popupOpenTimerRef.current);
       popupOpenTimerRef.current = null;
@@ -125,6 +139,10 @@ export default function EventMap() {
 
     setSelectedSponsorId((current) => (!sponsorId || current === sponsorId ? "" : current));
     setPopupSponsorId((current) => (!sponsorId || current === sponsorId ? null : current));
+  }, []);
+
+  const clearSponsorSelection = useCallback((sponsorId?: string) => {
+    clearSponsorState(sponsorId);
 
     if (sponsorId) {
       markersRef.current.get(sponsorId)?.closePopup();
@@ -132,7 +150,7 @@ export default function EventMap() {
     }
 
     markersRef.current.forEach((marker) => marker.closePopup());
-  }, []);
+  }, [clearSponsorState]);
 
   const selectSponsor = useCallback((sponsor: SponsorPoi, options: { scrollMapIntoView?: boolean } = {}) => {
     setSelectedSponsorId(sponsor.id);
@@ -268,22 +286,12 @@ export default function EventMap() {
     suppressPopupCloseRef.current = true;
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current.clear();
-    suppressPopupCloseRef.current = false;
 
     const visibleSponsors = SPONSOR_POIS.filter((sponsor) => visibleSponsorIds.has(sponsor.id));
     if (visibleSponsors.length > 0) {
       visibleSponsors.forEach((sponsor) => {
-        const markerSize = getSponsorMarkerSize(mapZoom);
         const marker = L.marker(toLeafletLatLng(sponsor.coordinates), {
-          icon: L.divIcon({
-            className: "",
-            html: buildSponsorLogoHtml(
-              sponsor,
-              "event-map-marker inline-flex items-center justify-center rounded-md border-2 border-white shadow-lg transition-transform hover:scale-110",
-            ),
-            iconSize: [markerSize.width, markerSize.height],
-            iconAnchor: [markerSize.anchorX, markerSize.anchorY],
-          }),
+          icon: buildSponsorMarkerIcon(L, sponsor, map.getZoom()),
           title: sponsor.name,
         }).addTo(map);
         marker.bindPopup(buildSponsorPopupHtml(sponsor), {
@@ -300,12 +308,26 @@ export default function EventMap() {
         });
         marker.on("popupclose", () => {
           if (suppressPopupCloseRef.current) return;
-          clearSponsorSelection(sponsor.id);
+          clearSponsorState(sponsor.id);
         });
         markersRef.current.set(sponsor.id, marker);
       });
     }
-  }, [clearSponsorSelection, mapReady, mapZoom, selectSponsor, visibleSponsorIds]);
+    window.setTimeout(() => {
+      suppressPopupCloseRef.current = false;
+    }, 0);
+  }, [clearSponsorState, mapReady, selectSponsor, visibleSponsorIds]);
+
+  useEffect(() => {
+    const L = leafletRef.current;
+    if (!L) return;
+
+    markersRef.current.forEach((marker, sponsorId) => {
+      const sponsor = SPONSOR_POIS.find((candidate) => candidate.id === sponsorId);
+      if (!sponsor) return;
+      marker.setIcon(buildSponsorMarkerIcon(L, sponsor, mapZoom));
+    });
+  }, [mapZoom]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, sponsorId) => {
@@ -438,7 +460,7 @@ export default function EventMap() {
                                       next.add(sponsor.id);
                                     } else {
                                       next.delete(sponsor.id);
-                                      if (popupSponsorId === sponsor.id) setPopupSponsorId(null);
+                                      clearSponsorSelection(sponsor.id);
                                     }
                                     return next;
                                   });
