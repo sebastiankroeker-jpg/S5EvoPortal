@@ -391,7 +391,7 @@ export default function LiveScreen() {
     }, {} as Record<string, Team[]>);
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {renderLiveControls({
           filterLabel: "Team-Filter",
           filtersOpen: teamsFiltersOpen,
@@ -589,18 +589,18 @@ export default function LiveScreen() {
           const isDisciplineExpanded = expandedSections[`start-${discipline.id}`];
 
           return (
-            <Card key={discipline.id}>
+            <Card key={discipline.id} className="overflow-hidden">
               <CardHeader
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer px-3 py-2 transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`start-${discipline.id}`)}
               >
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
+                <CardTitle className="flex items-center justify-between gap-2 text-base">
+                  <span className="flex min-w-0 items-center gap-2">
                     {isDisciplineExpanded ? "▼" : "▶"}
                     <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-6 rounded" />
-                    {discipline.label}
+                    <span className="truncate">{discipline.label}</span>
                   </span>
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="shrink-0">
                     {totalParticipants} Starter:innen
                   </Badge>
                 </CardTitle>
@@ -614,7 +614,7 @@ export default function LiveScreen() {
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-2 px-2 pb-2 sm:px-3 sm:pb-3">
                       {Object.entries(disciplineData).sort(([a], [b]) => compareClassificationCodes(a, b)).map(([category, participants]) => {
                         if (participants.length === 0) return null;
 
@@ -622,15 +622,15 @@ export default function LiveScreen() {
                         const sortedParticipants = [...participants].sort(compareByStartNumber);
 
                         return (
-                          <div key={category} className="border border-border/40 rounded">
+                          <div key={category} className="overflow-hidden rounded-md border border-border/40">
                             <div
-                              className="p-3 cursor-pointer hover:bg-muted/30 transition-colors flex items-center justify-between"
+                              className="flex cursor-pointer items-center justify-between gap-2 px-2.5 py-2 transition-colors hover:bg-muted/30 sm:px-3"
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
-                              <span className="flex items-center gap-2">
+                              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
                                 {isClassExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                               </span>
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="shrink-0 text-xs">
                                 {participants.length} Starter:innen
                               </Badge>
                             </div>
@@ -643,18 +643,18 @@ export default function LiveScreen() {
                                   exit={{ height: 0, opacity: 0 }}
                                   transition={{ duration: 0.15 }}
                                 >
-                                  <div className="space-y-1 border-t border-border/40 px-3 pb-3 pt-2">
-                                    <div className="grid grid-cols-[4.25rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] gap-2 px-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
-                                      <span>STRNR</span>
-                                      <span>Name</span>
-                                      <span>Mannschaft</span>
-                                      <span className="text-right">G</span>
-                                    </div>
+                                  <div className="overflow-x-auto border-t border-border/40 px-2 pb-2 pt-1.5">
+                                    <div className="min-w-[480px] space-y-1">
+                                      <div className="grid grid-cols-[3.75rem_minmax(9rem,1.15fr)_minmax(8rem,1fr)] gap-2 px-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+                                        <span>STRNR</span>
+                                        <span>Name</span>
+                                        <span>Mannschaft</span>
+                                      </div>
                                     {sortedParticipants.map(({ participant, teamId, teamName, startNumber }, i) => {
                                       const watched = watchedTeamIdSet.has(teamId);
 
                                       return (
-                                        <div key={`${teamId}-${i}-${participant.firstName}-${participant.lastName}`} className="grid grid-cols-[4.25rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/30">
+                                        <div key={`${teamId}-${i}-${participant.firstName}-${participant.lastName}`} className="grid grid-cols-[3.75rem_minmax(9rem,1.15fr)_minmax(8rem,1fr)] items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/30">
                                           <span className="inline-flex min-w-0 items-center gap-1.5">
                                             <span className="font-mono text-xs font-medium text-muted-foreground tabular-nums">
                                               {formatStartNumber(startNumber, false) || `${i + 1}.`}
@@ -668,10 +668,10 @@ export default function LiveScreen() {
                                             />
                                           </span>
                                           <span className="truncate text-xs text-muted-foreground">{teamName}</span>
-                                          <span className="text-right text-muted-foreground">{participant.gender === "M" ? "♂" : "♀"}</span>
                                         </div>
                                       );
                                     })}
+                                    </div>
                                   </div>
                                 </motion.div>
                               )}

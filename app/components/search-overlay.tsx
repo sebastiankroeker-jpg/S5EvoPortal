@@ -253,14 +253,14 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[1300] bg-background/80 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={handleClose}
         >
           <motion.div
-            className="fixed inset-x-4 top-20 mx-auto w-auto max-w-lg"
+            className="fixed inset-x-3 top-14 mx-auto w-auto max-w-lg sm:top-20"
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -50, opacity: 0 }}

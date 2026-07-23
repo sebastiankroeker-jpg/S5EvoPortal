@@ -199,7 +199,7 @@ export default function Home() {
     }`}>
       <NavBar />
       
-      <main className="max-w-5xl mx-auto px-4 py-4">
+      <main className="mx-auto max-w-6xl px-2 py-3 sm:px-4 sm:py-4">
         {activeTab === "home" && <HomeScreen />}
             {activeTab === "registration" && <TeamScreen />}
             {activeTab === "dashboard" && <Dashboard />}

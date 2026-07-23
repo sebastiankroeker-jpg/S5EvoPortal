@@ -18,6 +18,15 @@ export type SupportContext =
       tenantId: string;
     }
   | {
+      type: "tenant";
+      id: string;
+      label: string;
+      detail: string;
+      teamId: null;
+      competitionId: null;
+      tenantId: string;
+    }
+  | {
       type: "team";
       id: string;
       label: string;
@@ -57,7 +66,7 @@ function getMessageSenderDisplayName(message: {
 
 export async function getSupportContextsForUser(userId: string, userEmail?: string | null): Promise<SupportContext[]> {
   const normalizedUserEmail = normalizeEmail(userEmail);
-  const [participants, teams] = await Promise.all([
+  const [participants, teams, tenantRoles] = await Promise.all([
     prisma.participant.findMany({
       where: {
         deletedAt: null,
@@ -105,6 +114,15 @@ export async function getSupportContextsForUser(userId: string, userEmail?: stri
       },
       orderBy: [{ name: "asc" }],
     }),
+    prisma.tenantRole.findMany({
+      where: {
+        userId,
+      },
+      select: {
+        tenant: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   const contexts = new Map<string, SupportContext>();
@@ -131,6 +149,21 @@ export async function getSupportContextsForUser(userId: string, userEmail?: stri
       tenantId: team.competition.tenantId,
       label: team.name,
       detail: `Mannschaft · ${team.competition.name} ${team.competition.year}`,
+    });
+  }
+
+  for (const role of tenantRoles) {
+    const hasTenantScopedContext = Array.from(contexts.values()).some((context) => context.tenantId === role.tenant.id);
+    if (hasTenantScopedContext) continue;
+
+    contexts.set(`tenant:${role.tenant.id}`, {
+      type: "tenant",
+      id: role.tenant.id,
+      tenantId: role.tenant.id,
+      competitionId: null,
+      teamId: null,
+      label: "Allgemeine Anfrage",
+      detail: `Portal · ${role.tenant.name}`,
     });
   }
 

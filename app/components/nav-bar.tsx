@@ -111,7 +111,7 @@ export default function NavBar() {
 
   return (
     <nav
-      className={`flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/30 bg-card/85 backdrop-blur-sm sticky top-0 z-30 lg:transition-all lg:duration-200 ${
+      className={`flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/30 bg-card/85 backdrop-blur-sm sticky top-0 z-[1200] lg:transition-all lg:duration-200 ${
         showDesktopOffset ? (isCollapsed ? "lg:ml-12" : "lg:ml-52") : ""
       }`}
     >
@@ -167,8 +167,8 @@ export default function NavBar() {
           </button>
           {showThemeMenu && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)} />
-              <div className="absolute left-0 top-full mt-1 w-40 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50 md:hidden">
+              <div className="fixed inset-0 z-[1210]" onClick={() => setShowThemeMenu(false)} />
+              <div className="absolute left-0 top-full z-[1220] mt-1 w-40 bg-popover border border-border/50 rounded-md shadow-lg py-1 md:hidden">
                 {THEMES.map((t) => (
                   <button
                     key={t.id}
@@ -270,8 +270,8 @@ export default function NavBar() {
                 </button>
                 {showRoleMenu && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowRoleMenu(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-40 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50">
+                    <div className="fixed inset-0 z-[1210]" onClick={() => setShowRoleMenu(false)} />
+                    <div className="absolute right-0 top-full z-[1220] mt-1 w-40 bg-popover border border-border/50 rounded-md shadow-lg py-1">
                       {isSimulating && (
                         <button
                           className="w-full px-3 py-1.5 text-left text-xs hover:bg-accent text-amber-600 dark:text-amber-300"
@@ -333,8 +333,8 @@ export default function NavBar() {
               </button>
               {showAccountMenu && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowAccountMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 w-44 bg-popover border border-border/50 rounded-md shadow-lg py-1 z-50">
+                  <div className="fixed inset-0 z-[1210]" onClick={() => setShowAccountMenu(false)} />
+                  <div className="absolute right-0 top-full z-[1220] mt-1 w-44 bg-popover border border-border/50 rounded-md shadow-lg py-1">
                     <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Konto</p>
                     <Link
                       href="/profile"

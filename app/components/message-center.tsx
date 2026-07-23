@@ -46,7 +46,7 @@ import {
 import AccountLinkStatusDialog, { type AccountLinkDialogRow } from "./account-link-status-dialog";
 
 type SupportContext = {
-  type: "participant" | "team";
+  type: "participant" | "team" | "tenant";
   id: string;
   label: string;
   detail: string;
@@ -772,6 +772,10 @@ export default function MessageCenter() {
     : null;
 
   const openPersonalCompose = () => {
+    if (contexts.length === 0) {
+      setError("Kein Nachrichtenkontext gefunden. Bitte Profil- oder Team-Verknüpfung prüfen.");
+      return;
+    }
     setComposeOpen(true);
     setMobileThreadOpen(false);
     triggerNavigationBurst("composer");
@@ -1394,15 +1398,16 @@ export default function MessageCenter() {
                     <CardDescription className="text-xs">{filteredConversations.length} Threads</CardDescription>
                   </div>
                   <div className="flex items-center gap-1">
-                    {mode === "mine" && !canManageSupport && contexts.length > 0 && (
+                    {mode === "mine" && !canManageSupport && (
                       <Button
                         type="button"
                         size="sm"
                         variant="default"
-                        className="gap-1.5"
+                        className="h-8 shrink-0 gap-1.5 px-2.5"
                         onClick={openPersonalCompose}
+                        disabled={contexts.length === 0}
                         aria-label="Neue Nachricht schreiben"
-                        title="Neue Nachricht schreiben"
+                        title={contexts.length > 0 ? "Neue Nachricht schreiben" : "Kein Nachrichtenkontext gefunden"}
                       >
                         <Send className="h-4 w-4" />
                         Neue Nachricht
@@ -1411,27 +1416,31 @@ export default function MessageCenter() {
                     {mode === "mine" && canManageSupport && (
                       <Button
                         type="button"
-                        size="icon"
-                        variant="ghost"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 shrink-0 gap-1.5 px-2.5"
                         onClick={() => openAdminCompose("PERSONAL")}
                         disabled={adminTargetsLoading}
                         aria-label="Neue persönliche Nachricht schreiben"
                         title="Neue persönliche Nachricht schreiben"
                       >
                         <Send className="h-4 w-4" />
+                        Neue Nachricht
                       </Button>
                     )}
                     {mode === "admin" && canManageSupport && (
                       <Button
                         type="button"
-                        size="icon"
-                        variant="ghost"
+                        size="sm"
+                        variant="default"
+                        className="h-8 shrink-0 gap-1.5 px-2.5"
                         onClick={() => openAdminCompose("ORG")}
                         disabled={adminTargetsLoading}
                         aria-label="Neue Orga-Nachricht schreiben"
                         title="Neue Orga-Nachricht schreiben"
                       >
                         <Send className="h-4 w-4" />
+                        Neue Nachricht
                       </Button>
                     )}
                   </div>
