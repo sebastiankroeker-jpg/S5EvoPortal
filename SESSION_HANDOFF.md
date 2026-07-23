@@ -1,8 +1,20 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-23 00:39 UTC
+Stand: 2026-07-23 01:20 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Karten-Popup-Compact-Deploy 2026-07-23 01:20 UTC:
+  - Sebastian bestaetigte den geschlossenen Anmeldeschluss und bat um kleine
+    Kartenkorrekturen: Popup beim Zentrieren aus der Layer-Liste voll sichtbar
+    halten und Popup-Hoehe/Leerzeilen reduzieren.
+  - Deploy ist live auf `https://portal.s5evo.de`.
+  - Code-Commit: `b4cbe9d Tighten sponsor map popups`
+  - Vercel Deployment-ID: `dpl_2GrJBfTyhD67ixJBnKwNrsLEkajN`
+  - Public-Smoke gruen: `npm run smoke:public`; `HEAD /` 200; `/karte`
+    liefert HTML 200.
+  - Noch sinnvoll: Sebastian prueft am iPhone visuell, ob Listenklick-Popup
+    komplett sichtbar bleibt und die Box kompakt genug ist.
 
 - Nachtabschluss 2026-07-23 00:39 UTC:
   - Sebastian beendet die Session und bat darum, relevante Dinge zu
@@ -12,11 +24,49 @@ Stand: 2026-07-23 00:39 UTC
   - Wichtigster Karten-Follow-up: Sponsorinfos morgen verifizieren. Die
     Arbeitsliste liegt in `docs/sponsorenliste-2026-07-23.md` mit 42 Eintraegen
     (34 `verified`, 8 `needs_review`).
-  - Karten-Code ist auf `origin/main` bei `3604cbf Refine sponsor popup detail
-    layout`. Der letzte Popup-Layout-Wunsch ist damit committed/pushed.
+  - Karten-Code ist auf `origin/main` bei `b4cbe9d Tighten sponsor map
+    popups`. Der letzte Popup-Layout-Wunsch ist damit committed/pushed und
+    deployed.
   - Untracked Workspace-Startdateien (`AGENTS.md`, `HEARTBEAT.md`,
     `MEMORY.md`, `SOUL.md`) gehoeren nicht zu diesem CR/Feature und wurden
     ignoriert.
+
+- Event Map Sponsor Popup Compact Follow-up 2026-07-23 01:20 UTC:
+  - Anlass:
+    - Screenshot 1: Popup nach Auswahl in der Layer-Liste wurde zu hoch bzw.
+      nicht komplett sichtbar.
+    - Screenshot 2: Popup-Box hatte zu viel Hoehe/Leerraum.
+  - Fix in `app/components/event-map.tsx`:
+    - Listenauswahl oeffnet das Popup erst nach `flyTo`, damit Leaflet sauber
+      auto-pannen kann.
+    - Popup-Optionen um `autoPan`, `keepInView` und zusaetzlichen unteren
+      `autoPanPadding` erweitert.
+    - Popup-Breite und Route/Website-Buttons kompakter gemacht.
+  - Fix in `app/globals.css`:
+    - Leaflet-Default-Margins fuer Popup-Absatztexte lokal entfernt.
+    - Popup-Content-Margin, Gap, Logo-Padding und Logo-Hoehe reduziert.
+    - Popup bekommt `max-height` plus Scroll als Notbremse fuer kleine
+      Viewports.
+  - Checks gruen:
+    `npx tsc --noEmit --incremental false`,
+    `npx eslint app/components/event-map.tsx`, `git diff --check`,
+    `npm run build`.
+  - Commit/Push:
+    - `b4cbe9d Tighten sponsor map popups`
+    - Pushed `257a407..b4cbe9d`.
+  - Vercel Production Deployment:
+    - Deployment-ID: `dpl_2GrJBfTyhD67ixJBnKwNrsLEkajN`
+    - Vercel-URL:
+      `https://s5-evo-portal-4xhbjqfg7-sebastiankroeker-2781s-projects.vercel.app`
+    - Alias: `https://portal.s5evo.de`
+    - Ready-State: `READY`
+    - Deployed at: 2026-07-23 01:20 UTC
+  - Post-Deploy-Smoke gruen:
+    `npm run smoke:public`, `HEAD https://portal.s5evo.de/` 200,
+    `GET https://portal.s5evo.de/karte` 200 HTML.
+  - Remaining gap:
+    authenticated/mobile iPhone visual smoke by Sebastian for the exact popup
+    viewport behavior.
 
 - Event Map Sponsor Popup Detail Layout 2026-07-23 00:18 UTC:
   - Sebastian requested popup details in this order:
