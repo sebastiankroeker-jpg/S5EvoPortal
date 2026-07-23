@@ -1130,12 +1130,12 @@ export default function EventMap() {
         <main
           ref={mapViewportRef}
           className={`relative order-1 touch-none bg-[oklch(0.94_0.025_145)] lg:order-2 lg:h-full lg:min-h-0 ${
-            mapFullscreen ? "h-full min-h-[100svh]" : "h-[62svh] min-h-[420px]"
+            mapFullscreen ? "h-full min-h-[100svh]" : "h-[calc(100svh-4rem)] min-h-[520px]"
           }`}
         >
           <div ref={mapContainerRef} className="absolute inset-0 touch-none" />
 
-          <div className="absolute right-3 top-3 z-30 flex touch-auto items-center gap-2">
+          <div className="absolute bottom-24 right-3 z-[1000] flex touch-auto flex-col items-center gap-2">
             {externalMapsAllowed && (
               <button
                 type="button"
@@ -1199,7 +1199,7 @@ export default function EventMap() {
           )}
 
           {externalMapsAllowed && locationError && (
-            <div className="absolute right-3 top-16 z-30 max-w-[min(22rem,calc(100vw-1.5rem))] rounded-md border border-amber-300/70 bg-amber-50/95 px-3 py-2 text-xs text-amber-950 shadow-sm dark:border-amber-500/40 dark:bg-amber-950/90 dark:text-amber-100">
+            <div className="absolute bottom-44 right-3 z-[1000] max-w-[min(22rem,calc(100vw-1.5rem))] rounded-md border border-amber-300/70 bg-amber-50/95 px-3 py-2 text-xs text-amber-950 shadow-sm dark:border-amber-500/40 dark:bg-amber-950/90 dark:text-amber-100">
               {locationError}
             </div>
           )}
