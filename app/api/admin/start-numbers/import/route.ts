@@ -27,6 +27,17 @@ type ParsedAssignments = {
   participantAssignments: Map<string, string | null>;
 };
 
+const TEAM_ID_HEADER_ALIASES = ["team_id", "teamid", "team_uid", "teamuid", "portal_team_uid", "mannschaft_id"];
+const TEAM_NAME_HEADER_ALIASES = ["mannschaftsname", "team_name", "teamname", "mannschaft"];
+const START_NUMBER_HEADER_ALIASES = [
+  "team_startnummer",
+  "team_start_number",
+  "team_startnumber",
+  "startnummer",
+  "start_number",
+  "startnumber",
+];
+
 type LegacyImportWarning = {
   row: number;
   startNumber: string | null;
@@ -129,6 +140,12 @@ function normalizeStartNumber(value: string) {
   return trimmed ? trimmed : null;
 }
 
+function normalizeImportId(value: string | null | undefined) {
+  const trimmed = (value || "").trim();
+  const normalized = trimmed.toLocaleLowerCase("de-DE");
+  return ["", "-", "null", "n/a", "na", "#n/a", "#nv", "neu", "new"].includes(normalized) ? "" : trimmed;
+}
+
 function normalizeLegacyText(value: string | null | undefined) {
   return (value || "")
     .trim()
@@ -144,15 +161,9 @@ function findHeaderIndex(normalizedHeaders: string[], aliases: string[]) {
 
 function isStartNumberHeaderRow(row: string[]) {
   const normalizedHeaders = row.map(normalizeHeader);
-  const hasTeamId = findHeaderIndex(
-    normalizedHeaders,
-    ["team_id", "teamid", "team_uid", "teamuid", "portal_team_uid", "mannschaft_id"],
-  ) !== -1;
-  const hasStartNumber = findHeaderIndex(
-    normalizedHeaders,
-    ["team_startnummer", "team_start_number", "team_startnumber", "startnummer", "start_number", "startnumber"],
-  ) !== -1;
-  const hasTeamName = findHeaderIndex(normalizedHeaders, ["mannschaftsname", "team_name", "teamname", "mannschaft"]) !== -1;
+  const hasTeamId = findHeaderIndex(normalizedHeaders, TEAM_ID_HEADER_ALIASES) !== -1;
+  const hasStartNumber = findHeaderIndex(normalizedHeaders, START_NUMBER_HEADER_ALIASES) !== -1;
+  const hasTeamName = findHeaderIndex(normalizedHeaders, TEAM_NAME_HEADER_ALIASES) !== -1;
   return hasStartNumber && (hasTeamId || hasTeamName);
 }
 
@@ -175,14 +186,8 @@ function collectAssignments(
   clearMissing: boolean,
 ): ParsedAssignments {
   const normalizedHeaders = headers.map(normalizeHeader);
-  const teamIdIndex = normalizedHeaders.findIndex((header) =>
-    ["team_id", "teamid", "team_uid", "teamuid", "portal_team_uid", "mannschaft_id"].includes(header),
-  );
-  const teamStartNumberIndex = normalizedHeaders.findIndex((header) =>
-    ["team_startnummer", "team_start_number", "team_startnumber", "startnummer", "start_number", "startnumber"].includes(
-      header,
-    ),
-  );
+  const teamIdIndex = normalizedHeaders.findIndex((header) => TEAM_ID_HEADER_ALIASES.includes(header));
+  const teamStartNumberIndex = normalizedHeaders.findIndex((header) => START_NUMBER_HEADER_ALIASES.includes(header));
 
   const participantIdIndex = normalizedHeaders.findIndex((header) =>
     ["participant_id", "participantid", "tn_id", "teilnehmer_id"].includes(header),
@@ -196,7 +201,7 @@ function collectAssignments(
 
   if (teamIdIndex !== -1 && teamStartNumberIndex !== -1) {
     for (const row of rows) {
-      const teamId = (row[teamIdIndex] || "").trim();
+      const teamId = normalizeImportId(row[teamIdIndex]);
       if (!teamId) continue;
       const normalized = normalizeStartNumber(row[teamStartNumberIndex] || "");
       if (normalized === null && !clearMissing) continue;
@@ -206,7 +211,7 @@ function collectAssignments(
 
   if (participantIdIndex !== -1 && startNumberIndex !== -1) {
     for (const row of rows) {
-      const participantId = (row[participantIdIndex] || "").trim();
+      const participantId = normalizeImportId(row[participantIdIndex]);
       if (!participantId) continue;
       const normalized = normalizeStartNumber(row[startNumberIndex] || "");
       if (normalized === null && !clearMissing) continue;
@@ -228,7 +233,7 @@ function collectAssignments(
 
   for (const row of rows) {
     for (const slot of slotIndices) {
-      const participantId = (row[slot.participantId] || "").trim();
+      const participantId = normalizeImportId(row[slot.participantId]);
       if (!participantId) continue;
       const normalized = normalizeStartNumber(row[slot.startNumber] || "");
       if (normalized === null && !clearMissing) continue;
@@ -280,6 +285,124 @@ function getLegacySlotIndices(normalizedHeaders: string[]) {
       disciplineCode: "MTB",
     },
   ];
+}
+
+function getDashboardSlotIndices(normalizedHeaders: string[]) {
+  const slots: Array<{
+    firstName: number;
+    lastName: number;
+    gender: number;
+    birthYear: number;
+    discipline: number;
+  }> = [];
+
+  for (let slot = 1; slot <= 99; slot += 1) {
+    const token = String(slot).padStart(2, "0");
+    const firstName = findHeaderIndex(normalizedHeaders, [`tn_${token}_vorname`, `tn_${token}_first_name`, `tn_${token}_firstname`]);
+    const lastName = findHeaderIndex(normalizedHeaders, [`tn_${token}_nachname`, `tn_${token}_name`, `tn_${token}_last_name`, `tn_${token}_lastname`]);
+    const gender = findHeaderIndex(normalizedHeaders, [`tn_${token}_geschlecht`, `tn_${token}_gender`]);
+    const birthYear = findHeaderIndex(normalizedHeaders, [`tn_${token}_geburtsjahr`, `tn_${token}_birth_year`, `tn_${token}_birthyear`]);
+    const discipline = findHeaderIndex(normalizedHeaders, [`tn_${token}_disziplin`, `tn_${token}_discipline`, `tn_${token}_discipline_code`]);
+
+    if ([firstName, lastName, gender, birthYear, discipline].some((index) => index !== -1)) {
+      slots.push({ firstName, lastName, gender, birthYear, discipline });
+    }
+  }
+
+  return slots;
+}
+
+function parseDashboardDisciplineCode(value: string | null | undefined): "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB" | null {
+  const normalized = normalizeLegacyText(value);
+  const compact = normalized.replace(/[^a-z0-9]/g, "");
+  const aliases: Record<string, "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB"> = {
+    run: "RUN",
+    lauf: "RUN",
+    laufen: "RUN",
+    bench: "BENCH",
+    bank: "BENCH",
+    bankdruecken: "BENCH",
+    bankdrucken: "BENCH",
+    stock: "STOCK",
+    stockschiessen: "STOCK",
+    stockschiesen: "STOCK",
+    road: "ROAD",
+    rad: "ROAD",
+    rennrad: "ROAD",
+    mtb: "MTB",
+    mountainbike: "MTB",
+  };
+
+  return aliases[compact] ?? null;
+}
+
+function collectDashboardCreateParticipants(
+  row: string[],
+  normalizedHeaders: string[],
+): LegacyCreateCandidate["participants"] | null {
+  const slots = getDashboardSlotIndices(normalizedHeaders);
+  if (slots.length === 0) return null;
+
+  const participants: LegacyCreateCandidate["participants"] = [];
+  for (const slot of slots) {
+    const values = [slot.firstName, slot.lastName, slot.gender, slot.birthYear, slot.discipline]
+      .filter((index) => index !== -1)
+      .map((index) => (row[index] || "").trim());
+    if (values.every((value) => !value)) continue;
+
+    if (slot.firstName === -1 || slot.lastName === -1 || slot.gender === -1 || slot.birthYear === -1 || slot.discipline === -1) {
+      return null;
+    }
+
+    const firstName = (row[slot.firstName] || "").trim();
+    const lastName = (row[slot.lastName] || "").trim();
+    const gender = parseLegacyGender(row[slot.gender]);
+    const birthYear = parseLegacyBirthYear(row[slot.birthYear]);
+    const disciplineCode = parseDashboardDisciplineCode(row[slot.discipline]);
+    if (!firstName || !lastName || !gender || !birthYear || !disciplineCode) {
+      return null;
+    }
+
+    participants.push({
+      firstName,
+      lastName,
+      gender,
+      birthYear,
+      disciplineCode,
+    });
+  }
+
+  return participants.length > 0 ? participants : null;
+}
+
+function collectLegacyCreateParticipants(
+  row: string[],
+  normalizedHeaders: string[],
+): LegacyCreateCandidate["participants"] | null {
+  const participants: LegacyCreateCandidate["participants"] = [];
+  for (const slot of getLegacySlotIndices(normalizedHeaders)) {
+    if (slot.firstName === -1 || slot.lastName === -1 || slot.gender === -1 || slot.birthYear === -1) {
+      return null;
+    }
+
+    const firstName = (row[slot.firstName] || "").trim();
+    const lastName = (row[slot.lastName] || "").trim();
+    const gender = parseLegacyGender(row[slot.gender]);
+    const birthYear = parseLegacyBirthYear(row[slot.birthYear]);
+    if (!firstName || !lastName || !gender || !birthYear) {
+      return null;
+    }
+
+    participants.push({
+      firstName,
+      lastName,
+      gender,
+      birthYear,
+      disciplineCode: slot.disciplineCode as "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB",
+    });
+  }
+
+  return participants;
 }
 
 function buildLegacyRowSignature(row: string[], normalizedHeaders: string[]) {
@@ -400,15 +523,11 @@ function collectLegacyCreateCandidates(
   }>,
 ): { createCandidates: LegacyCreateCandidate[]; warnings: LegacyImportWarning[] } {
   const normalizedHeaders = headers.map(normalizeHeader);
-  const teamIdIndex = findHeaderIndex(
-    normalizedHeaders,
-    ["team_id", "teamid", "team_uid", "teamuid", "portal_team_uid", "mannschaft_id"],
-  );
-  const startNumberIndex = findHeaderIndex(normalizedHeaders, ["startnummer", "start_number", "startnumber"]);
-  const teamNameIndex = findHeaderIndex(normalizedHeaders, ["mannschaftsname", "team_name", "teamname", "mannschaft"]);
+  const teamIdIndex = findHeaderIndex(normalizedHeaders, TEAM_ID_HEADER_ALIASES);
+  const startNumberIndex = findHeaderIndex(normalizedHeaders, START_NUMBER_HEADER_ALIASES);
+  const teamNameIndex = findHeaderIndex(normalizedHeaders, TEAM_NAME_HEADER_ALIASES);
   const classificationIndex = findHeaderIndex(normalizedHeaders, ["klasse", "classification", "class"]);
   const totalAgeIndex = findHeaderIndex(normalizedHeaders, ["gesamtalter", "total_age", "totalage"]);
-  const slots = getLegacySlotIndices(normalizedHeaders);
 
   const createCandidates: LegacyCreateCandidate[] = [];
   const warnings: LegacyImportWarning[] = [];
@@ -422,7 +541,7 @@ function collectLegacyCreateCandidates(
 
   rows.forEach((row, index) => {
     const rowNumber = dataStartRowNumber + index;
-    const teamId = (row[teamIdIndex] || "").trim();
+    const teamId = normalizeImportId(row[teamIdIndex]);
     if (teamId) return;
 
     const teamName = (row[teamNameIndex] || "").trim();
@@ -445,37 +564,11 @@ function collectLegacyCreateCandidates(
       return;
     }
 
-    const participants: LegacyCreateCandidate["participants"] = [];
-    for (const slot of slots) {
-      if (slot.firstName === -1 || slot.lastName === -1 || slot.gender === -1 || slot.birthYear === -1) {
-        warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_participant_data" });
-        return;
-      }
-
-      const firstName = (row[slot.firstName] || "").trim();
-      const lastName = (row[slot.lastName] || "").trim();
-      const gender = parseLegacyGender(row[slot.gender]);
-      const birthYear = parseLegacyBirthYear(row[slot.birthYear]);
-      if (!firstName || !lastName) {
-        warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_participant_data" });
-        return;
-      }
-      if (!gender) {
-        warnings.push({ row: rowNumber, startNumber, teamName, reason: "invalid_gender" });
-        return;
-      }
-      if (!birthYear) {
-        warnings.push({ row: rowNumber, startNumber, teamName, reason: "invalid_birth_year" });
-        return;
-      }
-
-      participants.push({
-        firstName,
-        lastName,
-        gender,
-        birthYear,
-        disciplineCode: slot.disciplineCode as "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB",
-      });
+    const participants =
+      collectDashboardCreateParticipants(row, normalizedHeaders) ?? collectLegacyCreateParticipants(row, normalizedHeaders);
+    if (!participants) {
+      warnings.push({ row: rowNumber, startNumber, teamName, reason: "missing_participant_data" });
+      return;
     }
 
     candidateStartNumbers.add(startNumber);
@@ -509,8 +602,8 @@ function collectLegacyAssignments(
   }>,
 ): { teamAssignments: Map<string, string | null>; warnings: LegacyImportWarning[] } {
   const normalizedHeaders = headers.map(normalizeHeader);
-  const startNumberIndex = findHeaderIndex(normalizedHeaders, ["startnummer", "start_number", "startnumber"]);
-  const teamNameIndex = findHeaderIndex(normalizedHeaders, ["mannschaftsname", "team_name", "teamname", "mannschaft"]);
+  const startNumberIndex = findHeaderIndex(normalizedHeaders, START_NUMBER_HEADER_ALIASES);
+  const teamNameIndex = findHeaderIndex(normalizedHeaders, TEAM_NAME_HEADER_ALIASES);
 
   const teamAssignments = new Map<string, string | null>();
   const warnings: LegacyImportWarning[] = [];
