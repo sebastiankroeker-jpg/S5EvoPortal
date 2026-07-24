@@ -915,7 +915,7 @@ function OverallResultsTables({
                             {onFocusTeam ? (
                               <button
                                 type="button"
-                                className="min-w-0 whitespace-normal break-words text-left hover:text-primary hover:underline"
+                                className="min-w-0 whitespace-normal break-words text-left text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
                                 title={`${team.teamName} in Live-Teams fokussieren`}
                                 onClick={() => onFocusTeam(team.teamId)}
                               >
@@ -943,8 +943,8 @@ function OverallResultsTables({
                                 {entry ? (
                                   <button
                                     type="button"
-                                    className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded px-1 font-semibold tabular-nums transition-colors hover:bg-primary/10 hover:text-primary ${
-                                      isFocused ? "bg-primary/10 text-primary ring-2 ring-primary/30" : ""
+                                    className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded border border-primary/25 bg-primary/5 px-1 font-semibold text-primary tabular-nums underline decoration-primary/40 underline-offset-2 transition-colors hover:bg-primary/10 hover:decoration-primary ${
+                                      isFocused ? "bg-primary/10 ring-2 ring-primary/30" : ""
                                     }`}
                                     title={`${entry.participantName} in Einzelergebnissen fokussieren`}
                                     onClick={() => {
@@ -1073,7 +1073,7 @@ function DisciplineResultsTables({
                                 {onFocusTeam ? (
                                   <button
                                     type="button"
-                                    className="min-w-0 truncate text-left hover:text-primary hover:underline"
+                                    className="min-w-0 truncate text-left font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
                                     title={`${entry.teamName} in Live-Teams fokussieren`}
                                     onClick={() => onFocusTeam(entry.teamId)}
                                   >

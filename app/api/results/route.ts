@@ -149,7 +149,12 @@ export async function GET(request: NextRequest) {
 
     // Load all teams with participants and discipline results
     const teams = await prisma.team.findMany({
-      where: { competitionId, deletedAt: null },
+      where: {
+        competitionId,
+        deletedAt: null,
+        registrationMode: "TEAM",
+        classificationCode: { not: "sportlerboerse" },
+      },
       include: {
         participants: {
           where: { deletedAt: null },

@@ -741,7 +741,7 @@ export default function LiveScreen() {
                                     <span className="inline-flex min-w-0 items-center gap-1.5">
                                       <button
                                         type="button"
-                                        className="min-w-0 truncate text-left hover:text-primary hover:underline"
+                                        className="min-w-0 truncate text-left font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
                                         title={`${p.firstName} ${p.lastName} in Live-Daten fokussieren`}
                                         onClick={() => focusParticipantFromTeam(team, p, discipline.id)}
                                       >
@@ -1023,7 +1023,7 @@ export default function LiveScreen() {
                                           </span>
                                           <button
                                             type="button"
-                                            className="truncate text-left text-xs text-muted-foreground hover:text-primary hover:underline"
+                                            className="truncate text-left text-xs font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
                                             title={`${teamName} in Teams fokussieren`}
                                             onClick={() => {
                                               setTeamsClassFilters((current) => (current.length > 0 && !current.includes(teamCategory) ? [] : current));

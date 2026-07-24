@@ -641,6 +641,12 @@ export async function GET(request: NextRequest) {
             accessFilter,
             queryFilter,
             ...(competitionId ? [{ competitionId }] : []),
+            ...(isLiveTeamListRequest
+              ? [
+                  { registrationMode: "TEAM" as const },
+                  { classificationCode: { not: "sportlerboerse" } },
+                ]
+              : []),
             { deletedAt: null },
           ],
         },
