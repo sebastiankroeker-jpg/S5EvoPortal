@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-## CR: change dashboard legacy status/list view - 2026-07-24 07:56 UTC
+## CR deployed: change dashboard legacy status/list view - 2026-07-24 08:05 UTC
 
 - Context: Sebastian requested `/aenderungen` UI cleanup from the
   Änderungsübersicht screenshot on competition day:
@@ -8,8 +8,15 @@
   show requester + date/time, add maintainable `Legacy OK`, add filter,
   remember filters/search while navigating away, and add a list view like the
   team dashboard.
-- Implementation done; Sebastian approved commit, production deploy, and
-  production migration with "Go" on 2026-07-24 07:56 UTC:
+- Implemented, committed, migrated, deployed:
+  - Commit: `f9d4131 Add change dashboard legacy status`
+  - Migration: `20260724073100_add_legacy_sync_status_to_changes` applied to
+    production on 2026-07-24 08:00 UTC.
+  - Deployment: `dpl_6sfp9w4sC57G7fMBk2ucrczCC14K`
+    (`https://s5-evo-portal-5i4gm76uo-sebastiankroeker-2781s-projects.vercel.app`)
+  - Production alias: `https://portal.s5evo.de`
+  - Sebastian approved commit, production deploy, and production migration with
+    "Go" on 2026-07-24 07:56 UTC.
   - `prisma/schema.prisma` adds `LegacySyncStatus` and `legacyStatus` on
     `PendingChange`, `ChangeRequest`, and `ParticipantAuditLog`.
   - Migration prepared:
@@ -30,10 +37,13 @@
   - `npx tsc --noEmit --incremental false`
   - `git diff --check`
   - `npm run build`
-- Still needed:
-  - Commit, production migration/deploy, and post-deploy smoke.
-  - Authenticated admin smoke on `/aenderungen` after deploy if a session is
-    available.
+- Post-deploy smoke:
+  - `npm run smoke:public` -> pass
+  - `HEAD https://portal.s5evo.de/aenderungen` -> 200
+  - `GET https://portal.s5evo.de/api/admin/pending-changes` without session
+    -> 401 as expected
+  - Authenticated admin browser smoke on `/aenderungen` remains the only gap
+    unless Sebastian validates in the live UI.
 
 ## Local CR1 work in progress - 2026-07-23 21:00 UTC
 

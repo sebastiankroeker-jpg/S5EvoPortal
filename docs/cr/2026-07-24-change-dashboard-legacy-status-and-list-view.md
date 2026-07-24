@@ -1,6 +1,6 @@
 # CR: Change Dashboard Legacy Status And List View
 
-Status: Approved for production deploy
+Status: Deployed
 Date: 2026-07-24
 Type: feature
 Risk: medium
@@ -129,7 +129,8 @@ similar to the team dashboard.
   - Use a DB-backed enum so `Legacy OK` is durable for all overview entry
     types.
 - Open decisions:
-  - Production migration/deploy execution and post-deploy smoke.
+  - Authenticated admin browser smoke by Sebastian or with a valid admin
+    session.
 - Non-goals:
   - No public visibility, no mail/export/offline cache change.
 - Expected implementation steps:
@@ -214,15 +215,25 @@ similar to the team dashboard.
 
 ## Deploy
 
-- Deployment needed: yes before users can use it.
-- Deployment ID: not deployed
-- Deployment URL: not deployed
-- Production alias: not changed
-- Deployed at: n/a
+- Deployment needed: done.
+- Commit: `f9d4131 Add change dashboard legacy status`
+- Migration:
+  `20260724073100_add_legacy_sync_status_to_changes` applied successfully to
+  production.
+- Deployment ID: `dpl_6sfp9w4sC57G7fMBk2ucrczCC14K`
+- Deployment URL:
+  `https://s5-evo-portal-5i4gm76uo-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-24 08:04 UTC
 
 ## Post-Deploy Smoke
 
-- Pending; no production deploy was run.
+- `npm run smoke:public` -> pass
+- `HEAD https://portal.s5evo.de/aenderungen` -> 200
+- `GET https://portal.s5evo.de/api/admin/pending-changes` without session
+  -> 401 as expected
+- Authenticated admin smoke was not run from this host; validate in live UI
+  with an admin session.
 
 ## Follow-Ups
 
