@@ -160,11 +160,10 @@ const SORTS = [
 type SortId = (typeof SORTS)[number]["id"];
 type SortDirection = "asc" | "desc";
 
-type HelperColumn = "recordedAt" | "status" | "assignment";
+type HelperColumn = "status" | "assignment";
 type StartNumberSource = "official" | "imported-test";
 
 const HELPER_COLUMNS: { id: HelperColumn; label: string }[] = [
-  { id: "recordedAt", label: "Uhrzeit" },
   { id: "status", label: "Sync-Status" },
   { id: "assignment", label: "Zuordnung" },
 ];
@@ -464,12 +463,11 @@ export default function TimekeepingPage() {
   const [startNumberSource, setStartNumberSource] = useState<StartNumberSource>("official");
   const [baseTimeDrafts, setBaseTimeDrafts] = useState<Record<string, string>>({});
   const [finishNetTimeDrafts, setFinishNetTimeDrafts] = useState<Record<string, string>>({});
-  const [finishTimeDrafts, setFinishTimeDrafts] = useState<Record<string, string>>({});
   const [helperColumns, setHelperColumns] = useState<Record<HelperColumn, boolean>>({
-    recordedAt: true,
     status: false,
     assignment: false,
   });
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -1111,50 +1109,54 @@ export default function TimekeepingPage() {
     });
   };
 
-  const updateFinishRecordedAt = (sessionId: string, eventId: string, value: string) => {
-    setFinishTimeDrafts((current) => ({ ...current, [eventId]: value }));
+  const deleteFinishEvent = async (sessionId: string, eventId: string) => {
+    if (!activeCompetition?.id) return;
     const sourceSession = state?.sessions.find((session) => session.id === sessionId);
     const target = sourceSession?.events.find((event) => event.clientEventId === eventId);
     if (!sourceSession || !target) return;
 
-    const { isValid, iso } = baseTimeClockToIso(value, target.recordedAt);
-    if (!isValid || !iso) return;
+    const confirmed = window.confirm(
+      `Zeit ${formatDuration(target.netElapsedMs)}${target.startNumber ? ` für Startnr. ${target.startNumber}` : ""} löschen?`,
+    );
+    if (!confirmed) return;
 
-    setFinishTimeDrafts((current) => {
-      const next = { ...current };
-      delete next[eventId];
-      return next;
-    });
+    setDeletingEventId(eventId);
+    setError(null);
+    try {
+      const response = await fetch("/api/timekeeping/events", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: activeCompetition.id,
+          sessionId,
+          clientEventId: eventId,
+        }),
+      });
+      if (!response.ok) throw new Error("Zeit konnte nicht gelöscht werden");
 
-    updateSessionById(sessionId, (session) => ({
-      ...session,
-      events: session.events.map((event) => {
-        if (event.clientEventId !== eventId) return event;
-        const { rawElapsedMs, netElapsedMs } = calculateNetMs(session, event.startNumber, new Date(iso));
-        return {
-          ...event,
-          recordedAt: iso,
-          rawElapsedMs,
-          netElapsedMs,
-          payload: {
-            ...(event.payload ?? {}),
-            ...buildBaseTimePayload(session.manualStartedAt),
-            correctedAt: new Date().toISOString(),
-            correctedFromRecordedAt: event.recordedAt,
-          },
-          syncStatus: "local",
-        };
-      }),
-    }));
-  };
-
-  const resetFinishTimeDraft = (eventId: string) => {
-    setFinishTimeDrafts((current) => {
-      if (!(eventId in current)) return current;
-      const next = { ...current };
-      delete next[eventId];
-      return next;
-    });
+      updateSessionById(sessionId, (session) => ({
+        ...session,
+        events: session.events.filter((event) => {
+          if (event.clientEventId === eventId) return false;
+          if (event.eventType !== "ASSIGN_START_NUMBER") return true;
+          return event.payload?.assignedToClientEventId !== eventId;
+        }),
+      }));
+      setFinishNetTimeDrafts((current) => {
+        if (!(eventId in current)) return current;
+        const next = { ...current };
+        delete next[eventId];
+        return next;
+      });
+      if (assigningEventId === eventId) {
+        setAssigningEventId(null);
+        setAssignValue("");
+      }
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Zeit konnte nicht gelöscht werden");
+    } finally {
+      setDeletingEventId(null);
+    }
   };
 
   const syncEvents = async () => {
@@ -1978,7 +1980,7 @@ export default function TimekeepingPage() {
             {filteredEvents.length === 0 ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Keine Zeiten in der aktuellen Ansicht.</div>
             ) : (
-              <table className="w-full min-w-[680px] table-fixed text-sm">
+              <table className="w-full min-w-[720px] table-fixed text-sm">
                 <thead className="border-b border-border/60 bg-muted/30">
                   <tr>
                     <th className="w-12 px-1 py-2 text-left">
@@ -1994,13 +1996,9 @@ export default function TimekeepingPage() {
                     <th className="w-20 px-1 py-2 text-left">{renderSortHeader("firstName", "Vor.", "Vorname")}</th>
                     <th className="w-20 px-1 py-2 text-left">{renderSortHeader("lastName", "Name", "Nachname")}</th>
                     <th className="w-24 px-1 py-2 text-left">{renderSortHeader("teamName", "Team", "Team")}</th>
-                    {helperColumns.recordedAt && (
-                      <th className="w-24 px-1 py-2 text-left">
-                        {renderSortHeader("recordedDesc", "Uhr", "Uhrzeit")}
-                      </th>
-                    )}
                     {helperColumns.status && <th className="w-16 px-1 py-2 text-left">{renderSortHeader("status", "Stat.", "Sync-Status")}</th>}
                     {helperColumns.assignment && <th className="w-28 px-1 py-2 text-left">{renderSortHeader("assignment", "Zuord.", "Zuordnung")}</th>}
+                    <th className="w-12 px-1 py-2 text-right">Aktion</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2094,19 +2092,6 @@ export default function TimekeepingPage() {
                         <td className="truncate px-1 py-2 align-top">{starter?.firstName ?? "—"}</td>
                         <td className="truncate px-1 py-2 align-top">{starter?.lastName ?? "—"}</td>
                         <td className="truncate px-1 py-2 align-top">{starter?.teamName ?? "—"}</td>
-                        {helperColumns.recordedAt && (
-                          <td className="px-1 py-2 align-top">
-                            <Input
-                              inputMode="text"
-                              pattern="[0-2][0-9]:[0-5][0-9]:[0-5][0-9]"
-                              value={finishTimeDrafts[event.clientEventId] ?? formatBaseTimeClock(event.recordedAt)}
-                              onChange={(inputEvent) => updateFinishRecordedAt(session.id, event.clientEventId, inputEvent.target.value)}
-                              onBlur={() => resetFinishTimeDraft(event.clientEventId)}
-                              className="h-9 px-2 font-mono text-xs tabular-nums"
-                              aria-label={`Stopp-Zeit für ${event.startNumber ?? "unbekannte Startnummer"} korrigieren`}
-                            />
-                          </td>
-                        )}
                         {helperColumns.status && (
                           <td className="px-1 py-2 align-top">
                             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{visibleEventStatus(event)}</span>
@@ -2117,6 +2102,20 @@ export default function TimekeepingPage() {
                             {starter ? "lokal zugeordnet" : "Keine lokale Zuordnung"}
                           </td>
                         )}
+                        <td className="px-1 py-2 text-right align-top">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                            disabled={deletingEventId === event.clientEventId}
+                            onClick={() => void deleteFinishEvent(session.id, event.clientEventId)}
+                            aria-label={`Zeit ${event.startNumber ? `für Startnummer ${event.startNumber}` : ""} löschen`}
+                            title="Zeit löschen"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}
