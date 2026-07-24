@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
-  canViewerSeeFullPublication,
   resolveVisibleParticipantName,
   resolveVisibleTeamName,
 } from "@/lib/publication-visibility";
@@ -138,9 +137,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Results are not published for this access level" }, { status: 403 });
     }
 
-    const canSeeFullPublication = canViewerSeeFullPublication({
-      isPrivilegedViewer: Boolean(access?.isAdmin || access?.isModerator),
-    });
+    // Live results are explicitly published via liveResultsVisibility. Once a
+    // viewer may access this live surface, team and participant name privacy
+    // preferences must not anonymize the scoreboard.
+    const canSeeLiveNames = true;
     const canSeeEmptyResultRows = Boolean(access?.isAdmin || access?.isModerator);
     const canSeeStartNumber = Boolean(access?.isAdmin);
     if (includeStagingTest && !access?.isAdmin) {
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
       visibleTeamById.set(team.id, resolveVisibleTeamName({
         actualTeamName: team.name,
         teamPublicationLevel: team.teamPublicationLevel,
-        canSeeFullPublication,
+        canSeeFullPublication: canSeeLiveNames,
       }));
       teamClassCodeById.set(team.id, classCode);
       teamStartNumberById.set(team.id, canSeeStartNumber ? team.startNumber : null);
@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
           actualName: `${participant.firstName} ${participant.lastName}`,
           teamPublicationLevel: team.teamPublicationLevel,
           participantPublicationPreference: participant.participantPublicationPreference,
-          canSeeFullPublication,
+          canSeeFullPublication: canSeeLiveNames,
         }));
       }
     }

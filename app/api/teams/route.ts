@@ -182,6 +182,7 @@ function serializeParticipant(
     currentUserId?: string | null;
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
+    canSeeLiveNames?: boolean;
     canSeeSensitiveParticipantFields?: boolean;
     teamPublicationLevel?: string | null;
     activeTeamManagerUserIds?: Set<string>;
@@ -201,7 +202,7 @@ function serializeParticipant(
     actualName: `${participant.firstName} ${participant.lastName}`.trim(),
     teamPublicationLevel: options?.teamPublicationLevel,
     participantPublicationPreference: participant.participantPublicationPreference,
-    canSeeFullPublication: canSeeFullPublication || isCurrentUserParticipant,
+    canSeeFullPublication: options?.canSeeLiveNames === true || canSeeFullPublication || isCurrentUserParticipant,
   });
   const splitName = splitDisplayName(visibleParticipantName);
   return {
@@ -264,6 +265,7 @@ function serializeTeam(
     currentUserId?: string | null;
     currentUserEmail?: string | null;
     canSeeFullPublication?: boolean;
+    canSeeLiveNames?: boolean;
     canSeeSensitiveParticipantFields?: boolean;
     canSeeOwnerClaimFields?: boolean;
     canEditAllTeams?: boolean;
@@ -315,7 +317,7 @@ function serializeTeam(
   const visibleTeamName = resolveVisibleTeamName({
     actualTeamName: team.name,
     teamPublicationLevel: team.teamPublicationLevel,
-    canSeeFullPublication: canSeeFullTeamPublication,
+    canSeeFullPublication: options?.canSeeLiveNames === true || canSeeFullTeamPublication,
   });
   const latestRegistrationClaimToken = Array.isArray(team.registrationClaimTokens)
     ? team.registrationClaimTokens[0]
@@ -362,6 +364,7 @@ function serializeTeam(
               ...options,
               teamPublicationLevel: team.teamPublicationLevel,
               canSeeFullPublication: canSeeFullTeamPublication,
+              canSeeLiveNames: options?.canSeeLiveNames,
               canSeeSensitiveParticipantFields,
               activeTeamManagerUserIds,
             }),
@@ -731,6 +734,7 @@ export async function GET(request: NextRequest) {
               isPrivilegedViewer: effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR",
               ownsTeam: teamAccess.canEditTeam,
             });
+          const canSeeLiveNames = isLiveTeamListRequest && wantsAllTeams && canViewRequestedScope;
 
           const teamWithParticipantAccounts = {
             ...team,
@@ -744,6 +748,7 @@ export async function GET(request: NextRequest) {
             currentUserId: user?.id ?? null,
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,
+            canSeeLiveNames,
             canEditAllTeams: access.canEditAllTeams,
             canSeeStartNumber: access.isAdmin || (wantsAllTeams && canViewRequestedScope),
             currentUserHasPortalAccount: Boolean(user?.authentikSub),
