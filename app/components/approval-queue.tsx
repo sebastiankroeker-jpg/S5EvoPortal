@@ -101,6 +101,7 @@ type ChangeField = {
 type DecoratedChange = PendingChange & {
   fields: ChangeField[];
   wasUpdated: boolean;
+  activityAt: string;
   participantName: string;
   requesterLabel: string;
   priorityScore: number;
@@ -180,6 +181,23 @@ function formatValue(value: string | number | null | undefined) {
   return String(value);
 }
 
+function getDisplayFields(fields: ChangeField[]) {
+  const hasBirthDateChange = fields.some((field) => field.key === "birthDate");
+  if (!hasBirthDateChange) return fields;
+  return fields.filter((field) => field.key !== "birthYear");
+}
+
+function getAffectedDisciplineLabel(members: DecoratedChange[]) {
+  const labels = members
+    .flatMap((member) => member.fields.filter((field) => field.key === "disciplineCode"))
+    .map((field) => `${formatValue(field.before)} -> ${formatValue(field.after)}`);
+  const uniqueLabels = Array.from(new Set(labels));
+
+  if (uniqueLabels.length === 0) return null;
+  if (uniqueLabels.length <= 2) return uniqueLabels.join(" · ");
+  return `${uniqueLabels.slice(0, 2).join(" · ")} +${uniqueLabels.length - 2}`;
+}
+
 function getChangeTitle(change: DecoratedChange) {
   if (change.targetType === "TEAM") {
     return "Mannschaftsname";
@@ -217,13 +235,36 @@ function formatStartNumber(value?: string | number | null) {
   return value !== null && value !== undefined && String(value).trim() ? `#${value}` : "Strnr -";
 }
 
+function timestampValue(value?: string | null) {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function resolveActivityAt(change: PendingChange) {
+  const candidates = [
+    change.createdAt,
+    change.updatedAt,
+    change.reviewedAt,
+    ...(change.recentHistory?.map((entry) => entry.createdAt) || []),
+  ].filter((value): value is string => Boolean(value));
+
+  return candidates.reduce((latest, current) => (
+    timestampValue(current) > timestampValue(latest) ? current : latest
+  ), change.updatedAt || change.createdAt);
+}
+
+function compareLatestActivity(left: DecoratedChange, right: DecoratedChange) {
+  return timestampValue(right.activityAt) - timestampValue(left.activityAt);
+}
+
 function getLegacyStatusLabel(status: LegacyStatus) {
   if (status === "LEGACY_OK") return "Legacy OK";
   return "Legacy offen";
 }
 
 function getPrimaryAfterValue(change: DecoratedChange) {
-  const fields = getBundleMembers(change).flatMap((member) => member.fields);
+  const fields = getBundleMembers(change).flatMap((member) => getDisplayFields(member.fields));
   if (fields.length === 0) return "-";
   if (fields.length === 1) return formatValue(fields[0].after);
   return `${formatValue(fields[0].after)} +${fields.length - 1}`;
@@ -431,6 +472,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       ...change,
       fields: buildDiffs(change),
       wasUpdated: change.updatedAt !== change.createdAt,
+      activityAt: resolveActivityAt(change),
       participantName: change.participant.firstName + " " + change.participant.lastName,
       requesterLabel: change.requestedBy.name || change.requestedBy.email,
       priorityScore: resolvePriorityScore(change, change.updatedAt !== change.createdAt),
@@ -493,25 +535,25 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       })
       .sort((left, right) => {
         if (sortMode === "latest") {
-          return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+          return compareLatestActivity(left, right);
         }
         if (sortMode === "oldest") {
-          return new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime();
+          return -compareLatestActivity(left, right);
         }
         if (sortMode === "participant") {
-          return left.participantName.localeCompare(right.participantName, "de") || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+          return left.participantName.localeCompare(right.participantName, "de") || compareLatestActivity(left, right);
         }
         if (sortMode === "team") {
           return left.participant.team.name.localeCompare(right.participant.team.name, "de") || left.participantName.localeCompare(right.participantName, "de");
         }
         if (sortMode === "fieldCount") {
-          return right.fields.length - left.fields.length || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+          return right.fields.length - left.fields.length || compareLatestActivity(left, right);
         }
         if (right.priorityScore !== left.priorityScore) {
           return right.priorityScore - left.priorityScore;
         }
 
-        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+        return compareLatestActivity(left, right);
       });
 
     const bundlesById = new Map<string, DecoratedChange[]>();
@@ -554,7 +596,10 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     const teamCount = new Set(decoratedChanges.map((change) => change.participant.team.name)).size;
     const updatedCount = decoratedChanges.filter((change) => change.wasUpdated).length;
     const fieldCount = decoratedChanges.reduce((sum, change) => sum + change.fields.length, 0);
-    const lastUpdated = decoratedChanges[0]?.updatedAt || null;
+    const lastUpdated = decoratedChanges.reduce<string | null>((latest, change) => {
+      if (!latest) return change.activityAt;
+      return timestampValue(change.activityAt) > timestampValue(latest) ? change.activityAt : latest;
+    }, null);
     const approvedCount = decoratedChanges.filter((change) => change.status === "APPROVED").length;
     const rejectedCount = decoratedChanges.filter((change) => change.status === "REJECTED").length;
     const directCount = decoratedChanges.filter((change) => isDirectChange(change)).length;
@@ -1195,7 +1240,9 @@ function SwapBundleSummary({ members }: { members: DecoratedChange[] }) {
 
 function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; members: DecoratedChange[] }) {
   if (members.length > 1) {
-    const membersWithFields = members.filter((member) => member.fields.length > 0);
+    const membersWithFields = members
+      .map((member) => ({ member, fields: getDisplayFields(member.fields) }))
+      .filter((entry) => entry.fields.length > 0);
 
     if (membersWithFields.length === 0) {
       return <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>;
@@ -1203,13 +1250,13 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
 
     return (
       <div className="space-y-2">
-        {membersWithFields.map((member) => (
+        {membersWithFields.map(({ member, fields }) => (
           <div key={member.id} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
             <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
               {member.participantName}
             </div>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {member.fields.map((field) => (
+              {fields.map((field) => (
                 <div key={`${member.id}-${field.key}`} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2">
                   <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     {fieldLabels[field.key] || field.key}
@@ -1228,7 +1275,9 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
     );
   }
 
-  if (change.fields.length === 0) {
+  const displayFields = getDisplayFields(change.fields);
+
+  if (displayFields.length === 0) {
     return <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>;
   }
 
@@ -1236,7 +1285,7 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
 
   return (
     <div className="space-y-2">
-      {change.fields.map((field) => (
+      {displayFields.map((field) => (
         <div key={field.key} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
           <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
             {fieldLabels[field.key] || field.key}
@@ -1411,8 +1460,9 @@ function ChangeList({
         const bundleMembers = getBundleMembers(change);
         const changeTitle = getChangeTitle(change);
         const isSwapBundle = change.bundleType === "SWAP" && bundleMembers.length > 1;
+        const affectedDisciplineLabel = getAffectedDisciplineLabel(bundleMembers);
         const previewFields = bundleMembers.flatMap((member) =>
-          member.fields.map((field) => ({ member, field })),
+          getDisplayFields(member.fields).map((field) => ({ member, field })),
         );
         return (
         <motion.div
@@ -1488,7 +1538,14 @@ function ChangeList({
                       <span>·</span>
                       <span>{formatTime(change.createdAt)}</span>
                     </div>
-                    <div className="truncate text-xs font-medium text-muted-foreground">{changeTitle}</div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
+                      {affectedDisciplineLabel ? (
+                        <Badge variant="outline" className="max-w-full border-blue-300 px-1.5 py-0 text-[10px] text-blue-700 dark:text-blue-200">
+                          <span className="truncate">Disziplin: {affectedDisciplineLabel}</span>
+                        </Badge>
+                      ) : null}
+                      <span className="min-w-0 truncate font-medium text-muted-foreground">{changeTitle}</span>
+                    </div>
                     {previewFields.length > 0 && (
                       <div className="rounded-md border border-border/50 bg-muted/25 px-2 py-1.5 text-[11px] text-muted-foreground">
                         <span className="font-medium text-foreground">Betroffen:</span>{" "}
@@ -1689,6 +1746,11 @@ function ChangeList({
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
+                      {affectedDisciplineLabel ? (
+                        <Badge variant="outline" className="max-w-full border-blue-300 text-blue-700 dark:text-blue-200">
+                          <span className="truncate">Disziplin: {affectedDisciplineLabel}</span>
+                        </Badge>
+                      ) : null}
                       <CardTitle className={compact ? "text-base" : "text-xl leading-tight"}>
                         {changeTitle}
                       </CardTitle>
