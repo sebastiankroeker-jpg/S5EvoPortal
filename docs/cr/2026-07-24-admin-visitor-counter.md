@@ -1,6 +1,6 @@
 # CR: Admin-only visitor counter
 
-Status: Implemented locally, pending deploy approval
+Status: Deployed
 Date: 2026-07-24
 Type: feature
 Risk: medium
@@ -174,6 +174,8 @@ privacy-preserving and intentionally small.
     carelessly; V1 explicitly avoids identifiers.
 - Approved by: Sebastian ("Ja, V1 bitte implementieren")
 - Approval timestamp: 2026-07-24 20:18 UTC
+- Production migration/deploy approved by: Sebastian ("Go")
+- Production migration/deploy approval timestamp: 2026-07-24 20:29 UTC
 
 ## Implementation Notes
 
@@ -221,17 +223,30 @@ privacy-preserving and intentionally small.
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Migration:
+  - `npx prisma migrate deploy` applied
+    `20260724202000_add_page_view_counters`.
+- Deployment ID: `dpl_E5nqkySY3iuR2S8j5T1YKsBvnyKR`
+- Deployment URL: `https://s5-evo-portal-in1qr6qzd-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-24 20:31 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `HEAD https://portal.s5evo.de` -> 200
 - API checks:
+  - `npm run smoke:public` -> pass
+  - `POST /api/visitor-counter` with `{ "routeKey": "home" }` -> 204,
+    empty body
+  - `POST /api/visitor-counter` with invalid route key -> 400
+  - `GET /api/admin/visitor-counter` without session -> 401
+  - Production aggregate check: `homeRows=1`, `homeCount=1`
 - Sensitive-data/API leakage checks:
+  - Public increment response has no body.
+  - Admin stats endpoint rejects anonymous access.
 - Result:
+  - Production migration and deploy succeeded; public smoke passed.
 
 ## Follow-Ups
 

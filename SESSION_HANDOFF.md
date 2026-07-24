@@ -1,12 +1,17 @@
 # SESSION_HANDOFF
 
-## CR local: Admin-only visitor counter V1 - 2026-07-24 20:31 UTC
+## CR deployed: Admin-only visitor counter V1 - 2026-07-24 20:31 UTC
 
 - Sebastian requested an internal visitor counter for admins and approved V1
   implementation with page views only.
 - CR document:
   `docs/cr/2026-07-24-admin-visitor-counter.md`.
-- Local implementation done, pending production migration/deploy approval:
+- Implemented, migrated, deployed:
+  - Commit: `f53c716 Add admin visitor page view counter`
+  - Migration: `20260724202000_add_page_view_counters` applied to production
+    with `npx prisma migrate deploy`.
+  - Deploy: `dpl_E5nqkySY3iuR2S8j5T1YKsBvnyKR`
+  - Production alias: `https://portal.s5evo.de`
   - New `PageViewCounter` aggregate table and migration
     `20260724202000_add_page_view_counters`.
   - Public `POST /api/visitor-counter` increments only whitelisted route keys.
@@ -27,11 +32,14 @@
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Next step: get Sebastian approval for production migration and deploy, then:
-  - `npx prisma migrate deploy`
-  - `vercel deploy --prod --yes`
-  - `npm run smoke:public`
-  - targeted public/admin API checks.
+- Post-deploy smoke:
+  - `npm run smoke:public` -> pass
+  - `HEAD https://portal.s5evo.de` -> 200
+  - `POST /api/visitor-counter` routeKey `home` -> 204 empty body
+  - invalid route key -> 400
+  - `GET /api/admin/visitor-counter` without session -> 401
+  - Production aggregate check after smoke: `homeRows=1`, `homeCount=1`.
+- Remaining gap: authenticated admin browser smoke of `/admin/logs`.
 
 ## CR deployed: ESV default theme for users without explicit choice - 2026-07-24 19:59 UTC
 
