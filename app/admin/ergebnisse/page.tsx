@@ -243,6 +243,15 @@ type TimekeepingImportResponse = {
   error?: string;
 };
 
+type TimekeepingDeleteResponse = {
+  deleted?: {
+    sessionId: string;
+    events: number;
+    importedRows: number;
+  };
+  error?: string;
+};
+
 type LegacyRunningImportSummary = {
   rows?: number;
   validTimes?: number;
@@ -517,6 +526,7 @@ export default function ResultDataWorkbenchPage() {
   const [savingCorrection, setSavingCorrection] = useState(false);
   const [timekeepingSessions, setTimekeepingSessions] = useState<TimekeepingSessionSummary[]>([]);
   const [selectedTimekeepingSessionId, setSelectedTimekeepingSessionId] = useState("");
+  const [deletingTimekeepingSessionId, setDeletingTimekeepingSessionId] = useState<string | null>(null);
 
   const hasAdminAccess = !!session && can("config.edit");
 
@@ -651,13 +661,9 @@ export default function ResultDataWorkbenchPage() {
     }
   }, [hasAdminAccess, loadBatches, loadTimekeepingSessions, permissionsLoading]);
 
-  const selectedTimekeepingSession = useMemo(
-    () => timekeepingSessions.find((timekeepingSession) => timekeepingSession.id === selectedTimekeepingSessionId) || null,
-    [selectedTimekeepingSessionId, timekeepingSessions],
-  );
-
-  const importTimekeepingSession = async () => {
-    if (!activeCompetition?.id || !selectedTimekeepingSession || importingTimekeeping) return;
+  const importTimekeepingSessionRow = async (timekeepingSession: TimekeepingSessionSummary) => {
+    setSelectedTimekeepingSessionId(timekeepingSession.id);
+    if (!activeCompetition?.id || importingTimekeeping) return;
 
     setImportingTimekeeping(true);
     setError(null);
@@ -668,7 +674,7 @@ export default function ResultDataWorkbenchPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           competitionId: activeCompetition.id,
-          sessionId: selectedTimekeepingSession.id,
+          sessionId: timekeepingSession.id,
           purpose: "PROD_TEST",
         }),
       });
@@ -687,6 +693,40 @@ export default function ResultDataWorkbenchPage() {
       setError(requestError instanceof Error ? requestError.message : "Zeitnahme-Session konnte nicht uebernommen werden.");
     } finally {
       setImportingTimekeeping(false);
+    }
+  };
+
+  const deleteTimekeepingSession = async (timekeepingSession: TimekeepingSessionSummary) => {
+    if (!activeCompetition?.id || deletingTimekeepingSessionId) return;
+
+    const confirmed = window.confirm(
+      `Uhr-Datenpaket löschen?\n\n${timekeepingSessionTitle(timekeepingSession)}\nFinish: ${timekeepingSession.counts.finishEvents}\nBereits in Ergebnis-Paketen: ${timekeepingSession.counts.importedFinishEvents}\n\nDie Uhr-Session und ihre Rohereignisse werden gelöscht. Bereits erzeugte Ergebnis-Staging-Pakete bleiben bestehen und können separat unter „Pakete“ gelöscht werden.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingTimekeepingSessionId(timekeepingSession.id);
+    setError(null);
+    setTimekeepingFeedback(null);
+    try {
+      const params = new URLSearchParams({ competitionId: activeCompetition.id });
+      const response = await fetch(`/api/admin/result-staging/timekeeping/sessions/${encodeURIComponent(timekeepingSession.id)}?${params.toString()}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => ({}))) as TimekeepingDeleteResponse;
+      if (!response.ok) {
+        throw new Error(data.error || "Zeitnahme-Datenpaket konnte nicht gelöscht werden.");
+      }
+
+      const deletedEvents = data.deleted?.events ?? timekeepingSession.counts.finishEvents;
+      setTimekeepingFeedback(`Uhr-Datenpaket gelöscht: ${deletedEvents} Ereignisse entfernt.`);
+      if (selectedTimekeepingSessionId === timekeepingSession.id) {
+        setSelectedTimekeepingSessionId("");
+      }
+      await Promise.all([loadBatches(), loadTimekeepingSessions()]);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Zeitnahme-Datenpaket konnte nicht gelöscht werden.");
+    } finally {
+      setDeletingTimekeepingSessionId(null);
     }
   };
 
@@ -1537,62 +1577,74 @@ export default function ResultDataWorkbenchPage() {
                   </Button>
                 </div>
 
-                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(180px,220px)_auto]">
-                  <select
-                    value={selectedTimekeepingSessionId}
-                    onChange={(event) => setSelectedTimekeepingSessionId(event.target.value)}
-                    className={selectClassName()}
-                    disabled={loadingTimekeeping || timekeepingSessions.length === 0}
-                  >
-                    {timekeepingSessions.length === 0 ? (
-                      <option value="">Keine Zeitnahme-Session gefunden</option>
-                    ) : (
-                      timekeepingSessions.map((timekeepingSession) => (
-                        <option key={timekeepingSession.id} value={timekeepingSession.id}>
-                          {timekeepingSessionTitle(timekeepingSession)}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  <Button
-                    onClick={() => void importTimekeepingSession()}
-                    disabled={!selectedTimekeepingSession || selectedTimekeepingSession.counts.newFinishEvents === 0 || importingTimekeeping}
-                  >
-                    {importingTimekeeping ? "Übernehme..." : "Als Paket übernehmen"}
-                  </Button>
-                </div>
+                {timekeepingSessions.length > 0 ? (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full min-w-[920px] text-left text-sm">
+                      <thead className="border-b border-border/60 text-xs text-muted-foreground">
+                        <tr>
+                          <th className="py-2 pr-3 font-medium">Uhr</th>
+                          <th className="py-2 pr-3 font-medium">Disziplin</th>
+                          <th className="py-2 pr-3 font-medium">Startblock</th>
+                          <th className="py-2 pr-3 font-medium text-right">Finish</th>
+                          <th className="py-2 pr-3 font-medium text-right">Neu</th>
+                          <th className="py-2 pr-3 font-medium text-right">Bereits Paket</th>
+                          <th className="py-2 pr-3 font-medium text-right">Ohne STRNR</th>
+                          <th className="py-2 pr-3 font-medium">Aktualisiert</th>
+                          <th className="py-2 pr-3 font-medium text-right">Aktion</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {timekeepingSessions.map((timekeepingSession) => {
+                          const isDeleting = deletingTimekeepingSessionId === timekeepingSession.id;
+                          const isImportingThis = importingTimekeeping && selectedTimekeepingSessionId === timekeepingSession.id;
+                          const clockName = timekeepingSession.deviceName?.trim() || timekeepingSession.deviceId;
 
-                {selectedTimekeepingSession ? (
-                  <div className="mt-4 grid gap-3 md:grid-cols-6">
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <p className="text-xs text-muted-foreground">Finish</p>
-                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.finishEvents}</p>
-                    </div>
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <p className="text-xs text-muted-foreground">Neu</p>
-                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.newFinishEvents}</p>
-                    </div>
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <p className="text-xs text-muted-foreground">Bereits Paket</p>
-                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.importedFinishEvents}</p>
-                    </div>
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <p className="text-xs text-muted-foreground">Mit STRNR</p>
-                      <p className="text-lg font-semibold">{selectedTimekeepingSession.counts.finishWithStartNumber}</p>
-                    </div>
-                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                      <p className="text-xs text-amber-900">Ohne STRNR</p>
-                      <p className="text-lg font-semibold text-amber-950">{selectedTimekeepingSession.counts.finishWithoutStartNumber}</p>
-                    </div>
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <p className="text-xs text-muted-foreground">Gerät</p>
-                      <p className="truncate text-sm font-medium">
-                        {selectedTimekeepingSession.deviceName?.trim() || selectedTimekeepingSession.deviceId}
-                      </p>
-                      {selectedTimekeepingSession.deviceName?.trim() && (
-                        <p className="truncate text-[11px] text-muted-foreground">{selectedTimekeepingSession.deviceId}</p>
-                      )}
-                    </div>
+                          return (
+                            <tr key={timekeepingSession.id} className="border-b border-border/40">
+                              <td className="py-3 pr-3">
+                                <p className="font-medium">{clockName}</p>
+                                <p className="text-xs text-muted-foreground">{timekeepingSession.deviceId}</p>
+                              </td>
+                              <td className="py-3 pr-3">{timekeepingSession.disciplineCode}</td>
+                              <td className="py-3 pr-3">
+                                <p className="font-medium">{timekeepingSession.startBlockName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Basis {timekeepingSession.manualStartedAt ? formatDateTime(timekeepingSession.manualStartedAt) : "—"}
+                                </p>
+                              </td>
+                              <td className="py-3 pr-3 text-right tabular-nums">{timekeepingSession.counts.finishEvents}</td>
+                              <td className="py-3 pr-3 text-right tabular-nums">{timekeepingSession.counts.newFinishEvents}</td>
+                              <td className="py-3 pr-3 text-right tabular-nums">{timekeepingSession.counts.importedFinishEvents}</td>
+                              <td className="py-3 pr-3 text-right tabular-nums">
+                                <Badge variant={timekeepingSession.counts.finishWithoutStartNumber > 0 ? "secondary" : "outline"}>
+                                  {timekeepingSession.counts.finishWithoutStartNumber}
+                                </Badge>
+                              </td>
+                              <td className="py-3 pr-3">{formatDateTime(timekeepingSession.updatedAt)}</td>
+                              <td className="py-3 pr-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => void importTimekeepingSessionRow(timekeepingSession)}
+                                    disabled={timekeepingSession.counts.newFinishEvents === 0 || importingTimekeeping || isDeleting}
+                                  >
+                                    {isImportingThis ? "Übernehme..." : "Als Paket"}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => void deleteTimekeepingSession(timekeepingSession)}
+                                    disabled={Boolean(deletingTimekeepingSessionId) || importingTimekeeping}
+                                  >
+                                    {isDeleting ? "Lösche..." : "Löschen"}
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <p className="mt-3 text-sm text-muted-foreground">
