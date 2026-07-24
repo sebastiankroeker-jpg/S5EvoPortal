@@ -1,12 +1,15 @@
 # SESSION_HANDOFF
 
-## CR local: ESV default theme for users without explicit choice - 2026-07-24 19:45 UTC
+## CR deployed: ESV default theme for users without explicit choice - 2026-07-24 19:59 UTC
 
 - Sebastian requested ESV as the default theme for everyone who has not
   actively selected a theme.
 - CR document:
   `docs/cr/2026-07-24-esv-theme-default.md`.
-- Local implementation done, pending deploy approval:
+- Implemented, committed, deployed:
+  - Commit: `5fd836a Set ESV as default theme`
+  - Deploy: `dpl_5RBDyv9Q193pevGRSXWKsRYXpTK4`
+  - Production alias: `https://portal.s5evo.de`
   - `lib/theme-context.tsx` now uses ESV as the default fallback.
   - Existing stored `s5evo-theme` and legacy theme keys still win.
   - Fallback ESV is not persisted as an explicit user choice until the user
@@ -17,8 +20,13 @@
   - `npx tsc --noEmit`
   - `git diff --check`
   - `npm run build`
-- Next step: Sebastian approval for production deploy, then Vercel deploy and
-  public smoke.
+- Post-deploy smoke:
+  - `npm run smoke:public` -> pass
+  - `HEAD https://portal.s5evo.de` -> 200
+- Sebastian approved deployment with "Dann Go :)" on 2026-07-24 19:57 UTC.
+- Remaining gap: browser/manual smoke for a fresh user with no stored theme;
+  expected behavior is ESV default until the user actively selects another
+  theme.
 
 ## CR deployed: Live cross-navigation for teams/start lists/results - 2026-07-24 19:13 UTC
 

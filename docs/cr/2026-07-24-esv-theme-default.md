@@ -1,6 +1,6 @@
 # CR: ESV theme as default for users without explicit theme selection
 
-Status: Implemented locally, pending deploy approval
+Status: Deployed
 Date: 2026-07-24
 Type: hotfix
 Risk: low
@@ -94,8 +94,8 @@ see the ESV theme by default.
 - Gate needed: yes
 - Reason: production deploy.
 - Sensitive-data/production-data reason: none.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian ("Dann Go :)")
+- Approval timestamp: 2026-07-24 19:57 UTC
 
 ## Implementation Notes
 
@@ -128,18 +128,25 @@ see the ESV theme by default.
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment ID: `dpl_5RBDyv9Q193pevGRSXWKsRYXpTK4`
+- Deployment URL: `https://s5-evo-portal-goqehy3my-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-24 19:59 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `HEAD https://portal.s5evo.de` -> 200
 - API checks:
+  - `npm run smoke:public` -> pass
+  - `/api/competition` -> 200
+  - `/api/results` -> 200
+  - `/api/teams` -> 401 without session
+  - `/api/admin/pending-changes` -> 401 without session
 - Sensitive-data/API leakage checks:
   - Not applicable.
 - Result:
+  - Production deploy ready and public smoke passed.
 
 ## Follow-Ups
 
