@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
+import { readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 
 type CompetitionInfo = {
   id: string;
@@ -52,6 +53,7 @@ export function useCompetition() {
 }
 
 const STORAGE_KEY = "s5evo-active-competition";
+const COMPETITIONS_CACHE_KEY = "s5evo.offline.competitions.v1";
 
 export function CompetitionProvider({ children }: { children: ReactNode }) {
   const { hasConsent } = usePrivacyConsent();
@@ -63,6 +65,22 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   // Load competitions on mount
   useEffect(() => {
     (async () => {
+      const applyCompetitions = (comps: CompetitionInfo[], preferredActiveId?: string | null) => {
+        setAll(comps);
+
+        const stored = typeof window !== "undefined" && functionalStorageAllowed ? localStorage.getItem(STORAGE_KEY) : null;
+        const candidateId = preferredActiveId ?? stored;
+        const storedValid = candidateId && comps.some((c) => c.id === candidateId);
+
+        if (storedValid) {
+          setActiveId(candidateId);
+        } else {
+          const open = comps.find((c) => c.status === "OPEN");
+          const fallback = comps[0];
+          setActiveId(open?.id ?? fallback?.id ?? null);
+        }
+      };
+
       try {
         const res = await fetch("/api/admin/competitions", { cache: "no-store" });
         if (!res.ok) {
@@ -89,8 +107,8 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
               }]
             : [];
 
-          setAll(comps);
-          setActiveId(comps[0]?.id ?? null);
+          applyCompetitions(comps);
+          writeOfflineCache(COMPETITIONS_CACHE_KEY, { competitions: comps, activeId: comps[0]?.id ?? null });
           setLoading(false);
           return;
         }
@@ -107,22 +125,17 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
           hideForeignTeams: c.hideForeignTeams ?? false,
           marketplaceGlobalVisibility: c.marketplaceGlobalVisibility ?? "SELECTIVE",
         }));
-        setAll(comps);
-
-        // Restore from localStorage, or default to first OPEN competition
-        const stored = typeof window !== "undefined" && functionalStorageAllowed ? localStorage.getItem(STORAGE_KEY) : null;
-        const storedValid = stored && comps.some((c) => c.id === stored);
-        
-        if (storedValid) {
-          setActiveId(stored);
-        } else {
-          // Default: first OPEN, or latest by year
-          const open = comps.find((c) => c.status === "OPEN");
-          const fallback = comps[0]; // sorted by year desc from API
-          setActiveId(open?.id ?? fallback?.id ?? null);
-        }
+        applyCompetitions(comps);
+        const activeCompetitionId = typeof window !== "undefined" && functionalStorageAllowed
+          ? localStorage.getItem(STORAGE_KEY)
+          : null;
+        writeOfflineCache(COMPETITIONS_CACHE_KEY, { competitions: comps, activeId: activeCompetitionId });
       } catch (err) {
         console.error("Failed to load competitions:", err);
+        const cached = readOfflineCache<{ competitions: CompetitionInfo[]; activeId?: string | null }>(COMPETITIONS_CACHE_KEY);
+        if (cached?.data.competitions?.length) {
+          applyCompetitions(cached.data.competitions, cached.data.activeId ?? null);
+        }
       } finally {
         setLoading(false);
       }

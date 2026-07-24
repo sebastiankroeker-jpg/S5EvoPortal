@@ -5,16 +5,21 @@ import { prisma } from '@/lib/prisma';
 import { resolveCurrentUser } from '@/lib/current-user';
 import { hasDerivedTeamchefScope } from '@/lib/teamchef-role';
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0",
+  Pragma: "no-cache",
+};
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      return NextResponse.json({ roles: ["ZUSCHAUER"] });
+      return NextResponse.json({ roles: ["ZUSCHAUER"] }, { headers: NO_STORE_HEADERS });
     }
 
     const { user } = await resolveCurrentUser(session, { createIfMissing: true });
     if (!user) {
-      return NextResponse.json({ roles: ["TEILNEHMER"] });
+      return NextResponse.json({ roles: ["TEILNEHMER"] }, { headers: NO_STORE_HEADERS });
     }
     const tenantRoles = user
       ? await prisma.tenantRole.findMany({
@@ -47,7 +52,7 @@ export async function GET() {
 
       const roles = ["TEILNEHMER"];
       if (hasTeamchefScope) roles.unshift("TEAMCHEF");
-      return NextResponse.json({ roles });
+      return NextResponse.json({ roles }, { headers: NO_STORE_HEADERS });
     }
 
     // Unique Rollen extrahieren - keine implizite Hochstufung
@@ -56,10 +61,10 @@ export async function GET() {
       roles.push("TEAMCHEF");
     }
 
-    return NextResponse.json({ roles: roles.length ? roles : ["TEILNEHMER"] });
+    return NextResponse.json({ roles: roles.length ? roles : ["TEILNEHMER"] }, { headers: NO_STORE_HEADERS });
 
   } catch (error) {
     console.error('Roles API error:', error);
-    return NextResponse.json({ roles: ["TEILNEHMER"] });
+    return NextResponse.json({ roles: ["TEILNEHMER"] }, { headers: NO_STORE_HEADERS });
   }
 }

@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { Role, Permission, can as canCheck, getHighestRole } from "./permissions";
+import { readOfflineCache, writeOfflineCache } from "./pwa-offline-cache";
 
 interface PermissionsContextType {
   roles: Role[];
@@ -15,6 +16,8 @@ interface PermissionsContextType {
 }
 
 const PermissionsContext = createContext<PermissionsContextType | null>(null);
+const ROLES_CACHE_KEY = "s5evo.offline.profileRoles.v1";
+const VALID_ROLES = new Set<Role>(["ADMIN", "MODERATOR", "ZEITNAHME", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"]);
 
 interface PermissionsProviderProps {
   children: ReactNode;
@@ -26,7 +29,14 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const sessionEmail = session?.user?.email ?? null;
   
   // Rollen aus der DB laden
-  const [dbRoles, setDbRoles] = useState<{ email: string | null; roles: Role[] } | null>(null);
+  const [dbRoles, setDbRoles] = useState<{ email: string | null; roles: Role[]; fallback?: boolean } | null>(() => {
+    if (typeof navigator !== "undefined" && navigator.onLine) return null;
+    const cached = readOfflineCache<{ email: string | null; roles: Role[] }>(ROLES_CACHE_KEY);
+    const cachedRoles = cached?.data.roles?.filter((role): role is Role => VALID_ROLES.has(role as Role)) ?? [];
+    return cachedRoles.length > 0
+      ? { email: cached?.data.email ?? null, roles: cachedRoles, fallback: true }
+      : null;
+  });
 
   useEffect(() => {
     if (!sessionEmail) {
@@ -35,16 +45,24 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
 
     let cancelled = false;
 
-    fetch("/api/profile/roles")
+    fetch("/api/profile/roles", { cache: "no-store" })
       .then(res => res.ok ? res.json() : { roles: [] })
       .then(data => {
         if (!cancelled) {
-          setDbRoles({ email: sessionEmail, roles: data.roles?.length ? data.roles : ["TEILNEHMER"] });
+          const nextRoles = (data.roles?.length ? data.roles : ["TEILNEHMER"])
+            .filter((role: string): role is Role => VALID_ROLES.has(role as Role));
+          const roles = nextRoles.length ? nextRoles : ["TEILNEHMER"];
+          setDbRoles({ email: sessionEmail, roles });
+          writeOfflineCache(ROLES_CACHE_KEY, { email: sessionEmail, roles });
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setDbRoles({ email: sessionEmail, roles: ["TEILNEHMER"] });
+          const cached = readOfflineCache<{ email: string | null; roles: Role[] }>(ROLES_CACHE_KEY);
+          const cachedRoles = cached?.data.email === sessionEmail
+            ? cached.data.roles?.filter((role): role is Role => VALID_ROLES.has(role as Role)) ?? []
+            : [];
+          setDbRoles({ email: sessionEmail, roles: cachedRoles.length ? cachedRoles : ["TEILNEHMER"], fallback: cachedRoles.length > 0 });
         }
       });
 
@@ -53,11 +71,13 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
     };
   }, [sessionEmail]);
 
-  const currentDbRoles = dbRoles?.email === sessionEmail ? dbRoles.roles : null;
-  const roles: Role[] = session?.user
+  const currentDbRoles = dbRoles?.email === sessionEmail || (!sessionEmail && dbRoles?.fallback) ? dbRoles.roles : null;
+  const roles: Role[] = dbRoles?.fallback && currentDbRoles?.length
+    ? currentDbRoles
+    : session?.user
     ? (currentDbRoles?.length ? currentDbRoles : ["TEILNEHMER"])
     : ["ZUSCHAUER"];
-  const isLoading = status === "loading" || Boolean(session?.user && currentDbRoles === null);
+  const isLoading = !dbRoles?.fallback && (status === "loading" || Boolean(session?.user && currentDbRoles === null));
   
   const activeRole = simulatedRole || getHighestRole(roles);
   const isSimulating = simulatedRole !== null;

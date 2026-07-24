@@ -262,7 +262,7 @@ export default function LiveScreen() {
   const pendingFocusElementIdRef = useRef<string | null>(null);
   const focusRequestIdRef = useRef(0);
   const { active: activeCompetition } = useCompetition();
-  const { activeRole } = usePermissions();
+  const { activeRole, isLoading: permissionsLoading } = usePermissions();
   const canViewTeamLists = canRoleViewAllTeams(activeRole, activeCompetition);
   const cacheKey = useMemo(
     () => activeCompetition?.id ? `s5evo.offline.liveTeams.v1.${activeCompetition.id}.${activeRole}` : null,
@@ -282,6 +282,10 @@ export default function LiveScreen() {
 
   // Fetch teams data
   const fetchTeams = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (permissionsLoading) {
+      return;
+    }
+
     if (!canViewTeamLists) {
       setTeams([]);
       setLoading(false);
@@ -295,7 +299,7 @@ export default function LiveScreen() {
       // Fetch all teams for live view
       const params = new URLSearchParams({ scope: 'all', roleContext: activeRole });
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
-      const response = await fetch(`/api/teams?${params}`);
+      const response = await fetch(`/api/teams?${params}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.error || "Live-Daten konnten nicht geladen werden.");
@@ -317,7 +321,7 @@ export default function LiveScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeCompetition?.id, activeRole, cacheKey, canViewTeamLists]);
+  }, [activeCompetition?.id, activeRole, cacheKey, canViewTeamLists, permissionsLoading]);
 
   useEffect(() => {
     void fetchTeams("initial");
@@ -1027,7 +1031,7 @@ export default function LiveScreen() {
     );
   };
 
-  if (loading) {
+  if (loading || permissionsLoading) {
     return (
       <Card>
         <CardContent className="p-8 text-center">

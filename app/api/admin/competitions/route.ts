@@ -5,6 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 import { normalizeCompetitionTeamAccessConfig } from "@/lib/team-access-config";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0",
+  Pragma: "no-cache",
+};
+
 // GET all competitions (for admin switcher)
 export async function GET() {
   try {
@@ -30,14 +35,17 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({
-      competitions: competitions.map((competition) => ({
-        ...competition,
-        ...normalizeCompetitionTeamAccessConfig(competition),
-      })),
-    });
+    return NextResponse.json(
+      {
+        competitions: competitions.map((competition) => ({
+          ...competition,
+          ...normalizeCompetitionTeamAccessConfig(competition),
+        })),
+      },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error) {
     console.error("Failed to load competitions:", error);
-    return NextResponse.json({ error: "Failed to load competitions" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load competitions" }, { status: 500, headers: NO_STORE_HEADERS });
   }
 }

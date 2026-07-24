@@ -256,7 +256,7 @@ function filterResultRows(result: ClassResult, options: {
 
 export default function ResultsView({ watchlistTeamIds = [], teamSearchContext = [] }: ResultsViewProps) {
   const { active: activeCompetition } = useCompetition();
-  const { activeRole } = usePermissions();
+  const { activeRole, isLoading: permissionsLoading } = usePermissions();
   const [data, setData] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -279,6 +279,7 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
   }, []);
 
   const loadResults = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (permissionsLoading) return;
     if (!activeCompetition?.id || !cacheKey) return;
     if (mode === "initial") setLoading(true);
     if (mode === "refresh") setRefreshing(true);
@@ -286,7 +287,7 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
     try {
       const params = new URLSearchParams({ competitionId: activeCompetition.id });
       if (canUseStagingTestMode && showStagingTestData) params.set("includeStagingTest", "true");
-      const res = await fetch(`/api/results?${params.toString()}`);
+      const res = await fetch(`/api/results?${params.toString()}`, { cache: "no-store" });
       const json = await res.json().catch(() => null) as ResultsData | { error?: string } | null;
       if (!res.ok || !json || !("results" in json)) {
         throw new Error((json as { error?: string } | null)?.error || "Ergebnisse konnten nicht geladen werden.");
@@ -309,7 +310,7 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
 
     setLoading(false);
     setRefreshing(false);
-  }, [activeCompetition?.id, applyResultsData, cacheKey, canUseStagingTestMode, showStagingTestData]);
+  }, [activeCompetition?.id, applyResultsData, cacheKey, canUseStagingTestMode, permissionsLoading, showStagingTestData]);
 
   useEffect(() => {
     void loadResults("initial");
