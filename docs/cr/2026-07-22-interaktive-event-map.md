@@ -904,6 +904,68 @@ Existing context:
   - `HEAD https://portal.s5evo.de/karte` -> 200
   - `npm run smoke:public` -> pass
 
+## Wettkampf-Orte, Sponsoren Und Mobile Map Controls Follow-Up
+
+- Trigger:
+  - Sebastian provided more precise Google Maps links for Lauf start/finish,
+    Stockschiessen, Bankdruecken, Bierzelt/Verpflegung, Toiletten, Duschen,
+    Wettkampf-Buero and Parken on 2026-07-23.
+  - Sebastian also reported sponsor corrections and asked for fullscreen plus
+    "auf meine Position zentrieren" on the map.
+  - After first deploy, Sebastian reported that the map covered the location
+    and fullscreen buttons and asked for them bottom right near the `+/-` zoom
+    control, with the mobile portrait map box pulled farther down.
+- Changes:
+  - Added Lauf and infrastructure/competition-place POIs under
+    `Wettkampf Orte & Strecken`.
+  - Confirmed Stockschiessen and Bankdruecken are present as
+    `Wettkampfstaette` entries.
+  - Added fullscreen mode for the map; fullscreen hides the sidebar and can be
+    exited with the minimize button or `Escape`.
+  - Added browser geolocation button. When the user grants browser permission,
+    the map centers on the current position and places a blue `Meine Position`
+    marker. The position stays client-side in the browser.
+  - Changed global `Permissions-Policy` to `geolocation=(self)` so the browser
+    is allowed to ask for location permission.
+  - Moved the location/fullscreen button stack to bottom right above the
+    Leaflet zoom control and raised its z-index above Leaflet panes.
+  - Increased mobile portrait map height from `62svh` to
+    `calc(100svh - 4rem)` with `min-h-[520px]`.
+  - Sponsor data updates:
+    - Heinritzi category corrected to `Tankstelle & Autohaus` and marker
+      shifted east to avoid conflict with Mellis Blumenperle.
+    - Stein Grafik, Familie Pfab, Franziska am See, Streif Erdbau GmbH and
+      Cross Communication updated/added from Sebastian's corrections.
+- Basemap note:
+  - Sebastian noticed the visible label `Via Romea - Deutschland - Bayern`.
+    This is from the MapTiler/OSM `outdoor-v2` basemap, not our data. Keep as
+    a later refinement: switch to `streets-v2`/`basic-v2` or hide route labels
+    through a custom MapTiler style.
+- Commits:
+  - `55b7202 Enhance event map controls and locations`
+  - `a82a224 Allow map geolocation permission`
+  - `aa43a40 Reposition event map mobile controls`
+- Latest deployment:
+  - Deployment ID: `dpl_FxzjsFMQthByHxNLNTZxiH2TiZLp`
+  - Deployment URL:
+    `https://s5-evo-portal-gwmsrgvwc-sebastiankroeker-2781s-projects.vercel.app`
+  - Alias: `https://portal.s5evo.de`
+  - Deployed at: 2026-07-23 12:43 UTC
+- Verification:
+  - `npx eslint app/components/event-map.tsx` -> pass
+  - `npx eslint app/components/event-map.tsx lib/event-map/course-routes.ts lib/event-map/sponsor-pois.ts` -> pass before the larger map deploy
+  - `npx tsc --noEmit --incremental false` -> pass
+  - `git diff --check` -> pass
+  - `npm run build` -> pass
+  - `npm run smoke:public` -> pass
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+  - `/karte` response header verified:
+    `Permissions-Policy: camera=(), microphone=(), geolocation=(self), interest-cohort=()`
+- Verification gap:
+  - Real iPhone/mobile visual smoke still belongs with Sebastian. A Playwright
+    mobile screenshot script could not run on this host because the project
+    does not expose `playwright` as an importable Node module.
+
 ## Follow-Ups
 
 - Replace draft route layers with better GPX/GeoJSON data for Lauf, Rennrad,
@@ -915,3 +977,6 @@ Existing context:
   known.
 - Verify the sponsor working list from `docs/sponsorenliste-2026-07-23.md`,
   especially the 8 entries marked `needs_review`.
+- Consider replacing MapTiler `outdoor-v2` with a quieter basemap or custom
+  style so third-party hiking/route labels such as `Via Romea - Deutschland -
+  Bayern` do not visually compete with the official event routes.
