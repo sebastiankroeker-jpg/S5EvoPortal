@@ -30,6 +30,28 @@ import { prisma } from "@/lib/prisma";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
 async function resolvePendingChangeTenantId(routeId: string) {
+  if (routeId.startsWith("direct:")) {
+    const auditLogId = routeId.slice("direct:".length);
+    const auditLog = await prisma.participantAuditLog.findUnique({
+      where: { id: auditLogId },
+      select: {
+        participant: {
+          select: {
+            team: {
+              select: {
+                competition: {
+                  select: { tenantId: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return auditLog?.participant.team.competition.tenantId ?? null;
+  }
+
   const changeRequest = await prisma.changeRequest.findUnique({
     where: { id: routeId },
     select: { tenantId: true },
@@ -54,6 +76,131 @@ async function resolvePendingChangeTenantId(routeId: string) {
   });
 
   return pendingChange?.participant.team.competition.tenantId ?? null;
+}
+
+// PATCH /api/admin/pending-changes/[id] — Legacy-Sync-Status pflegen
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: routeId } = await params;
+  const body = await request.json().catch(() => ({}));
+  const legacyStatus = body.legacyStatus;
+
+  if (legacyStatus !== "OPEN" && legacyStatus !== "LEGACY_OK") {
+    return NextResponse.json({ error: "Ungueltiger Legacy-Status" }, { status: 400 });
+  }
+
+  const scopedTenantId = await resolvePendingChangeTenantId(routeId);
+  const session = await getServerSession(authOptions);
+  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
+    tenantId: scopedTenantId,
+    fallbackToFirstMatchingTenant: !scopedTenantId,
+  });
+  if ("error" in auth) return auth.error;
+
+  if (routeId.startsWith("direct:")) {
+    const auditLogId = routeId.slice("direct:".length);
+    const auditLog = await prisma.participantAuditLog.findUnique({
+      where: { id: auditLogId },
+      select: {
+        id: true,
+        participant: {
+          select: {
+            team: {
+              select: {
+                competition: {
+                  select: { tenantId: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!auditLog || auditLog.participant.team.competition.tenantId !== auth.tenantId) {
+      return NextResponse.json({ error: "Aenderung nicht gefunden" }, { status: 404 });
+    }
+
+    const updated = await prisma.participantAuditLog.update({
+      where: { id: auditLog.id },
+      data: { legacyStatus },
+      select: { legacyStatus: true },
+    });
+
+    return NextResponse.json({ legacyStatus: updated.legacyStatus });
+  }
+
+  const changeRequest = await prisma.changeRequest.findUnique({
+    where: { id: routeId },
+    select: {
+      id: true,
+      tenantId: true,
+      metadata: true,
+    },
+  });
+
+  if (changeRequest) {
+    if (changeRequest.tenantId !== auth.tenantId) {
+      return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+    }
+
+    const legacyPendingChangeId = getLegacyPendingChangeId(changeRequest.metadata);
+    await prisma.$transaction(async (tx) => {
+      await tx.changeRequest.update({
+        where: { id: changeRequest.id },
+        data: { legacyStatus },
+      });
+      if (legacyPendingChangeId) {
+        await tx.pendingChange.updateMany({
+          where: {
+            id: legacyPendingChangeId,
+            participant: {
+              team: {
+                competition: {
+                  tenantId: auth.tenantId,
+                },
+              },
+            },
+          },
+          data: { legacyStatus },
+        });
+      }
+    });
+
+    return NextResponse.json({ legacyStatus });
+  }
+
+  const pendingChange = await prisma.pendingChange.findUnique({
+    where: { id: routeId },
+    select: {
+      id: true,
+      participant: {
+        select: {
+          team: {
+            select: {
+              competition: {
+                select: { tenantId: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!pendingChange || pendingChange.participant.team.competition.tenantId !== auth.tenantId) {
+    return NextResponse.json({ error: "Aenderung nicht gefunden" }, { status: 404 });
+  }
+
+  const updated = await prisma.pendingChange.update({
+    where: { id: pendingChange.id },
+    data: { legacyStatus },
+    select: { legacyStatus: true },
+  });
+
+  return NextResponse.json({ legacyStatus: updated.legacyStatus });
 }
 
 // PUT /api/admin/pending-changes/[id] — Approve oder Reject

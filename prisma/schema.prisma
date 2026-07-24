@@ -220,6 +220,11 @@ enum PendingChangeBundleStatus {
   CONFLICT
 }
 
+enum LegacySyncStatus {
+  OPEN
+  LEGACY_OK
+}
+
 enum ShirtSize {
   K116
   K128
@@ -959,6 +964,7 @@ model PendingChange {
   changeData    String
   beforeData    String?
   status        ApprovalStatus             @default(DRAFT)
+  legacyStatus  LegacySyncStatus           @default(OPEN)
   bundleId      String?
   bundleType    PendingChangeBundleType?
   bundleStatus  PendingChangeBundleStatus?
@@ -981,6 +987,7 @@ model PendingChange {
   @@index([requestedById, status])
   @@index([bundleId])
   @@index([bundleStatus, updatedAt])
+  @@index([legacyStatus, updatedAt])
   @@map("pending_changes")
 }
 
@@ -990,6 +997,7 @@ model ParticipantAuditLog {
   beforeData String?
   afterData  String?
   message    String?
+  legacyStatus LegacySyncStatus     @default(OPEN)
   createdAt  DateTime               @default(now())
 
   participantId   String
@@ -1001,6 +1009,7 @@ model ParticipantAuditLog {
 
   @@index([participantId, createdAt])
   @@index([pendingChangeId])
+  @@index([legacyStatus, createdAt])
   @@map("participant_audit_logs")
 }
 
@@ -1012,6 +1021,7 @@ model ChangeRequest {
   targetId          String
   changeType        ChangeRequestChangeType @default(UPDATE)
   status            ChangeRequestStatus     @default(DRAFT)
+  legacyStatus      LegacySyncStatus        @default(OPEN)
   source            ChangeRequestSource     @default(SELF_SERVICE)
   beforeSnapshot    Json?
   requestedSnapshot Json
@@ -1047,6 +1057,7 @@ model ChangeRequest {
   @@index([targetType, targetId, status])
   @@index([requestedById, status])
   @@index([reviewedById, status])
+  @@index([legacyStatus, updatedAt])
   @@map("change_requests")
 }
 

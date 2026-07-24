@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
               select: {
                 id: true,
                 name: true,
+                startNumber: true,
                 classificationCode: true,
                 contactEmail: true,
                 participants: {
@@ -173,6 +174,7 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
+            startNumber: true,
             contactEmail: true,
           },
         })
@@ -201,6 +203,7 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             status: true,
+            legacyStatus: true,
             bundleId: true,
             bundleType: true,
             bundleStatus: true,
@@ -240,6 +243,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               name: true,
+              startNumber: true,
               classificationCode: true,
               contactEmail: true,
               participants: {
@@ -295,6 +299,7 @@ export async function GET(request: NextRequest) {
         take: 250,
         select: {
           id: true,
+          legacyStatus: true,
           beforeData: true,
           afterData: true,
           message: true,
@@ -317,6 +322,7 @@ export async function GET(request: NextRequest) {
                 select: {
                   id: true,
                   name: true,
+                  startNumber: true,
                   classificationCode: true,
                   contactEmail: true,
                   participants: {
@@ -358,6 +364,7 @@ export async function GET(request: NextRequest) {
         changeData: serializeSnapshot(requestedSnapshot),
         beforeData: serializeSnapshot(beforeSnapshot),
         status: pendingChangeMeta?.status ?? normalizeChangeRequestStatus(changeRequest.status),
+        legacyStatus: pendingChangeMeta?.legacyStatus ?? changeRequest.legacyStatus,
         createdAt: changeRequest.createdAt,
         updatedAt: changeRequest.updatedAt,
         reviewedAt: changeRequest.reviewedAt,
@@ -392,6 +399,7 @@ export async function GET(request: NextRequest) {
       changeData: change.changeData,
       beforeData: change.beforeData,
       status: change.status,
+      legacyStatus: change.legacyStatus,
       createdAt: change.createdAt,
       updatedAt: change.updatedAt,
       reviewedAt: change.reviewedAt,
@@ -423,6 +431,7 @@ export async function GET(request: NextRequest) {
       changeData: entry.afterData || "{}",
       beforeData: entry.beforeData,
       status: "DIRECT",
+      legacyStatus: entry.legacyStatus,
       createdAt: entry.createdAt,
       updatedAt: entry.createdAt,
       reviewedAt: entry.createdAt,
@@ -457,6 +466,7 @@ export async function GET(request: NextRequest) {
         changeData: stringifyJsonSnapshot(changeRequest.requestedSnapshot),
         beforeData: stringifyJsonSnapshot(changeRequest.beforeSnapshot),
         status: normalizeChangeRequestStatus(changeRequest.status),
+        legacyStatus: changeRequest.legacyStatus,
         createdAt: changeRequest.createdAt,
         updatedAt: changeRequest.updatedAt,
         reviewedAt: changeRequest.reviewedAt,
@@ -490,6 +500,7 @@ function decorateTeamChange(input: {
   changeData: string;
   beforeData?: string | null;
   status: string;
+  legacyStatus: string;
   createdAt: Date;
   updatedAt: Date;
   reviewedAt?: Date | null;
@@ -497,6 +508,7 @@ function decorateTeamChange(input: {
   team: {
     id: string;
     name: string;
+    startNumber?: string | null;
     contactEmail?: string | null;
   };
   requestedBy: { name: string | null; email: string };
@@ -524,6 +536,7 @@ function decorateTeamChange(input: {
     changeData: input.changeData,
     beforeData: input.beforeData,
     status: input.status,
+    legacyStatus: input.legacyStatus,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
     reviewedAt: input.reviewedAt,
@@ -536,6 +549,7 @@ function decorateTeamChange(input: {
       team: {
         id: input.team.id,
         name: input.team.name,
+        startNumber: input.team.startNumber,
         contactEmail: input.team.contactEmail,
       },
     },
@@ -569,6 +583,7 @@ type ParticipantForApproval = {
   team: {
     id: string;
     name: string;
+    startNumber?: string | null;
     classificationCode?: string | null;
     contactEmail?: string | null;
     participants: Array<{
@@ -589,6 +604,7 @@ function decorateParticipantChange(input: {
   changeData: string;
   beforeData?: string | null;
   status: string;
+  legacyStatus: string;
   createdAt: Date;
   updatedAt: Date;
   reviewedAt?: Date | null;
@@ -665,6 +681,7 @@ function decorateParticipantChange(input: {
     changeData: input.changeData,
     beforeData: input.beforeData,
     status: input.status,
+    legacyStatus: input.legacyStatus,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
     reviewedAt: input.reviewedAt,
@@ -677,6 +694,7 @@ function decorateParticipantChange(input: {
       team: {
         id: input.participant.team.id,
         name: input.participant.team.name,
+        startNumber: input.participant.team.startNumber,
         contactEmail: input.participant.team.contactEmail,
       },
     },

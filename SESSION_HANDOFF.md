@@ -1,8 +1,132 @@
 # SESSION_HANDOFF
 
-Stand: 2026-07-23 11:02 UTC
+## CR: change dashboard legacy status/list view - 2026-07-24 07:56 UTC
+
+- Context: Sebastian requested `/aenderungen` UI cleanup from the
+  Änderungsübersicht screenshot on competition day:
+  compact card row should show start number + team first, second row should
+  show requester + date/time, add maintainable `Legacy OK`, add filter,
+  remember filters/search while navigating away, and add a list view like the
+  team dashboard.
+- Implementation done; Sebastian approved commit, production deploy, and
+  production migration with "Go" on 2026-07-24 07:56 UTC:
+  - `prisma/schema.prisma` adds `LegacySyncStatus` and `legacyStatus` on
+    `PendingChange`, `ChangeRequest`, and `ParticipantAuditLog`.
+  - Migration prepared:
+    `prisma/migrations/20260724073100_add_legacy_sync_status_to_changes/migration.sql`.
+  - `GET /api/admin/pending-changes` returns `legacyStatus` and team
+    `startNumber`.
+  - `PATCH /api/admin/pending-changes/[id]` maintains `OPEN` / `LEGACY_OK`
+    with tenant-scoped admin/moderator auth.
+  - `app/components/approval-queue.tsx` adds the compact card layout, legacy
+    filter/toggle, session-persisted filters/search/sort/view, and list view.
+- CR document:
+  `docs/cr/2026-07-24-change-dashboard-legacy-status-and-list-view.md`.
+  Note: `docs/*` and migration paths may be ignored by local exclude rules and
+  need force-add when committing.
+- Checks green:
+  - `npx prisma generate`
+  - `npx eslint app/components/approval-queue.tsx app/api/admin/pending-changes/route.ts app/api/admin/pending-changes/[id]/route.ts`
+  - `npx tsc --noEmit --incremental false`
+  - `git diff --check`
+  - `npm run build`
+- Still needed:
+  - Commit, production migration/deploy, and post-deploy smoke.
+  - Authenticated admin smoke on `/aenderungen` after deploy if a session is
+    available.
+
+## Local CR1 work in progress - 2026-07-23 21:00 UTC
+
+- Context: Sebastian approved the CR1 direction for CSV/Uhr convergence:
+  Uhr raw/draft format should stay close to Legacy CSV, ROAD/time-trial base
+  time seconds must be carried per record, and both net and raw/gross elapsed
+  times should be preserved where available.
+- Local implementation done, not committed, not deployed:
+  - `app/api/admin/result-staging/timekeeping/import/route.ts`
+    now creates one `ResultDraft` for each newly imported timekeeping FINISH
+    raw record.
+  - Draft matching is start number -> team -> participant with the timekeeping
+    session discipline, scoped by selected tenant/competition.
+  - Draft snapshots carry Legacy-like fields plus timekeeping evidence:
+    net/raw elapsed ms, display time, base time ISO/clock, ROAD CSV base-time
+    seconds, session/event/device IDs.
+  - `app/admin/ergebnisse/page.tsx` feedback now reports created Drafts.
+  - No official `DisciplineResult` writes, no public Live visibility changes,
+    no DB migration.
+- CR document:
+  `docs/cr/2026-07-23-timekeeping-result-drafts.md`.
+  Note: this path is ignored by `.git/info/exclude` (`/docs/*`), so it may not
+  appear in normal `git status` unless force-added or exclude rules change.
+- Checks green:
+  - `npx eslint app/api/admin/result-staging/timekeeping/import/route.ts app/admin/ergebnisse/page.tsx`
+  - `npx tsc --noEmit --incremental false`
+  - `git diff --check`
+  - `npm run build`
+- Still needed before production:
+  - Sebastian/admin manual smoke with a small timekeeping session.
+  - Commit decision and explicit production deploy Go.
+  - If deploying, run Vercel prod deploy and public/protected smoke.
+
+Stand: 2026-07-23 13:42 UTC
 
 ## Kurzzusammenfassung fuer naechste Session
+
+- Current production status 2026-07-23 13:42 UTC:
+  - `origin/main` is at `aa43a40 Reposition event map mobile controls`.
+  - Production alias `https://portal.s5evo.de` is live and Vercel READY.
+    Latest deployment:
+    `dpl_FxzjsFMQthByHxNLNTZxiH2TiZLp`
+    (`s5-evo-portal-gwmsrgvwc-sebastiankroeker-2781s-projects.vercel.app`).
+  - Latest public verification was green:
+    `npm run smoke:public`, `HEAD https://portal.s5evo.de/karte` 200,
+    and `/karte` response header still has
+    `Permissions-Policy: camera=(), microphone=(), geolocation=(self), interest-cohort=()`.
+  - Local git status after delivery: `main...origin/main` with only known
+    untracked workspace files (`AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`,
+    `SOUL.md`) plus this handoff/doc update if not committed yet.
+  - Playwright note: `npx playwright --version` is available, but the project
+    does not have `playwright` as an importable Node module; the attempted
+    mobile DOM screenshot script failed with `Cannot find module 'playwright'`.
+    Do not claim pixel-perfect mobile verification from this host unless a
+    browser automation path is added.
+
+- Event map work delivered after 11:02 UTC:
+  - `55b7202 Enhance event map controls and locations`
+    - Added Lauf/Infrastruktur data into `Wettkampf Orte & Strecken`.
+    - Preserved Stockschiessen and Bankdruecken as `Wettkampfstaette` POIs.
+    - Added/updated sponsor corrections from Sebastian:
+      Heinritzi marker shifted east and category `Tankstelle & Autohaus`,
+      Stein Grafik, Familie Pfab, Franziska am See, Streif Erdbau GmbH,
+      and Cross Communication.
+    - Added fullscreen switch and browser geolocation "Meine Position" marker.
+  - `a82a224 Allow map geolocation permission`
+    - Changed global `Permissions-Policy` from `geolocation=()` to
+      `geolocation=(self)` so the browser can prompt for location permission.
+      Position stays client-side in the browser.
+  - `aa43a40 Reposition event map mobile controls`
+    - Moved location/fullscreen controls to bottom right above the Leaflet
+      zoom control.
+    - Raised overlay z-index to avoid the Leaflet map panes covering buttons.
+    - Mobile portrait map box is now taller:
+      `h-[calc(100svh-4rem)] min-h-[520px]` instead of `h-[62svh]`.
+  - Latest checks run for the final map-control deploy:
+    `npx eslint app/components/event-map.tsx`,
+    `npx tsc --noEmit --incremental false`, `git diff --check`,
+    `npm run build`, Vercel production deploy, `npm run smoke:public`,
+    and `HEAD https://portal.s5evo.de/karte` 200.
+
+- Open event-map follow-ups to remember:
+  - Sebastian noticed the basemap label
+    `Via Romea - Deutschland - Bayern`. It comes from MapTiler/OSM
+    `outdoor-v2`, not from our route/sponsor data. Recommended next pass:
+    switch `/karte` to a quieter basemap such as `streets-v2`/`basic-v2`, or
+    create a custom MapTiler style that hides route labels.
+  - Sebastian should visually test `/karte` on iPhone/mobile portrait after
+    the `aa43a40` deploy: bottom-right location/fullscreen controls should be
+    visible above the `+/-` zoom control, and the map box should now extend
+    much farther down the viewport.
+  - Route/course geometry remains draft until Sebastian provides better data.
+    Keep all PDF-derived routes labelled as draft/orientation data.
 
 - Current production status 2026-07-23 11:02 UTC:
   - `origin/main` is at `f7f2f2f Add event map route layer`.

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, SlidersHorizontal, UserRound, UsersRound, XCircle } from "lucide-react";
+import { CheckCircle2, LayoutGrid, RefreshCw, SlidersHorizontal, Table2, UserRound, UsersRound, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ interface PendingChange {
   changeData: string;
   beforeData?: string | null;
   status: string;
+  legacyStatus: LegacyStatus;
   createdAt: string;
   updatedAt: string;
   reviewedAt?: string | null;
@@ -42,7 +43,7 @@ interface PendingChange {
     firstName: string;
     lastName: string;
     email?: string | null;
-    team: { id: string; name: string; contactEmail?: string | null };
+    team: { id: string; name: string; startNumber?: string | number | null; contactEmail?: string | null };
   };
   requestedBy: {
     name: string | null;
@@ -87,6 +88,9 @@ interface ApprovalQueueProps {
 }
 
 type Snapshot = Record<string, string | number | null>;
+type LegacyStatus = "OPEN" | "LEGACY_OK";
+type LegacyFilter = "ALL" | LegacyStatus;
+type ChangeViewMode = "cards" | "list";
 
 type ChangeField = {
   key: string;
@@ -150,6 +154,8 @@ const fieldLabels: Record<string, string> = {
   teamName: "Mannschaftsname",
 };
 
+const DASHBOARD_STATE_STORAGE_KEY = "s5evo.changesDashboard.state.v1";
+
 function parseSnapshot(raw?: string | null): Snapshot {
   if (!raw) return {};
   try {
@@ -193,6 +199,34 @@ function getBundleMembers(change: DecoratedChange) {
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("de-DE");
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("de-DE");
+}
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatStartNumber(value?: string | number | null) {
+  return value !== null && value !== undefined && String(value).trim() ? `#${value}` : "Strnr -";
+}
+
+function getLegacyStatusLabel(status: LegacyStatus) {
+  if (status === "LEGACY_OK") return "Legacy OK";
+  return "Legacy offen";
+}
+
+function getPrimaryAfterValue(change: DecoratedChange) {
+  const fields = getBundleMembers(change).flatMap((member) => member.fields);
+  if (fields.length === 0) return "-";
+  if (fields.length === 1) return formatValue(fields[0].after);
+  return `${formatValue(fields[0].after)} +${fields.length - 1}`;
 }
 
 function formatAuditAction(action: string) {
@@ -274,10 +308,14 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   const [searchQuery, setSearchQuery] = useState("");
   const [updatedOnly, setUpdatedOnly] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "DIRECT" | "ALL">("PENDING");
+  const [legacyFilter, setLegacyFilter] = useState<LegacyFilter>("ALL");
   const [sortMode, setSortMode] = useState<"priority" | "latest" | "oldest" | "participant" | "team" | "fieldCount">("latest");
+  const [viewMode, setViewMode] = useState<ChangeViewMode>("cards");
   const [participantFilterId, setParticipantFilterId] = useState<string | null>(null);
   const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [dashboardStateReady, setDashboardStateReady] = useState(false);
+  const [focusedChangeId, setFocusedChangeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastDecisionResult, setLastDecisionResult] = useState<DecisionResult | null>(null);
 
@@ -324,25 +362,69 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     if (competitionLoading) return;
 
     if (dashboardMode) {
+      const saved = (() => {
+        try {
+          const raw = window.sessionStorage.getItem(DASHBOARD_STATE_STORAGE_KEY);
+          return raw ? JSON.parse(raw) as Record<string, string | boolean | null> : {};
+        } catch {
+          return {};
+        }
+      })();
       const params = new URLSearchParams(window.location.search);
-      const status = params.get("status");
-      const query = params.get("q");
-      const participantId = params.get("participantId");
-      const teamId = params.get("teamId");
-      const sort = params.get("sort");
+      const status = params.get("status") || saved.status;
+      const query = params.get("q") || saved.q;
+      const participantId = params.get("participantId") || saved.participantId;
+      const teamId = params.get("teamId") || saved.teamId;
+      const sort = params.get("sort") || saved.sort;
+      const legacy = params.get("legacy") || saved.legacy;
+      const updated = params.get("updated") || saved.updated;
+      const view = params.get("view") || saved.view;
 
       if (status === "PENDING" || status === "APPROVED" || status === "REJECTED" || status === "DIRECT" || status === "ALL") {
         setStatusFilter(status);
       }
-      if (query) setSearchQuery(query);
-      if (participantId) setParticipantFilterId(participantId);
-      if (teamId) setTeamFilterId(teamId);
+      if (typeof query === "string") setSearchQuery(query);
+      if (typeof participantId === "string") setParticipantFilterId(participantId);
+      if (typeof teamId === "string") setTeamFilterId(teamId);
       if (sort === "priority" || sort === "latest" || sort === "oldest" || sort === "participant" || sort === "team" || sort === "fieldCount") {
         setSortMode(sort);
       }
+      if (legacy === "OPEN" || legacy === "LEGACY_OK" || legacy === "ALL") setLegacyFilter(legacy);
+      if (updated === "1" || updated === true) setUpdatedOnly(true);
+      if (view === "cards" || view === "list") setViewMode(view);
+      setDashboardStateReady(true);
     }
     void fetchChanges();
   }, [competitionLoading, dashboardMode, fetchChanges]);
+
+  useEffect(() => {
+    if (!dashboardMode || !dashboardStateReady) return;
+
+    const state = {
+      participantId: participantFilterId,
+      teamId: teamFilterId,
+      q: searchQuery,
+      status: statusFilter,
+      legacy: legacyFilter,
+      updated: updatedOnly ? "1" : "",
+      sort: sortMode,
+      view: viewMode,
+    };
+    window.sessionStorage.setItem(DASHBOARD_STATE_STORAGE_KEY, JSON.stringify(state));
+
+    const params = new URLSearchParams();
+    if (participantFilterId) params.set("participantId", participantFilterId);
+    if (teamFilterId) params.set("teamId", teamFilterId);
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    if (statusFilter !== "PENDING") params.set("status", statusFilter);
+    if (legacyFilter !== "ALL") params.set("legacy", legacyFilter);
+    if (updatedOnly) params.set("updated", "1");
+    if (sortMode !== "latest") params.set("sort", sortMode);
+    if (viewMode !== "cards") params.set("view", viewMode);
+
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/aenderungen?${query}` : "/aenderungen");
+  }, [dashboardMode, dashboardStateReady, legacyFilter, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly, viewMode]);
 
   const decoratedChanges = useMemo<DecoratedChange[]>(() => {
     return changes.map((change) => ({
@@ -372,6 +454,10 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
         }
 
         if (updatedOnly && !change.wasUpdated) {
+          return false;
+        }
+
+        if (legacyFilter !== "ALL" && change.legacyStatus !== legacyFilter) {
           return false;
         }
 
@@ -458,7 +544,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     }
 
     return collapsed;
-  }, [decoratedChanges, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly]);
+  }, [decoratedChanges, legacyFilter, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly]);
 
   const visibleChanges = useMemo(() => {
     return dashboardMode ? filteredChanges : filteredChanges.slice(0, 3);
@@ -473,12 +559,16 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     const rejectedCount = decoratedChanges.filter((change) => change.status === "REJECTED").length;
     const directCount = decoratedChanges.filter((change) => isDirectChange(change)).length;
     const openCount = decoratedChanges.filter((change) => change.status === "PENDING").length;
+    const legacyOpenCount = decoratedChanges.filter((change) => change.legacyStatus === "OPEN").length;
+    const legacyOkCount = decoratedChanges.filter((change) => change.legacyStatus === "LEGACY_OK").length;
 
     return {
       openCount,
       approvedCount,
       rejectedCount,
       directCount,
+      legacyOpenCount,
+      legacyOkCount,
       teamCount,
       updatedCount,
       fieldCount,
@@ -487,15 +577,19 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
   }, [decoratedChanges]);
 
   const defaultStatusFilter = "PENDING";
+  const defaultLegacyFilter: LegacyFilter = "ALL";
   const defaultSortMode = "latest";
-  const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== defaultStatusFilter || updatedOnly || sortMode !== defaultSortMode);
+  const defaultViewMode: ChangeViewMode = "cards";
+  const hasActiveFilters = Boolean(participantFilterId || teamFilterId || searchQuery || statusFilter !== defaultStatusFilter || legacyFilter !== defaultLegacyFilter || updatedOnly || sortMode !== defaultSortMode || viewMode !== defaultViewMode);
   const activeFilterCount = [
     Boolean(participantFilterId),
     Boolean(teamFilterId),
     searchQuery.trim() !== "",
     statusFilter !== defaultStatusFilter,
+    legacyFilter !== defaultLegacyFilter,
     updatedOnly,
     sortMode !== defaultSortMode,
+    viewMode !== defaultViewMode,
   ].filter(Boolean).length;
 
   const statsItems = [
@@ -559,6 +653,16 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       active: updatedOnly,
       onClick: () => setUpdatedOnly((current) => !current),
     },
+    {
+      key: "legacy-ok",
+      label: "Legacy OK",
+      shortLabel: "Legacy OK",
+      value: filteredChanges.filter((change) => change.legacyStatus === "LEGACY_OK").length,
+      total: stats.legacyOkCount,
+      tone: "outline" as const,
+      active: legacyFilter === "LEGACY_OK",
+      onClick: () => setLegacyFilter((current) => current === "LEGACY_OK" ? "ALL" : "LEGACY_OK"),
+    },
   ];
   const activeFilterLabel = useMemo(() => {
     const labels: string[] = [];
@@ -572,6 +676,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
     if (participantFilterId) labels.push("Teilnehmer: " + (participantName || "Auswahl"));
     if (teamFilterId) labels.push("Team: " + (teamName || "Auswahl"));
     if (statusFilter !== defaultStatusFilter) labels.push("Status: " + getStatusFilterLabel(statusFilter));
+    if (legacyFilter !== defaultLegacyFilter) labels.push("Legacy: " + getLegacyStatusLabel(legacyFilter));
     if (updatedOnly) labels.push("nur aktualisierte Anträge");
     if (sortMode !== defaultSortMode) labels.push("Sortierung: " + {
       latest: "letzte Aktivität",
@@ -581,18 +686,23 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       fieldCount: "meiste Felder",
       priority: "Priorität",
     }[sortMode]);
+    if (viewMode !== defaultViewMode) labels.push("Ansicht: Liste");
     if (searchQuery.trim()) labels.push("Suche: " + searchQuery.trim());
 
     return labels.join(" · ");
-  }, [decoratedChanges, defaultSortMode, defaultStatusFilter, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly]);
+  }, [decoratedChanges, defaultLegacyFilter, defaultSortMode, defaultStatusFilter, defaultViewMode, legacyFilter, participantFilterId, searchQuery, sortMode, statusFilter, teamFilterId, updatedOnly, viewMode]);
 
   const resetDashboardFilters = () => {
     setParticipantFilterId(null);
     setTeamFilterId(null);
     setSearchQuery("");
     setStatusFilter(defaultStatusFilter);
+    setLegacyFilter(defaultLegacyFilter);
     setUpdatedOnly(false);
     setSortMode(defaultSortMode);
+    setViewMode(defaultViewMode);
+    setFocusedChangeId(null);
+    window.sessionStorage.removeItem(DASHBOARD_STATE_STORAGE_KEY);
     window.history.replaceState(null, "", "/aenderungen");
   };
 
@@ -627,6 +737,40 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
       await fetchChanges("refresh");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Aktion fehlgeschlagen";
+      setError(message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleLegacyStatusChange = async (change: DecoratedChange, legacyStatus: LegacyStatus) => {
+    setProcessing(`legacy:${change.id}`);
+    setError(null);
+
+    try {
+      const reviewId = change.changeRequestId || change.id;
+      const res = await fetch("/api/admin/pending-changes/" + encodeURIComponent(reviewId), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ legacyStatus }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Legacy-Status konnte nicht gespeichert werden");
+      }
+
+      setChanges((current) =>
+        current.map((entry) =>
+          entry.id === change.id ||
+          (Boolean(change.changeRequestId) && entry.changeRequestId === change.changeRequestId) ||
+          (change.bundleId && entry.bundleId === change.bundleId)
+            ? { ...entry, legacyStatus }
+            : entry,
+        ),
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Legacy-Status konnte nicht gespeichert werden";
       setError(message);
     } finally {
       setProcessing(null);
@@ -694,6 +838,29 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                 variant={hasActiveFilters ? "default" : "outline"}
               />
             </DashboardToolbar>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={viewMode === "cards" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("cards")}
+                className="gap-2"
+              >
+                <LayoutGrid className="size-3.5" />
+                Kacheln
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === "list" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                className="gap-2"
+              >
+                <Table2 className="size-3.5" />
+                Liste
+              </Button>
+            </div>
 
             {filtersOpen && (
               <DashboardPanel className="mt-1">
@@ -765,6 +932,28 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
                       Aktualisierte
                     </Button>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={legacyFilter === "OPEN" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setLegacyFilter((current) => current === "OPEN" ? "ALL" : "OPEN")}
+                      className="justify-between gap-2"
+                    >
+                      <span>Legacy offen</span>
+                      <span className="rounded bg-background/30 px-1 text-[10px]">{stats.legacyOpenCount}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={legacyFilter === "LEGACY_OK" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setLegacyFilter((current) => current === "LEGACY_OK" ? "ALL" : "LEGACY_OK")}
+                      className="justify-between gap-2"
+                    >
+                      <span>Legacy OK</span>
+                      <span className="rounded bg-background/30 px-1 text-[10px]">{stats.legacyOkCount}</span>
+                    </Button>
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="space-y-1 text-xs font-medium text-muted-foreground">
                       <span>Sortierung</span>
@@ -812,15 +1001,30 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
             </CardContent>
           </Card>
         ) : (
-          <ChangeList
-            changes={visibleChanges}
-            comments={comments}
-            setComments={setComments}
-            processing={processing}
-            onAction={handleAction}
-            canUseAdminLinks={canUseAdminLinks}
-            dashboardCompact
-          />
+          viewMode === "list" ? (
+            <ChangeTable
+              changes={visibleChanges}
+              processing={processing}
+              onLegacyStatusChange={handleLegacyStatusChange}
+              onOpenDetail={(change) => {
+                setViewMode("cards");
+                setFocusedChangeId(change.id);
+              }}
+            />
+          ) : (
+            <ChangeList
+              key={focusedChangeId || "change-cards"}
+              changes={visibleChanges}
+              comments={comments}
+              setComments={setComments}
+              processing={processing}
+              onAction={handleAction}
+              onLegacyStatusChange={handleLegacyStatusChange}
+              canUseAdminLinks={canUseAdminLinks}
+              dashboardCompact
+              focusedChangeId={focusedChangeId}
+            />
+          )
         )}
       </div>
     );
@@ -863,6 +1067,7 @@ export default function ApprovalQueue({ variant = "embedded" }: ApprovalQueuePro
             setComments={setComments}
             processing={processing}
             onAction={handleAction}
+            onLegacyStatusChange={handleLegacyStatusChange}
             compact
             canUseAdminLinks={canUseAdminLinks}
           />
@@ -1052,26 +1257,134 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
   );
 }
 
+function ChangeTable({
+  changes,
+  processing,
+  onLegacyStatusChange,
+  onOpenDetail,
+}: {
+  changes: DecoratedChange[];
+  processing: string | null;
+  onLegacyStatusChange: (change: DecoratedChange, legacyStatus: LegacyStatus) => Promise<void>;
+  onOpenDetail: (change: DecoratedChange) => void;
+}) {
+  const getStatusTone = (status: string) => {
+    if (status === "CONFLICT") return "border-red-300 text-red-700 dark:text-red-200";
+    if (status === "DIRECT") return "border-blue-300 text-blue-700 dark:text-blue-200";
+    if (status === "APPROVED") return "border-green-300 text-green-700 dark:text-green-200";
+    if (status === "REJECTED") return "border-red-300 text-red-700 dark:text-red-200";
+    return "border-amber-300 text-amber-700 dark:text-amber-200";
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === "CONFLICT") return "Konflikt";
+    if (status === "DIRECT") return "Direkt";
+    if (status === "APPROVED") return "Genehmigt";
+    if (status === "REJECTED") return "Abgelehnt";
+    return "Offen";
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="min-w-[860px] w-full text-sm">
+            <thead className="border-b border-border/70 bg-muted/30 text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Strnr</th>
+                <th className="px-3 py-2 text-left font-medium">Geändertes Objekt</th>
+                <th className="px-3 py-2 text-left font-medium">Wert neu</th>
+                <th className="px-3 py-2 text-left font-medium">Genehmigungsstatus</th>
+                <th className="px-3 py-2 text-left font-medium">Legacy-Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {changes.map((change) => {
+                const displayStatus = resolveDisplayStatus(change);
+                const legacyProcessing = processing === `legacy:${change.id}`;
+
+                return (
+                  <tr
+                    key={change.id}
+                    className="cursor-pointer bg-background hover:bg-muted/35"
+                    onClick={() => onOpenDetail(change)}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 font-medium">
+                      {formatStartNumber(change.participant.team.startNumber)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-[280px] truncate font-medium">{getChangeTitle(change)}</div>
+                      <div className="max-w-[280px] truncate text-xs text-muted-foreground">{change.participant.team.name}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-[280px] truncate">{getPrimaryAfterValue(change)}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant="outline" className={getStatusTone(displayStatus)}>
+                        {getStatusLabel(displayStatus)}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={change.legacyStatus === "LEGACY_OK" ? "secondary" : "outline"}
+                        className="h-7 gap-1 px-2 text-xs"
+                        disabled={legacyProcessing}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void onLegacyStatusChange(change, change.legacyStatus === "LEGACY_OK" ? "OPEN" : "LEGACY_OK");
+                        }}
+                      >
+                        <CheckCircle2 className="size-3" />
+                        {getLegacyStatusLabel(change.legacyStatus)}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ChangeList({
   changes,
   comments,
   setComments,
   processing,
   onAction,
+  onLegacyStatusChange,
   compact = false,
   canUseAdminLinks = false,
   dashboardCompact = false,
+  focusedChangeId = null,
 }: {
   changes: DecoratedChange[];
   comments: Record<string, string>;
   setComments: Dispatch<SetStateAction<Record<string, string>>>;
   processing: string | null;
   onAction: (change: DecoratedChange, action: "approve" | "reject") => Promise<void>;
+  onLegacyStatusChange: (change: DecoratedChange, legacyStatus: LegacyStatus) => Promise<void>;
   compact?: boolean;
   canUseAdminLinks?: boolean;
   dashboardCompact?: boolean;
+  focusedChangeId?: string | null;
 }) {
-  const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
+  const [expandedChangeId, setExpandedChangeId] = useState<string | null>(focusedChangeId);
+
+  useEffect(() => {
+    if (!focusedChangeId) return;
+    window.setTimeout(() => {
+      document.getElementById(`change-card-${focusedChangeId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  }, [focusedChangeId]);
 
   const getStatusTone = (status: string) => {
     if (status === "CONFLICT") return "border-red-300 text-red-700 dark:text-red-200";
@@ -1104,6 +1417,7 @@ function ChangeList({
         return (
         <motion.div
           key={change.id}
+          id={`change-card-${change.id}`}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, x: -80 }}
@@ -1125,11 +1439,28 @@ function ChangeList({
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                   <div className="min-w-0 space-y-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className="min-w-0 truncate text-sm font-medium">
-                        {changeTitle}
+                      <span className="shrink-0 text-sm font-semibold">
+                        {formatStartNumber(change.participant.team.startNumber)}
                       </span>
+                      <button
+                        type="button"
+                        className={canUseAdminLinks ? "min-w-0 truncate text-sm font-medium hover:text-primary" : "min-w-0 truncate text-sm font-medium"}
+                        onClick={() => {
+                          if (canUseAdminLinks) openTeamDashboard({ teamId: change.participant.team.id });
+                        }}
+                        disabled={!canUseAdminLinks}
+                        title={canUseAdminLinks ? "Mannschaft öffnen" : undefined}
+                      >
+                        {change.participant.team.name}
+                      </button>
                       <Badge variant="outline" className={`h-6 px-1.5 text-[10px] ${getStatusTone(displayStatus)}`}>
                         {getStatusLabel(displayStatus)}
+                      </Badge>
+                      <Badge
+                        variant={change.legacyStatus === "LEGACY_OK" ? "secondary" : "outline"}
+                        className={change.legacyStatus === "LEGACY_OK" ? "h-6 px-1.5 text-[10px] text-emerald-700 dark:text-emerald-200" : "h-6 px-1.5 text-[10px]"}
+                      >
+                        {getLegacyStatusLabel(change.legacyStatus)}
                       </Badge>
                       <Badge variant="outline" className="h-6 px-1.5 text-[10px]">
                         {getTargetTypeLabel(change.targetType)}
@@ -1140,18 +1471,6 @@ function ChangeList({
                       {isSwapBundle ? <Badge variant="secondary">Tausch-Bundle</Badge> : change.bundleId ? <Badge variant="secondary">Bundle</Badge> : null}
                     </div>
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                      <button
-                        type="button"
-                        className={canUseAdminLinks ? "truncate hover:text-primary" : "truncate"}
-                        onClick={() => {
-                          if (canUseAdminLinks) openTeamDashboard({ teamId: change.participant.team.id });
-                        }}
-                        disabled={!canUseAdminLinks}
-                        title={canUseAdminLinks ? "Mannschaft öffnen" : undefined}
-                      >
-                        {change.participant.team.name}
-                      </button>
-                      <span>·</span>
                       <button
                         type="button"
                         className={canUseAdminLinks ? "inline-flex min-w-0 items-center gap-1 truncate hover:text-primary" : "inline-flex min-w-0 items-center gap-1 truncate"}
@@ -1165,8 +1484,11 @@ function ChangeList({
                         {isDirectChange(change) ? "Geändert von" : "Antrag von"} {change.requesterLabel}
                       </button>
                       <span>·</span>
-                      <span>{formatDateTime(change.updatedAt)}</span>
+                      <span>{formatDate(change.createdAt)}</span>
+                      <span>·</span>
+                      <span>{formatTime(change.createdAt)}</span>
                     </div>
+                    <div className="truncate text-xs font-medium text-muted-foreground">{changeTitle}</div>
                     {previewFields.length > 0 && (
                       <div className="rounded-md border border-border/50 bg-muted/25 px-2 py-1.5 text-[11px] text-muted-foreground">
                         <span className="font-medium text-foreground">Betroffen:</span>{" "}
@@ -1196,7 +1518,18 @@ function ChangeList({
                       </div>
                     ) : null}
                   </div>
-                  <div className="flex items-center justify-end">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={change.legacyStatus === "LEGACY_OK" ? "secondary" : "outline"}
+                      className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+                      disabled={processing === `legacy:${change.id}`}
+                      onClick={() => void onLegacyStatusChange(change, change.legacyStatus === "LEGACY_OK" ? "OPEN" : "LEGACY_OK")}
+                    >
+                      <CheckCircle2 className="size-3" />
+                      {change.legacyStatus === "LEGACY_OK" ? "Legacy OK" : "Legacy OK"}
+                    </Button>
                     <Button
                       type="button"
                       size="sm"
