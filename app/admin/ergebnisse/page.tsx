@@ -201,6 +201,17 @@ type PublishPreviewResponse = {
   error?: string;
 };
 
+type PublishExecuteResponse = {
+  ok?: boolean;
+  publication?: {
+    id: string;
+    version: number;
+    publishedAt: string;
+  };
+  counts?: PublishPreviewResponse["counts"];
+  error?: string;
+};
+
 type TimekeepingSessionSummary = {
   id: string;
   deviceId: string;
@@ -522,6 +533,7 @@ export default function ResultDataWorkbenchPage() {
   const [loadingBatchDetails, setLoadingBatchDetails] = useState(false);
   const [publishPreview, setPublishPreview] = useState<PublishPreviewResponse | null>(null);
   const [loadingPublishPreview, setLoadingPublishPreview] = useState(false);
+  const [publishingBatchId, setPublishingBatchId] = useState<string | null>(null);
   const [correctionForm, setCorrectionForm] = useState<CorrectionFormState | null>(null);
   const [savingCorrection, setSavingCorrection] = useState(false);
   const [timekeepingSessions, setTimekeepingSessions] = useState<TimekeepingSessionSummary[]>([]);
@@ -619,6 +631,45 @@ export default function ResultDataWorkbenchPage() {
       setLoadingPublishPreview(false);
     }
   }, [activeCompetition?.id, hasAdminAccess]);
+
+  const publishBatch = async (batchId: string) => {
+    if (!activeCompetition?.id || !hasAdminAccess || !batchId || publishingBatchId) return;
+    if (!publishPreview?.executable) {
+      setError("Publish ist durch Blocker gesperrt. Bitte zuerst die Preview prüfen.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Ergebnis-Paket jetzt offiziell veröffentlichen?\n\nNeu: ${publishPreview.counts?.create ?? 0}\nUpdates: ${publishPreview.counts?.update ?? 0}\nUnverändert: ${publishPreview.counts?.unchanged ?? 0}\nSkip: ${publishPreview.counts?.skipped ?? 0}\n\nDas schreibt in die offiziellen Live-Ergebnisse.`,
+    );
+    if (!confirmed) return;
+
+    setPublishingBatchId(batchId);
+    setError(null);
+    setLegacyResultFeedback(null);
+    try {
+      const params = new URLSearchParams({ competitionId: activeCompetition.id });
+      const response = await fetch(`/api/admin/result-staging/batches/${encodeURIComponent(batchId)}/publish?${params.toString()}`, {
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as PublishExecuteResponse;
+      if (!response.ok) {
+        throw new Error(data.error || "Ergebnis-Paket konnte nicht publiziert werden.");
+      }
+      setLegacyResultFeedback(
+        `Ergebnis-Paket veröffentlicht. Version ${data.publication?.version ?? "?"}: ${data.counts?.create ?? 0} neu, ${data.counts?.update ?? 0} Updates, ${data.counts?.unchanged ?? 0} unverändert.`,
+      );
+      await Promise.all([
+        loadBatches(),
+        loadBatchDetails(batchId),
+        loadPublishPreview(batchId),
+      ]);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Ergebnis-Paket konnte nicht publiziert werden.");
+    } finally {
+      setPublishingBatchId(null);
+    }
+  };
 
   const loadTimekeepingSessions = useCallback(async () => {
     if (!activeCompetition?.id || !hasAdminAccess) return;
@@ -2229,14 +2280,23 @@ export default function ResultDataWorkbenchPage() {
                               Vorschau auf offizielle Ergebnisse. Diese Ansicht schreibt keine produktiven Resultate.
                             </p>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => void loadPublishPreview(selectedBatchId)}
-                            disabled={!selectedBatchId || loadingPublishPreview}
-                          >
-                            {loadingPublishPreview ? "Prüfe..." : "Neu prüfen"}
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => void loadPublishPreview(selectedBatchId)}
+                              disabled={!selectedBatchId || loadingPublishPreview || Boolean(publishingBatchId)}
+                            >
+                              {loadingPublishPreview ? "Prüfe..." : "Neu prüfen"}
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => void publishBatch(selectedBatchId)}
+                              disabled={!selectedBatchId || !publishPreview?.executable || Boolean(publishingBatchId) || loadingPublishPreview}
+                            >
+                              {publishingBatchId === selectedBatchId ? "Veröffentlicht..." : "Veröffentlichen"}
+                            </Button>
+                          </div>
                         </div>
                       </div>
 
