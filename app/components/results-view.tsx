@@ -96,12 +96,28 @@ const SOURCE_CLASS_ORDER = new Map<string, number>(
   CLASSIFICATION_DISPLAY_ORDER.map((code, index) => [code, index]),
 );
 
+function formatDurationMs(ms: number): string {
+  const totalCentiseconds = Math.round(ms / 10);
+  const centiseconds = totalCentiseconds % 100;
+  const totalSeconds = Math.floor(totalCentiseconds / 100);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+  const centisecondText = String(centiseconds).padStart(2, "0");
+  const secondText = String(seconds).padStart(2, "0");
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${secondText}.${centisecondText}`;
+  }
+
+  return `${totalMinutes}:${secondText}.${centisecondText}`;
+}
+
 function formatValue(val: number | null, disc: DisciplineCode): string {
   if (val === null || val === -999) return "-";
   if (disc === "RUN" || disc === "ROAD" || disc === "MTB") {
-    const mins = Math.floor(val / 60);
-    const secs = val % 60;
-    return mins > 0 ? `${mins}:${secs.toFixed(2).padStart(5, "0")}` : secs.toFixed(2);
+    return formatDurationMs(val);
   }
   if (disc === "BENCH") return `${val.toFixed(1)} kg`;
   if (disc === "STOCK") return `${val}`;
