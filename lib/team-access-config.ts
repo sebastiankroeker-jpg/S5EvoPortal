@@ -46,7 +46,7 @@ export function canRoleViewAllTeams(
     case "TEILNEHMER":
       return normalized.participantsCanViewAllTeams;
     case "ZUSCHAUER":
-      return false;
+      return normalized.spectatorsCanViewAllTeams;
     default:
       return false;
   }

@@ -1334,6 +1334,7 @@ export default function AdminPage() {
                             setCompetition({
                               ...competition,
                               hideForeignTeams: !competition.hideForeignTeams,
+                              spectatorsCanViewAllTeams: competition.hideForeignTeams ? competition.spectatorsCanViewAllTeams : false,
                             })
                           }
                           className={`relative h-6 w-12 rounded-full transition-colors ${
@@ -1390,11 +1391,31 @@ export default function AdminPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField label="Zuschauer:innen sehen Konkurrenz">
                       <div className="flex items-center gap-3 pt-2">
-                        <div className="relative h-6 w-12 rounded-full bg-muted">
-                          <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white" />
-                        </div>
+                        <button
+                          type="button"
+                          disabled={competition.hideForeignTeams}
+                          onClick={() =>
+                            setCompetition({
+                              ...competition,
+                              spectatorsCanViewAllTeams: !competition.spectatorsCanViewAllTeams,
+                            })
+                          }
+                          className={`relative h-6 w-12 rounded-full transition-colors disabled:opacity-50 ${
+                            competition.spectatorsCanViewAllTeams && !competition.hideForeignTeams ? "bg-primary" : "bg-muted"
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                              competition.spectatorsCanViewAllTeams && !competition.hideForeignTeams ? "translate-x-6" : ""
+                            }`}
+                          />
+                        </button>
                         <span className="text-sm text-muted-foreground">
-                          Noch nicht freigegeben
+                          {competition.hideForeignTeams
+                            ? "Durch Privacy-Schalter gesperrt"
+                            : competition.spectatorsCanViewAllTeams
+                              ? "Live-Teams & Startlisten öffentlich"
+                              : "Nur mit Portal-Login"}
                         </span>
                       </div>
                     </FormField>

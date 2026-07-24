@@ -415,10 +415,6 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
 
-    if (!userEmail) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     try {
       const url = new URL(request.url);
       const query = url.searchParams.get("q")?.trim() ?? "";
@@ -439,11 +435,32 @@ export async function GET(request: NextRequest) {
             },
           })
         : null;
-      const { user } = await resolveCurrentUser(session, { createIfMissing: true });
-      const normalizedUserEmail = normalizeEmail(userEmail);
-      const access = await getScopedRoleFlags(userEmail, competition?.tenantId, session);
-      const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
       const competitionTeamAccess = normalizeCompetitionTeamAccessConfig(competition);
+      const publicSpectatorAllTeams =
+        !userEmail &&
+        wantsAllTeams &&
+        canRoleViewAllTeams("ZUSCHAUER", competitionTeamAccess);
+
+      if (!userEmail && !publicSpectatorAllTeams) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+
+      const { user } = userEmail
+        ? await resolveCurrentUser(session, { createIfMissing: true })
+        : { user: null };
+      const normalizedUserEmail = normalizeEmail(userEmail);
+      const access = userEmail
+        ? await getScopedRoleFlags(userEmail, competition?.tenantId, session)
+        : {
+            user: null,
+            roles: [],
+            isAdmin: false,
+            isModerator: false,
+            isTimekeeper: false,
+            canViewAllTeams: false,
+            canEditAllTeams: false,
+          };
+      const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
       const canViewRequestedScope =
         roleContext
           ? canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess)
@@ -454,7 +471,9 @@ export async function GET(request: NextRequest) {
       const isPrivilegedMarketplaceViewer =
         effectiveScopeRole === "ADMIN" || effectiveScopeRole === "MODERATOR" || access.canEditAllTeams;
       const viewerHasMarketplaceRegistration =
-        isPrivilegedMarketplaceViewer
+        !userEmail
+          ? false
+          : isPrivilegedMarketplaceViewer
           ? true
           : await prisma.team.count({
               where: {
@@ -695,7 +714,7 @@ export async function GET(request: NextRequest) {
             currentUserEmail: normalizedUserEmail,
             canSeeFullPublication,
             canEditAllTeams: access.canEditAllTeams,
-            canSeeStartNumber: access.isAdmin,
+            canSeeStartNumber: access.isAdmin || (wantsAllTeams && canViewRequestedScope),
             currentUserHasPortalAccount: Boolean(user?.authentikSub),
             canSeeSensitiveParticipantFields: access.canEditAllTeams,
             canSeeOwnerClaimFields: effectiveScopeRole === "ADMIN" && access.isAdmin,
