@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { CLASSIFICATIONS, compareClassificationCodes } from "@/lib/domain/classification";
 import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
-import { Download, Printer, SlidersHorizontal, Star, XCircle } from "lucide-react";
+import { Download, Lock, Printer, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { DisciplineBrandIcon } from "./discipline-brand";
 import ResultsView from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
@@ -269,14 +269,7 @@ export default function LiveScreen() {
     () => activeCompetition?.id ? `s5evo.offline.liveTeams.v1.${activeCompetition.id}.${activeRole}` : null,
     [activeCompetition?.id, activeRole],
   );
-  const availableSegments = useMemo<Segment[]>(
-    () => [
-      ...(canViewLiveTeams ? (["teams"] as const) : []),
-      ...(canViewLiveStartlists ? (["start"] as const) : []),
-      "ergebnis" as const,
-    ],
-    [canViewLiveStartlists, canViewLiveTeams],
-  );
+  const availableSegments = useMemo<Segment[]>(() => ["teams", "start", "ergebnis"], []);
   const watchedTeamIdSet = useMemo(() => new Set(watchedTeamIds), [watchedTeamIds]);
   const canSearchTeamManagers = activeRole === "ADMIN";
   const availableCategories = useMemo(() => uniqueSortedCategories(teams), [teams]);
@@ -585,8 +578,28 @@ export default function LiveScreen() {
     );
   };
 
+  const renderLockedSegment = (title: string) => (
+    <Card>
+      <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+        <div className="rounded-full bg-muted p-3 text-muted-foreground">
+          <Lock className="size-5" aria-hidden="true" />
+        </div>
+        <div className="space-y-1">
+          <p className="font-medium">{title}</p>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Dieser Bereich ist vorbereitet, aber für deine Zugriffsebene noch nicht veröffentlicht.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   // Segment content rendering
   const renderTeamsSegment = () => {
+    if (!canViewLiveTeams) {
+      return renderLockedSegment("Live-Teams noch nicht veröffentlicht");
+    }
+
     const visibleTeams = teams.filter((team) =>
       teamMatchesSearch(team, searchQuery, canSearchTeamManagers) &&
       teamMatchesClassFilters(team, teamsClassFilters) &&
@@ -744,6 +757,10 @@ export default function LiveScreen() {
   };
 
   const renderStartSegment = () => {
+    if (!canViewLiveStartlists) {
+      return renderLockedSegment("Live-Startlisten noch nicht veröffentlicht");
+    }
+
     const sourceTeams = teams.filter((team) =>
       teamMatchesClassFilters(team, startsClassFilters) &&
       (!startsFavoritesOnly || watchedTeamIdSet.has(team.id)) &&
