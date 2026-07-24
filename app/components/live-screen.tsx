@@ -168,11 +168,13 @@ function escapeCsvValue(value: string | number | null | undefined) {
 }
 
 function buildModeratorHintsCsv(rows: StartListEntry[]) {
-  const header = ["Strnr", "Teilnehmer", "Mannschaft", "Hinweis"];
+  const header = ["Strnr", "Teilnehmer", "Mannschaft", "Disziplin", "Klasse", "Hinweis"];
   const body = rows.map((row) => [
     row.startNumber ?? "",
     formatParticipantName(row.participant),
     row.teamName,
+    getDisciplineDisplay(row.participant.discipline).label,
+    getCategoryLabel(row.teamCategory),
     row.participant.moderationNote?.trim() ?? "",
   ]);
 
