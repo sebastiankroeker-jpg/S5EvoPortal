@@ -1,5 +1,25 @@
 # SESSION_HANDOFF
 
+## CR local: ESV default theme for users without explicit choice - 2026-07-24 19:45 UTC
+
+- Sebastian requested ESV as the default theme for everyone who has not
+  actively selected a theme.
+- CR document:
+  `docs/cr/2026-07-24-esv-theme-default.md`.
+- Local implementation done, pending deploy approval:
+  - `lib/theme-context.tsx` now uses ESV as the default fallback.
+  - Existing stored `s5evo-theme` and legacy theme keys still win.
+  - Fallback ESV is not persisted as an explicit user choice until the user
+    changes the theme via the theme switcher.
+  - `app/admin/page.tsx` uses ESV as the tenant default fallback.
+- Checks green:
+  - `npx eslint lib/theme-context.tsx app/admin/page.tsx`
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Next step: Sebastian approval for production deploy, then Vercel deploy and
+  public smoke.
+
 ## CR deployed: Live cross-navigation for teams/start lists/results - 2026-07-24 19:13 UTC
 
 - Sebastian requested a new CR for Live-route cross-navigation:

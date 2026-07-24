@@ -355,7 +355,7 @@ export default function AdminPage() {
     contactEmail: "",
     website: "",
     privacyText: "",
-    defaultTheme: "DARK",
+    defaultTheme: "ESV",
     publicPortalRegistrationEnabled: true,
   });
 
@@ -586,7 +586,7 @@ export default function AdminPage() {
               contactEmail: tenantData.tenant.contactEmail || "",
               website: tenantData.tenant.website || "",
               privacyText: tenantData.tenant.privacyText || "",
-              defaultTheme: tenantData.tenant.defaultTheme || "DARK",
+              defaultTheme: tenantData.tenant.defaultTheme || "ESV",
               publicPortalRegistrationEnabled: tenantData.tenant.publicPortalRegistrationEnabled !== false,
             });
           }
