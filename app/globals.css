@@ -185,7 +185,7 @@
 /* ESV Mode */
 .esv-bg {
   background:
-    linear-gradient(180deg, rgba(227, 6, 19, 0.08) 0%, rgba(5, 5, 5, 0) 15rem),
+    linear-gradient(180deg, rgba(197, 19, 40, 0.08) 0%, rgba(5, 5, 5, 0) 15rem),
     linear-gradient(180deg, #050505 0%, #111111 52%, #050505 100%);
 }
 
@@ -196,7 +196,7 @@
   --card-foreground: #f8fafc;
   --popover: #111111;
   --popover-foreground: #f8fafc;
-  --primary: #e30613;
+  --primary: #c51328;
   --primary-foreground: #ffffff;
   --secondary: #1b1b1b;
   --secondary-foreground: #f5f5f5;
@@ -204,23 +204,23 @@
   --muted-foreground: #a8adb7;
   --accent: #123f63;
   --accent-foreground: #f8fafc;
-  --destructive: #e30613;
+  --destructive: #c51328;
   --border: rgba(255, 255, 255, 0.13);
   --input: rgba(255, 255, 255, 0.16);
-  --ring: #e30613;
-  --chart-1: #e30613;
+  --ring: #c51328;
+  --chart-1: #c51328;
   --chart-2: #0b78b8;
   --chart-3: #f2d046;
   --chart-4: #ffffff;
-  --chart-5: #7f1d1d;
+  --chart-5: #7a0b18;
   --sidebar: #090909;
   --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #e30613;
+  --sidebar-primary: #c51328;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #151515;
   --sidebar-accent-foreground: #f8fafc;
   --sidebar-border: rgba(255, 255, 255, 0.12);
-  --sidebar-ring: #e30613;
+  --sidebar-ring: #c51328;
   --discipline-icon-color: #0b78b8;
   --discipline-icon-soft: rgba(11, 120, 184, 0.18);
 }
@@ -230,7 +230,7 @@
 }
 
 [data-theme="esv"] ::selection {
-  background: rgba(227, 6, 19, 0.45);
+  background: rgba(197, 19, 40, 0.45);
   color: #ffffff;
 }
 

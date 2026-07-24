@@ -4,11 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { startPortalLogin } from "@/lib/auth-flow";
 
-interface ESVHeroProps {
-  onLogin?: () => void;
-}
-
-export default function ESVHero({ onLogin }: ESVHeroProps) {
+export default function ESVHero() {
   return (
     <div className="relative min-h-[600px] bg-gradient-to-br from-[#1a5f1a] via-[#2d4a2d] to-[#1a3d1a] overflow-hidden">
       {/* Background Pattern / Luftbild-Simulation */}
@@ -25,8 +21,8 @@ export default function ESVHero({ onLogin }: ESVHeroProps) {
           
           {/* Vereinswappen Slot */}
           <div className="flex justify-center">
-            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white/10 backdrop-blur-sm border-2 border-[#dc2626] flex items-center justify-center">
-              <div className="text-4xl md:text-5xl font-bold text-[#dc2626]">ESV</div>
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white/10 backdrop-blur-sm border-2 border-[#c51328] flex items-center justify-center">
+              <div className="text-4xl md:text-5xl font-bold text-[#c51328]">ESV</div>
             </div>
           </div>
 
@@ -35,7 +31,7 @@ export default function ESVHero({ onLogin }: ESVHeroProps) {
             <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight">
               Mannschaftsfünfkampf
               <br />
-              <span className="text-[#dc2626]">2026</span>
+              <span className="text-[#c51328]">2026</span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-200 max-w-3xl mx-auto">
               ESV Bad Bayersoien lädt ein zum traditionellen Fünfkampf-Wettkampf. 
@@ -44,7 +40,7 @@ export default function ESVHero({ onLogin }: ESVHeroProps) {
           </div>
 
           {/* Call-to-Action */}
-          <Card className="max-w-md mx-auto bg-white/10 backdrop-blur-md border-[#dc2626]">
+          <Card className="max-w-md mx-auto bg-white/10 backdrop-blur-md border-[#c51328]">
             <CardContent className="p-6 space-y-4">
               <h3 className="text-xl font-semibold text-white">Team anmelden</h3>
               <p className="text-gray-200 text-sm">
@@ -53,7 +49,7 @@ export default function ESVHero({ onLogin }: ESVHeroProps) {
               <Button 
                 onClick={() => void startPortalLogin("/")}
                 size="lg"
-                className="w-full bg-[#dc2626] hover:bg-[#b91c1c] text-white font-semibold"
+                className="w-full bg-[#c51328] hover:bg-[#a60f22] text-white font-semibold"
               >
                 🏅 Jetzt anmelden
               </Button>
