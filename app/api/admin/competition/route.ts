@@ -41,6 +41,7 @@ function normalizeClaimTokenTtlDays(value: unknown) {
 async function requireCompetitionAdmin(userId: string, competitionId: string) {
   const competition = await prisma.competition.findUnique({
     where: { id: competitionId },
+    include: { tenant: { select: { publicPortalRegistrationEnabled: true } } },
   });
 
   if (!competition) {
@@ -75,7 +76,11 @@ export async function GET(request: NextRequest) {
       }
 
       const competition = scopedCompetition?.competition
-        ?? await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
+        ?? await prisma.competition.findFirst({
+          where: { tenantId: auth.tenantId },
+          orderBy: { year: 'desc' },
+          include: { tenant: { select: { publicPortalRegistrationEnabled: true } } },
+        });
 
       if (!competition) {
         return NextResponse.json({ error: 'No competition found' }, { status: 404 });

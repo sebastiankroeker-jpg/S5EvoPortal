@@ -11,6 +11,7 @@ import { usePermissions } from "@/lib/permissions-context";
 import { useTheme } from "@/lib/theme-context";
 import { startPortalLogin, startPortalRegistration } from "@/lib/auth-flow";
 import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
+import { isRegistrationDeadlineOpen } from "@/lib/registration-deadline";
 
 interface CompetitionInfo {
   name: string;
@@ -18,6 +19,7 @@ interface CompetitionInfo {
   location: string;
   date: string;
   dateEnd: string | null;
+  registrationDeadline: string | null;
   status: string;
   hideForeignTeams?: boolean;
   tenant?: {
@@ -114,6 +116,12 @@ function formatCompetitionDate(competitionInfo: CompetitionInfo | null) {
   return d1.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
 }
 
+function canUsePublicTeamRegistration(competitionInfo: CompetitionInfo | null) {
+  if (!competitionInfo) return false;
+  const statusAllowsRegistration = competitionInfo.status === "DRAFT" || competitionInfo.status === "OPEN";
+  return statusAllowsRegistration && isRegistrationDeadlineOpen(competitionInfo.registrationDeadline);
+}
+
 function HomeBrandHeader({ dateLabel }: { dateLabel?: string }) {
   return (
     <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
@@ -179,9 +187,11 @@ function AnnouncementCard({ entries }: { entries: HomeNewsEntry[] }) {
 function FlyerInfoCard({
   onRegisterClick,
   onMarketplaceClick,
+  registrationOpen,
 }: {
   onRegisterClick?: () => void;
   onMarketplaceClick?: () => void;
+  registrationOpen: boolean;
 }) {
   return (
     <Card>
@@ -212,7 +222,7 @@ function FlyerInfoCard({
             {FLYER_INFO_2026.registrationNotes.map((note) => (
               <p key={note}>• {note}</p>
             ))}
-            {onRegisterClick && (
+            {registrationOpen && onRegisterClick && (
               <Button
                 type="button"
                 onClick={onRegisterClick}
@@ -221,7 +231,7 @@ function FlyerInfoCard({
                 📋 Mannschaft anmelden
               </Button>
             )}
-            {onMarketplaceClick && (
+            {registrationOpen && onMarketplaceClick && (
               <Button
                 type="button"
                 onClick={onMarketplaceClick}
@@ -229,6 +239,11 @@ function FlyerInfoCard({
               >
                 🧩 Zur Sportlerbörse
               </Button>
+            )}
+            {!registrationOpen && (
+              <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                Die öffentliche Anmeldung ist geschlossen.
+              </p>
             )}
           </div>
         </div>
@@ -320,6 +335,7 @@ export default function HomeScreen() {
   const [isAuthActionPending, setIsAuthActionPending] = useState(false);
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const publicPortalRegistrationEnabled = competitionInfo?.tenant?.publicPortalRegistrationEnabled === true;
+  const publicTeamRegistrationOpen = canUsePublicTeamRegistration(competitionInfo);
 
   // Load competition info and stats
   useEffect(() => {
@@ -394,6 +410,16 @@ export default function HomeScreen() {
     window.dispatchEvent(event);
   };
 
+  // Loading
+  if (status === "loading" || isLoading) {
+    return (
+      <div className="text-center py-16">
+        <div className="animate-spin inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+        <p className="mt-4 text-muted-foreground">Lade...</p>
+      </div>
+    );
+  }
+
   // Not authenticated - show login
   if (status === "unauthenticated") {
     return (
@@ -408,21 +434,29 @@ export default function HomeScreen() {
           <CardContent className="space-y-4 pt-6">
             <div className="text-sm text-muted-foreground text-left rounded-md border border-border/50 p-3 bg-muted/20">
               <p className="font-medium text-foreground mb-1">So kannst du starten</p>
-              <p>Die Mannschaftsanmeldung ist jetzt online. Du kannst direkt loslegen oder optional zuerst einen Portal-Account erstellen und dich danach einloggen.</p>
+              <p>
+                {publicTeamRegistrationOpen
+                  ? "Die Mannschaftsanmeldung ist online. Du kannst direkt loslegen oder dich mit einem bestehenden Portal-Konto anmelden."
+                  : "Die öffentliche Anmeldung ist geschlossen. Der Login bleibt für bestehende Portal-Funktionen sichtbar."}
+              </p>
             </div>
             <div className="space-y-2">
-              <Button
-                onClick={() => window.location.href = '/anmeldung'}
-                className="h-10 w-full"
-              >
-                📋 Mannschaft anmelden
-              </Button>
-              <Button
-                onClick={() => window.location.href = '/sportlerboerse'}
-                className="h-10 w-full"
-              >
-                🧩 Zur Sportlerbörse
-              </Button>
+              {publicTeamRegistrationOpen && (
+                <>
+                  <Button
+                    onClick={() => window.location.href = '/anmeldung'}
+                    className="h-10 w-full"
+                  >
+                    📋 Mannschaft anmelden
+                  </Button>
+                  <Button
+                    onClick={() => window.location.href = '/sportlerboerse'}
+                    className="h-10 w-full"
+                  >
+                    🧩 Zur Sportlerbörse
+                  </Button>
+                </>
+              )}
               <div className="space-y-2">
                 {publicPortalRegistrationEnabled && (
                   <Button
@@ -466,19 +500,10 @@ export default function HomeScreen() {
           <FlyerInfoCard
             onRegisterClick={() => { window.location.href = "/anmeldung"; }}
             onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
+            registrationOpen={publicTeamRegistrationOpen}
           />
         </div>
       </motion.div>
-    );
-  }
-
-  // Loading
-  if (status === "loading" || isLoading) {
-    return (
-      <div className="text-center py-16">
-        <div className="animate-spin inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-        <p className="mt-4 text-muted-foreground">Lade...</p>
-      </div>
     );
   }
 
@@ -497,6 +522,7 @@ export default function HomeScreen() {
       <FlyerInfoCard
         onRegisterClick={() => handleQuickAction("registration")}
         onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
+        registrationOpen={publicTeamRegistrationOpen}
       />
 
       {/* Stats Overview */}
