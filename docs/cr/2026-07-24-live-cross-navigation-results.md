@@ -1,6 +1,6 @@
 # CR: Live cross-navigation for teams, start lists and results
 
-Status: Implemented, pending deploy
+Status: Deployed
 Date: 2026-07-24
 Type: feature
 Risk: medium
@@ -244,24 +244,29 @@ implemented conservatively and deployed only after explicit approval.
 
 - Deployment needed: yes
 - Deployment ID:
-  - Pending
+  - `dpl_HsL78ALG84G1EJEr2ssWmXvsHTa4`
 - Deployment URL:
-  - Pending
+  - `https://s5-evo-portal-6fbyzbjsy-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias:
   - `https://portal.s5evo.de`
 - Deployed at:
-  - Pending
+  - 2026-07-24 19:12 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
-  - Pending
+  - `HEAD https://portal.s5evo.de` -> 200
+  - `npm run smoke:public` -> pass
 - API checks:
-  - Pending
+  - Public smoke: `/api/competition` -> 200, `/api/results` -> 200.
+  - Targeted shape check against production `/api/results`:
+    `resultEntries=102`, `entriesWithParticipantId=102`.
 - Sensitive-data/API leakage checks:
-  - Pending
+  - Targeted shape check found `forbiddenFieldHits=0` for contact e-mail,
+    phone, birth date/year, participant e-mail, owner fields and claim tokens
+    on result entries.
 - Result:
-  - Pending
+  - Passed. Authenticated/manual UI smoke remains for Sebastian in the live UI.
 
 ## Follow-Ups
 

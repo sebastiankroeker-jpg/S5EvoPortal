@@ -1,6 +1,6 @@
 # SESSION_HANDOFF
 
-## Draft CR: Live cross-navigation for teams/start lists/results - 2026-07-24 19:05 UTC
+## CR deployed: Live cross-navigation for teams/start lists/results - 2026-07-24 19:13 UTC
 
 - Sebastian requested a new CR for Live-route cross-navigation:
   - From `Live -> Teams`, participant navigation should focus/mark the
@@ -14,11 +14,32 @@
     used in Live team/start-list navigation.
 - CR document created:
   `docs/cr/2026-07-24-live-cross-navigation-results.md`.
-- Current state: Draft only, no implementation yet.
+- Implemented, committed, deployed:
+  - Commit: `94dbe01 Add live results cross navigation`
+  - Deploy: `dpl_HsL78ALG84G1EJEr2ssWmXvsHTa4`
+  - Production alias: `https://portal.s5evo.de`
 - Risk: medium, because participant/team/result identities are linked more
   directly in the public Live UI. Intended approach is client-side navigation
   using already visible payloads, no schema change, no new cache.
-- Gate: implementation/deploy requires Sebastian's explicit Go.
+- Implementation notes:
+  - `/api/results` now adds only `participantId` to discipline ranking entries
+    so result rows can be matched without brittle display-name matching.
+  - `LiveScreen` sends participant result-focus requests and falls back to the
+    existing Startliste focus when no result exists yet.
+  - `ResultsView` handles result row focus/marking, matrix point -> individual
+    result navigation, and team cell -> Live Teams navigation.
+- Checks green:
+  - `npx eslint app/components/live-screen.tsx app/components/results-view.tsx app/api/results/route.ts lib/domain/scoring.ts`
+  - `npx tsc --noEmit`
+  - `npm run build`
+  - `git diff --check`
+- Post-deploy smoke:
+  - `npm run smoke:public` -> pass
+  - `HEAD https://portal.s5evo.de` -> 200
+  - Production `/api/results` shape check: 102 result entries, 102 with
+    `participantId`, 0 forbidden contact/birth/account/claim fields on result
+    entries.
+- Remaining gap: authenticated/manual UI smoke by Sebastian on the live route.
 
 ## CR deployed: change dashboard legacy status/list view - 2026-07-24 08:05 UTC
 
