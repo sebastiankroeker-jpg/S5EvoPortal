@@ -55,6 +55,19 @@ type LegacyImportWarning = {
   candidates?: Array<{ teamId: string; teamName: string }>;
 };
 
+type LegacyImportDeviation = {
+  row: number;
+  teamId: string;
+  teamName: string;
+  startNumber: string | null;
+  object: "TEAM" | "PARTICIPANT";
+  disciplineCode?: "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
+  field: string;
+  fieldLabel: string;
+  currentValue: string | null;
+  csvValue: string | null;
+};
+
 type LegacyCreateCandidate = {
   row: number;
   startNumber: string;
@@ -67,6 +80,21 @@ type LegacyCreateCandidate = {
     gender: "MALE" | "FEMALE";
     birthYear: number;
     disciplineCode: "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
+  }>;
+};
+
+type LegacyComparableTeam = {
+  id: string;
+  name: string;
+  startNumber: string | null;
+  classificationCode?: string | null;
+  totalAge?: number | null;
+  participants: Array<{
+    firstName: string;
+    lastName: string;
+    gender: "MALE" | "FEMALE";
+    birthYear: number;
+    disciplineCode: string | null;
   }>;
 };
 
@@ -405,6 +433,63 @@ function collectLegacyCreateParticipants(
   return participants;
 }
 
+function collectComparableDashboardParticipants(
+  row: string[],
+  normalizedHeaders: string[],
+): LegacyCreateCandidate["participants"] {
+  const participants: LegacyCreateCandidate["participants"] = [];
+
+  for (const slot of getDashboardSlotIndices(normalizedHeaders)) {
+    const values = [slot.firstName, slot.lastName, slot.gender, slot.birthYear, slot.discipline]
+      .filter((index) => index !== -1)
+      .map((index) => (row[index] || "").trim());
+    if (values.every((value) => !value)) continue;
+    if (slot.firstName === -1 || slot.lastName === -1 || slot.gender === -1 || slot.birthYear === -1 || slot.discipline === -1) {
+      continue;
+    }
+
+    const firstName = (row[slot.firstName] || "").trim();
+    const lastName = (row[slot.lastName] || "").trim();
+    const gender = parseLegacyGender(row[slot.gender]);
+    const birthYear = parseLegacyBirthYear(row[slot.birthYear]);
+    const disciplineCode = parseDashboardDisciplineCode(row[slot.discipline]);
+    if (!firstName || !lastName || !gender || !birthYear || !disciplineCode) continue;
+
+    participants.push({ firstName, lastName, gender, birthYear, disciplineCode });
+  }
+
+  return participants;
+}
+
+function collectComparableLegacyParticipants(
+  row: string[],
+  normalizedHeaders: string[],
+): LegacyCreateCandidate["participants"] {
+  const participants: LegacyCreateCandidate["participants"] = [];
+
+  for (const slot of getLegacySlotIndices(normalizedHeaders)) {
+    if (slot.firstName === -1 || slot.lastName === -1 || slot.gender === -1 || slot.birthYear === -1) {
+      continue;
+    }
+
+    const firstName = (row[slot.firstName] || "").trim();
+    const lastName = (row[slot.lastName] || "").trim();
+    const gender = parseLegacyGender(row[slot.gender]);
+    const birthYear = parseLegacyBirthYear(row[slot.birthYear]);
+    if (!firstName || !lastName || !gender || !birthYear) continue;
+
+    participants.push({
+      firstName,
+      lastName,
+      gender,
+      birthYear,
+      disciplineCode: slot.disciplineCode as "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB",
+    });
+  }
+
+  return participants;
+}
+
 function buildLegacyRowSignature(row: string[], normalizedHeaders: string[]) {
   const slots = getLegacySlotIndices(normalizedHeaders);
   return slots
@@ -585,6 +670,182 @@ function collectLegacyCreateCandidates(
   return { createCandidates, warnings };
 }
 
+function genderLabel(value: "MALE" | "FEMALE" | null | undefined) {
+  if (value === "FEMALE") return "Dame";
+  if (value === "MALE") return "Herr";
+  return null;
+}
+
+function participantLabel(participant: LegacyCreateCandidate["participants"][number]) {
+  return `${participant.firstName} ${participant.lastName} · ${genderLabel(participant.gender)} · ${participant.birthYear}`;
+}
+
+function pushDeviation(
+  deviations: LegacyImportDeviation[],
+  input: Omit<LegacyImportDeviation, "currentValue" | "csvValue"> & {
+    currentValue: string | number | null | undefined;
+    csvValue: string | number | null | undefined;
+  },
+) {
+  deviations.push({
+    ...input,
+    currentValue: input.currentValue === null || input.currentValue === undefined || input.currentValue === "" ? null : String(input.currentValue),
+    csvValue: input.csvValue === null || input.csvValue === undefined || input.csvValue === "" ? null : String(input.csvValue),
+  });
+}
+
+function collectLegacyDeviations(
+  headers: string[],
+  rows: string[][],
+  dataStartRowNumber: number,
+  teams: LegacyComparableTeam[],
+): LegacyImportDeviation[] {
+  const normalizedHeaders = headers.map(normalizeHeader);
+  const teamIdIndex = findHeaderIndex(normalizedHeaders, TEAM_ID_HEADER_ALIASES);
+  const startNumberIndex = findHeaderIndex(normalizedHeaders, START_NUMBER_HEADER_ALIASES);
+  const teamNameIndex = findHeaderIndex(normalizedHeaders, TEAM_NAME_HEADER_ALIASES);
+  const classificationIndex = findHeaderIndex(normalizedHeaders, ["klasse", "classification", "class"]);
+  const totalAgeIndex = findHeaderIndex(normalizedHeaders, ["gesamtalter", "total_age", "totalage"]);
+  const teamsById = new Map(teams.map((team) => [team.id, team]));
+  const teamsByName = new Map<string, LegacyComparableTeam[]>();
+  const deviations: LegacyImportDeviation[] = [];
+
+  for (const team of teams) {
+    const key = normalizeLegacyText(team.name);
+    teamsByName.set(key, [...(teamsByName.get(key) ?? []), team]);
+  }
+
+  rows.forEach((row, index) => {
+    const rowNumber = dataStartRowNumber + index;
+    const csvTeamId = teamIdIndex === -1 ? "" : normalizeImportId(row[teamIdIndex]);
+    const csvTeamName = teamNameIndex === -1 ? "" : (row[teamNameIndex] || "").trim();
+    const startNumber = startNumberIndex === -1 ? null : normalizeStartNumber(row[startNumberIndex] || "");
+    const team = csvTeamId
+      ? teamsById.get(csvTeamId)
+      : csvTeamName
+        ? (teamsByName.get(normalizeLegacyText(csvTeamName)) ?? []).length === 1
+          ? (teamsByName.get(normalizeLegacyText(csvTeamName)) ?? [])[0]
+          : null
+        : null;
+
+    if (!team) return;
+
+    if (csvTeamId && csvTeamName && normalizeLegacyText(team.name) !== normalizeLegacyText(csvTeamName)) {
+      pushDeviation(deviations, {
+        row: rowNumber,
+        teamId: team.id,
+        teamName: team.name,
+        startNumber,
+        object: "TEAM",
+        field: "teamName",
+        fieldLabel: "Mannschaftsname",
+        currentValue: team.name,
+        csvValue: csvTeamName,
+      });
+    }
+
+    if (classificationIndex !== -1) {
+      const csvClassificationCode = resolveLegacyClassificationCode(row[classificationIndex]);
+      if (csvClassificationCode && (team.classificationCode || null) !== csvClassificationCode) {
+        pushDeviation(deviations, {
+          row: rowNumber,
+          teamId: team.id,
+          teamName: team.name,
+          startNumber,
+          object: "TEAM",
+          field: "classificationCode",
+          fieldLabel: "Klasse",
+          currentValue: team.classificationCode,
+          csvValue: csvClassificationCode,
+        });
+      }
+    }
+
+    if (totalAgeIndex !== -1) {
+      const csvTotalAge = parseLegacyInteger(row[totalAgeIndex]);
+      if (csvTotalAge !== null && (team.totalAge ?? null) !== csvTotalAge) {
+        pushDeviation(deviations, {
+          row: rowNumber,
+          teamId: team.id,
+          teamName: team.name,
+          startNumber,
+          object: "TEAM",
+          field: "totalAge",
+          fieldLabel: "Gesamtalter",
+          currentValue: team.totalAge,
+          csvValue: csvTotalAge,
+        });
+      }
+    }
+
+    const csvParticipants = collectComparableDashboardParticipants(row, normalizedHeaders);
+    const comparableParticipants = csvParticipants.length > 0 ? csvParticipants : collectComparableLegacyParticipants(row, normalizedHeaders);
+    const portalByDiscipline = new Map(team.participants.map((participant) => [participant.disciplineCode || "TBD", participant]));
+
+    for (const csvParticipant of comparableParticipants) {
+      const portalParticipant = portalByDiscipline.get(csvParticipant.disciplineCode);
+      const base = {
+        row: rowNumber,
+        teamId: team.id,
+        teamName: team.name,
+        startNumber,
+        object: "PARTICIPANT" as const,
+        disciplineCode: csvParticipant.disciplineCode,
+      };
+
+      if (!portalParticipant) {
+        pushDeviation(deviations, {
+          ...base,
+          field: "participant",
+          fieldLabel: "Teilnehmer",
+          currentValue: "fehlt im Portal",
+          csvValue: participantLabel(csvParticipant),
+        });
+        continue;
+      }
+
+      if (normalizeLegacyText(portalParticipant.firstName) !== normalizeLegacyText(csvParticipant.firstName)) {
+        pushDeviation(deviations, {
+          ...base,
+          field: "firstName",
+          fieldLabel: "Vorname",
+          currentValue: portalParticipant.firstName,
+          csvValue: csvParticipant.firstName,
+        });
+      }
+      if (normalizeLegacyText(portalParticipant.lastName) !== normalizeLegacyText(csvParticipant.lastName)) {
+        pushDeviation(deviations, {
+          ...base,
+          field: "lastName",
+          fieldLabel: "Nachname",
+          currentValue: portalParticipant.lastName,
+          csvValue: csvParticipant.lastName,
+        });
+      }
+      if (portalParticipant.gender !== csvParticipant.gender) {
+        pushDeviation(deviations, {
+          ...base,
+          field: "gender",
+          fieldLabel: "Geschlecht",
+          currentValue: genderLabel(portalParticipant.gender),
+          csvValue: genderLabel(csvParticipant.gender),
+        });
+      }
+      if (portalParticipant.birthYear !== csvParticipant.birthYear) {
+        pushDeviation(deviations, {
+          ...base,
+          field: "birthYear",
+          fieldLabel: "Geburtsjahr",
+          currentValue: portalParticipant.birthYear,
+          csvValue: csvParticipant.birthYear,
+        });
+      }
+    }
+  });
+
+  return deviations;
+}
+
 function collectLegacyAssignments(
   headers: string[],
   rows: string[][],
@@ -718,6 +979,8 @@ export async function POST(request: NextRequest) {
       id: true,
       name: true,
       startNumber: true,
+      classificationCode: true,
+      totalAge: true,
       participants: {
         where: { deletedAt: null },
         select: {
@@ -889,6 +1152,12 @@ export async function POST(request: NextRequest) {
       nextStartNumber: mergedTeamAssignments.get(team.id) ?? null,
     }))
     .filter(({ team, nextStartNumber }) => (team.startNumber || null) !== (nextStartNumber || null));
+  const deviations = collectLegacyDeviations(
+    parsed.headers,
+    parsed.rows,
+    parsed.dataStartRowNumber,
+    teamsForLegacyMatch,
+  );
 
   if (dryRun) {
     return NextResponse.json({
@@ -899,6 +1168,7 @@ export async function POST(request: NextRequest) {
       changed: changed.length,
       createMissingTeams,
       createCandidates: createCandidates.length,
+      deviations: deviations.length,
       warnings: legacyWarnings,
       preview: changed.slice(0, 20).map(({ team, nextStartNumber }) => ({
         teamId: team.id,
@@ -906,6 +1176,7 @@ export async function POST(request: NextRequest) {
         previousStartNumber: team.startNumber,
         nextStartNumber,
       })),
+      deviationPreview: deviations.slice(0, 30),
       createPreview: createCandidates.slice(0, 20).map((candidate) => ({
         row: candidate.row,
         teamName: candidate.teamName,
@@ -1036,6 +1307,7 @@ export async function POST(request: NextRequest) {
     changed: changed.length,
     createMissingTeams,
     createdTeams: createCandidates.length,
+    deviations: deviations.length,
     warnings: legacyWarnings,
   });
 }

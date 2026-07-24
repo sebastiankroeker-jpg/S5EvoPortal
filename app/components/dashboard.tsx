@@ -2328,12 +2328,23 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       assignments?: number;
       createCandidates?: number;
       createdTeams?: number;
+      deviations?: number;
       parsedRows?: number;
       warnings?: Array<{
         row?: number;
         startNumber?: string | null;
         teamName?: string;
         reason?: string;
+      }>;
+      deviationPreview?: Array<{
+        row?: number;
+        teamName?: string;
+        startNumber?: string | null;
+        object?: "TEAM" | "PARTICIPANT";
+        disciplineCode?: string;
+        fieldLabel?: string;
+        currentValue?: string | null;
+        csvValue?: string | null;
       }>;
     };
   };
@@ -2364,6 +2375,46 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
     return `\n\nWarnungen:\n${preview}${remaining}`;
   };
 
+  const formatLegacyImportDeviation = (deviation: {
+    row?: number;
+    teamName?: string;
+    startNumber?: string | null;
+    object?: "TEAM" | "PARTICIPANT";
+    disciplineCode?: string;
+    fieldLabel?: string;
+    currentValue?: string | null;
+    csvValue?: string | null;
+  }) => {
+    const row = deviation.row ? `Zeile ${deviation.row}` : "Zeile ?";
+    const team = deviation.teamName ? `: ${deviation.teamName}` : "";
+    const startNumber = deviation.startNumber ? ` (#${deviation.startNumber})` : "";
+    const discipline = deviation.disciplineCode ? ` · ${getDisciplineLabel(deviation.disciplineCode)}` : "";
+    const field = deviation.fieldLabel || "Feld";
+    const currentValue = deviation.currentValue || "leer";
+    const csvValue = deviation.csvValue || "leer";
+    return `${row}${team}${startNumber}${discipline} - ${field}: Portal "${currentValue}", CSV "${csvValue}"`;
+  };
+
+  const formatLegacyImportDeviations = (
+    deviations?: Array<{
+      row?: number;
+      teamName?: string;
+      startNumber?: string | null;
+      object?: "TEAM" | "PARTICIPANT";
+      disciplineCode?: string;
+      fieldLabel?: string;
+      currentValue?: string | null;
+      csvValue?: string | null;
+    }>,
+    total = deviations?.length ?? 0,
+  ) => {
+    if (!deviations?.length && total === 0) return "";
+    const shown = (deviations || []).slice(0, 10);
+    const preview = shown.map(formatLegacyImportDeviation).join("\n");
+    const remaining = total > shown.length ? `\n... plus ${total - shown.length} weitere Abweichungen` : "";
+    return `\n\nDatenabweichungen, nicht automatisch übernommen:\n${preview}${remaining}`;
+  };
+
   const handleLegacyStartNumberImport = async (file: File | null) => {
     if (!file) return;
     if (!activeCompetition?.id) {
@@ -2379,22 +2430,25 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       const assignments = preview.assignments ?? 0;
       const createCandidates = preview.createCandidates ?? 0;
       const warnings = preview.warnings?.length ?? 0;
+      const deviations = preview.deviations ?? preview.deviationPreview?.length ?? 0;
 
       if (changed === 0 && createCandidates === 0) {
         notifications.info(
           "Legacy-Import geprüft",
-          warnings > 0
-            ? `Keine Startnummern geändert. ${warnings} Zeilen brauchen Prüfung.`
+          warnings > 0 || deviations > 0
+            ? `Keine Startnummern geändert. ${warnings} Warnungen, ${deviations} Datenabweichungen zur manuellen Prüfung.`
             : "Keine Startnummernänderungen gefunden.",
         );
-        if (warnings > 0) {
-          window.alert(`Legacy-Import Warnungen${formatLegacyImportWarnings(preview.warnings)}`);
+        if (warnings > 0 || deviations > 0) {
+          window.alert(
+            `Legacy-Import Prüfung${formatLegacyImportWarnings(preview.warnings)}${formatLegacyImportDeviations(preview.deviationPreview, deviations)}`,
+          );
         }
         return;
       }
 
       const confirmed = window.confirm(
-        `Legacy-Import übernehmen?\n\nZuordnungen: ${assignments}\nStartnummern-Änderungen: ${changed}\nNeue Mannschaften: ${createCandidates}\nWarnungen: ${warnings}${formatLegacyImportWarnings(preview.warnings)}\n\nNeue Mannschaften werden ohne Login, Claim-Link oder Mail angelegt und Sebastian als Owner/Kontakt zugeordnet.`,
+        `Legacy-Import übernehmen?\n\nZuordnungen: ${assignments}\nStartnummern-Änderungen: ${changed}\nNeue Mannschaften: ${createCandidates}\nWarnungen: ${warnings}\nDatenabweichungen: ${deviations}${formatLegacyImportWarnings(preview.warnings)}${formatLegacyImportDeviations(preview.deviationPreview, deviations)}\n\nDatenabweichungen werden nicht automatisch übernommen. Neue Mannschaften werden ohne Login, Claim-Link oder Mail angelegt und Sebastian als Owner/Kontakt zugeordnet.`,
       );
       if (!confirmed) {
         notifications.info("Legacy-Import abgebrochen", "Es wurden keine Startnummern geändert.");
