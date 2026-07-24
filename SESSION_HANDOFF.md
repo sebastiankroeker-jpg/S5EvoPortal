@@ -1,5 +1,25 @@
 # SESSION_HANDOFF
 
+## Draft CR: Live cross-navigation for teams/start lists/results - 2026-07-24 19:05 UTC
+
+- Sebastian requested a new CR for Live-route cross-navigation:
+  - From `Live -> Teams`, participant navigation should focus/mark the
+    participant in the Startliste, or if a result already exists, the
+    participant's placement in the individual result list.
+  - From individual and overall result lists, add equivalent navigation.
+  - In the overall-result points matrix, clicking a scored point should
+    navigate to the participant in the relevant individual discipline result
+    list; clicking the team should navigate to `Live -> Teams`.
+  - All targets should use the same focus and colored marking pattern already
+    used in Live team/start-list navigation.
+- CR document created:
+  `docs/cr/2026-07-24-live-cross-navigation-results.md`.
+- Current state: Draft only, no implementation yet.
+- Risk: medium, because participant/team/result identities are linked more
+  directly in the public Live UI. Intended approach is client-side navigation
+  using already visible payloads, no schema change, no new cache.
+- Gate: implementation/deploy requires Sebastian's explicit Go.
+
 ## CR deployed: change dashboard legacy status/list view - 2026-07-24 08:05 UTC
 
 - Context: Sebastian requested `/aenderungen` UI cleanup from the
