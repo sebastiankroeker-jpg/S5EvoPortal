@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       hideForeignTeams: true,
       liveTeamsVisibility: true,
       liveStartlistsVisibility: true,
+      liveResultsVisibility: true,
       marketplaceGlobalVisibility: true,
       shirtOrderDeadline: true,
       maxTeams: true,

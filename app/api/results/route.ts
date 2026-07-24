@@ -8,6 +8,7 @@ import {
   resolveVisibleTeamName,
 } from "@/lib/publication-visibility";
 import { getScopedRoleFlags } from "@/lib/server-permissions";
+import { canRoleViewLiveResults, type TeamScopeRole } from "@/lib/team-access-config";
 import {
   rankDiscipline,
   calculateTeamScores,
@@ -107,7 +108,15 @@ export async function GET(request: NextRequest) {
     // Load competition
     const competition = await prisma.competition.findUnique({
       where: { id: competitionId },
-      select: { id: true, name: true, year: true, publicResults: true, status: true, tenantId: true },
+      select: {
+        id: true,
+        name: true,
+        year: true,
+        publicResults: true,
+        status: true,
+        tenantId: true,
+        liveResultsVisibility: true,
+      },
     });
 
     if (!competition) {
@@ -115,15 +124,20 @@ export async function GET(request: NextRequest) {
     }
 
     const session = await getServerSession(authOptions);
-    if (!competition.publicResults) {
-      if (!session?.user?.email) {
-        return NextResponse.json({ error: "Results are not public" }, { status: 403 });
-      }
-    }
-
     const access = session?.user?.email
       ? await getScopedRoleFlags(session.user.email, competition.tenantId, session)
       : null;
+    const effectiveRole: TeamScopeRole = access?.isAdmin
+      ? "ADMIN"
+      : access?.isModerator
+        ? "MODERATOR"
+        : session?.user?.email
+          ? "TEILNEHMER"
+          : "ZUSCHAUER";
+    if (!canRoleViewLiveResults(effectiveRole, competition)) {
+      return NextResponse.json({ error: "Results are not published for this access level" }, { status: 403 });
+    }
+
     const canSeeFullPublication = canViewerSeeFullPublication({
       isPrivilegedViewer: Boolean(access?.isAdmin || access?.isModerator),
     });

@@ -487,6 +487,7 @@ model Competition {
   hideForeignTeams                  Boolean                     @default(false)
   liveTeamsVisibility               LivePublicationVisibility   @default(ADMINS)
   liveStartlistsVisibility          LivePublicationVisibility   @default(ADMINS)
+  liveResultsVisibility             LivePublicationVisibility   @default(ADMINS)
   marketplaceGlobalVisibility       MarketplaceGlobalVisibility @default(SELECTIVE)
   registrationNotificationEmail     String?
   shirtOrderDeadline                DateTime?

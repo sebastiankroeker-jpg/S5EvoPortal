@@ -8,6 +8,7 @@ export type CompetitionTeamAccessConfig = {
   hideForeignTeams: boolean;
   liveTeamsVisibility: LivePublicationVisibility;
   liveStartlistsVisibility: LivePublicationVisibility;
+  liveResultsVisibility: LivePublicationVisibility;
 };
 
 export const DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG: CompetitionTeamAccessConfig = {
@@ -17,6 +18,7 @@ export const DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG: CompetitionTeamAccessConfig
   hideForeignTeams: false,
   liveTeamsVisibility: "ADMINS",
   liveStartlistsVisibility: "ADMINS",
+  liveResultsVisibility: "ADMINS",
 };
 
 export function normalizeCompetitionTeamAccessConfig(
@@ -33,6 +35,7 @@ export function normalizeCompetitionTeamAccessConfig(
     hideForeignTeams: input?.hideForeignTeams ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.hideForeignTeams,
     liveTeamsVisibility: input?.liveTeamsVisibility ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.liveTeamsVisibility,
     liveStartlistsVisibility: input?.liveStartlistsVisibility ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.liveStartlistsVisibility,
+    liveResultsVisibility: input?.liveResultsVisibility ?? DEFAULT_COMPETITION_TEAM_ACCESS_CONFIG.liveResultsVisibility,
   };
 }
 
@@ -67,6 +70,14 @@ export function canRoleViewLiveStartlists(
 ): boolean {
   const normalized = normalizeCompetitionTeamAccessConfig(config);
   return canRoleViewLivePublication(role, normalized.liveStartlistsVisibility);
+}
+
+export function canRoleViewLiveResults(
+  role: TeamScopeRole,
+  config?: Partial<CompetitionTeamAccessConfig> | null,
+): boolean {
+  const normalized = normalizeCompetitionTeamAccessConfig(config);
+  return canRoleViewLivePublication(role, normalized.liveResultsVisibility);
 }
 
 export function canRoleViewAllTeams(

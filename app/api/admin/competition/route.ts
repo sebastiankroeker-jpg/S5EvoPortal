@@ -146,6 +146,7 @@ export async function PUT(request: NextRequest) {
     const marketplaceGlobalVisibility = normalizeMarketplaceGlobalVisibility(body.marketplaceGlobalVisibility);
     const liveTeamsVisibility = normalizeLivePublicationVisibility(body.liveTeamsVisibility);
     const liveStartlistsVisibility = normalizeLivePublicationVisibility(body.liveStartlistsVisibility);
+    const liveResultsVisibility = normalizeLivePublicationVisibility(body.liveResultsVisibility);
 
     try {
       // Load specific competition by id, or fall back to latest
@@ -177,6 +178,7 @@ export async function PUT(request: NextRequest) {
             hideForeignTeams: Boolean(body.hideForeignTeams),
             liveTeamsVisibility,
             liveStartlistsVisibility,
+            liveResultsVisibility,
             marketplaceGlobalVisibility,
             registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
@@ -223,6 +225,9 @@ export async function PUT(request: NextRequest) {
             liveStartlistsVisibility: body.liveStartlistsVisibility !== undefined
               ? liveStartlistsVisibility
               : competition.liveStartlistsVisibility,
+            liveResultsVisibility: body.liveResultsVisibility !== undefined
+              ? liveResultsVisibility
+              : competition.liveResultsVisibility,
             marketplaceGlobalVisibility: body.marketplaceGlobalVisibility !== undefined
               ? marketplaceGlobalVisibility
               : competition.marketplaceGlobalVisibility,

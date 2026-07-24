@@ -49,6 +49,7 @@ type CompetitionConfig = {
   hideForeignTeams: boolean;
   liveTeamsVisibility: LivePublicationVisibility;
   liveStartlistsVisibility: LivePublicationVisibility;
+  liveResultsVisibility: LivePublicationVisibility;
   marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
   registrationNotificationEmail: string;
   shirtOrderDeadline: string;
@@ -372,6 +373,7 @@ export default function AdminPage() {
     hideForeignTeams: false,
     liveTeamsVisibility: "ADMINS",
     liveStartlistsVisibility: "ADMINS",
+    liveResultsVisibility: "ADMINS",
     marketplaceGlobalVisibility: "SELECTIVE",
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
@@ -452,6 +454,7 @@ export default function AdminPage() {
           hideForeignTeams: comp.hideForeignTeams === true,
           liveTeamsVisibility: (comp.liveTeamsVisibility || "ADMINS") as LivePublicationVisibility,
           liveStartlistsVisibility: (comp.liveStartlistsVisibility || "ADMINS") as LivePublicationVisibility,
+          liveResultsVisibility: (comp.liveResultsVisibility || "ADMINS") as LivePublicationVisibility,
           marketplaceGlobalVisibility: comp.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
           registrationNotificationEmail: comp.registrationNotificationEmail || "",
           shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
@@ -1424,6 +1427,17 @@ export default function AdminPage() {
                         <select
                           value={competition.liveStartlistsVisibility}
                           onChange={(e) => setCompetition({ ...competition, liveStartlistsVisibility: e.target.value as LivePublicationVisibility })}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          {LIVE_PUBLICATION_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </FormField>
+                      <FormField label="Live-Ergebnisse">
+                        <select
+                          value={competition.liveResultsVisibility}
+                          onChange={(e) => setCompetition({ ...competition, liveResultsVisibility: e.target.value as LivePublicationVisibility })}
                           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                         >
                           {LIVE_PUBLICATION_OPTIONS.map((option) => (

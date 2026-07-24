@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type Dispatch, type SetStateAction } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
-import { canRoleViewLiveStartlists, canRoleViewLiveTeams } from "@/lib/team-access-config";
+import { canRoleViewLiveResults, canRoleViewLiveStartlists, canRoleViewLiveTeams } from "@/lib/team-access-config";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -264,6 +264,7 @@ export default function LiveScreen() {
   const { activeRole, isLoading: permissionsLoading } = usePermissions();
   const canViewLiveTeams = canRoleViewLiveTeams(activeRole, activeCompetition);
   const canViewLiveStartlists = canRoleViewLiveStartlists(activeRole, activeCompetition);
+  const canViewLiveResults = canRoleViewLiveResults(activeRole, activeCompetition);
   const canViewTeamLists = canViewLiveTeams || canViewLiveStartlists;
   const cacheKey = useMemo(
     () => activeCompetition?.id ? `s5evo.offline.liveTeams.v1.${activeCompetition.id}.${activeRole}` : null,
@@ -1117,7 +1118,11 @@ export default function LiveScreen() {
         >
           {activeSegment === "teams" && renderTeamsSegment()}
           {activeSegment === "start" && renderStartSegment()}
-          {activeSegment === "ergebnis" && <ResultsView watchlistTeamIds={watchedTeamIds} teamSearchContext={teams} />}
+          {activeSegment === "ergebnis" && (
+            canViewLiveResults
+              ? <ResultsView watchlistTeamIds={watchedTeamIds} teamSearchContext={teams} />
+              : renderLockedSegment("Live-Ergebnisse noch nicht veröffentlicht")
+          )}
         </motion.div>
       </AnimatePresence>
     </div>
