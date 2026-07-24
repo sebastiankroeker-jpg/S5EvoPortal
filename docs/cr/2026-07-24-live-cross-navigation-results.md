@@ -221,11 +221,15 @@ implemented conservatively and deployed only after explicit approval.
     and point-matrix navigation.
   - Team cells in individual and overall result tables navigate back to
     `Live -> Teams`.
+  - Follow-up hotfix: Live list links are permanently styled as links for
+    mobile/touch users, and Sportlerbörse/MTC teams are excluded server-side
+    from Live team lists and Live results.
 
 ## Verification
 
 - Local checks:
   - `npx eslint app/components/live-screen.tsx app/components/results-view.tsx app/api/results/route.ts lib/domain/scoring.ts`
+  - `npx eslint app/components/live-screen.tsx app/components/results-view.tsx app/api/teams/route.ts app/api/results/route.ts`
   - `npx tsc --noEmit`
 - Build:
   - `npm run build`
@@ -245,8 +249,11 @@ implemented conservatively and deployed only after explicit approval.
 - Deployment needed: yes
 - Deployment ID:
   - `dpl_HsL78ALG84G1EJEr2ssWmXvsHTa4`
+  - Follow-up hotfix: `dpl_DDbeXgBuJkAtetLkgm1GPw2srv3N`
 - Deployment URL:
   - `https://s5-evo-portal-6fbyzbjsy-sebastiankroeker-2781s-projects.vercel.app`
+  - Follow-up hotfix:
+    `https://s5-evo-portal-nie8tw8xk-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias:
   - `https://portal.s5evo.de`
 - Deployed at:
@@ -261,6 +268,9 @@ implemented conservatively and deployed only after explicit approval.
   - Public smoke: `/api/competition` -> 200, `/api/results` -> 200.
   - Targeted shape check against production `/api/results`:
     `resultEntries=102`, `entriesWithParticipantId=102`.
+  - Follow-up Live exclusion check:
+    `teams=102`, `marketplaceTeams=0`, `sportlerboerseTeams=0`,
+    `resultRows=102`, `sportlerboerseResultRows=0`.
 - Sensitive-data/API leakage checks:
   - Targeted shape check found `forbiddenFieldHits=0` for contact e-mail,
     phone, birth date/year, participant e-mail, owner fields and claim tokens

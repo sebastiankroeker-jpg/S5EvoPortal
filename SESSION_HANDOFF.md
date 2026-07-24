@@ -28,6 +28,9 @@
     existing Startliste focus when no result exists yet.
   - `ResultsView` handles result row focus/marking, matrix point -> individual
     result navigation, and team cell -> Live Teams navigation.
+  - Follow-up hotfix `c551a54 Refine live links and exclude marketplace teams`
+    makes Live list links visibly link-like without hover and excludes
+    Sportlerbörse/MTC server-side from Live team lists and Live results.
 - Checks green:
   - `npx eslint app/components/live-screen.tsx app/components/results-view.tsx app/api/results/route.ts lib/domain/scoring.ts`
   - `npx tsc --noEmit`
@@ -39,6 +42,9 @@
   - Production `/api/results` shape check: 102 result entries, 102 with
     `participantId`, 0 forbidden contact/birth/account/claim fields on result
     entries.
+  - Follow-up deploy `dpl_DDbeXgBuJkAtetLkgm1GPw2srv3N` READY.
+  - Follow-up Live exclusion check: 102 teams, 0 marketplace teams,
+    0 Sportlerbörse teams, 102 result rows, 0 Sportlerbörse result rows.
 - Remaining gap: authenticated/manual UI smoke by Sebastian on the live route.
 
 ## CR deployed: change dashboard legacy status/list view - 2026-07-24 08:05 UTC
