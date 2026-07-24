@@ -188,27 +188,29 @@ function getDisplayFields(fields: ChangeField[]) {
   return fields.filter((field) => field.key !== "birthYear");
 }
 
+function getMemberDisciplineLabel(member: DecoratedChange) {
+  const disciplineField = member.fields.find((field) => field.key === "disciplineCode");
+  if (disciplineField) {
+    return `${formatValue(disciplineField.before)} -> ${formatValue(disciplineField.after)}`;
+  }
+
+  const before = parseSnapshot(member.beforeData);
+  const after = parseSnapshot(member.changeData);
+  const disciplineCode =
+    typeof after.disciplineCode === "string"
+      ? after.disciplineCode
+      : typeof before.disciplineCode === "string"
+        ? before.disciplineCode
+        : typeof member.participant.disciplineCode === "string"
+          ? member.participant.disciplineCode
+          : null;
+
+  return disciplineCode && disciplineCode !== "TBD" ? formatValue(disciplineCode) : null;
+}
+
 function getAffectedDisciplineLabel(members: DecoratedChange[]) {
   const labels = members
-    .map((member) => {
-      const disciplineField = member.fields.find((field) => field.key === "disciplineCode");
-      if (disciplineField) {
-        return `${formatValue(disciplineField.before)} -> ${formatValue(disciplineField.after)}`;
-      }
-
-      const before = parseSnapshot(member.beforeData);
-      const after = parseSnapshot(member.changeData);
-      const disciplineCode =
-        typeof after.disciplineCode === "string"
-          ? after.disciplineCode
-          : typeof before.disciplineCode === "string"
-            ? before.disciplineCode
-            : typeof member.participant.disciplineCode === "string"
-              ? member.participant.disciplineCode
-              : null;
-
-      return disciplineCode && disciplineCode !== "TBD" ? formatValue(disciplineCode) : null;
-    })
+    .map((member) => getMemberDisciplineLabel(member))
     .filter((label): label is string => Boolean(label));
   const uniqueLabels = Array.from(new Set(labels));
 
@@ -1257,6 +1259,49 @@ function SwapBundleSummary({ members }: { members: DecoratedChange[] }) {
   );
 }
 
+function ChangeFieldsTable({ member, fields }: { member: DecoratedChange; fields: ChangeField[] }) {
+  const disciplineLabel = member.targetType === "PARTICIPANT" ? getMemberDisciplineLabel(member) : null;
+  const objectLabel = member.targetType === "TEAM"
+    ? `${getTargetTypeLabel(member.targetType)}: ${member.participant.team.name}`
+    : `${getTargetTypeLabel(member.targetType)}: ${member.participantName}`;
+
+  return (
+    <div className="overflow-hidden rounded-md border border-border/50 bg-background/70">
+      <div className="flex flex-col gap-1 border-b border-border/50 bg-muted/30 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 truncate text-sm font-medium">{objectLabel}</div>
+        {disciplineLabel ? (
+          <Badge variant="outline" className="w-fit max-w-full border-blue-300 px-1.5 py-0 text-[10px] text-blue-700 dark:text-blue-200">
+            <span className="truncate">Disziplin: {disciplineLabel}</span>
+          </Badge>
+        ) : null}
+      </div>
+      <div className="hidden grid-cols-[minmax(8rem,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 border-b border-border/50 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground sm:grid">
+        <div>Feldname</div>
+        <div>Bisher</div>
+        <div>Nachher</div>
+      </div>
+      <div className="divide-y divide-border/50">
+        {fields.map((field) => (
+          <div key={`${member.id}-${field.key}`} className="grid gap-2 px-3 py-2.5 text-sm sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] sm:gap-3">
+            <div className="font-medium text-foreground">
+              <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground sm:hidden">Feldname · </span>
+              {fieldLabels[field.key] || field.key}
+            </div>
+            <div className="min-w-0 text-muted-foreground">
+              <span className="text-[11px] uppercase tracking-[0.14em] sm:hidden">Bisher · </span>
+              {formatValue(field.before)}
+            </div>
+            <div className="min-w-0 font-medium text-emerald-800 dark:text-emerald-200">
+              <span className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300 sm:hidden">Nachher · </span>
+              {formatValue(field.after)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; members: DecoratedChange[] }) {
   if (members.length > 1) {
     const membersWithFields = members
@@ -1270,25 +1315,7 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
     return (
       <div className="space-y-2">
         {membersWithFields.map(({ member, fields }) => (
-          <div key={member.id} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
-            <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              {member.participantName}
-            </div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {fields.map((field) => (
-                <div key={`${member.id}-${field.key}`} className="rounded-md border border-border/50 bg-muted/20 px-3 py-2">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                    {fieldLabels[field.key] || field.key}
-                  </div>
-                  <div className="mt-1 text-sm">
-                    <span className="text-muted-foreground">{formatValue(field.before)}</span>
-                    <span className="mx-1 text-muted-foreground">{"->"}</span>
-                    <span className="font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ChangeFieldsTable key={member.id} member={member} fields={fields} />
         ))}
       </div>
     );
@@ -1300,28 +1327,8 @@ function ChangeFieldsBlock({ change, members }: { change: DecoratedChange; membe
     return <p className="text-sm text-muted-foreground">Keine Feldaenderungen erkannt.</p>;
   }
 
-  const afterLabel = isDirectChange(change) ? "Neu" : "Beantragt";
-
   return (
-    <div className="space-y-2">
-      {displayFields.map((field) => (
-        <div key={field.key} className="rounded-md border border-border/50 bg-background/70 px-3 py-2.5">
-          <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            {fieldLabels[field.key] || field.key}
-          </div>
-          <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Bisher</div>
-              <div className="mt-1 text-muted-foreground">{formatValue(field.before)}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">{afterLabel}</div>
-              <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-200">{formatValue(field.after)}</div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
+    <ChangeFieldsTable member={change} fields={displayFields} />
   );
 }
 
