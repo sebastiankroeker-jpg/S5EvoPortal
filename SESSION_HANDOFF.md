@@ -1,5 +1,38 @@
 # SESSION_HANDOFF
 
+## CR local: Admin-only visitor counter V1 - 2026-07-24 20:31 UTC
+
+- Sebastian requested an internal visitor counter for admins and approved V1
+  implementation with page views only.
+- CR document:
+  `docs/cr/2026-07-24-admin-visitor-counter.md`.
+- Local implementation done, pending production migration/deploy approval:
+  - New `PageViewCounter` aggregate table and migration
+    `20260724202000_add_page_view_counters`.
+  - Public `POST /api/visitor-counter` increments only whitelisted route keys.
+  - Admin-only `GET /api/admin/visitor-counter` returns today / last 7 days /
+    total and route breakdown.
+  - Client `VisitorCounterReporter` reports route/tab page views without
+    cookies, localStorage, visitor IDs, IP, user-agent, user ID, team ID, or
+    participant ID.
+  - `/admin/logs` shows the Besucherzähler above the Runtime log filters.
+- Privacy decisions:
+  - V1 is page views, not unique visitors.
+  - No external analytics provider.
+  - No raw request metadata stored.
+- Checks green:
+  - `npx prisma generate`
+  - `npx prisma validate`
+  - targeted ESLint for counter/admin files
+  - `npx tsc --noEmit`
+  - `git diff --check`
+  - `npm run build`
+- Next step: get Sebastian approval for production migration and deploy, then:
+  - `npx prisma migrate deploy`
+  - `vercel deploy --prod --yes`
+  - `npm run smoke:public`
+  - targeted public/admin API checks.
+
 ## CR deployed: ESV default theme for users without explicit choice - 2026-07-24 19:59 UTC
 
 - Sebastian requested ESV as the default theme for everyone who has not

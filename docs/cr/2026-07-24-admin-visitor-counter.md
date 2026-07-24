@@ -1,6 +1,6 @@
 # CR: Admin-only visitor counter
 
-Status: Draft
+Status: Implemented locally, pending deploy approval
 Date: 2026-07-24
 Type: feature
 Risk: medium
@@ -172,22 +172,51 @@ privacy-preserving and intentionally small.
 - Sensitive-data/production-data reason:
   - Visitor tracking can become personal-data processing if implemented
     carelessly; V1 explicitly avoids identifiers.
-- Approved by:
-- Approval timestamp:
+- Approved by: Sebastian ("Ja, V1 bitte implementieren")
+- Approval timestamp: 2026-07-24 20:18 UTC
 
 ## Implementation Notes
 
 - Files changed:
+  - `prisma/schema.prisma`
+  - `prisma/migrations/20260724202000_add_page_view_counters/migration.sql`
+  - `lib/visitor-counter.ts`
+  - `lib/server-visitor-counter.ts`
+  - `app/api/visitor-counter/route.ts`
+  - `app/api/admin/visitor-counter/route.ts`
+  - `app/components/visitor-counter-reporter.tsx`
+  - `app/providers.tsx`
+  - `app/admin/logs/page.tsx`
 - Important decisions during implementation:
+  - Admin stats endpoint is ADMIN-only.
+  - Public increment endpoint stores only whitelisted route keys.
+  - Route changes and main-tab switches count as page views.
+  - The Live top-level tab is counted as `live`; fine-grained Live subtabs are
+    left as optional follow-up.
 
 ## Verification
 
 - Local checks:
+  - `npx prisma generate` -> pass
+  - `npx prisma validate` -> pass
+  - `npx eslint app/admin/logs/page.tsx app/api/visitor-counter/route.ts app/api/admin/visitor-counter/route.ts app/components/visitor-counter-reporter.tsx app/providers.tsx lib/visitor-counter.ts lib/server-visitor-counter.ts` -> pass
+  - `npx tsc --noEmit` -> pass
+  - `git diff --check` -> pass
 - Build:
+  - `npm run build` -> pass
 - Targeted verification:
+  - Code review: public increment endpoint accepts only whitelisted route keys.
+  - Code review: admin read endpoint requires `ADMIN`.
+  - Code review: reporter posts only `{ routeKey }`.
 - Sensitive-data negative checks:
+  - Targeted search found no IP, user-agent, cookie, localStorage,
+    participant/team/user identifiers in the new counter write path.
+  - Existing schema hits for IP/user-agent belong to claim audit models, not this
+    counter.
 - Authenticated role smoke:
+  - Pending; requires deployed admin session.
 - Manual smoke:
+  - Pending.
 
 ## Deploy
 

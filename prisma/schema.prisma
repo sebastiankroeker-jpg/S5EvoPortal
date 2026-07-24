@@ -393,6 +393,7 @@ model Tenant {
   resultResetSnapshots ResultResetSnapshot[]
   homeNewsEntries      HomeNewsEntry[]
   consentPreferences   ConsentPreference[]
+  pageViewCounters     PageViewCounter[]
 
   @@map("tenants")
 }
@@ -524,6 +525,7 @@ model Competition {
   resultResetSnapshots ResultResetSnapshot[]
   homeNewsEntries      HomeNewsEntry[]
   consentPreferences   ConsentPreference[]
+  pageViewCounters     PageViewCounter[]
 
   @@index([tenantId, status, year, createdAt])
   @@index([status, year, createdAt])
@@ -1132,6 +1134,26 @@ model AuditEvent {
   @@index([scopeType, scopeId, createdAt])
   @@index([action, createdAt])
   @@map("audit_events")
+}
+
+model PageViewCounter {
+  id        String   @id @default(cuid())
+  day       DateTime
+  surface   String   @default("portal")
+  routeKey  String
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, competitionId, day, surface, routeKey])
+  @@index([tenantId, day])
+  @@index([competitionId, day])
+  @@map("page_view_counters")
 }
 
 model TimekeepingSession {

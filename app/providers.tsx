@@ -10,6 +10,7 @@ import { NotificationProvider } from "@/lib/notification-context";
 import { PrivacyConsentProvider } from "@/lib/privacy-consent-context";
 import PresenceHeartbeat from "@/app/components/presence-heartbeat";
 import PrivacyConsentBanner from "@/app/components/privacy-consent-banner";
+import VisitorCounterReporter from "@/app/components/visitor-counter-reporter";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -23,6 +24,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           <ThemeProvider>
             <NotificationProvider>
               <CompetitionProvider>
+                <VisitorCounterReporter />
                 {children}
                 <PrivacyConsentBanner />
               </CompetitionProvider>
