@@ -266,7 +266,12 @@ export async function DELETE(request: NextRequest) {
   });
 
   if (!timekeepingSession) {
-    return NextResponse.json({ error: "Timekeeping session not found" }, { status: 404 });
+    return NextResponse.json({
+      deleted: 0,
+      requested: clientEventIds.length,
+      deletedClientEventIds: [],
+      missingSession: true,
+    });
   }
 
   const result = await prisma.$transaction(async (tx) => {
