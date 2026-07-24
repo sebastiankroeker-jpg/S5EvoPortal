@@ -69,7 +69,6 @@ export async function GET(request: NextRequest) {
       competitionId,
       deletedAt: null,
       startNumber: { not: null },
-      ...(startNumberSource === "official" ? { approved: true } : {}),
     },
     select: {
       id: true,

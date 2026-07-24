@@ -173,7 +173,7 @@ const START_NUMBER_SOURCE_OPTIONS: Array<{ value: StartNumberSource; label: stri
   {
     value: "official",
     label: "Offizielle Startnummern",
-    hint: "Nur freigegebene Teams mit gesetzter Startnummer.",
+    hint: "Alle Teams mit gesetzter offizieller Startnummer.",
   },
   {
     value: "imported-test",
@@ -1487,8 +1487,9 @@ export default function TimekeepingPage() {
 
                         {sessionStarters.length > 0 && (
                           <div className="rounded-md border border-border/60 bg-background">
-                            <div className="border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                              Starter im Block
+                            <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                              <span>Starter im Block</span>
+                              <span className="font-mono tabular-nums">{sessionStarters.length}</span>
                             </div>
                             <div className="max-h-32 overflow-auto">
                               {sessionStarters.slice(0, 30).map((starter) => (
