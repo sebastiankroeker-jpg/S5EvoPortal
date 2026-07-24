@@ -208,6 +208,24 @@ function formatDuration(ms: number | null) {
   return `${sign}${minutes}:${seconds.toString().padStart(2, "0")}.${hundredths.toString().padStart(2, "0")}`;
 }
 
+function parseDurationInput(value: string) {
+  const trimmed = value.trim().replace(",", ".");
+  const hoursMatch = /^(-)?(\d+):([0-5]\d):([0-5]\d)(?:\.(\d{1,2}))?$/.exec(trimmed);
+  const minutesMatch = /^(-)?(\d+):([0-5]\d)(?:\.(\d{1,2}))?$/.exec(trimmed);
+  if (!hoursMatch && !minutesMatch) return null;
+
+  const signValue = hoursMatch?.[1] ?? minutesMatch?.[1];
+  const hours = hoursMatch ? Number.parseInt(hoursMatch[2], 10) : 0;
+  const minutes = Number.parseInt(hoursMatch ? hoursMatch[3] : minutesMatch?.[2] ?? "0", 10);
+  const seconds = Number.parseInt(hoursMatch ? hoursMatch[4] : minutesMatch?.[3] ?? "0", 10);
+  const hundredthsValue = hoursMatch?.[5] ?? minutesMatch?.[4];
+  const hundredths = Number.parseInt((hundredthsValue ?? "0").padEnd(2, "0"), 10);
+  if (![hours, minutes, seconds, hundredths].every(Number.isFinite)) return null;
+
+  const durationMs = (((hours * 60 + minutes) * 60 + seconds) * 1000) + (hundredths * 10);
+  return signValue ? -durationMs : durationMs;
+}
+
 function formatClock(iso: string | null) {
   if (!iso) return "—";
   return new Intl.DateTimeFormat("de-DE", {
@@ -380,6 +398,22 @@ function calculateNetMs(session: TimekeepingSessionState, startNumber: string | 
   return { rawElapsedMs, netElapsedMs: rawElapsedMs - offsetMs };
 }
 
+function calculateRecordedAtFromNetMs(session: TimekeepingSessionState, startNumber: string | null, netElapsedMs: number) {
+  if (!session.manualStartedAt) return null;
+  const blockStart = new Date(session.manualStartedAt);
+  if (Number.isNaN(blockStart.getTime())) return null;
+
+  let rawElapsedMs = netElapsedMs;
+  if (session.disciplineCode === "ROAD" && startNumber && session.firstStartNumber !== null) {
+    const numericStartNumber = Number.parseInt(startNumber, 10);
+    if (Number.isFinite(numericStartNumber)) {
+      rawElapsedMs += Math.max(0, numericStartNumber - session.firstStartNumber) * session.startIntervalSeconds * 1000;
+    }
+  }
+
+  return new Date(blockStart.getTime() + rawElapsedMs).toISOString();
+}
+
 function visibleEventStatus(event: TimekeepingEventState) {
   if (event.syncStatus === "conflict") return "Konflikt";
   if (event.syncStatus === "local") return "Unsync";
@@ -429,6 +463,7 @@ export default function TimekeepingPage() {
   const [statsOpen, setStatsOpen] = useState(false);
   const [startNumberSource, setStartNumberSource] = useState<StartNumberSource>("official");
   const [baseTimeDrafts, setBaseTimeDrafts] = useState<Record<string, string>>({});
+  const [finishNetTimeDrafts, setFinishNetTimeDrafts] = useState<Record<string, string>>({});
   const [finishTimeDrafts, setFinishTimeDrafts] = useState<Record<string, string>>({});
   const [helperColumns, setHelperColumns] = useState<Record<HelperColumn, boolean>>({
     recordedAt: true,
@@ -1025,6 +1060,55 @@ export default function TimekeepingPage() {
     setActiveSessionId(sessionId);
     setAssigningEventId(null);
     setAssignValue("");
+  };
+
+  const updateFinishNetTime = (sessionId: string, eventId: string, value: string) => {
+    setFinishNetTimeDrafts((current) => ({ ...current, [eventId]: value }));
+    const sourceSession = state?.sessions.find((session) => session.id === sessionId);
+    const target = sourceSession?.events.find((event) => event.clientEventId === eventId);
+    if (!sourceSession || !target) return;
+
+    const netElapsedMs = parseDurationInput(value);
+    if (netElapsedMs === null) return;
+    const iso = calculateRecordedAtFromNetMs(sourceSession, target.startNumber, netElapsedMs);
+    if (!iso) return;
+
+    setFinishNetTimeDrafts((current) => {
+      const next = { ...current };
+      delete next[eventId];
+      return next;
+    });
+
+    updateSessionById(sessionId, (session) => ({
+      ...session,
+      events: session.events.map((event) => {
+        if (event.clientEventId !== eventId) return event;
+        const { rawElapsedMs, netElapsedMs: recalculatedNetElapsedMs } = calculateNetMs(session, event.startNumber, new Date(iso));
+        return {
+          ...event,
+          recordedAt: iso,
+          rawElapsedMs,
+          netElapsedMs: recalculatedNetElapsedMs,
+          payload: {
+            ...(event.payload ?? {}),
+            ...buildBaseTimePayload(session.manualStartedAt),
+            correctedAt: new Date().toISOString(),
+            correctedFromNetElapsedMs: event.netElapsedMs,
+            correctedFromRecordedAt: event.recordedAt,
+          },
+          syncStatus: "local",
+        };
+      }),
+    }));
+  };
+
+  const resetFinishNetTimeDraft = (eventId: string) => {
+    setFinishNetTimeDrafts((current) => {
+      if (!(eventId in current)) return current;
+      const next = { ...current };
+      delete next[eventId];
+      return next;
+    });
   };
 
   const updateFinishRecordedAt = (sessionId: string, eventId: string, value: string) => {
@@ -1938,10 +2022,21 @@ export default function TimekeepingPage() {
                         <td className="px-1 py-2 align-top font-mono text-muted-foreground">
                           {finishOrderById.get(event.clientEventId) ?? "—"}
                         </td>
-                        <td className="px-1 py-2 align-top font-mono text-base font-semibold tabular-nums">
-                          <span title={isBeforeScheduledStart ? "Nettozeit liegt vor der geplanten Startzeit dieser Startnummer." : undefined}>
-                            {formatDuration(event.netElapsedMs)}
-                          </span>
+                        <td className="px-1 py-2 align-top">
+                          <Input
+                            inputMode="decimal"
+                            pattern="-?[0-9]+:[0-5][0-9](\\.[0-9]{1,2})?"
+                            value={finishNetTimeDrafts[event.clientEventId] ?? (event.netElapsedMs === null ? "" : formatDuration(event.netElapsedMs))}
+                            placeholder="0:00.00"
+                            onChange={(inputEvent) => updateFinishNetTime(session.id, event.clientEventId, inputEvent.target.value)}
+                            onBlur={() => resetFinishNetTimeDraft(event.clientEventId)}
+                            className={cn(
+                              "h-9 px-2 font-mono text-base font-semibold tabular-nums",
+                              isBeforeScheduledStart && "border-orange-300 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-100",
+                            )}
+                            title={isBeforeScheduledStart ? "Nettozeit liegt vor der geplanten Startzeit dieser Startnummer." : undefined}
+                            aria-label={`Netto-Zeit für ${event.startNumber ?? "unbekannte Startnummer"} korrigieren`}
+                          />
                         </td>
                         <td className="px-1 py-2 align-top">
                           {isAssigning ? (
