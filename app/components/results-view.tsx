@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, SlidersHorizontal, Star, XCircle } from "lucide-react";
+import { Printer, RefreshCw, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -159,6 +159,13 @@ function getDisciplineLabel(disciplineCode: DisciplineCode) {
 
 function getOverallDisciplineHeader(disciplineCode: DisciplineCode) {
   return disciplineCode === "BENCH" ? "Bank" : getDisciplineLabel(disciplineCode);
+}
+
+function formatPrintTimestamp() {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date());
 }
 
 function entryMatchesSearch(entry: Pick<RankedEntry, "teamName" | "participantName" | "startNumber">, query: string) {
@@ -350,6 +357,17 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
   );
   const activeFilterCount = selectedClassFilters.length + (favoritesOnly ? 1 : 0) + (activeTab === "discipline" && selectedDiscipline !== "all" ? 1 : 0);
   const hasResettableState = Boolean(searchQuery.trim()) || activeFilterCount > 0;
+  const canPrintResults = activeRole === "ADMIN";
+  const selectedClassLabels = selectedClassFilters
+    .map((classCode) => resultClassLabel(availableResults.find((result) => result.classCode === classCode) ?? {
+      classCode,
+      className: classCode,
+      classType: "",
+      teamScores: [],
+      disciplineRankings: { RUN: [], BENCH: [], STOCK: [], ROAD: [], MTB: [] },
+    }))
+    .join(", ");
+  const selectedDisciplineLabel = selectedDiscipline === "all" ? "Alle" : getDisciplineLabel(selectedDiscipline);
 
   const toggleClassFilter = (classCode: ResultClassFilter) => {
     setSelectedClassFilters((current) =>
@@ -398,6 +416,12 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
           )}
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
+          {canPrintResults && (
+            <Button type="button" variant="outline" size="sm" onClick={() => window.print()} disabled={selectedResults.length === 0}>
+              <Printer className="size-4" />
+              Auswahl drucken
+            </Button>
+          )}
           {canUseStagingTestMode && (
             <Button
               type="button"
@@ -567,6 +591,89 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
           watchlistTeamIdSet={watchlistTeamIdSet}
         />
       )}
+      <div className="print-only live-print-sheet">
+        <div className="live-print-header">
+          <h1>{activeTab === "overall" ? "Gesamtergebnisse" : "Einzelergebnisse"}</h1>
+          <p>
+            {data.competition.name} {data.competition.year} · {visibleResultTeamCount} Ergebniszeilen · Druck: {formatPrintTimestamp()}
+          </p>
+          <p>
+            Klassen: {selectedClassLabels || "Alle"} · Disziplinen: {activeTab === "discipline" ? selectedDisciplineLabel : "Alle"}
+            {searchQuery.trim() ? ` · Suche: ${searchQuery.trim()}` : ""}
+            {favoritesOnly ? " · Nur Favoriten" : ""}
+            {showStagingTestData ? " · Staging-Testdaten" : ""}
+          </p>
+        </div>
+        {activeTab === "overall" ? (
+          selectedResults.map((classResult) => (
+            <section key={classResult.classCode}>
+              <h2>{resultClassLabel(classResult)}</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Platz</th>
+                    <th>Strnr</th>
+                    <th>Mannschaft</th>
+                    {DISCIPLINE_CODES.map((discipline) => (
+                      <th key={discipline}>{getOverallDisciplineHeader(discipline)}</th>
+                    ))}
+                    <th>Gesamt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classResult.teamScores.map((team) => (
+                    <tr key={team.teamId}>
+                      <td>{team.hasAnyResult === false ? "" : team.rank}</td>
+                      <td>{team.startNumber || ""}</td>
+                      <td>{team.teamName}</td>
+                      {DISCIPLINE_CODES.map((discipline) => (
+                        <td key={discipline}>{team.hasAnyResult === false ? "" : team.disciplinePoints[discipline]}</td>
+                      ))}
+                      <td>{team.hasAnyResult === false ? "" : team.totalPoints}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ))
+        ) : (
+          selectedResults.flatMap((classResult) => {
+            const visibleDisciplines = selectedDiscipline === "all" ? DISCIPLINE_CODES : [selectedDiscipline];
+            return visibleDisciplines.map((discipline) => {
+              const entries = classResult.disciplineRankings[discipline] ?? [];
+              if (entries.length === 0) return null;
+
+              return (
+                <section key={`${classResult.classCode}-${discipline}`}>
+                  <h2>{getDisciplineLabel(discipline)} - {resultClassLabel(classResult)}</h2>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Platz</th>
+                        <th>Strnr</th>
+                        <th>Teilnehmer</th>
+                        <th>Mannschaft</th>
+                        <th>Wert</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {entries.map((entry, index) => (
+                        <tr key={`${entry.teamId}-${discipline}-${index}`}>
+                          <td>{entry.rank}</td>
+                          <td>{entry.startNumber || ""}</td>
+                          <td>{entry.participantName}</td>
+                          <td>{entry.teamName}</td>
+                          <td>{entry.rawValueText || formatValue(entry.rawValue, discipline)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              );
+            });
+          })
+        )}
+      </div>
     </div>
   );
 }

@@ -355,11 +355,14 @@
   }
 
   .participant-print-sheet,
-  .participant-print-sheet * {
+  .participant-print-sheet *,
+  .live-print-sheet,
+  .live-print-sheet * {
     visibility: visible;
   }
 
-  .participant-print-sheet {
+  .participant-print-sheet,
+  .live-print-sheet {
     display: block !important;
     position: absolute;
     inset: 0 auto auto 0;
@@ -368,32 +371,54 @@
     font-size: 10pt;
   }
 
-  .participant-print-sheet h1 {
+  .participant-print-sheet h1,
+  .live-print-sheet h1 {
     margin: 0;
     font-size: 18pt;
     font-weight: 700;
   }
 
-  .participant-print-sheet p {
+  .participant-print-sheet p,
+  .live-print-sheet p {
     margin: 2mm 0 0;
     color: #444;
   }
 
-  .participant-print-sheet table {
+  .live-print-sheet h2 {
+    margin: 8mm 0 2mm;
+    font-size: 13pt;
+    font-weight: 700;
+    break-after: avoid;
+  }
+
+  .live-print-header {
+    margin-bottom: 5mm;
+  }
+
+  .participant-print-sheet table,
+  .live-print-sheet table {
     width: 100%;
     border-collapse: collapse;
+    break-inside: auto;
   }
 
   .participant-print-sheet th,
-  .participant-print-sheet td {
+  .participant-print-sheet td,
+  .live-print-sheet th,
+  .live-print-sheet td {
     border: 1px solid #bbb;
     padding: 4px 6px;
     text-align: left;
     vertical-align: top;
   }
 
-  .participant-print-sheet th {
+  .participant-print-sheet th,
+  .live-print-sheet th {
     background: #eee !important;
     font-weight: 700;
+  }
+
+  .live-print-sheet tr {
+    break-inside: avoid;
   }
 }

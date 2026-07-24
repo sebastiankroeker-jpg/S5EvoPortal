@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { CLASSIFICATIONS, compareClassificationCodes } from "@/lib/domain/classification";
 import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
-import { Download, SlidersHorizontal, Star, XCircle } from "lucide-react";
+import { Download, Printer, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { DisciplineBrandIcon } from "./discipline-brand";
 import ResultsView from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
@@ -51,6 +51,7 @@ interface Participant {
 }
 
 type LiveClassFilter = string;
+type LiveDisciplineFilter = string;
 type StartListEntry = {
   participant: Participant;
   teamId: string;
@@ -183,6 +184,13 @@ function buildModeratorHintsCsv(rows: StartListEntry[]) {
     .join("\r\n");
 }
 
+function formatPrintTimestamp() {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date());
+}
+
 function sanitizeFilenamePart(value: string) {
   return value
     .normalize("NFKD")
@@ -246,6 +254,7 @@ export default function LiveScreen() {
   const [startsFiltersOpen, setStartsFiltersOpen] = useState(false);
   const [teamsClassFilters, setTeamsClassFilters] = useState<LiveClassFilter[]>([]);
   const [startsClassFilters, setStartsClassFilters] = useState<LiveClassFilter[]>([]);
+  const [startsDisciplineFilters, setStartsDisciplineFilters] = useState<LiveDisciplineFilter[]>([]);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [watchedTeamIds, setWatchedTeamIds] = useState<string[]>([]);
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
@@ -419,8 +428,22 @@ export default function LiveScreen() {
     );
   };
 
-  const classFilterActiveCount = (filters: LiveClassFilter[], favoritesOnly: boolean) =>
-    filters.length + (favoritesOnly ? 1 : 0);
+  const toggleDisciplineFilter = (
+    filter: LiveDisciplineFilter,
+    setter: Dispatch<SetStateAction<LiveDisciplineFilter[]>>,
+  ) => {
+    setter((current) =>
+      current.includes(filter)
+        ? current.filter((entry) => entry !== filter)
+        : [...current, filter],
+    );
+  };
+
+  const classFilterActiveCount = (
+    filters: LiveClassFilter[],
+    favoritesOnly: boolean,
+    disciplineFilters: LiveDisciplineFilter[] = [],
+  ) => filters.length + disciplineFilters.length + (favoritesOnly ? 1 : 0);
 
   const renderLiveControls = ({
     filterLabel,
@@ -428,6 +451,8 @@ export default function LiveScreen() {
     setFiltersOpen,
     classFilters,
     setClassFilters,
+    disciplineFilters,
+    setDisciplineFilters,
     favoritesOnly,
     setFavoritesOnly,
     favoriteLabel,
@@ -439,13 +464,15 @@ export default function LiveScreen() {
     setFiltersOpen: Dispatch<SetStateAction<boolean>>;
     classFilters: LiveClassFilter[];
     setClassFilters: Dispatch<SetStateAction<LiveClassFilter[]>>;
+    disciplineFilters?: LiveDisciplineFilter[];
+    setDisciplineFilters?: Dispatch<SetStateAction<LiveDisciplineFilter[]>>;
     favoritesOnly: boolean;
     setFavoritesOnly: Dispatch<SetStateAction<boolean>>;
     favoriteLabel: string;
     matchingCount: number;
     totalCount: number;
   }) => {
-    const activeFilterCount = classFilterActiveCount(classFilters, favoritesOnly);
+    const activeFilterCount = classFilterActiveCount(classFilters, favoritesOnly, disciplineFilters);
     const hasResettableState = Boolean(searchQuery.trim()) || activeFilterCount > 0;
 
     return (
@@ -473,6 +500,7 @@ export default function LiveScreen() {
               onClick={() => {
                 setSearchQuery("");
                 setClassFilters([]);
+                setDisciplineFilters?.([]);
                 setFavoritesOnly(false);
               }}
             />
@@ -515,6 +543,30 @@ export default function LiveScreen() {
                 </Button>
               </div>
             </div>
+            {disciplineFilters && setDisciplineFilters && (
+              <div className="space-y-2 border-t border-border/50 pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">Disziplinen</p>
+                  <Button size="xs" variant={disciplineFilters.length === 0 ? "default" : "outline"} onClick={() => setDisciplineFilters([])}>
+                    Alle Disziplinen
+                  </Button>
+                </div>
+                <div className="flex min-w-0 flex-wrap gap-1.5">
+                  {DISCIPLINES.map((discipline) => (
+                    <Button
+                      key={discipline.id}
+                      size="xs"
+                      variant={disciplineFilters.includes(discipline.id) ? "default" : "outline"}
+                      onClick={() => toggleDisciplineFilter(discipline.id, setDisciplineFilters)}
+                      aria-pressed={disciplineFilters.includes(discipline.id)}
+                    >
+                      <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-5 rounded" />
+                      {discipline.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
             <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setFiltersOpen(false)}>
               Filter Ausblenden
             </Button>
@@ -702,6 +754,7 @@ export default function LiveScreen() {
       team.participants?.forEach(participant => {
         if (!teamWideSearchMatch && !participantMatchesSearch(participant, normalizedQuery)) return;
         const disciplineCode = participant.discipline || "TBD";
+        if (startsDisciplineFilters.length > 0 && !startsDisciplineFilters.includes(disciplineCode)) return;
         if (!disciplineGroups[disciplineCode]) disciplineGroups[disciplineCode] = {};
         if (!disciplineGroups[disciplineCode][team.category]) {
           disciplineGroups[disciplineCode][team.category] = [];
@@ -730,7 +783,18 @@ export default function LiveScreen() {
             .filter((entry) => Boolean(entry.participant.moderationNote?.trim())),
         );
     });
+    const visibleStartRows = DISCIPLINES.flatMap((discipline) => {
+      const classGroups = disciplineGroups[discipline.id] || {};
+      return Object.entries(classGroups)
+        .sort(([a], [b]) => compareClassificationCodes(a, b))
+        .flatMap(([, participants]) => [...participants].sort(compareByStartNumber));
+    });
     const canExportModeratorHints = activeRole === "ADMIN";
+    const canPrintStartList = activeRole === "ADMIN";
+    const selectedDisciplineLabels = startsDisciplineFilters
+      .map((disciplineId) => getDisciplineDisplay(disciplineId).label)
+      .join(", ");
+    const selectedClassLabels = startsClassFilters.map(getCategoryLabel).join(", ");
 
     return (
       <div className="space-y-4">
@@ -740,14 +804,29 @@ export default function LiveScreen() {
           setFiltersOpen: setStartsFiltersOpen,
           classFilters: startsClassFilters,
           setClassFilters: setStartsClassFilters,
+          disciplineFilters: startsDisciplineFilters,
+          setDisciplineFilters: setStartsDisciplineFilters,
           favoritesOnly: startsFavoritesOnly,
           setFavoritesOnly: setStartsFavoritesOnly,
           favoriteLabel: "Teams",
           matchingCount: sourceTeams.length,
           totalCount: teams.length,
         })}
-        {canExportModeratorHints && (
-          <div className="flex justify-end">
+        {(canPrintStartList || canExportModeratorHints) && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {canPrintStartList && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={visibleStarterCount === 0}
+                onClick={() => window.print()}
+              >
+                <Printer className="size-4" />
+                Auswahl drucken
+              </Button>
+            )}
+            {canExportModeratorHints && (
             <Button
               type="button"
               variant="outline"
@@ -767,6 +846,7 @@ export default function LiveScreen() {
                 </Badge>
               )}
             </Button>
+            )}
           </div>
         )}
         {visibleStarterCount === 0 ? (
@@ -908,6 +988,41 @@ export default function LiveScreen() {
             </Card>
           );
         })}
+        <div className="print-only live-print-sheet">
+          <div className="live-print-header">
+            <h1>Startliste</h1>
+            <p>
+              {activeCompetition?.name || "Wettkampf"} · {visibleStartRows.length} Starter:innen · Druck: {formatPrintTimestamp()}
+            </p>
+            <p>
+              Klassen: {selectedClassLabels || "Alle"} · Disziplinen: {selectedDisciplineLabels || "Alle"}
+              {searchQuery.trim() ? ` · Suche: ${searchQuery.trim()}` : ""}
+              {startsFavoritesOnly ? " · Nur Favoriten" : ""}
+            </p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Disziplin</th>
+                <th>Klasse</th>
+                <th>Strnr</th>
+                <th>Teilnehmer</th>
+                <th>Mannschaft</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleStartRows.map((entry, index) => (
+                <tr key={`${entry.teamId}-${entry.participant.id || index}`}>
+                  <td>{getDisciplineDisplay(entry.participant.discipline).label}</td>
+                  <td>{getCategoryLabel(entry.teamCategory)}</td>
+                  <td>{entry.startNumber || ""}</td>
+                  <td>{formatParticipantName(entry.participant)}</td>
+                  <td>{entry.teamName}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
