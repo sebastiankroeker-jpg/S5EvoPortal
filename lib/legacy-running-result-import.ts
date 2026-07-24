@@ -154,7 +154,7 @@ export function parseLegacyRunningTimeMs(value: string | null | undefined) {
 function isLegacyZeroPointTime(rawTimeText: string | null) {
   if (!rawTimeText) return false;
   const normalized = rawTimeText.trim().replace(",", ".");
-  return normalized === "99:99.99" || normalized === "99:99:99.99";
+  return /^(?:(?:0+|99):)?99:99\.99(?:0|9)?$/.test(normalized);
 }
 
 function getResultStatus(rawTimeText: string | null, elapsedMs: number | null) {

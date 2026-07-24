@@ -45,6 +45,18 @@ assert.equal(youthManualCheck.overallGroup, null);
 assert.equal(youthManualCheck.overallGenderPoints, null);
 assert.ok(youthManualCheck.validationMessages.some((message) => message.code === "manual_check_time"));
 
+const zeroTimeParsed = parseLegacyRunningCsv(csv
+  .replace("00:18:35.05;;;;;;;36;;54;1;1;;", "00:99:99.99;;;;;;;1;;1;1;1;;"));
+const zeroTimeRecord = zeroTimeParsed.records.find((record) => record.startNumber === "123");
+assert.ok(zeroTimeRecord);
+assert.equal(zeroTimeRecord.elapsedMs, null);
+assert.equal(zeroTimeRecord.resultStatus, "dnf");
+assert.equal(zeroTimeRecord.classPoints, 0);
+assert.equal(zeroTimeRecord.classRank, null);
+assert.equal(zeroTimeRecord.overallGenderPoints, 0);
+assert.equal(zeroTimeRecord.overallGenderRank, null);
+assert.ok(zeroTimeRecord.validationMessages.some((message) => message.code === "legacy_zero_point_time"));
+
 const damen = parsed.records.find((record) => record.startNumber === "62");
 assert.ok(damen);
 assert.equal(damen.overallGroup, "DAMEN");

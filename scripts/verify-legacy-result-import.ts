@@ -64,6 +64,14 @@ assert.equal(inlineParsed.summary.rawRows, 1);
 assert.equal(inlineParsed.summary.drafts, 1);
 assert.equal(inlineParsed.drafts[0].rawValueText, "00:10:06.23");
 
+const legacyZeroTimeCsv = inlineCsv.replace("00:10:06.23", "00:99:99.99").replace(";7;;;3;;;", ";1;;;3;;;");
+const legacyZeroTimeParsed = parseLegacyResultCsv(legacyZeroTimeCsv);
+assert.equal(legacyZeroTimeParsed.summary.errors, 0);
+assert.equal(legacyZeroTimeParsed.drafts[0].resultStatus, "dnf");
+assert.equal(legacyZeroTimeParsed.drafts[0].classPoints, 0);
+assert.equal(legacyZeroTimeParsed.drafts[0].classRank, null);
+assert.ok(legacyZeroTimeParsed.drafts[0].validationMessages.some((message) => message.code === "legacy_zero_point_time"));
+
 const foundFixtures = fixtures.filter((fixture) => existsSync(join(inboundDir, fixture.path)));
 assert.ok(foundFixtures.length > 0, "No inbound legacy result fixtures found");
 

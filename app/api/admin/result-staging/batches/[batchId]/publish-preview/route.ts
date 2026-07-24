@@ -52,7 +52,7 @@ function asArray(value: unknown): unknown[] {
 function isLegacyZeroPointTime(rawValueText: string | null) {
   if (!rawValueText) return false;
   const normalized = rawValueText.trim().replace(",", ".");
-  return normalized === "99:99.99" || normalized === "99:99:99.99";
+  return /^(?:(?:0+|99):)?99:99\.99(?:0|9)?$/.test(normalized);
 }
 
 function getSnapshotResult(snapshot: unknown) {
