@@ -42,6 +42,7 @@ interface PendingChange {
     id: string;
     firstName: string;
     lastName: string;
+    disciplineCode?: string | null;
     email?: string | null;
     team: { id: string; name: string; startNumber?: string | number | null; contactEmail?: string | null };
   };
@@ -189,8 +190,26 @@ function getDisplayFields(fields: ChangeField[]) {
 
 function getAffectedDisciplineLabel(members: DecoratedChange[]) {
   const labels = members
-    .flatMap((member) => member.fields.filter((field) => field.key === "disciplineCode"))
-    .map((field) => `${formatValue(field.before)} -> ${formatValue(field.after)}`);
+    .map((member) => {
+      const disciplineField = member.fields.find((field) => field.key === "disciplineCode");
+      if (disciplineField) {
+        return `${formatValue(disciplineField.before)} -> ${formatValue(disciplineField.after)}`;
+      }
+
+      const before = parseSnapshot(member.beforeData);
+      const after = parseSnapshot(member.changeData);
+      const disciplineCode =
+        typeof after.disciplineCode === "string"
+          ? after.disciplineCode
+          : typeof before.disciplineCode === "string"
+            ? before.disciplineCode
+            : typeof member.participant.disciplineCode === "string"
+              ? member.participant.disciplineCode
+              : null;
+
+      return disciplineCode && disciplineCode !== "TBD" ? formatValue(disciplineCode) : null;
+    })
+    .filter((label): label is string => Boolean(label));
   const uniqueLabels = Array.from(new Set(labels));
 
   if (uniqueLabels.length === 0) return null;

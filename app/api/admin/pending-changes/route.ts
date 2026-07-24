@@ -690,6 +690,7 @@ function decorateParticipantChange(input: {
       id: input.participant.id,
       firstName: input.participant.firstName,
       lastName: input.participant.lastName,
+      disciplineCode: input.participant.disciplineCode,
       email: input.participant.email,
       team: {
         id: input.participant.team.id,
