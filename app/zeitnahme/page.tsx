@@ -429,8 +429,9 @@ export default function TimekeepingPage() {
   const [statsOpen, setStatsOpen] = useState(false);
   const [startNumberSource, setStartNumberSource] = useState<StartNumberSource>("official");
   const [baseTimeDrafts, setBaseTimeDrafts] = useState<Record<string, string>>({});
+  const [finishTimeDrafts, setFinishTimeDrafts] = useState<Record<string, string>>({});
   const [helperColumns, setHelperColumns] = useState<Record<HelperColumn, boolean>>({
-    recordedAt: false,
+    recordedAt: true,
     status: false,
     assignment: false,
   });
@@ -1024,6 +1025,52 @@ export default function TimekeepingPage() {
     setActiveSessionId(sessionId);
     setAssigningEventId(null);
     setAssignValue("");
+  };
+
+  const updateFinishRecordedAt = (sessionId: string, eventId: string, value: string) => {
+    setFinishTimeDrafts((current) => ({ ...current, [eventId]: value }));
+    const sourceSession = state?.sessions.find((session) => session.id === sessionId);
+    const target = sourceSession?.events.find((event) => event.clientEventId === eventId);
+    if (!sourceSession || !target) return;
+
+    const { isValid, iso } = baseTimeClockToIso(value, target.recordedAt);
+    if (!isValid || !iso) return;
+
+    setFinishTimeDrafts((current) => {
+      const next = { ...current };
+      delete next[eventId];
+      return next;
+    });
+
+    updateSessionById(sessionId, (session) => ({
+      ...session,
+      events: session.events.map((event) => {
+        if (event.clientEventId !== eventId) return event;
+        const { rawElapsedMs, netElapsedMs } = calculateNetMs(session, event.startNumber, new Date(iso));
+        return {
+          ...event,
+          recordedAt: iso,
+          rawElapsedMs,
+          netElapsedMs,
+          payload: {
+            ...(event.payload ?? {}),
+            ...buildBaseTimePayload(session.manualStartedAt),
+            correctedAt: new Date().toISOString(),
+            correctedFromRecordedAt: event.recordedAt,
+          },
+          syncStatus: "local",
+        };
+      }),
+    }));
+  };
+
+  const resetFinishTimeDraft = (eventId: string) => {
+    setFinishTimeDrafts((current) => {
+      if (!(eventId in current)) return current;
+      const next = { ...current };
+      delete next[eventId];
+      return next;
+    });
   };
 
   const syncEvents = async () => {
@@ -1847,7 +1894,7 @@ export default function TimekeepingPage() {
             {filteredEvents.length === 0 ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Keine Zeiten in der aktuellen Ansicht.</div>
             ) : (
-              <table className="w-full min-w-[610px] table-fixed text-sm">
+              <table className="w-full min-w-[680px] table-fixed text-sm">
                 <thead className="border-b border-border/60 bg-muted/30">
                   <tr>
                     <th className="w-12 px-1 py-2 text-left">
@@ -1864,7 +1911,7 @@ export default function TimekeepingPage() {
                     <th className="w-20 px-1 py-2 text-left">{renderSortHeader("lastName", "Name", "Nachname")}</th>
                     <th className="w-24 px-1 py-2 text-left">{renderSortHeader("teamName", "Team", "Team")}</th>
                     {helperColumns.recordedAt && (
-                      <th className="w-16 px-1 py-2 text-left">
+                      <th className="w-24 px-1 py-2 text-left">
                         {renderSortHeader("recordedDesc", "Uhr", "Uhrzeit")}
                       </th>
                     )}
@@ -1952,7 +1999,19 @@ export default function TimekeepingPage() {
                         <td className="truncate px-1 py-2 align-top">{starter?.firstName ?? "—"}</td>
                         <td className="truncate px-1 py-2 align-top">{starter?.lastName ?? "—"}</td>
                         <td className="truncate px-1 py-2 align-top">{starter?.teamName ?? "—"}</td>
-                        {helperColumns.recordedAt && <td className="px-1 py-2 align-top font-mono text-muted-foreground">{formatClock(event.recordedAt)}</td>}
+                        {helperColumns.recordedAt && (
+                          <td className="px-1 py-2 align-top">
+                            <Input
+                              inputMode="text"
+                              pattern="[0-2][0-9]:[0-5][0-9]:[0-5][0-9]"
+                              value={finishTimeDrafts[event.clientEventId] ?? formatBaseTimeClock(event.recordedAt)}
+                              onChange={(inputEvent) => updateFinishRecordedAt(session.id, event.clientEventId, inputEvent.target.value)}
+                              onBlur={() => resetFinishTimeDraft(event.clientEventId)}
+                              className="h-9 px-2 font-mono text-xs tabular-nums"
+                              aria-label={`Stopp-Zeit für ${event.startNumber ?? "unbekannte Startnummer"} korrigieren`}
+                            />
+                          </td>
+                        )}
                         {helperColumns.status && (
                           <td className="px-1 py-2 align-top">
                             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{visibleEventStatus(event)}</span>

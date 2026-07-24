@@ -159,15 +159,32 @@ export async function POST(request: NextRequest) {
           },
         });
 
-    const createResult = validEvents.length
-      ? await tx.timekeepingEvent.createMany({
-          data: validEvents.map((event) => ({
-            ...event,
+    let accepted = 0;
+    for (const event of validEvents) {
+      await tx.timekeepingEvent.upsert({
+        where: {
+          sessionId_clientEventId: {
             sessionId: timekeepingSession.id,
-          })),
-          skipDuplicates: true,
-        })
-      : { count: 0 };
+            clientEventId: event.clientEventId,
+          },
+        },
+        create: {
+          ...event,
+          sessionId: timekeepingSession.id,
+        },
+        update: {
+          eventType: event.eventType,
+          recordedAt: event.recordedAt,
+          startNumber: event.startNumber,
+          rawElapsedMs: event.rawElapsedMs,
+          netElapsedMs: event.netElapsedMs,
+          note: event.note,
+          payload: event.payload,
+          actorId: event.actorId,
+        },
+      });
+      accepted += 1;
+    }
 
     if (validEvents.length > 0) {
       await tx.auditEvent.create({
@@ -186,7 +203,7 @@ export async function POST(request: NextRequest) {
             deviceId,
             deviceName,
             received: validEvents.length,
-            accepted: createResult.count,
+            accepted,
           },
         },
       });
@@ -194,7 +211,7 @@ export async function POST(request: NextRequest) {
 
     return {
       sessionId: timekeepingSession.id,
-      accepted: createResult.count,
+      accepted,
       received: events.length,
       ignored: events.length - validEvents.length,
       syncedAt: new Date().toISOString(),
