@@ -1,14 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { Session } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { requireTenantRoles } from '@/lib/server-permissions';
 
+async function resolveTenantAdminAuth(session: Session | null, competitionId?: string | null) {
+  if (!competitionId) {
+    return requireTenantRoles(session, ['ADMIN']);
+  }
+
+  const competition = await prisma.competition.findUnique({
+    where: { id: competitionId },
+    select: { tenantId: true },
+  });
+
+  if (!competition) {
+    return { error: NextResponse.json({ error: 'Wettkampf nicht gefunden' }, { status: 404 }) };
+  }
+
+  return requireTenantRoles(session, ['ADMIN'], {
+    tenantId: competition.tenantId,
+    fallbackToFirstMatchingTenant: false,
+  });
+}
+
 // GET aktueller Tenant
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ['ADMIN']);
+    const auth = await resolveTenantAdminAuth(session, request.nextUrl.searchParams.get('competitionId'));
     if ('error' in auth) return auth.error;
 
     try {
@@ -35,10 +56,9 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ['ADMIN']);
-    if ('error' in auth) return auth.error;
-
     const body = await request.json();
+    const auth = await resolveTenantAdminAuth(session, typeof body.competitionId === 'string' ? body.competitionId : null);
+    if ('error' in auth) return auth.error;
 
     // Basic validation
     if (!body.name || !body.slug) {

@@ -332,7 +332,7 @@ export default function AdminPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { can, isLoading: permissionsLoading } = usePermissions();
-  const { active: activeCompetition, all: competitions, switchTo } = useCompetition();
+  const { active: activeCompetition, all: competitions, switchTo, loading: competitionsLoading } = useCompetition();
   const notifications = useNotifications();
 
   const [tenant, setTenant] = useState<TenantConfig>({
@@ -541,9 +541,9 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Load tenant on mount
+  // Load tenant for the active competition scope
   useEffect(() => {
-    if (status === "loading" || permissionsLoading) {
+    if (status === "loading" || permissionsLoading || competitionsLoading) {
       return;
     }
 
@@ -554,7 +554,9 @@ export default function AdminPage() {
 
     (async () => {
       try {
-        const tenantResponse = await fetch('/api/admin/tenant');
+        const tenantParams = new URLSearchParams();
+        if (activeCompetition?.id) tenantParams.set("competitionId", activeCompetition.id);
+        const tenantResponse = await fetch(`/api/admin/tenant${tenantParams.size ? `?${tenantParams}` : ""}`);
         if (tenantResponse.ok) {
           const tenantData = await tenantResponse.json();
           if (tenantData.tenant) {
@@ -579,7 +581,7 @@ export default function AdminPage() {
         setLoading(false);
       }
     })();
-  }, [hasAdminAccess, notifications, permissionsLoading, status]);
+  }, [activeCompetition?.id, competitionsLoading, hasAdminAccess, notifications, permissionsLoading, status]);
 
   // Load competition details when active competition changes
   useEffect(() => {
@@ -604,7 +606,10 @@ export default function AdminPage() {
       const response = await fetch('/api/admin/tenant', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tenant),
+        body: JSON.stringify({
+          ...tenant,
+          competitionId: activeCompetition?.id,
+        }),
       });
 
       if (response.ok) {
