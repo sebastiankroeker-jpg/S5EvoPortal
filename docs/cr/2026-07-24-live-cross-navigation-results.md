@@ -1,6 +1,6 @@
 # CR: Live cross-navigation for teams, start lists and results
 
-Status: Draft
+Status: Implemented, pending deploy
 Date: 2026-07-24
 Type: feature
 Risk: medium
@@ -93,10 +93,10 @@ implemented conservatively and deployed only after explicit approval.
 - Proposed data model:
   - No schema change.
 - Proposed API shape:
-  - Prefer no API change. Use existing `teamId`, participant IDs in start-list
-    data, and result ranking entries.
-  - If result ranking entries lack stable participant IDs, add the minimal
-    existing ID field needed to `/api/results` for navigation only.
+  - `GET /api/results` now includes `participantId` on each discipline ranking
+    entry. This is the same stable participant identifier already present in
+    the Live team/start-list payload and is required to avoid brittle matching
+    by display name.
 - Backward compatibility:
   - Additive UI behavior. Existing tabs, filters, printing and exports should
     keep working.
@@ -199,27 +199,42 @@ implemented conservatively and deployed only after explicit approval.
   - Participant/team/result identities are linked in the UI. No broader data
     exposure is intended, but serializer changes would need review.
 - Approved by:
-  - Pending
+  - Sebastian via "Bitte ausliefern"
 - Approval timestamp:
-  - Pending
+  - 2026-07-24 19:05 UTC
 
 ## Implementation Notes
 
 - Files changed:
-  - Pending
+  - `lib/domain/scoring.ts`
+  - `app/api/results/route.ts`
+  - `app/components/live-screen.tsx`
+  - `app/components/results-view.tsx`
 - Important decisions during implementation:
-  - Pending
+  - Added only `participantId` to result ranking entries; no contact, birth,
+    account, claim, role, phone, or e-mail fields were added.
+  - `LiveScreen` sends a result-focus request when a team participant is
+    clicked and Live results are available.
+  - If no result row exists yet, the request falls back to the existing
+    start-list focus behavior.
+  - `ResultsView` owns result-row focus, class/discipline filter adjustment,
+    and point-matrix navigation.
+  - Team cells in individual and overall result tables navigate back to
+    `Live -> Teams`.
 
 ## Verification
 
 - Local checks:
-  - Pending
+  - `npx eslint app/components/live-screen.tsx app/components/results-view.tsx app/api/results/route.ts lib/domain/scoring.ts`
+  - `npx tsc --noEmit`
 - Build:
-  - Pending
+  - `npm run build`
 - Targeted verification:
-  - Pending
+  - Diff reviewed: `/api/results` serializer only adds `participantId` to
+    already-visible result rows.
 - Sensitive-data negative checks:
-  - Pending
+  - No contact, e-mail, phone, birth date/year, claim/account, role or owner
+    fields added to `/api/results`.
 - Authenticated role smoke:
   - Pending/manual unless cookies are available.
 - Manual smoke:

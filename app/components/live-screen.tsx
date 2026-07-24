@@ -14,7 +14,7 @@ import { CLASSIFICATIONS, compareClassificationCodes } from "@/lib/domain/classi
 import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
 import { Download, Lock, Printer, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { DisciplineBrandIcon } from "./discipline-brand";
-import ResultsView from "./results-view";
+import ResultsView, { type ResultsFocusRequest } from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
 import {
   DashboardControlsCard,
@@ -51,6 +51,7 @@ interface Participant {
 
 type LiveClassFilter = string;
 type LiveDisciplineFilter = string;
+type ResultDisciplineCode = ResultsFocusRequest["discipline"];
 type StartListEntry = {
   participant: Participant;
   teamId: string;
@@ -258,6 +259,7 @@ export default function LiveScreen() {
   const [watchedTeamIds, setWatchedTeamIds] = useState<string[]>([]);
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [focusedStartParticipantElementId, setFocusedStartParticipantElementId] = useState<string | null>(null);
+  const [resultFocusRequest, setResultFocusRequest] = useState<ResultsFocusRequest | null>(null);
   const pendingFocusElementIdRef = useRef<string | null>(null);
   const focusRequestIdRef = useRef(0);
   const { active: activeCompetition } = useCompetition();
@@ -362,6 +364,9 @@ export default function LiveScreen() {
 
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (element instanceof HTMLElement) {
+          element.focus({ preventScroll: true });
+        }
 
         if (elapsed >= 900) {
           if (focusRequestIdRef.current === requestId) {
@@ -389,6 +394,7 @@ export default function LiveScreen() {
     if (!team) return;
 
     setActiveSegment("teams");
+    setResultFocusRequest(null);
     setFocusedStartParticipantElementId(null);
     setFocusedTeamId(teamId);
     setExpandedSections((current) => ({ ...current, [`teams-${team.category}`]: true }));
@@ -401,6 +407,7 @@ export default function LiveScreen() {
     const elementId = getStartParticipantElementId({ participant, teamId: team.id, disciplineId });
 
     setActiveSegment("start");
+    setResultFocusRequest(null);
     setFocusedTeamId(null);
     setFocusedStartParticipantElementId(elementId);
     setExpandedSections((current) => ({
@@ -412,6 +419,32 @@ export default function LiveScreen() {
     setStartsClassFilters((current) => (current.length > 0 && !current.includes(team.category) ? [] : current));
     focusElement(elementId);
   }, [focusElement, watchedTeamIdSet]);
+
+  const focusParticipantFromTeam = useCallback((team: Team, participant: Participant, disciplineId: string) => {
+    if (canViewLiveResults && participant.id && DISCIPLINES.some((discipline) => discipline.id === disciplineId)) {
+      setActiveSegment("ergebnis");
+      setFocusedTeamId(null);
+      setFocusedStartParticipantElementId(null);
+      setResultFocusRequest({
+        id: Date.now(),
+        teamId: team.id,
+        participantId: participant.id,
+        discipline: disciplineId as ResultDisciplineCode,
+        classCode: team.category,
+      });
+      return;
+    }
+
+    focusParticipantInStartList(team, participant, disciplineId);
+  }, [canViewLiveResults, focusParticipantInStartList]);
+
+  const handleResultTargetMissing = useCallback((request: ResultsFocusRequest) => {
+    const team = teams.find((entry) => entry.id === request.teamId);
+    const participant = team?.participants?.find((entry) => entry.id === request.participantId);
+
+    if (!team || !participant) return;
+    focusParticipantInStartList(team, participant, request.discipline);
+  }, [focusParticipantInStartList, teams]);
 
   useEffect(() => {
     const elementId = pendingFocusElementIdRef.current;
@@ -663,6 +696,7 @@ export default function LiveScreen() {
                         <div
                           key={team.id}
                           id={`live-team-${team.id}`}
+                          tabIndex={-1}
                           className={`scroll-mt-24 space-y-2 rounded border p-3 transition-colors ${
                             focusedTeamId === team.id
                               ? "border-primary bg-primary/5 ring-2 ring-primary/30"
@@ -708,8 +742,8 @@ export default function LiveScreen() {
                                       <button
                                         type="button"
                                         className="min-w-0 truncate text-left hover:text-primary hover:underline"
-                                        title={`${p.firstName} ${p.lastName} in Startliste fokussieren`}
-                                        onClick={() => focusParticipantInStartList(team, p, discipline.id)}
+                                        title={`${p.firstName} ${p.lastName} in Live-Daten fokussieren`}
+                                        onClick={() => focusParticipantFromTeam(team, p, discipline.id)}
                                       >
                                         {p.firstName} {p.lastName}
                                       </button>
@@ -968,6 +1002,7 @@ export default function LiveScreen() {
                                         <div
                                           key={`${teamId}-${i}-${participant.firstName}-${participant.lastName}`}
                                           id={participantElementId}
+                                          tabIndex={-1}
                                           className={`grid scroll-mt-24 grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] items-center gap-1.5 rounded px-1 py-1 text-sm transition-colors hover:bg-muted/30 ${
                                             focusedStartParticipantElementId === participantElementId
                                               ? "bg-primary/10 ring-2 ring-primary/30"
@@ -1120,7 +1155,15 @@ export default function LiveScreen() {
           {activeSegment === "start" && renderStartSegment()}
           {activeSegment === "ergebnis" && (
             canViewLiveResults
-              ? <ResultsView watchlistTeamIds={watchedTeamIds} teamSearchContext={teams} />
+              ? (
+                <ResultsView
+                  watchlistTeamIds={watchedTeamIds}
+                  teamSearchContext={teams}
+                  focusRequest={resultFocusRequest}
+                  onFocusTeam={focusTeamInTeams}
+                  onResultTargetMissing={handleResultTargetMissing}
+                />
+              )
               : renderLockedSegment("Live-Ergebnisse noch nicht veröffentlicht")
           )}
         </motion.div>

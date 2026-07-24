@@ -34,6 +34,7 @@ export interface DisciplineEntry {
   teamId: string;
   teamName: string;
   startNumber?: string | null;
+  participantId?: string | null;
   participantName: string;
   rawValue: number | null; // null = nicht angetreten
   rawValueText?: string | null;

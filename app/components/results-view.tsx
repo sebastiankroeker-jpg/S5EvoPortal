@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Printer, RefreshCw, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ interface RankedEntry {
   teamId: string;
   teamName: string;
   startNumber?: string | null;
+  participantId?: string | null;
   participantName: string;
   rawValue: number | null;
   rawValueText?: string | null;
@@ -68,7 +69,18 @@ interface ResultsData {
 interface ResultsViewProps {
   watchlistTeamIds?: string[];
   teamSearchContext?: ResultsTeamSearchContext[];
+  focusRequest?: ResultsFocusRequest | null;
+  onFocusTeam?: (teamId: string) => void;
+  onResultTargetMissing?: (request: ResultsFocusRequest) => void;
 }
+
+export type ResultsFocusRequest = {
+  id: number;
+  teamId: string;
+  participantId?: string | null;
+  discipline: DisciplineCode;
+  classCode?: string | null;
+};
 
 interface ResultsTeamSearchContext {
   id: string;
@@ -177,6 +189,22 @@ function getOverallDisciplineHeader(disciplineCode: DisciplineCode) {
   return disciplineCode === "BENCH" ? "Bank" : getDisciplineLabel(disciplineCode);
 }
 
+function getResultEntryElementId(input: {
+  classCode: string;
+  discipline: DisciplineCode;
+  teamId: string;
+  participantId?: string | null;
+}) {
+  const stableParticipantId = input.participantId?.trim();
+  return [
+    "live-result",
+    input.classCode,
+    input.discipline,
+    input.teamId,
+    stableParticipantId || "participant",
+  ].join("-");
+}
+
 function formatPrintTimestamp() {
   return new Intl.DateTimeFormat("de-DE", {
     dateStyle: "short",
@@ -270,7 +298,13 @@ function filterResultRows(result: ClassResult, options: {
   };
 }
 
-export default function ResultsView({ watchlistTeamIds = [], teamSearchContext = [] }: ResultsViewProps) {
+export default function ResultsView({
+  watchlistTeamIds = [],
+  teamSearchContext = [],
+  focusRequest = null,
+  onFocusTeam,
+  onResultTargetMissing,
+}: ResultsViewProps) {
   const { active: activeCompetition } = useCompetition();
   const { activeRole, isLoading: permissionsLoading } = usePermissions();
   const [data, setData] = useState<ResultsData | null>(null);
@@ -284,6 +318,10 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedDiscipline, setSelectedDiscipline] = useState<DisciplineFilter>("all");
   const [showStagingTestData, setShowStagingTestData] = useState(false);
+  const [focusedResultElementId, setFocusedResultElementId] = useState<string | null>(null);
+  const pendingFocusElementIdRef = useRef<string | null>(null);
+  const focusRequestIdRef = useRef(0);
+  const handledExternalFocusRequestIdRef = useRef<number | null>(null);
   const canUseStagingTestMode = activeRole === "ADMIN";
   const cacheKey = useMemo(
     () => activeCompetition?.id ? `s5evo.offline.results.v1.${activeCompetition.id}.${showStagingTestData ? "staging-test" : "official"}` : null,
@@ -393,6 +431,107 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
         : [...current, classCode],
     );
   };
+
+  const focusElement = useCallback((elementId: string) => {
+    pendingFocusElementIdRef.current = elementId;
+    const requestId = focusRequestIdRef.current + 1;
+    focusRequestIdRef.current = requestId;
+    const startedAt = window.performance.now();
+
+    const scroll = () => {
+      if (pendingFocusElementIdRef.current !== elementId || focusRequestIdRef.current !== requestId) return;
+
+      const element = document.getElementById(elementId);
+      const elapsed = window.performance.now() - startedAt;
+
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (element instanceof HTMLElement) {
+          element.focus({ preventScroll: true });
+        }
+
+        if (elapsed >= 900) {
+          if (focusRequestIdRef.current === requestId) {
+            pendingFocusElementIdRef.current = null;
+          }
+          return;
+        }
+
+        window.setTimeout(scroll, 120);
+        return;
+      }
+
+      if (elapsed < 1400) {
+        window.setTimeout(scroll, 80);
+      }
+    };
+
+    window.requestAnimationFrame(() => {
+      scroll();
+    });
+  }, []);
+
+  const findResultEntryTarget = useCallback((request: ResultsFocusRequest) => {
+    const candidateResults = availableResults.filter((result) =>
+      !request.classCode || result.classCode === request.classCode,
+    );
+
+    for (const result of candidateResults) {
+      const entries = result.disciplineRankings[request.discipline] ?? [];
+      const entry = entries.find((candidate) => {
+        if (request.participantId) return candidate.participantId === request.participantId;
+        return candidate.teamId === request.teamId;
+      });
+
+      if (entry) {
+        return { result, entry };
+      }
+    }
+
+    return null;
+  }, [availableResults]);
+
+  const focusResultEntry = useCallback((request: ResultsFocusRequest) => {
+    const target = findResultEntryTarget(request);
+    if (!target) return false;
+
+    const elementId = getResultEntryElementId({
+      classCode: target.result.classCode,
+      discipline: request.discipline,
+      teamId: target.entry.teamId,
+      participantId: target.entry.participantId,
+    });
+
+    setActiveTab("discipline");
+    setSelectedDiscipline(request.discipline);
+    setFocusedResultElementId(elementId);
+    setSearchQuery("");
+    setSelectedClassFilters((current) =>
+      current.length > 0 && !current.includes(target.result.classCode) ? [] : current,
+    );
+    setFavoritesOnly((current) =>
+      current && !watchlistTeamIdSet.has(target.entry.teamId) ? false : current,
+    );
+    focusElement(elementId);
+    return true;
+  }, [findResultEntryTarget, focusElement, watchlistTeamIdSet]);
+
+  useEffect(() => {
+    if (!focusRequest || handledExternalFocusRequestIdRef.current === focusRequest.id) return;
+    if (!data) return;
+
+    handledExternalFocusRequestIdRef.current = focusRequest.id;
+    if (!focusResultEntry(focusRequest)) {
+      onResultTargetMissing?.(focusRequest);
+    }
+  }, [data, focusRequest, focusResultEntry, onResultTargetMissing]);
+
+  useEffect(() => {
+    const elementId = pendingFocusElementIdRef.current;
+    if (!elementId) return;
+
+    focusElement(elementId);
+  }, [activeTab, focusElement, focusedResultElementId, selectedClassFilters, selectedDiscipline]);
 
   if (loading) {
     return (
@@ -600,12 +739,20 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
           </CardContent>
         </Card>
       ) : activeTab === "overall" ? (
-        <OverallResultsTables results={selectedResults} watchlistTeamIdSet={watchlistTeamIdSet} />
+        <OverallResultsTables
+          results={selectedResults}
+          watchlistTeamIdSet={watchlistTeamIdSet}
+          focusedResultElementId={focusedResultElementId}
+          onFocusTeam={onFocusTeam}
+          onFocusResultEntry={focusResultEntry}
+        />
       ) : (
         <DisciplineResultsTables
           results={selectedResults}
           selectedDiscipline={selectedDiscipline}
           watchlistTeamIdSet={watchlistTeamIdSet}
+          focusedResultElementId={focusedResultElementId}
+          onFocusTeam={onFocusTeam}
         />
       )}
       <div className="print-only live-print-sheet">
@@ -698,9 +845,15 @@ export default function ResultsView({ watchlistTeamIds = [], teamSearchContext =
 function OverallResultsTables({
   results,
   watchlistTeamIdSet,
+  focusedResultElementId,
+  onFocusTeam,
+  onFocusResultEntry,
 }: {
   results: ClassResult[];
   watchlistTeamIdSet: Set<string>;
+  focusedResultElementId: string | null;
+  onFocusTeam?: (teamId: string) => void;
+  onFocusResultEntry: (request: ResultsFocusRequest) => boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -759,15 +912,59 @@ function OverallResultsTables({
                             </span>
                           </td>
                           <td className="py-2 pr-3 font-medium leading-snug">
-                            <span className="inline-flex min-w-0 items-start gap-1.5">
+                            {onFocusTeam ? (
+                              <button
+                                type="button"
+                                className="min-w-0 whitespace-normal break-words text-left hover:text-primary hover:underline"
+                                title={`${team.teamName} in Live-Teams fokussieren`}
+                                onClick={() => onFocusTeam(team.teamId)}
+                              >
+                                {team.teamName}
+                              </button>
+                            ) : (
                               <span className="min-w-0 whitespace-normal break-words">{team.teamName}</span>
-                            </span>
+                            )}
                           </td>
-                          {DISCIPLINE_CODES.map((discipline) => (
-                            <td key={discipline} className="px-0.5 py-2 text-center text-xs text-muted-foreground tabular-nums">
-                              {team.hasAnyResult === false ? "-" : team.disciplinePoints[discipline]}
-                            </td>
-                          ))}
+                          {DISCIPLINE_CODES.map((discipline) => {
+                            const entry = (classResult.disciplineRankings[discipline] ?? []).find((candidate) => candidate.teamId === team.teamId);
+                            const resultElementId = entry
+                              ? getResultEntryElementId({
+                                  classCode: classResult.classCode,
+                                  discipline,
+                                  teamId: entry.teamId,
+                                  participantId: entry.participantId,
+                                })
+                              : null;
+                            const isFocused = resultElementId !== null && focusedResultElementId === resultElementId;
+                            const value = team.hasAnyResult === false ? "-" : team.disciplinePoints[discipline];
+
+                            return (
+                              <td key={discipline} className="px-0.5 py-2 text-center text-xs text-muted-foreground tabular-nums">
+                                {entry ? (
+                                  <button
+                                    type="button"
+                                    className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded px-1 font-semibold tabular-nums transition-colors hover:bg-primary/10 hover:text-primary ${
+                                      isFocused ? "bg-primary/10 text-primary ring-2 ring-primary/30" : ""
+                                    }`}
+                                    title={`${entry.participantName} in Einzelergebnissen fokussieren`}
+                                    onClick={() => {
+                                      onFocusResultEntry({
+                                        id: Date.now(),
+                                        teamId: entry.teamId,
+                                        participantId: entry.participantId,
+                                        discipline,
+                                        classCode: classResult.classCode,
+                                      });
+                                    }}
+                                  >
+                                    {value}
+                                  </button>
+                                ) : (
+                                  value
+                                )}
+                              </td>
+                            );
+                          })}
                           <td className="py-2 pl-1 pr-3 text-right font-bold tabular-nums">
                             {team.hasAnyResult === false ? "-" : team.totalPoints}
                           </td>
@@ -789,10 +986,14 @@ function DisciplineResultsTables({
   results,
   selectedDiscipline,
   watchlistTeamIdSet,
+  focusedResultElementId,
+  onFocusTeam,
 }: {
   results: ClassResult[];
   selectedDiscipline: DisciplineFilter;
   watchlistTeamIdSet: Set<string>;
+  focusedResultElementId: string | null;
+  onFocusTeam?: (teamId: string) => void;
 }) {
   const visibleDisciplines = selectedDiscipline === "all" ? DISCIPLINE_CODES : [selectedDiscipline];
 
@@ -840,11 +1041,23 @@ function DisciplineResultsTables({
                       <tbody>
                         {entries.map((entry, index) => {
                           const watched = watchlistTeamIdSet.has(entry.teamId);
+                          const resultElementId = getResultEntryElementId({
+                            classCode: classResult.classCode,
+                            discipline,
+                            teamId: entry.teamId,
+                            participantId: entry.participantId,
+                          });
 
                           return (
                             <tr
                               key={`${entry.teamId}-${discipline}-${index}`}
-                              className="border-b border-border/30 transition-colors hover:bg-muted/30"
+                              id={resultElementId}
+                              tabIndex={-1}
+                              className={`scroll-mt-24 border-b border-border/30 transition-colors hover:bg-muted/30 focus-visible:outline-none ${
+                                focusedResultElementId === resultElementId
+                                  ? "bg-primary/10 ring-2 ring-inset ring-primary/30"
+                                  : ""
+                              }`}
                             >
                               <td className="py-2 pr-2 font-semibold tabular-nums">
                                 {entry.rank}
@@ -857,9 +1070,18 @@ function DisciplineResultsTables({
                               </td>
                               <td className="truncate px-2 py-2 font-medium">{entry.participantName}</td>
                               <td className="truncate px-2 py-2 text-muted-foreground">
-                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                                {onFocusTeam ? (
+                                  <button
+                                    type="button"
+                                    className="min-w-0 truncate text-left hover:text-primary hover:underline"
+                                    title={`${entry.teamName} in Live-Teams fokussieren`}
+                                    onClick={() => onFocusTeam(entry.teamId)}
+                                  >
+                                    {entry.teamName}
+                                  </button>
+                                ) : (
                                   <span className="truncate">{entry.teamName}</span>
-                                </span>
+                                )}
                               </td>
                               <td className="py-2 pl-2 text-right font-mono tabular-nums">
                                 <span>{entry.rawValueText || formatValue(entry.rawValue, discipline)}</span>
