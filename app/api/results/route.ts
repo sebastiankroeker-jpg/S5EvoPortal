@@ -127,6 +127,7 @@ export async function GET(request: NextRequest) {
     const canSeeFullPublication = canViewerSeeFullPublication({
       isPrivilegedViewer: Boolean(access?.isAdmin || access?.isModerator),
     });
+    const canSeeEmptyResultRows = Boolean(access?.isAdmin || access?.isModerator);
     const canSeeStartNumber = Boolean(access?.isAdmin);
     if (includeStagingTest && !access?.isAdmin) {
       return NextResponse.json({ error: "Staging test results require admin access" }, { status: 403 });
@@ -311,7 +312,15 @@ export async function GET(request: NextRequest) {
       };
 
       // Calculate team scores
-      const teamScores = completeTeamScores(calculateTeamScores(disciplineRankings), classTeams.get(classCode) ?? []);
+      const calculatedTeamScores = calculateTeamScores(disciplineRankings);
+      const teamScores = canSeeEmptyResultRows
+        ? completeTeamScores(calculatedTeamScores, classTeams.get(classCode) ?? [])
+        : calculatedTeamScores;
+      const hasAnyDisciplineEntry = Object.values(disciplineRankings).some((entries) => entries.length > 0);
+
+      if (!canSeeEmptyResultRows && teamScores.length === 0 && !hasAnyDisciplineEntry) {
+        continue;
+      }
 
       results.push({
         classCode,
@@ -324,6 +333,17 @@ export async function GET(request: NextRequest) {
 
     // Sort results in the official class order: SA, SB, J, DA, DB, HA, HB, HC.
     results.sort((a, b) => compareClassificationCodes(a.classCode, b.classCode));
+    const visibleResultTeamIds = new Set<string>();
+    for (const result of results) {
+      for (const team of result.teamScores) {
+        visibleResultTeamIds.add(team.teamId);
+      }
+      for (const entries of Object.values(result.disciplineRankings)) {
+        for (const entry of entries) {
+          visibleResultTeamIds.add(entry.teamId);
+        }
+      }
+    }
 
     return NextResponse.json({
       competition: {
@@ -333,7 +353,7 @@ export async function GET(request: NextRequest) {
         status: competition.status,
       },
       results,
-      totalTeams: teams.length,
+      totalTeams: canSeeEmptyResultRows ? teams.length : visibleResultTeamIds.size,
       totalClasses: results.length,
     });
   } catch (error) {
