@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
       participantsCanViewAllTeams: true,
       spectatorsCanViewAllTeams: true,
       hideForeignTeams: true,
+      liveTeamsVisibility: true,
+      liveStartlistsVisibility: true,
       marketplaceGlobalVisibility: true,
       shirtOrderDeadline: true,
       maxTeams: true,

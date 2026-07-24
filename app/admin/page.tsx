@@ -47,6 +47,8 @@ type CompetitionConfig = {
   participantsCanViewAllTeams: boolean;
   spectatorsCanViewAllTeams: boolean;
   hideForeignTeams: boolean;
+  liveTeamsVisibility: LivePublicationVisibility;
+  liveStartlistsVisibility: LivePublicationVisibility;
   marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
   registrationNotificationEmail: string;
   shirtOrderDeadline: string;
@@ -61,6 +63,14 @@ type CompetitionConfig = {
   location: string;
   publicResults: boolean;
 };
+
+type LivePublicationVisibility = "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
+
+const LIVE_PUBLICATION_OPTIONS: Array<{ value: LivePublicationVisibility; label: string; description: string }> = [
+  { value: "ADMINS", label: "Nur Admins", description: "Nicht öffentlich sichtbar." },
+  { value: "PORTAL_USERS", label: "Portal-User", description: "Sichtbar nach Portal-Login." },
+  { value: "SPECTATORS", label: "Spectators", description: "Öffentlich ohne Portal-Account." },
+];
 
 type ResetCounts = {
   teamsTotal: number;
@@ -360,6 +370,8 @@ export default function AdminPage() {
     participantsCanViewAllTeams: false,
     spectatorsCanViewAllTeams: false,
     hideForeignTeams: false,
+    liveTeamsVisibility: "ADMINS",
+    liveStartlistsVisibility: "ADMINS",
     marketplaceGlobalVisibility: "SELECTIVE",
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
@@ -438,6 +450,8 @@ export default function AdminPage() {
           participantsCanViewAllTeams: comp.participantsCanViewAllTeams === true,
           spectatorsCanViewAllTeams: comp.spectatorsCanViewAllTeams === true,
           hideForeignTeams: comp.hideForeignTeams === true,
+          liveTeamsVisibility: (comp.liveTeamsVisibility || "ADMINS") as LivePublicationVisibility,
+          liveStartlistsVisibility: (comp.liveStartlistsVisibility || "ADMINS") as LivePublicationVisibility,
           marketplaceGlobalVisibility: comp.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
           registrationNotificationEmail: comp.registrationNotificationEmail || "",
           shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
@@ -1334,7 +1348,6 @@ export default function AdminPage() {
                             setCompetition({
                               ...competition,
                               hideForeignTeams: !competition.hideForeignTeams,
-                              spectatorsCanViewAllTeams: competition.hideForeignTeams ? competition.spectatorsCanViewAllTeams : false,
                             })
                           }
                           className={`relative h-6 w-12 rounded-full transition-colors ${
@@ -1388,37 +1401,37 @@ export default function AdminPage() {
                       </div>
                     </FormField>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="Zuschauer:innen sehen Konkurrenz">
-                      <div className="flex items-center gap-3 pt-2">
-                        <button
-                          type="button"
-                          disabled={competition.hideForeignTeams}
-                          onClick={() =>
-                            setCompetition({
-                              ...competition,
-                              spectatorsCanViewAllTeams: !competition.spectatorsCanViewAllTeams,
-                            })
-                          }
-                          className={`relative h-6 w-12 rounded-full transition-colors disabled:opacity-50 ${
-                            competition.spectatorsCanViewAllTeams && !competition.hideForeignTeams ? "bg-primary" : "bg-muted"
-                          }`}
+                  <div className="rounded-lg border border-border bg-muted/30 p-4">
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-foreground">Live-Veröffentlichung</p>
+                      <p className="text-xs text-muted-foreground">
+                        Steuert nur die Live-Route. Anmeldung, Mannschafts-Dashboard und Privacy-Schalter bleiben davon getrennt.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField label="Live-Teams">
+                        <select
+                          value={competition.liveTeamsVisibility}
+                          onChange={(e) => setCompetition({ ...competition, liveTeamsVisibility: e.target.value as LivePublicationVisibility })}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                         >
-                          <span
-                            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                              competition.spectatorsCanViewAllTeams && !competition.hideForeignTeams ? "translate-x-6" : ""
-                            }`}
-                          />
-                        </button>
-                        <span className="text-sm text-muted-foreground">
-                          {competition.hideForeignTeams
-                            ? "Durch Privacy-Schalter gesperrt"
-                            : competition.spectatorsCanViewAllTeams
-                              ? "Live-Teams & Startlisten öffentlich"
-                              : "Nur mit Portal-Login"}
-                        </span>
-                      </div>
-                    </FormField>
+                          {LIVE_PUBLICATION_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </FormField>
+                      <FormField label="Live-Startlisten">
+                        <select
+                          value={competition.liveStartlistsVisibility}
+                          onChange={(e) => setCompetition({ ...competition, liveStartlistsVisibility: e.target.value as LivePublicationVisibility })}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          {LIVE_PUBLICATION_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </FormField>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField label="Orga-Mails für Anmeldungen" hint="Mehrere Empfänger mit Komma oder Semikolon trennen. Wenn leer, wird die Tenant-Kontaktadresse genutzt.">

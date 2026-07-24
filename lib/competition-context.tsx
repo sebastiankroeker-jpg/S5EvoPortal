@@ -14,6 +14,8 @@ type CompetitionInfo = {
   participantsCanViewAllTeams: boolean;
   spectatorsCanViewAllTeams: boolean;
   hideForeignTeams: boolean;
+  liveTeamsVisibility: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
+  liveStartlistsVisibility: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
   marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
 };
 
@@ -38,6 +40,8 @@ type AdminCompetitionResponseItem = {
   participantsCanViewAllTeams?: boolean;
   spectatorsCanViewAllTeams?: boolean;
   hideForeignTeams?: boolean;
+  liveTeamsVisibility?: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
+  liveStartlistsVisibility?: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
   marketplaceGlobalVisibility?: "SELECTIVE" | "OFFLINE";
 };
 
@@ -103,6 +107,8 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
                 participantsCanViewAllTeams: competition.participantsCanViewAllTeams ?? false,
                 spectatorsCanViewAllTeams: competition.spectatorsCanViewAllTeams ?? false,
                 hideForeignTeams: competition.hideForeignTeams ?? false,
+                liveTeamsVisibility: competition.liveTeamsVisibility ?? "ADMINS",
+                liveStartlistsVisibility: competition.liveStartlistsVisibility ?? "ADMINS",
                 marketplaceGlobalVisibility: competition.marketplaceGlobalVisibility ?? "SELECTIVE",
               }]
             : [];
@@ -123,6 +129,8 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
           participantsCanViewAllTeams: c.participantsCanViewAllTeams ?? false,
           spectatorsCanViewAllTeams: c.spectatorsCanViewAllTeams ?? false,
           hideForeignTeams: c.hideForeignTeams ?? false,
+          liveTeamsVisibility: c.liveTeamsVisibility ?? "ADMINS",
+          liveStartlistsVisibility: c.liveStartlistsVisibility ?? "ADMINS",
           marketplaceGlobalVisibility: c.marketplaceGlobalVisibility ?? "SELECTIVE",
         }));
         applyCompetitions(comps);

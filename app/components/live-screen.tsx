@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type Dispatch, type SetStateAction } from "react";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
-import { canRoleViewAllTeams } from "@/lib/team-access-config";
+import { canRoleViewLiveStartlists, canRoleViewLiveTeams } from "@/lib/team-access-config";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +24,7 @@ import {
   DashboardToolbarButton,
 } from "./dashboard-controls";
 
-const SEGMENTS = ["teams", "start", "ergebnis"] as const;
-type Segment = typeof SEGMENTS[number];
+type Segment = "teams" | "start" | "ergebnis";
 
 interface Team {
   id: string;
@@ -263,14 +262,20 @@ export default function LiveScreen() {
   const focusRequestIdRef = useRef(0);
   const { active: activeCompetition } = useCompetition();
   const { activeRole, isLoading: permissionsLoading } = usePermissions();
-  const canViewTeamLists = canRoleViewAllTeams(activeRole, activeCompetition);
+  const canViewLiveTeams = canRoleViewLiveTeams(activeRole, activeCompetition);
+  const canViewLiveStartlists = canRoleViewLiveStartlists(activeRole, activeCompetition);
+  const canViewTeamLists = canViewLiveTeams || canViewLiveStartlists;
   const cacheKey = useMemo(
     () => activeCompetition?.id ? `s5evo.offline.liveTeams.v1.${activeCompetition.id}.${activeRole}` : null,
     [activeCompetition?.id, activeRole],
   );
   const availableSegments = useMemo<Segment[]>(
-    () => canViewTeamLists ? [...SEGMENTS] : ["ergebnis"],
-    [canViewTeamLists],
+    () => [
+      ...(canViewLiveTeams ? (["teams"] as const) : []),
+      ...(canViewLiveStartlists ? (["start"] as const) : []),
+      "ergebnis" as const,
+    ],
+    [canViewLiveStartlists, canViewLiveTeams],
   );
   const watchedTeamIdSet = useMemo(() => new Set(watchedTeamIds), [watchedTeamIds]);
   const canSearchTeamManagers = activeRole === "ADMIN";
@@ -297,7 +302,7 @@ export default function LiveScreen() {
 
     try {
       // Fetch all teams for live view
-      const params = new URLSearchParams({ scope: 'all', roleContext: activeRole });
+      const params = new URLSearchParams({ scope: 'all', roleContext: activeRole, liveSurface: 'teamLists' });
       if (activeCompetition?.id) params.set('competitionId', activeCompetition.id);
       const response = await fetch(`/api/teams?${params}`, { cache: "no-store" });
       const data = await response.json();

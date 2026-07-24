@@ -295,6 +295,12 @@ enum MarketplaceGlobalVisibility {
   OFFLINE
 }
 
+enum LivePublicationVisibility {
+  ADMINS
+  PORTAL_USERS
+  SPECTATORS
+}
+
 enum MarketplaceStatus {
   NEW
   REVIEWED
@@ -479,6 +485,8 @@ model Competition {
   participantsCanViewAllTeams       Boolean                     @default(false)
   spectatorsCanViewAllTeams         Boolean                     @default(false)
   hideForeignTeams                  Boolean                     @default(false)
+  liveTeamsVisibility               LivePublicationVisibility   @default(ADMINS)
+  liveStartlistsVisibility          LivePublicationVisibility   @default(ADMINS)
   marketplaceGlobalVisibility       MarketplaceGlobalVisibility @default(SELECTIVE)
   registrationNotificationEmail     String?
   shirtOrderDeadline                DateTime?

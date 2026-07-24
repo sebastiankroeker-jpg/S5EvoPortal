@@ -38,6 +38,13 @@ function normalizeClaimTokenTtlDays(value: unknown) {
   return Math.min(Math.max(Math.floor(parsed), 1), 60);
 }
 
+function normalizeLivePublicationVisibility(value: unknown) {
+  const validVisibilities = ["ADMINS", "PORTAL_USERS", "SPECTATORS"] as const;
+  return validVisibilities.includes(value as (typeof validVisibilities)[number])
+    ? (value as (typeof validVisibilities)[number])
+    : "ADMINS";
+}
+
 async function requireCompetitionAdmin(userId: string, competitionId: string) {
   const competition = await prisma.competition.findUnique({
     where: { id: competitionId },
@@ -137,6 +144,8 @@ export async function PUT(request: NextRequest) {
     const claimTokenExpiryMode = normalizeClaimTokenExpiryMode(body.claimTokenExpiryMode);
     const claimTokenTtlDays = normalizeClaimTokenTtlDays(body.claimTokenTtlDays);
     const marketplaceGlobalVisibility = normalizeMarketplaceGlobalVisibility(body.marketplaceGlobalVisibility);
+    const liveTeamsVisibility = normalizeLivePublicationVisibility(body.liveTeamsVisibility);
+    const liveStartlistsVisibility = normalizeLivePublicationVisibility(body.liveStartlistsVisibility);
 
     try {
       // Load specific competition by id, or fall back to latest
@@ -166,6 +175,8 @@ export async function PUT(request: NextRequest) {
             participantsCanViewAllTeams: Boolean(body.participantsCanViewAllTeams),
             spectatorsCanViewAllTeams: Boolean(body.spectatorsCanViewAllTeams),
             hideForeignTeams: Boolean(body.hideForeignTeams),
+            liveTeamsVisibility,
+            liveStartlistsVisibility,
             marketplaceGlobalVisibility,
             registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
@@ -206,6 +217,12 @@ export async function PUT(request: NextRequest) {
             hideForeignTeams: body.hideForeignTeams !== undefined
               ? Boolean(body.hideForeignTeams)
               : competition.hideForeignTeams,
+            liveTeamsVisibility: body.liveTeamsVisibility !== undefined
+              ? liveTeamsVisibility
+              : competition.liveTeamsVisibility,
+            liveStartlistsVisibility: body.liveStartlistsVisibility !== undefined
+              ? liveStartlistsVisibility
+              : competition.liveStartlistsVisibility,
             marketplaceGlobalVisibility: body.marketplaceGlobalVisibility !== undefined
               ? marketplaceGlobalVisibility
               : competition.marketplaceGlobalVisibility,

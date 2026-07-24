@@ -27,7 +27,13 @@ import {
 } from '@/lib/publication-visibility';
 import { canViewerSeeMarketplaceTeam } from '@/lib/marketplace-visibility';
 import { getScopedRoleFlags } from '@/lib/server-permissions';
-import { canRoleViewAllTeams, normalizeCompetitionTeamAccessConfig, resolveEffectiveTeamScopeRole } from '@/lib/team-access-config';
+import {
+  canRoleViewAllTeams,
+  canRoleViewLiveStartlists,
+  canRoleViewLiveTeams,
+  normalizeCompetitionTeamAccessConfig,
+  resolveEffectiveTeamScopeRole,
+} from '@/lib/team-access-config';
 import { resolveTeamAccess } from '@/lib/team-manager-access';
 import { syncDerivedTeamchefRole } from '@/lib/teamchef-role';
 import type { Prisma } from '@prisma/client';
@@ -420,8 +426,10 @@ export async function GET(request: NextRequest) {
       const query = url.searchParams.get("q")?.trim() ?? "";
       const scope = url.searchParams.get('scope');
       const roleContext = url.searchParams.get('roleContext');
+      const liveSurface = url.searchParams.get('liveSurface');
       const competitionId = url.searchParams.get('competitionId');
       const wantsAllTeams = scope === 'all';
+      const isLiveTeamListRequest = liveSurface === "teams" || liveSurface === "startlists" || liveSurface === "teamLists";
       const competition = competitionId
         ? await prisma.competition.findUnique({
             where: { id: competitionId },
@@ -431,15 +439,25 @@ export async function GET(request: NextRequest) {
               participantsCanViewAllTeams: true,
               spectatorsCanViewAllTeams: true,
               hideForeignTeams: true,
+              liveTeamsVisibility: true,
+              liveStartlistsVisibility: true,
               marketplaceGlobalVisibility: true,
             },
           })
         : null;
       const competitionTeamAccess = normalizeCompetitionTeamAccessConfig(competition);
+      const canSpectatorViewRequestedLiveSurface =
+        liveSurface === "teams"
+          ? canRoleViewLiveTeams("ZUSCHAUER", competitionTeamAccess)
+          : liveSurface === "startlists"
+            ? canRoleViewLiveStartlists("ZUSCHAUER", competitionTeamAccess)
+            : isLiveTeamListRequest
+              ? canRoleViewLiveTeams("ZUSCHAUER", competitionTeamAccess) || canRoleViewLiveStartlists("ZUSCHAUER", competitionTeamAccess)
+              : false;
       const publicSpectatorAllTeams =
         !userEmail &&
         wantsAllTeams &&
-        canRoleViewAllTeams("ZUSCHAUER", competitionTeamAccess);
+        canSpectatorViewRequestedLiveSurface;
 
       if (!userEmail && !publicSpectatorAllTeams) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -460,11 +478,24 @@ export async function GET(request: NextRequest) {
             canViewAllTeams: false,
             canEditAllTeams: false,
           };
-      const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
-      const canViewRequestedScope =
-        roleContext
-          ? canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess)
-          : access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess);
+      const requestedLivePortalRole =
+        isLiveTeamListRequest &&
+        userEmail &&
+        (roleContext === "TEAMCHEF" || roleContext === "TEILNEHMER" || roleContext === "ZEITNAHME")
+          ? roleContext
+          : null;
+      const effectiveScopeRole = requestedLivePortalRole ?? resolveEffectiveTeamScopeRole(roleContext, access.roles);
+      const canViewRequestedScope = roleContext
+        ? isLiveTeamListRequest
+          ? (
+              liveSurface === "teams"
+                ? canRoleViewLiveTeams(effectiveScopeRole, competitionTeamAccess)
+                : liveSurface === "startlists"
+                  ? canRoleViewLiveStartlists(effectiveScopeRole, competitionTeamAccess)
+                  : canRoleViewLiveTeams(effectiveScopeRole, competitionTeamAccess) || canRoleViewLiveStartlists(effectiveScopeRole, competitionTeamAccess)
+            )
+          : canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess)
+        : access.canViewAllTeams || canRoleViewAllTeams(effectiveScopeRole, competitionTeamAccess);
       if (wantsAllTeams && !canViewRequestedScope) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
