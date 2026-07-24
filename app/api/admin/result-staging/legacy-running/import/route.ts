@@ -64,6 +64,8 @@ function buildProposedResultSnapshot(record: LegacyRunningNormalizedRecord) {
     disciplineCode: record.disciplineCode,
     startNumber: record.startNumber,
     result: {
+      rawValue: record.elapsedMs,
+      rawValueText: record.rawTimeText,
       rawTimeText: record.rawTimeText,
       elapsedMs: record.elapsedMs,
       status: record.resultStatus,

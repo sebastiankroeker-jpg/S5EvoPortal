@@ -179,9 +179,16 @@ export function parseLegacyResultTimeMs(value: string | null | undefined) {
   return ((hours * 60 + minutes) * 60 + seconds) * 1000 + fraction;
 }
 
+function isLegacyZeroPointTime(rawTimeText: string | null) {
+  if (!rawTimeText) return false;
+  const normalized = rawTimeText.trim().replace(",", ".");
+  return normalized === "99:99.99" || normalized === "99:99:99.99";
+}
+
 function timeResultStatus(rawTimeText: string | null, elapsedMs: number | null) {
   if (!rawTimeText) return "missing_time";
-  if (rawTimeText === "88:88:88.00" || rawTimeText === "99:99:99.99") return "manual_check";
+  if (isLegacyZeroPointTime(rawTimeText)) return "dnf";
+  if (rawTimeText === "88:88:88.00") return "manual_check";
   if (elapsedMs === null) return "invalid_time";
   return "valid";
 }
@@ -216,8 +223,10 @@ function buildTimeDraft(record: LegacyRawResultRecord): LegacyResultDraftPreview
   const elapsedMs = parseLegacyResultTimeMs(rawTimeText);
   const resultStatus = timeResultStatus(rawTimeText, elapsedMs);
   const validationMessages = [...record.validationMessages];
+  const scoring = pointsAndRanks(record.raw);
   if (resultStatus === "missing_time") validationMessages.push({ code: "missing_time", severity: "error" });
   if (resultStatus === "invalid_time") validationMessages.push({ code: "invalid_time", severity: "error" });
+  if (resultStatus === "dnf") validationMessages.push({ code: "legacy_zero_point_time", severity: "warning" });
   if (resultStatus === "manual_check") validationMessages.push({ code: "manual_check_time", severity: "warning" });
 
   return {
@@ -230,7 +239,10 @@ function buildTimeDraft(record: LegacyRawResultRecord): LegacyResultDraftPreview
     rawValue: elapsedMs,
     rawValueText: rawTimeText,
     resultStatus,
-    ...pointsAndRanks(record.raw),
+    classPoints: resultStatus === "dnf" ? 0 : scoring.classPoints,
+    classRank: resultStatus === "dnf" ? null : scoring.classRank,
+    overallGenderPoints: resultStatus === "dnf" ? 0 : scoring.overallGenderPoints,
+    overallGenderRank: resultStatus === "dnf" ? null : scoring.overallGenderRank,
     details: {
       uhrGueltig: record.raw.AuUhrGueltig || null,
       stopzeitUhr1: record.raw.AuStopzeit || null,

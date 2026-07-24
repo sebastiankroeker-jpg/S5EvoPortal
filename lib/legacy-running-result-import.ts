@@ -22,7 +22,7 @@ export type LegacyRunningNormalizedRecord = {
   disciplineCode: typeof LEGACY_RUNNING_DISCIPLINE_CODE;
   rawTimeText: string | null;
   elapsedMs: number | null;
-  resultStatus: "valid" | "manual_check" | "invalid_time" | "missing_time";
+  resultStatus: "valid" | "manual_check" | "invalid_time" | "missing_time" | "dnf";
   classPoints: number | null;
   classRank: number | null;
   overallGroup: LegacyRunningOverallGroup | null;
@@ -151,8 +151,15 @@ export function parseLegacyRunningTimeMs(value: string | null | undefined) {
   return ((hours * 60 + minutes) * 60 + seconds) * 1000 + fraction;
 }
 
+function isLegacyZeroPointTime(rawTimeText: string | null) {
+  if (!rawTimeText) return false;
+  const normalized = rawTimeText.trim().replace(",", ".");
+  return normalized === "99:99.99" || normalized === "99:99:99.99";
+}
+
 function getResultStatus(rawTimeText: string | null, elapsedMs: number | null) {
   if (!rawTimeText) return "missing_time" as const;
+  if (isLegacyZeroPointTime(rawTimeText)) return "dnf" as const;
   if (rawTimeText === "88:88:88.00") return "manual_check" as const;
   if (elapsedMs === null) return "invalid_time" as const;
   return "valid" as const;
@@ -206,21 +213,24 @@ export function parseLegacyRunningCsv(input: string, options: CsvParseOptions = 
       const rawTimeText = toNullableString(raw.AuZeit);
       const elapsedMs = parseLegacyRunningTimeMs(rawTimeText);
       const resultStatus = getResultStatus(rawTimeText, elapsedMs);
-      const classPoints = toNullableInteger(raw.AuPunkte);
-      const classRank = toNullableInteger(raw.AuPlatzKlasse);
+      const classPoints = resultStatus === "dnf" ? 0 : toNullableInteger(raw.AuPunkte);
+      const classRank = resultStatus === "dnf" ? null : toNullableInteger(raw.AuPlatzKlasse);
       const overallGroup = classInfo?.overallGroup ?? null;
-      const overallGenderPoints = overallGroup === "DAMEN"
-        ? toNullableInteger(raw.AuPunkteDamenGes)
-        : overallGroup === "HERREN"
-          ? toNullableInteger(raw.AuPunkteHerrenGes)
-          : null;
-      const overallGenderRank = overallGroup ? toNullableInteger(raw.AuPlatzGesamt) : null;
+      const overallGenderPoints = resultStatus === "dnf"
+        ? 0
+        : overallGroup === "DAMEN"
+          ? toNullableInteger(raw.AuPunkteDamenGes)
+          : overallGroup === "HERREN"
+            ? toNullableInteger(raw.AuPunkteHerrenGes)
+            : null;
+      const overallGenderRank = resultStatus === "dnf" ? null : overallGroup ? toNullableInteger(raw.AuPlatzGesamt) : null;
 
       if (!startNumber) validationMessages.push({ code: "missing_start_number", severity: "error" });
       if (!legacyClassId || !classInfo) validationMessages.push({ code: "unknown_legacy_class", severity: "error" });
       if (raw.Au1Disziplin !== "1") validationMessages.push({ code: "unexpected_legacy_discipline", severity: "error" });
       if (resultStatus === "missing_time") validationMessages.push({ code: "missing_time", severity: "error" });
       if (resultStatus === "invalid_time") validationMessages.push({ code: "invalid_time", severity: "error" });
+      if (resultStatus === "dnf") validationMessages.push({ code: "legacy_zero_point_time", severity: "warning" });
       if (resultStatus === "manual_check") validationMessages.push({ code: "manual_check_time", severity: "warning" });
       if (classPoints === null) validationMessages.push({ code: "missing_class_points", severity: "warning" });
       if (classRank === null) validationMessages.push({ code: "missing_class_rank", severity: "warning" });

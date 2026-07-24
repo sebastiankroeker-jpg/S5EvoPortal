@@ -45,18 +45,57 @@ function asNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function isLegacyZeroPointTime(rawValueText: string | null) {
+  if (!rawValueText) return false;
+  const normalized = rawValueText.trim().replace(",", ".");
+  return normalized === "99:99.99" || normalized === "99:99:99.99";
+}
+
 function getSnapshotResult(snapshot: unknown) {
   const record = asRecord(snapshot);
   const result = asRecord(record?.result);
   const classScoring = asRecord(record?.classScoring);
 
   return {
-    rawValue: asNumber(result?.rawValue),
-    rawValueText: typeof result?.rawValueText === "string" ? result.rawValueText : null,
+    rawValue: asNumber(result?.rawValue) ?? asNumber(result?.elapsedMs),
+    rawValueText: typeof result?.rawValueText === "string"
+      ? result.rawValueText
+      : typeof result?.rawTimeText === "string"
+        ? result.rawTimeText
+        : null,
     resultStatus: typeof result?.status === "string" ? result.status : null,
     points: asNumber(classScoring?.points),
     rank: asNumber(classScoring?.rank),
   };
+}
+
+function normalizeExpectedZeroPointResult(result: ReturnType<typeof getSnapshotResult>) {
+  if (result.rawValue !== null || !isLegacyZeroPointTime(result.rawValueText)) return result;
+  return {
+    ...result,
+    resultStatus: "dnf",
+    points: 0,
+    rank: null,
+  };
+}
+
+function validationErrorCodes(messages: unknown) {
+  return asArray(messages)
+    .map((message) => asRecord(message))
+    .filter((message): message is Record<string, unknown> => Boolean(message))
+    .filter((message) => message.severity === "error")
+    .map((message) => typeof message.code === "string" ? message.code : null)
+    .filter((code): code is string => Boolean(code));
+}
+
+function isExpectedZeroPointConflict(draft: { validationMessages: unknown }, after: ReturnType<typeof getSnapshotResult>) {
+  if (!isLegacyZeroPointTime(after.rawValueText)) return false;
+  const errorCodes = validationErrorCodes(draft.validationMessages);
+  return errorCodes.length > 0 && errorCodes.every((code) => code === "invalid_time");
 }
 
 function valuesEqual(left: number | null, right: number | null) {
@@ -197,7 +236,7 @@ export async function GET(
     const teamById = new Map(teams.map((team) => [team.id, team]));
 
     const items: PreviewItem[] = drafts.map((draft) => {
-      const after = getSnapshotResult(draft.proposedResultSnapshot);
+      const after = normalizeExpectedZeroPointResult(getSnapshotResult(draft.proposedResultSnapshot));
       const blockers: string[] = [];
       const targetKey = targetKeyFor(draft);
       const existingResult = targetKey ? resultByTarget.get(targetKey) ?? null : null;
@@ -211,10 +250,10 @@ export async function GET(
           }
         : null;
 
-      if (batch.status === "PUBLISHED" || batch.status === "DISCARDED" || batch.status === "ERROR") {
+      if (batch.status === "PUBLISHED" || batch.status === "DISCARDED") {
         blockers.push("Paketstatus erlaubt keine Publikation.");
       }
-      if (draft.status === "CONFLICT" || draft.conflictStatus === "CONFLICT") {
+      if ((draft.status === "CONFLICT" || draft.conflictStatus === "CONFLICT") && !isExpectedZeroPointConflict(draft, after)) {
         blockers.push("Draft hat Konfliktstatus.");
       }
       if (draft.status === "REJECTED" || draft.status === "DISCARDED" || draft.status === "PUBLISHED") {
