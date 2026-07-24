@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { CLASSIFICATIONS, compareClassificationCodes } from "@/lib/domain/classification";
 import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
-import { SlidersHorizontal, Star, XCircle } from "lucide-react";
+import { Download, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { DisciplineBrandIcon } from "./discipline-brand";
 import ResultsView from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
@@ -46,10 +46,18 @@ interface Participant {
   gender: string;
   birthDate: string;
   discipline?: string;
+  moderationNote?: string | null;
   participantPublicationPreference?: "NAME_VERBERGEN" | "NAME_VEROEFFENTLICHEN" | null;
 }
 
 type LiveClassFilter = string;
+type StartListEntry = {
+  participant: Participant;
+  teamId: string;
+  teamName: string;
+  teamCategory: string;
+  startNumber?: string | null;
+};
 
 const categoryEmojis: Record<string, string> = {
   "schueler-a": "SA",
@@ -148,6 +156,51 @@ function compareByStartNumber<T extends { startNumber?: string | null; teamName?
   const startDiff = startNumberSortValue(left.startNumber) - startNumberSortValue(right.startNumber);
   if (startDiff !== 0) return startDiff;
   return (left.teamName || left.name || "").localeCompare(right.teamName || right.name || "", "de");
+}
+
+function formatParticipantName(participant: Participant) {
+  return `${participant.firstName} ${participant.lastName}`.trim();
+}
+
+function escapeCsvValue(value: string | number | null | undefined) {
+  const normalized = value == null ? "" : String(value);
+  return `"${normalized.replace(/"/g, '""')}"`;
+}
+
+function buildModeratorHintsCsv(rows: StartListEntry[]) {
+  const header = ["Strnr", "Teilnehmer", "Mannschaft", "Hinweis"];
+  const body = rows.map((row) => [
+    row.startNumber ?? "",
+    formatParticipantName(row.participant),
+    row.teamName,
+    row.participant.moderationNote?.trim() ?? "",
+  ]);
+
+  return [header, ...body]
+    .map((line) => line.map(escapeCsvValue).join(";"))
+    .join("\r\n");
+}
+
+function sanitizeFilenamePart(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || "wettkampf";
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function getTeamDisciplineSlots(team: Team) {
@@ -639,13 +692,7 @@ export default function LiveScreen() {
     const disciplineGroups = DISCIPLINES.reduce((groups, discipline) => {
       groups[discipline.id] = {};
       return groups;
-    }, {} as Record<string, Record<string, Array<{
-      participant: Participant;
-      teamId: string;
-      teamName: string;
-      teamCategory: string;
-      startNumber?: string | null;
-    }>>>);
+    }, {} as Record<string, Record<string, StartListEntry[]>>);
 
     // Populate groups
     sourceTeams.forEach(team => {
@@ -671,6 +718,17 @@ export default function LiveScreen() {
         disciplineSum + Object.values(classGroups).reduce((classSum, participants) => classSum + participants.length, 0),
       0,
     );
+    const moderatorHintRows = DISCIPLINES.flatMap((discipline) => {
+      const classGroups = disciplineGroups[discipline.id] || {};
+      return Object.entries(classGroups)
+        .sort(([a], [b]) => compareClassificationCodes(a, b))
+        .flatMap(([, participants]) =>
+          [...participants]
+            .sort(compareByStartNumber)
+            .filter((entry) => Boolean(entry.participant.moderationNote?.trim())),
+        );
+    });
+    const canExportModeratorHints = activeRole === "ADMIN";
 
     return (
       <div className="space-y-4">
@@ -686,6 +744,29 @@ export default function LiveScreen() {
           matchingCount: sourceTeams.length,
           totalCount: teams.length,
         })}
+        {canExportModeratorHints && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={moderatorHintRows.length === 0}
+              onClick={() => {
+                const competitionSlug = sanitizeFilenamePart(activeCompetition?.name || "wettkampf");
+                const filename = `${competitionSlug}-moderatorenhinweise.csv`;
+                downloadCsv(filename, buildModeratorHintsCsv(moderatorHintRows));
+              }}
+            >
+              <Download className="size-4" />
+              Moderatorenhinweise CSV
+              {moderatorHintRows.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                  {moderatorHintRows.length}
+                </Badge>
+              )}
+            </Button>
+          </div>
+        )}
         {visibleStarterCount === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
