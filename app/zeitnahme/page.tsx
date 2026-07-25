@@ -512,7 +512,6 @@ export default function TimekeepingPage() {
   const [roadClockSessionIds, setRoadClockSessionIds] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
   const [startNumberSource, setStartNumberSource] = useState<StartNumberSource>("official");
   const [baseTimeDrafts, setBaseTimeDrafts] = useState<Record<string, string>>({});
   const [finishNetTimeDrafts, setFinishNetTimeDrafts] = useState<Record<string, string>>({});
@@ -793,26 +792,32 @@ export default function TimekeepingPage() {
   const timekeepingStats = useMemo(() => {
     const finishedStartNumbers = new Set<string>();
     let missingAssignments = 0;
-    (activeSession?.events ?? [])
-      .filter((event) => event.eventType === "FINISH")
-      .forEach((event) => {
-        const normalized = normalizeStartNumber(event.startNumber);
-        if (normalized) {
-          finishedStartNumbers.add(normalized);
-        } else {
-          missingAssignments += 1;
-        }
-      });
-    const startersInBlock = activeBlockStarters.length;
-    const finishedKnownInBlock = activeBlockStarters.filter((starter) => finishedStartNumbers.has(normalizeStartNumber(starter.startNumber))).length;
+    listedEvents.forEach(({ event }) => {
+      const normalized = normalizeStartNumber(event.startNumber);
+      if (normalized) {
+        finishedStartNumbers.add(normalized);
+      } else {
+        missingAssignments += 1;
+      }
+    });
+    const starterKeys = new Set<string>();
+    const startersInListedSessions = listedSessions.flatMap((session) => getSessionStarters(session)).filter((starter) => {
+      const key = starter.participantId || starter.teamId || normalizeStartNumber(starter.startNumber);
+      if (!key || starterKeys.has(key)) return false;
+      starterKeys.add(key);
+      return true;
+    });
+    const startersInBlock = startersInListedSessions.length;
+    const finishedKnownInBlock = startersInListedSessions.filter((starter) => finishedStartNumbers.has(normalizeStartNumber(starter.startNumber))).length;
     return {
       startersInBlock,
+      finishRecords: listedEvents.length,
       finishedKnownInBlock,
       onCourse: Math.max(0, startersInBlock - finishedKnownInBlock),
       missingAssignments,
       duplicateCount: duplicateStartNumbers.size,
     };
-  }, [activeBlockStarters, activeSession?.events, duplicateStartNumbers]);
+  }, [duplicateStartNumbers, getSessionStarters, listedEvents, listedSessions]);
 
   const toggleSort = (nextSort: SortId) => {
     setSort((currentSort) => {
@@ -2154,6 +2159,30 @@ export default function TimekeepingPage() {
                 {filteredEvents.length} sichtbar · {listedUnsyncedCount} offen · {listedSessions.length} Block{listedSessions.length === 1 ? "" : "s"}
               </p>
             </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="rounded-md bg-muted/50 px-2 py-1">
+                Ziel <span className="font-semibold tabular-nums text-foreground">{timekeepingStats.finishRecords}</span>
+              </span>
+              <span className="rounded-md bg-muted/50 px-2 py-1">
+                Strecke <span className="font-semibold tabular-nums text-foreground">{timekeepingStats.onCourse}</span>
+              </span>
+              <span className={cn(
+                "rounded-md px-2 py-1",
+                timekeepingStats.missingAssignments > 0
+                  ? "bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200"
+                  : "bg-muted/50",
+              )}>
+                Ohne STRNR <span className="font-semibold tabular-nums">{timekeepingStats.missingAssignments}</span>
+              </span>
+              <span className={cn(
+                "rounded-md px-2 py-1",
+                timekeepingStats.duplicateCount > 0
+                  ? "bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200"
+                  : "bg-muted/50",
+              )}>
+                Doppelt <span className="font-semibold tabular-nums">{timekeepingStats.duplicateCount}</span>
+              </span>
+            </div>
             <div className="flex flex-wrap items-center justify-end gap-1">
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setFiltersOpen((open) => !open)}>
                 <SlidersHorizontal className="size-4" />
@@ -2162,10 +2191,6 @@ export default function TimekeepingPage() {
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setLayoutOpen((open) => !open)}>
                 <Settings2 className="size-4" />
                 Layout
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setStatsOpen((open) => !open)}>
-                <Timer className="size-4" />
-                Stats
               </Button>
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={resetVisibleData} disabled={syncing || filteredEvents.length === 0}>
                 <Trash2 className="size-4" />
@@ -2221,27 +2246,6 @@ export default function TimekeepingPage() {
                     {column.label}
                   </label>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {statsOpen && (
-            <div className="grid grid-cols-2 gap-2 border-b border-border/60 p-2 sm:grid-cols-4">
-              <div className="rounded-md bg-muted/40 px-2 py-2">
-                <p className="text-[11px] font-medium text-muted-foreground">Im Ziel</p>
-                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.finishedKnownInBlock}</p>
-              </div>
-              <div className="rounded-md bg-muted/40 px-2 py-2">
-                <p className="text-[11px] font-medium text-muted-foreground">Auf Strecke</p>
-                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.onCourse}</p>
-              </div>
-              <div className={cn("rounded-md px-2 py-2", timekeepingStats.missingAssignments > 0 ? "bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200" : "bg-muted/40")}>
-                <p className="text-[11px] font-medium text-muted-foreground">Ohne STRNR</p>
-                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.missingAssignments}</p>
-              </div>
-              <div className={cn("rounded-md px-2 py-2", timekeepingStats.duplicateCount > 0 ? "bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200" : "bg-muted/40")}>
-                <p className="text-[11px] font-medium text-muted-foreground">Doppelt</p>
-                <p className="text-lg font-semibold tabular-nums">{timekeepingStats.duplicateCount}</p>
               </div>
             </div>
           )}
