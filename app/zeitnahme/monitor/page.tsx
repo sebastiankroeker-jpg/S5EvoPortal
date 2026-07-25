@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Clock3, Monitor, RefreshCcw, Wifi, WifiOff } from "lucide-react";
+import { Monitor, RefreshCcw } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
 import {
   findTimekeepingStarter,
-  formatTimekeepingClock,
   formatTimekeepingDuration,
   normalizeTimekeepingStartNumber,
   type PersistedTimekeepingState,
@@ -20,7 +18,6 @@ import {
   timekeepingMonitorConfigStorageKey,
   timekeepingStorageKey,
 } from "@/lib/timekeeping-local";
-import { cn } from "@/lib/utils";
 
 type ResultRow = {
   id: string;
@@ -122,7 +119,6 @@ export default function RoadTimekeepingMonitorPage() {
   });
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(8);
-  const [lastSeenAt, setLastSeenAt] = useState<string | null>(null);
 
   const competitionId = competitionIdFromUrl ?? activeCompetition?.id ?? null;
 
@@ -130,7 +126,6 @@ export default function RoadTimekeepingMonitorPage() {
     const nextState = readLocalState(competitionId);
     setState(nextState);
     setMonitorConfig(readLocalMonitorConfig(competitionId));
-    setLastSeenAt(nextState ? new Date().toISOString() : null);
   }, [competitionId]);
 
   useEffect(() => {
@@ -158,7 +153,6 @@ export default function RoadTimekeepingMonitorPage() {
         const payload = event.data as { type?: string; competitionId?: string; state?: PersistedTimekeepingState };
         if (payload.type !== "timekeeping-state" || payload.competitionId !== competitionId || !payload.state) return;
         setState(payload.state);
-        setLastSeenAt(new Date().toISOString());
       };
     }
 
@@ -170,8 +164,8 @@ export default function RoadTimekeepingMonitorPage() {
 
   useEffect(() => {
     const updatePageSize = () => {
-      const availableRows = Math.floor((window.innerHeight - 250) / 74);
-      setPageSize(Math.max(5, Math.min(12, availableRows)));
+      const availableRows = Math.floor((window.innerHeight - 150) / 74);
+      setPageSize(Math.max(6, Math.min(14, availableRows)));
     };
 
     updatePageSize();
@@ -273,31 +267,6 @@ export default function RoadTimekeepingMonitorPage() {
     return rankMap;
   }, [classProgress]);
 
-  const latestRows = useMemo(
-    () => rows.slice().sort((left, right) => new Date(right.event.recordedAt).getTime() - new Date(left.event.recordedAt).getTime()).slice(0, 5),
-    [rows],
-  );
-  const activeBlockSummaries = useMemo(() => {
-    return roadSessions.map((session) => {
-      const starters = (roadSnapshot?.starters ?? []).filter((starter) => session.classificationCodes.includes(starter.classificationCode));
-      const finishedStartNumbers = new Set(
-        session.events
-          .filter((event) => event.eventType === "FINISH")
-          .map((event) => normalizeTimekeepingStartNumber(event.startNumber))
-          .filter(Boolean),
-      );
-      const finished = starters.filter((starter) => finishedStartNumbers.has(normalizeTimekeepingStartNumber(starter.startNumber))).length;
-      return {
-        id: session.id,
-        name: session.startBlockName,
-        running: Boolean(session.manualStartedAt && !session.manualStoppedAt),
-        finished,
-        total: starters.length,
-        onCourse: Math.max(0, starters.length - finished),
-      };
-    });
-  }, [roadSessions, roadSnapshot?.starters]);
-
   useEffect(() => {
     if (totalPages <= 1) return;
     const interval = window.setInterval(() => {
@@ -305,9 +274,6 @@ export default function RoadTimekeepingMonitorPage() {
     }, monitorConfig.rotationSeconds * 1000);
     return () => window.clearInterval(interval);
   }, [monitorConfig.rotationSeconds, totalPages]);
-
-  const activeSessionCount = roadSessions.filter((session) => session.manualStartedAt && !session.manualStoppedAt).length;
-  const hasLocalOpenItems = rows.some((row) => row.event.syncStatus !== "synced");
 
   if (status === "loading" || permissionsLoading || competitionLoading) {
     return (
@@ -332,84 +298,14 @@ export default function RoadTimekeepingMonitorPage() {
 
   return (
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-zinc-950 text-zinc-50">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 px-5 py-2.5">
+      <header className="flex items-center border-b border-white/15 px-5 py-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <Monitor className="size-7 text-cyan-300" />
             <h1 className="text-2xl font-semibold tracking-normal">Rad Einzelzeitfahren</h1>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
-          <span className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 py-2">
-            <Clock3 className="size-4" />
-            {activeSessionCount > 0 ? `${activeSessionCount} Uhr(en) laufen` : "keine aktive Uhr"}
-          </span>
-          <span className={cn(
-            "inline-flex items-center gap-2 rounded-md border px-3 py-2",
-            hasLocalOpenItems ? "border-amber-300/60 bg-amber-400/15 text-amber-100" : "border-emerald-300/60 bg-emerald-400/15 text-emerald-100",
-          )}>
-            {hasLocalOpenItems ? <WifiOff className="size-4" /> : <Wifi className="size-4" />}
-            {hasLocalOpenItems ? "lokale Zeiten" : "sync"}
-          </span>
-          <Button variant="secondary" size="sm" className="gap-2" onClick={refreshLocalState}>
-            <RefreshCcw className="size-4" />
-            Aktualisieren
-          </Button>
-        </div>
       </header>
-
-      <section className="grid gap-2 border-b border-white/10 px-5 py-2.5 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {activeBlockSummaries.map((block) => (
-            <div key={block.id} className={cn(
-              "rounded-md border px-3 py-2",
-              block.running ? "border-cyan-300/70 bg-cyan-400/15" : "border-white/15 bg-white/10",
-            )}>
-              <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-xl font-semibold">{block.name}</p>
-                <span className={cn(
-                  "rounded-md px-2 py-0.5 text-xs font-semibold",
-                  block.running ? "bg-cyan-200 text-zinc-950" : "bg-white/10 text-zinc-200",
-                )}>
-                  {block.running ? "läuft" : "bereit"}
-                </span>
-              </div>
-              <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-3xl font-semibold tabular-nums text-emerald-200">{block.finished}</p>
-                  <p className="text-xs uppercase text-zinc-400">Ziel</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-semibold tabular-nums text-amber-200">{block.onCourse}</p>
-                  <p className="text-xs uppercase text-zinc-400">Strecke</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-semibold tabular-nums text-zinc-100">{block.total}</p>
-                  <p className="text-xs uppercase text-zinc-400">Starter</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-md border border-white/15 bg-white/10 px-3 py-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-lg font-semibold">Letzte Zieleinläufer</p>
-            <p className="text-sm text-zinc-400">Update {lastSeenAt ? formatTimekeepingClock(lastSeenAt) : "-"}</p>
-          </div>
-          <div className="mt-1.5 grid gap-1">
-            {latestRows.length === 0 ? (
-              <p className="text-lg text-zinc-400">Noch keine Zieleinläufer.</p>
-            ) : latestRows.map((row) => (
-              <div key={row.id} className="grid grid-cols-[4rem_minmax(0,1fr)_7.5rem] items-center gap-3 rounded-md bg-zinc-900/75 px-3 py-1.5">
-                <span className="font-mono text-xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</span>
-                <span className="truncate text-lg">{row.starter ? `${row.starter.firstName} ${row.starter.lastName}` : "Ohne Zuordnung"}</span>
-                <span className="text-right font-mono text-xl font-semibold tabular-nums text-emerald-200">{formatTimekeepingDuration(row.event.netElapsedMs)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       <section className="min-h-0 flex-1 overflow-hidden px-5 py-2.5">
         {!state || !roadSnapshot ? (
@@ -422,16 +318,15 @@ export default function RoadTimekeepingMonitorPage() {
           </div>
         ) : (
           <div className="h-full overflow-hidden rounded-md border border-white/15 bg-zinc-950">
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 bg-zinc-900 px-5 py-2.5">
-              <div>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-5 border-b border-white/10 bg-zinc-900 px-5 py-2.5">
+              <div className="flex min-w-0 items-baseline gap-5">
                 <p className="text-4xl font-semibold tracking-normal">{activeClass.label}</p>
-                <p className="text-base text-zinc-300">
-                  {activeClass.finished}/{activeClass.total} im Ziel · {Math.max(0, activeClass.total - activeClass.finished)} offen
+                <p className="text-3xl font-semibold tabular-nums text-emerald-200">
+                  {activeClass.finished}/{activeClass.total} im Ziel
                 </p>
               </div>
-              <div className="text-right text-zinc-300">
-                <p className="text-lg">Klasse {configuredClassificationCodes.indexOf(activeClass.code) + 1}/{configuredClassificationCodes.length}</p>
-                <p className="text-sm">
+              <div className="text-right text-2xl font-semibold tabular-nums text-zinc-200">
+                <p>
                   Seite {(activePage?.pageInClass ?? 0) + 1}/{activePage?.pagesInClass ?? 1} · Wechsel {monitorConfig.rotationSeconds}s
                 </p>
               </div>
