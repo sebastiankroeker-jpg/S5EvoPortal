@@ -159,7 +159,7 @@ function StartNumberCell({ startNumber, showHash = true }: { startNumber?: strin
 
 function StickyTabLabel({ children }: { children: string }) {
   return (
-    <span className="pointer-events-none inline-flex shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
+    <span className="pointer-events-none inline-flex shrink-0 items-center justify-center px-1 text-xs font-semibold text-primary sm:text-sm">
       {children}
     </span>
   );
@@ -915,7 +915,7 @@ function OverallResultsTables({
         >
           <Card className="gap-0 overflow-visible py-0">
             <CardContent className="p-2 sm:p-3">
-              <div className="overflow-visible">
+              <div className="overflow-x-auto overflow-y-clip">
                 <table className="w-full min-w-[680px] table-fixed text-sm">
                   <colgroup>
                     <col className="w-14" />

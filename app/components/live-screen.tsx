@@ -89,7 +89,7 @@ function formatStartNumber(startNumber?: string | null, showHash = true) {
 
 function StickyTabLabel({ children }: { children: string }) {
   return (
-    <span className="pointer-events-none inline-flex shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
+    <span className="pointer-events-none inline-flex shrink-0 items-center justify-center px-1 text-xs font-semibold text-primary sm:text-sm">
       {children}
     </span>
   );
