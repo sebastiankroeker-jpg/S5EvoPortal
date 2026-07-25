@@ -981,7 +981,7 @@ function OverallResultTable({
             onScroll={() => syncHorizontalScroll("header")}
           >
             <div className="relative min-w-[600px] px-2 py-1.5 text-xs text-muted-foreground sm:px-3" style={{ display: "grid", gridTemplateColumns: overallResultColumns }}>
-              <div className="col-span-3 mb-1 flex min-w-0 items-center gap-2 pr-2 text-sm font-semibold text-foreground">
+              <div className="col-span-3 row-start-1 mb-1 flex min-w-0 items-center gap-2 pr-2 text-sm font-semibold text-foreground">
                 <span className="truncate">{resultClassLabel(classResult)}</span>
                 <Badge variant="secondary" className="shrink-0 text-xs">
                   {classResult.teamScores.length} Teams
@@ -990,15 +990,15 @@ function OverallResultTable({
               <div className="pointer-events-none absolute inset-x-0 top-1.5 flex justify-center">
                 <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
               </div>
-              <span>Platz</span>
-              <span>STRNR</span>
-              <span>Team</span>
+              <span className="col-start-1 row-start-2">Platz</span>
+              <span className="col-start-2 row-start-2">STRNR</span>
+              <span className="col-start-3 row-start-2">Team</span>
               {DISCIPLINE_CODES.map((discipline) => (
-                <span key={discipline} className="relative h-11 px-0.5">
+                <span key={discipline} className="relative row-start-2 h-11 px-0.5">
                   <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
                 </span>
               ))}
-              <span className="relative h-11 px-0.5 font-bold">
+              <span className="relative row-start-2 h-11 px-0.5 font-bold">
                 <VerticalHeader>Gesamt</VerticalHeader>
               </span>
             </div>
