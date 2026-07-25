@@ -801,6 +801,7 @@ export default function ResultsView({
           watchlistTeamIdSet={watchlistTeamIdSet}
           focusedResultElementId={focusedResultElementId}
           onFocusTeam={onFocusTeam}
+          onFocusOverallTeam={focusOverallTeam}
         />
       )}
       <div className="print-only live-print-sheet">
@@ -914,7 +915,7 @@ function OverallResultsTables({
         >
           <Card className="gap-0 overflow-visible py-0">
             <CardContent className="p-2 sm:p-3">
-              <div className="overflow-x-auto overflow-y-visible">
+              <div className="overflow-visible">
                 <table className="w-full min-w-[680px] table-fixed text-sm">
                   <colgroup>
                     <col className="w-14" />
@@ -929,7 +930,7 @@ function OverallResultsTables({
                     <tr className="border-b text-xs text-muted-foreground">
                       <th colSpan={3} className="relative px-0 py-1.5 pr-3 text-left align-bottom">
                         <div className="flex min-h-12 flex-col justify-end">
-                          <div className="mb-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                          <div className="mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
                               <span className="truncate">{resultClassLabel(classResult)}</span>
                               <Badge variant="secondary" className="shrink-0 text-xs">
@@ -937,7 +938,6 @@ function OverallResultsTables({
                               </Badge>
                             </div>
                             <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
-                            <span aria-hidden="true" />
                           </div>
                           <div className="grid grid-cols-[3.5rem_4rem_minmax(0,1fr)] items-end gap-0">
                             <span>Platz</span>
@@ -1065,12 +1065,14 @@ function DisciplineResultsTables({
   watchlistTeamIdSet,
   focusedResultElementId,
   onFocusTeam,
+  onFocusOverallTeam,
 }: {
   results: ClassResult[];
   selectedDiscipline: DisciplineFilter;
   watchlistTeamIdSet: Set<string>;
   focusedResultElementId: string | null;
   onFocusTeam?: (teamId: string) => void;
+  onFocusOverallTeam: (request: ResultsFocusRequest) => boolean;
 }) {
   const visibleDisciplines = selectedDiscipline === "all" ? DISCIPLINE_CODES : [selectedDiscipline];
 
@@ -1090,7 +1092,7 @@ function DisciplineResultsTables({
           >
             <Card className="gap-0 overflow-visible py-0">
               <CardHeader className="sticky top-11 z-40 border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur">
-                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
                     <span className="truncate">{disciplineLabel} - {resultClassLabel(classResult)}</span>
@@ -1100,6 +1102,13 @@ function DisciplineResultsTables({
                     {entries.length} Starter:innen
                   </Badge>
                 </CardTitle>
+                <div className="grid grid-cols-[3rem_4.5rem_minmax(7rem,1fr)_minmax(7rem,1fr)_5.5rem] gap-1.5 border-t border-border/40 pt-1.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+                  <span>Platz</span>
+                  <span>STRNR</span>
+                  <span>Name</span>
+                  <span>Mannschaft</span>
+                  <span className="text-right">Wert</span>
+                </div>
               </CardHeader>
               <CardContent className="p-2 pt-0 sm:p-3 sm:pt-0">
                 {entries.length === 0 ? (
@@ -1109,15 +1118,6 @@ function DisciplineResultsTables({
                 ) : (
                   <div className="overflow-x-auto overflow-y-visible">
                     <table className="w-full min-w-[560px] table-fixed text-sm">
-                      <thead className="sticky top-[5.5rem] z-30 bg-card/95 backdrop-blur">
-                        <tr className="border-b text-xs text-muted-foreground">
-                          <th className="w-12 py-2 pr-2 text-left">Platz</th>
-                          <th className="w-16 px-2 py-2 text-left">STRNR</th>
-                          <th className="w-[32%] px-2 py-2 text-left">Name</th>
-                          <th className="px-2 py-2 text-left">Mannschaft</th>
-                          <th className="w-32 py-2 pl-2 text-right">Wert</th>
-                        </tr>
-                      </thead>
                       <tbody>
                         {entries.map((entry, index) => {
                           const watched = watchlistTeamIdSet.has(entry.teamId);
@@ -1140,7 +1140,21 @@ function DisciplineResultsTables({
                               }`}
                             >
                               <td className="py-2 pr-2 font-semibold tabular-nums">
-                                {entry.rank}
+                                <button
+                                  type="button"
+                                  className="text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
+                                  title={`${entry.teamName} in Gesamtergebnissen fokussieren`}
+                                  onClick={() => {
+                                    onFocusOverallTeam({
+                                      id: Date.now(),
+                                      teamId: entry.teamId,
+                                      classCode: classResult.classCode,
+                                      view: "overall",
+                                    });
+                                  }}
+                                >
+                                  {entry.rank}
+                                </button>
                               </td>
                               <td className="px-2 py-2">
                                 <span className="inline-flex min-w-0 items-center gap-1.5">

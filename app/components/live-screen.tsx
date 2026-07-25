@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { CLASSIFICATIONS, compareClassificationCodes } from "@/lib/domain/classification";
 import { readTeamWatchlist, writeTeamWatchlist } from "@/lib/pwa-watchlist";
-import { Download, Lock, Printer, SlidersHorizontal, Star, XCircle } from "lucide-react";
+import { ArrowUp, Download, Lock, Printer, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { DisciplineBrandIcon } from "./discipline-brand";
 import ResultsView, { type ResultsFocusRequest } from "./results-view";
 import ParticipantPublicationPreferenceIcon from "./participant-publication-preference-icon";
@@ -268,6 +268,7 @@ export default function LiveScreen() {
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [focusedStartParticipantElementId, setFocusedStartParticipantElementId] = useState<string | null>(null);
   const [resultFocusRequest, setResultFocusRequest] = useState<ResultsFocusRequest | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const pendingFocusElementIdRef = useRef<string | null>(null);
   const focusRequestIdRef = useRef(0);
   const { active: activeCompetition } = useCompetition();
@@ -341,6 +342,13 @@ export default function LiveScreen() {
       setActiveSegment(availableSegments[0]);
     }
   }, [activeSegment, availableSegments]);
+
+  useEffect(() => {
+    const updateVisibility = () => setShowBackToTop(window.scrollY > 360);
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateVisibility);
+  }, []);
 
   // Toggle section expansion
   const toggleSection = (key: string) => {
@@ -696,7 +704,7 @@ export default function LiveScreen() {
                 className="sticky top-11 z-40 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`teams-${category}`)}
               >
-                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                   </span>
@@ -969,7 +977,7 @@ export default function LiveScreen() {
                 className="sticky top-11 z-40 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`start-${discipline.id}`)}
               >
-                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     {isDisciplineExpanded ? "▼" : "▶"}
                     <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-6 rounded" />
@@ -1000,7 +1008,7 @@ export default function LiveScreen() {
                         return (
                           <div key={category} className="overflow-visible rounded-md border border-border/40">
                             <div
-                              className="sticky top-[5.15rem] z-30 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3"
+                              className="sticky top-[5.15rem] z-30 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3"
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
                               <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
@@ -1220,6 +1228,18 @@ export default function LiveScreen() {
           )}
         </motion.div>
       </AnimatePresence>
+      {showBackToTop && (
+        <Button
+          type="button"
+          size="icon"
+          className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-3 z-[80] h-11 w-11 rounded-full shadow-lg lg:bottom-5"
+          aria-label="Nach oben scrollen"
+          title="Nach oben"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          <ArrowUp className="size-5" />
+        </Button>
+      )}
     </div>
   );
 }
