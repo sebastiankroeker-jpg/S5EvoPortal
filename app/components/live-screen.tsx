@@ -89,7 +89,7 @@ function formatStartNumber(startNumber?: string | null, showHash = true) {
 
 function StickyTabLabel({ children }: { children: string }) {
   return (
-    <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
+    <span className="pointer-events-none inline-flex shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
       {children}
     </span>
   );
@@ -691,17 +691,17 @@ export default function LiveScreen() {
           const sortedCategoryTeams = [...categoryTeams].sort(compareByStartNumber);
 
           return (
-            <Card key={category} className="overflow-visible">
+            <Card key={category} className="gap-0 overflow-visible py-0">
               <CardHeader
-                className="sticky top-14 z-20 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50 relative"
+                className="sticky top-11 z-40 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`teams-${category}`)}
               >
-                <StickyTabLabel>Teams</StickyTabLabel>
-                <CardTitle className="flex items-center justify-between gap-2 text-base">
-                  <span className="flex items-center gap-2">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
+                  <span className="flex min-w-0 items-center gap-2">
                     {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                   </span>
-                  <Badge variant="outline">
+                  <StickyTabLabel>Teams</StickyTabLabel>
+                  <Badge variant="outline" className="justify-self-end">
                     {categoryTeams.length} Team{categoryTeams.length !== 1 ? 's' : ''}
                   </Badge>
                 </CardTitle>
@@ -715,7 +715,7 @@ export default function LiveScreen() {
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-2 p-2 sm:p-3">
                       {sortedCategoryTeams.map(team => (
                         <div
                           key={team.id}
@@ -964,19 +964,19 @@ export default function LiveScreen() {
           const isDisciplineExpanded = expandedSections[`start-${discipline.id}`];
 
           return (
-            <Card key={discipline.id} className="overflow-visible">
+            <Card key={discipline.id} className="gap-0 overflow-visible py-0">
               <CardHeader
-                className="sticky top-14 z-30 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50 relative"
+                className="sticky top-11 z-40 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`start-${discipline.id}`)}
               >
-                <StickyTabLabel>Startlisten</StickyTabLabel>
-                <CardTitle className="flex items-center justify-between gap-2 text-base">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     {isDisciplineExpanded ? "▼" : "▶"}
                     <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-6 rounded" />
                     <span className="truncate">{discipline.label}</span>
                   </span>
-                  <Badge variant="outline" className="shrink-0">
+                  <StickyTabLabel>Startlisten</StickyTabLabel>
+                  <Badge variant="outline" className="shrink-0 justify-self-end">
                     {totalParticipants} Starter:innen
                   </Badge>
                 </CardTitle>
@@ -998,16 +998,16 @@ export default function LiveScreen() {
                         const sortedParticipants = [...participants].sort(compareByStartNumber);
 
                         return (
-                          <div key={category} className="overflow-hidden rounded-md border border-border/40">
+                          <div key={category} className="overflow-visible rounded-md border border-border/40">
                             <div
-                              className="sticky top-[6.5rem] z-20 flex cursor-pointer items-center justify-between gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3 relative"
+                              className="sticky top-[5.15rem] z-30 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3"
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
-                              <StickyTabLabel>Startlisten</StickyTabLabel>
                               <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
                                 {isClassExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                               </span>
-                              <Badge variant="outline" className="shrink-0 text-xs">
+                              <StickyTabLabel>Startlisten</StickyTabLabel>
+                              <Badge variant="outline" className="shrink-0 justify-self-end text-xs">
                                 {participants.length} Starter:innen
                               </Badge>
                             </div>
@@ -1020,9 +1020,9 @@ export default function LiveScreen() {
                                   exit={{ height: 0, opacity: 0 }}
                                   transition={{ duration: 0.15 }}
                                 >
-                                  <div className="overflow-x-auto border-t border-border/40 px-1.5 pb-2 pt-1.5 sm:px-2">
+                                  <div className="overflow-x-auto overflow-y-visible border-t border-border/40 px-1.5 pb-2 pt-1.5 sm:px-2">
                                     <div className="min-w-[360px] space-y-1">
-                                      <div className="sticky top-[8.75rem] z-10 grid grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] gap-1.5 bg-card/95 px-1 py-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground backdrop-blur">
+                                      <div className="sticky top-[7.6rem] z-20 grid grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] gap-1.5 bg-card/95 px-1 py-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground backdrop-blur">
                                         <span>Nr.</span>
                                         <span>Name</span>
                                         <span>Team</span>
@@ -1150,7 +1150,7 @@ export default function LiveScreen() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {canViewTeamLists && (
         <div className="flex justify-end">
           <Button

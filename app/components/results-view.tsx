@@ -159,7 +159,7 @@ function StartNumberCell({ startNumber, showHash = true }: { startNumber?: strin
 
 function StickyTabLabel({ children }: { children: string }) {
   return (
-    <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
+    <span className="pointer-events-none inline-flex shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
       {children}
     </span>
   );
@@ -912,8 +912,8 @@ function OverallResultsTables({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18 }}
         >
-          <Card className="overflow-visible">
-            <CardContent className="pt-3">
+          <Card className="gap-0 overflow-visible py-0">
+            <CardContent className="p-2 sm:p-3">
               <div className="overflow-x-auto overflow-y-visible">
                 <table className="w-full min-w-[680px] table-fixed text-sm">
                   <colgroup>
@@ -925,16 +925,19 @@ function OverallResultsTables({
                     ))}
                     <col className="w-16" />
                   </colgroup>
-                  <thead className="sticky top-14 z-20 bg-card/95 backdrop-blur">
+                  <thead className="sticky top-11 z-40 bg-card/95 backdrop-blur">
                     <tr className="border-b text-xs text-muted-foreground">
                       <th colSpan={3} className="relative px-0 py-1.5 pr-3 text-left align-bottom">
-                        <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
-                        <div className="flex min-h-14 flex-col justify-end">
-                          <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-foreground">
-                            {resultClassLabel(classResult)}
-                            <Badge variant="secondary" className="text-xs">
-                              {classResult.teamScores.length} Teams
-                            </Badge>
+                        <div className="flex min-h-12 flex-col justify-end">
+                          <div className="mb-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
+                              <span className="truncate">{resultClassLabel(classResult)}</span>
+                              <Badge variant="secondary" className="shrink-0 text-xs">
+                                {classResult.teamScores.length} Teams
+                              </Badge>
+                            </div>
+                            <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
+                            <span aria-hidden="true" />
                           </div>
                           <div className="grid grid-cols-[3.5rem_4rem_minmax(0,1fr)] items-end gap-0">
                             <span>Platz</span>
@@ -944,11 +947,11 @@ function OverallResultsTables({
                         </div>
                       </th>
                       {DISCIPLINE_CODES.map((discipline) => (
-                        <th key={discipline} className="relative h-14 px-0.5 py-1.5 text-left align-bottom">
+                        <th key={discipline} className="relative h-12 px-0.5 py-1.5 text-left align-bottom">
                           <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
                         </th>
                       ))}
-                      <th className="relative h-14 py-1.5 pl-1 pr-3 text-left align-bottom font-bold">
+                      <th className="relative h-12 py-1.5 pl-1 pr-3 text-left align-bottom font-bold">
                         <VerticalHeader>Gesamt</VerticalHeader>
                       </th>
                     </tr>
@@ -1085,26 +1088,28 @@ function DisciplineResultsTables({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18 }}
           >
-            <Card className="overflow-visible">
-              <CardHeader className="sticky top-14 z-20 border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur relative">
-                <StickyTabLabel>Einzelergebnisse</StickyTabLabel>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
-                  {disciplineLabel} - {resultClassLabel(classResult)}
-                  <Badge variant="secondary" className="text-xs">
+            <Card className="gap-0 overflow-visible py-0">
+              <CardHeader className="sticky top-11 z-40 border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
+                    <span className="truncate">{disciplineLabel} - {resultClassLabel(classResult)}</span>
+                  </span>
+                  <StickyTabLabel>Einzelergebnisse</StickyTabLabel>
+                  <Badge variant="secondary" className="justify-self-end text-xs">
                     {entries.length} Starter:innen
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-0">
+              <CardContent className="p-2 pt-0 sm:p-3 sm:pt-0">
                 {entries.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
                     Keine Einzelergebnisse für diese Auswahl.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto overflow-y-visible">
                     <table className="w-full min-w-[560px] table-fixed text-sm">
-                      <thead className="sticky top-[6.75rem] z-10 bg-card/95 backdrop-blur">
+                      <thead className="sticky top-[5.5rem] z-30 bg-card/95 backdrop-blur">
                         <tr className="border-b text-xs text-muted-foreground">
                           <th className="w-12 py-2 pr-2 text-left">Platz</th>
                           <th className="w-16 px-2 py-2 text-left">STRNR</th>
