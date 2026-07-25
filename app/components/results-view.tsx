@@ -60,7 +60,7 @@ interface ClassResult {
 }
 
 interface ResultsData {
-  competition: { id: string; name: string; year: number; status: string };
+  competition: { id: string; name: string; year: number; status: string; liveResultsDisciplines?: DisciplineCode[] };
   results: ClassResult[];
   totalTeams: number;
   totalClasses: number;
@@ -96,6 +96,7 @@ interface ResultsTeamSearchContext {
 }
 
 const DISCIPLINE_CODES: DisciplineCode[] = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"];
+const DEFAULT_LIVE_RESULT_DISCIPLINES: DisciplineCode[] = ["RUN", "BENCH", "STOCK"];
 
 const DISC_LABELS: Record<DisciplineCode, string> = {
   RUN: "Laufen",
@@ -196,6 +197,12 @@ function getDisciplineLabel(disciplineCode: DisciplineCode) {
 
 function getOverallDisciplineHeader(disciplineCode: DisciplineCode) {
   return disciplineCode === "BENCH" ? "Bank" : getDisciplineLabel(disciplineCode);
+}
+
+function normalizeVisibleDisciplines(value: unknown): DisciplineCode[] {
+  if (!Array.isArray(value)) return DEFAULT_LIVE_RESULT_DISCIPLINES;
+  const selected = value.filter((item): item is DisciplineCode => DISCIPLINE_CODES.includes(item as DisciplineCode));
+  return selected.length > 0 ? [...new Set(selected)] : [];
 }
 
 function getResultEntryElementId(input: {
@@ -392,6 +399,15 @@ export default function ResultsView({
     [teamSearchContext],
   );
   const canSearchTeamManagers = activeRole === "ADMIN";
+  const activeDisciplineCodes = useMemo(
+    () => normalizeVisibleDisciplines(data?.competition.liveResultsDisciplines),
+    [data?.competition.liveResultsDisciplines],
+  );
+  useEffect(() => {
+    if (selectedDiscipline !== "all" && !activeDisciplineCodes.includes(selectedDiscipline)) {
+      setSelectedDiscipline("all");
+    }
+  }, [activeDisciplineCodes, selectedDiscipline]);
   const availableResults = useMemo(
     () => [...(data?.results ?? [])].sort((left, right) => compareResultClassCodes(left.classCode, right.classCode)),
     [data?.results],
@@ -406,8 +422,8 @@ export default function ResultsView({
         teamSearchContext: teamSearchContextById,
         includeManager: canSearchTeamManagers,
       }))
-      .filter((result) => result.teamScores.length > 0 || DISCIPLINE_CODES.some((discipline) => result.disciplineRankings[discipline].length > 0)),
-    [availableResults, canSearchTeamManagers, favoritesOnly, searchQuery, selectedClassFilters, teamSearchContextById, watchlistTeamIdSet],
+      .filter((result) => result.teamScores.length > 0 || activeDisciplineCodes.some((discipline) => result.disciplineRankings[discipline].length > 0)),
+    [activeDisciplineCodes, availableResults, canSearchTeamManagers, favoritesOnly, searchQuery, selectedClassFilters, teamSearchContextById, watchlistTeamIdSet],
   );
   const favoriteCountByClass = useMemo(() => {
     return Object.fromEntries(
@@ -757,7 +773,7 @@ export default function ResultsView({
                   >
                     Alle Disziplinen
                   </Button>
-                  {DISCIPLINE_CODES.map((discipline) => (
+                  {activeDisciplineCodes.map((discipline) => (
                     <Button
                       key={discipline}
                       type="button"
@@ -789,6 +805,7 @@ export default function ResultsView({
       ) : activeTab === "overall" ? (
         <OverallResultsTables
           results={selectedResults}
+          visibleDisciplines={activeDisciplineCodes}
           watchlistTeamIdSet={watchlistTeamIdSet}
           focusedResultElementId={focusedResultElementId}
           onFocusTeam={onFocusTeam}
@@ -797,6 +814,7 @@ export default function ResultsView({
       ) : (
         <DisciplineResultsTables
           results={selectedResults}
+          visibleDisciplines={activeDisciplineCodes}
           selectedDiscipline={selectedDiscipline}
           watchlistTeamIdSet={watchlistTeamIdSet}
           focusedResultElementId={focusedResultElementId}
@@ -827,7 +845,7 @@ export default function ResultsView({
                     <th>Platz</th>
                     <th>Strnr</th>
                     <th>Mannschaft</th>
-                    {DISCIPLINE_CODES.map((discipline) => (
+                    {activeDisciplineCodes.map((discipline) => (
                       <th key={discipline}>{getOverallDisciplineHeader(discipline)}</th>
                     ))}
                     <th>Gesamt</th>
@@ -839,7 +857,7 @@ export default function ResultsView({
                       <td>{team.hasAnyResult === false ? "" : team.rank}</td>
                       <td>{team.startNumber || ""}</td>
                       <td>{team.teamName}</td>
-                      {DISCIPLINE_CODES.map((discipline) => (
+                      {activeDisciplineCodes.map((discipline) => (
                         <td key={discipline}>{team.hasAnyResult === false ? "" : team.disciplinePoints[discipline]}</td>
                       ))}
                       <td>{team.hasAnyResult === false ? "" : team.totalPoints}</td>
@@ -851,7 +869,7 @@ export default function ResultsView({
           ))
         ) : (
           selectedResults.flatMap((classResult) => {
-            const visibleDisciplines = selectedDiscipline === "all" ? DISCIPLINE_CODES : [selectedDiscipline];
+            const visibleDisciplines = selectedDiscipline === "all" ? activeDisciplineCodes : [selectedDiscipline];
             return visibleDisciplines.map((discipline) => {
               const entries = classResult.disciplineRankings[discipline] ?? [];
               if (entries.length === 0) return null;
@@ -893,12 +911,14 @@ export default function ResultsView({
 
 function OverallResultsTables({
   results,
+  visibleDisciplines,
   watchlistTeamIdSet,
   focusedResultElementId,
   onFocusTeam,
   onFocusResultEntry,
 }: {
   results: ClassResult[];
+  visibleDisciplines: DisciplineCode[];
   watchlistTeamIdSet: Set<string>;
   focusedResultElementId: string | null;
   onFocusTeam?: (teamId: string) => void;
@@ -910,6 +930,7 @@ function OverallResultsTables({
         <OverallResultTable
           key={classResult.classCode}
           classResult={classResult}
+          visibleDisciplines={visibleDisciplines}
           watchlistTeamIdSet={watchlistTeamIdSet}
           focusedResultElementId={focusedResultElementId}
           onFocusTeam={onFocusTeam}
@@ -920,16 +941,18 @@ function OverallResultsTables({
   );
 }
 
-const overallResultColumns = "2.75rem 3.25rem minmax(11rem,1fr) repeat(5,2.65rem) 3rem";
+function getOverallResultColumns(visibleDisciplines: DisciplineCode[]) {
+  return `2.75rem 3.25rem minmax(11rem,1fr) repeat(${visibleDisciplines.length},2.65rem) 3rem`;
+}
 const disciplineResultColumns = "2.5rem 3.25rem minmax(8rem,1.08fr) minmax(8rem,1fr) 5rem";
 
-function OverallResultColGroup() {
+function OverallResultColGroup({ visibleDisciplines }: { visibleDisciplines: DisciplineCode[] }) {
   return (
     <colgroup>
       <col style={{ width: "2.75rem" }} />
       <col style={{ width: "3.25rem" }} />
       <col />
-      {DISCIPLINE_CODES.map((discipline) => (
+      {visibleDisciplines.map((discipline) => (
         <col key={discipline} style={{ width: "2.65rem" }} />
       ))}
       <col style={{ width: "3rem" }} />
@@ -939,12 +962,14 @@ function OverallResultColGroup() {
 
 function OverallResultTable({
   classResult,
+  visibleDisciplines,
   watchlistTeamIdSet,
   focusedResultElementId,
   onFocusTeam,
   onFocusResultEntry,
 }: {
   classResult: ClassResult;
+  visibleDisciplines: DisciplineCode[];
   watchlistTeamIdSet: Set<string>;
   focusedResultElementId: string | null;
   onFocusTeam?: (teamId: string) => void;
@@ -980,7 +1005,7 @@ function OverallResultTable({
             className="overflow-x-auto overflow-y-hidden"
             onScroll={() => syncHorizontalScroll("header")}
           >
-            <div className="relative min-w-[600px] px-2 py-1.5 text-xs text-muted-foreground sm:px-3" style={{ display: "grid", gridTemplateColumns: overallResultColumns }}>
+            <div className="relative min-w-[600px] px-2 py-1.5 text-xs text-muted-foreground sm:px-3" style={{ display: "grid", gridTemplateColumns: getOverallResultColumns(visibleDisciplines) }}>
               <div className="col-span-3 row-start-1 mb-1 flex min-w-0 items-center gap-2 pr-2 text-sm font-semibold text-foreground">
                 <span className="truncate">{resultClassLabel(classResult)}</span>
                 <Badge variant="secondary" className="shrink-0 text-xs">
@@ -993,7 +1018,7 @@ function OverallResultTable({
               <span className="col-start-1 row-start-2">Platz</span>
               <span className="col-start-2 row-start-2">STRNR</span>
               <span className="col-start-3 row-start-2">Team</span>
-              {DISCIPLINE_CODES.map((discipline) => (
+              {visibleDisciplines.map((discipline) => (
                 <span key={discipline} className="relative row-start-2 h-11 px-0.5">
                   <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
                 </span>
@@ -1011,11 +1036,11 @@ function OverallResultTable({
             onScroll={() => syncHorizontalScroll("body")}
           >
             <table className="w-full min-w-[600px] table-fixed text-sm">
-              <OverallResultColGroup />
+              <OverallResultColGroup visibleDisciplines={visibleDisciplines} />
               <tbody>
                 {classResult.teamScores.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
+                    <td colSpan={visibleDisciplines.length + 4} className="py-6 text-center text-sm text-muted-foreground">
                       Noch keine Gesamtergebnisse für diese Klasse.
                     </td>
                   </tr>
@@ -1058,7 +1083,7 @@ function OverallResultTable({
                           <span className="min-w-0 whitespace-normal break-words">{team.teamName}</span>
                         )}
                       </td>
-                      {DISCIPLINE_CODES.map((discipline) => {
+                      {visibleDisciplines.map((discipline) => {
                         const entry = (classResult.disciplineRankings[discipline] ?? []).find((candidate) => candidate.teamId === team.teamId);
                         const resultElementId = entry
                           ? getResultEntryElementId({
@@ -1115,6 +1140,7 @@ function OverallResultTable({
 
 function DisciplineResultsTables({
   results,
+  visibleDisciplines,
   selectedDiscipline,
   watchlistTeamIdSet,
   focusedResultElementId,
@@ -1122,18 +1148,19 @@ function DisciplineResultsTables({
   onFocusOverallTeam,
 }: {
   results: ClassResult[];
+  visibleDisciplines: DisciplineCode[];
   selectedDiscipline: DisciplineFilter;
   watchlistTeamIdSet: Set<string>;
   focusedResultElementId: string | null;
   onFocusTeam?: (teamId: string) => void;
   onFocusOverallTeam: (request: ResultsFocusRequest) => boolean;
 }) {
-  const visibleDisciplines = selectedDiscipline === "all" ? DISCIPLINE_CODES : [selectedDiscipline];
+  const selectedDisciplines = selectedDiscipline === "all" ? visibleDisciplines : [selectedDiscipline];
 
   return (
     <div className="space-y-4">
       {results.flatMap((classResult) =>
-        visibleDisciplines.map((discipline) => {
+        selectedDisciplines.map((discipline) => {
           const entries = classResult.disciplineRankings[discipline] ?? [];
           const disciplineLabel = getDisciplineLabel(discipline);
 

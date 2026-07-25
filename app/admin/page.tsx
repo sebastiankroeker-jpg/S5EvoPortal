@@ -50,6 +50,7 @@ type CompetitionConfig = {
   liveTeamsVisibility: LivePublicationVisibility;
   liveStartlistsVisibility: LivePublicationVisibility;
   liveResultsVisibility: LivePublicationVisibility;
+  liveResultsDisciplines: ResultDisciplineCode[];
   marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
   registrationNotificationEmail: string;
   shirtOrderDeadline: string;
@@ -66,12 +67,30 @@ type CompetitionConfig = {
 };
 
 type LivePublicationVisibility = "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
+type ResultDisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
 
 const LIVE_PUBLICATION_OPTIONS: Array<{ value: LivePublicationVisibility; label: string; description: string }> = [
   { value: "ADMINS", label: "Nur Admins", description: "Nicht öffentlich sichtbar." },
   { value: "PORTAL_USERS", label: "Portal-User", description: "Sichtbar nach Portal-Login." },
   { value: "SPECTATORS", label: "Spectators", description: "Öffentlich ohne Portal-Account." },
 ];
+
+const LIVE_RESULT_DISCIPLINE_OPTIONS: Array<{ value: ResultDisciplineCode; label: string }> = [
+  { value: "RUN", label: "Lauf" },
+  { value: "BENCH", label: "Bank" },
+  { value: "STOCK", label: "Stock" },
+  { value: "ROAD", label: "Rennrad" },
+  { value: "MTB", label: "MTB" },
+];
+
+const DEFAULT_LIVE_RESULT_DISCIPLINES: ResultDisciplineCode[] = ["RUN", "BENCH", "STOCK"];
+
+function normalizeLiveResultDisciplineSelection(value: unknown): ResultDisciplineCode[] {
+  if (!Array.isArray(value)) return DEFAULT_LIVE_RESULT_DISCIPLINES;
+  return [...new Set(value.filter((item): item is ResultDisciplineCode =>
+    LIVE_RESULT_DISCIPLINE_OPTIONS.some((option) => option.value === item),
+  ))];
+}
 
 type ResetCounts = {
   teamsTotal: number;
@@ -374,6 +393,7 @@ export default function AdminPage() {
     liveTeamsVisibility: "ADMINS",
     liveStartlistsVisibility: "ADMINS",
     liveResultsVisibility: "ADMINS",
+    liveResultsDisciplines: DEFAULT_LIVE_RESULT_DISCIPLINES,
     marketplaceGlobalVisibility: "SELECTIVE",
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
@@ -455,6 +475,7 @@ export default function AdminPage() {
           liveTeamsVisibility: (comp.liveTeamsVisibility || "ADMINS") as LivePublicationVisibility,
           liveStartlistsVisibility: (comp.liveStartlistsVisibility || "ADMINS") as LivePublicationVisibility,
           liveResultsVisibility: (comp.liveResultsVisibility || "ADMINS") as LivePublicationVisibility,
+          liveResultsDisciplines: normalizeLiveResultDisciplineSelection(comp.liveResultsDisciplines),
           marketplaceGlobalVisibility: comp.marketplaceGlobalVisibility === "OFFLINE" ? "OFFLINE" : "SELECTIVE",
           registrationNotificationEmail: comp.registrationNotificationEmail || "",
           shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
@@ -1445,6 +1466,42 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </FormField>
+                    </div>
+                    <div className="mt-4 rounded-md border border-border/70 bg-background/70 p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Live-Ergebnis-Disziplinen</p>
+                          <p className="text-xs text-muted-foreground">Ausgeschaltete Disziplinen fehlen auch in der Gesamtwertung.</p>
+                        </div>
+                        <Badge variant="secondary">{competition.liveResultsDisciplines.length}/5 online</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {LIVE_RESULT_DISCIPLINE_OPTIONS.map((option) => {
+                          const checked = competition.liveResultsDisciplines.includes(option.value);
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => {
+                                setCompetition({
+                                  ...competition,
+                                  liveResultsDisciplines: checked
+                                    ? competition.liveResultsDisciplines.filter((discipline) => discipline !== option.value)
+                                    : [...competition.liveResultsDisciplines, option.value],
+                                });
+                              }}
+                              className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                                checked
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+                              }`}
+                              aria-pressed={checked}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

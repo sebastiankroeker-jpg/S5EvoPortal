@@ -6,6 +6,7 @@ import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
 import { getTenantRoleFlagsForUserId, requireTenantRoles } from '@/lib/server-permissions';
 import { normalizeCompetitionTeamAccessConfig } from '@/lib/team-access-config';
 import { normalizeMarketplaceGlobalVisibility } from '@/lib/marketplace-visibility';
+import { normalizeLiveResultDisciplines } from '@/lib/live-results-disciplines';
 
 function normalizeNotificationEmails(value: unknown) {
   if (typeof value !== 'string') {
@@ -147,6 +148,7 @@ export async function PUT(request: NextRequest) {
     const liveTeamsVisibility = normalizeLivePublicationVisibility(body.liveTeamsVisibility);
     const liveStartlistsVisibility = normalizeLivePublicationVisibility(body.liveStartlistsVisibility);
     const liveResultsVisibility = normalizeLivePublicationVisibility(body.liveResultsVisibility);
+    const liveResultsDisciplines = normalizeLiveResultDisciplines(body.liveResultsDisciplines);
 
     try {
       // Load specific competition by id, or fall back to latest
@@ -179,6 +181,7 @@ export async function PUT(request: NextRequest) {
             liveTeamsVisibility,
             liveStartlistsVisibility,
             liveResultsVisibility,
+            liveResultsDisciplines,
             marketplaceGlobalVisibility,
             registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
             shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
@@ -228,6 +231,9 @@ export async function PUT(request: NextRequest) {
             liveResultsVisibility: body.liveResultsVisibility !== undefined
               ? liveResultsVisibility
               : competition.liveResultsVisibility,
+            liveResultsDisciplines: body.liveResultsDisciplines !== undefined
+              ? liveResultsDisciplines
+              : undefined,
             marketplaceGlobalVisibility: body.marketplaceGlobalVisibility !== undefined
               ? marketplaceGlobalVisibility
               : competition.marketplaceGlobalVisibility,

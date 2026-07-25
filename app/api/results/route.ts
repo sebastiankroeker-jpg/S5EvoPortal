@@ -17,6 +17,7 @@ import {
   type TeamScore,
 } from "@/lib/domain/scoring";
 import { compareClassificationCodes } from "@/lib/domain/classification";
+import { normalizeLiveResultDisciplines } from "@/lib/live-results-disciplines";
 
 type ResultSnapshot = Record<string, unknown> | null;
 
@@ -115,6 +116,7 @@ export async function GET(request: NextRequest) {
         status: true,
         tenantId: true,
         liveResultsVisibility: true,
+        liveResultsDisciplines: true,
       },
     });
 
@@ -143,6 +145,8 @@ export async function GET(request: NextRequest) {
     const canSeeLiveNames = true;
     const canSeeEmptyResultRows = Boolean(access?.isAdmin || access?.isModerator);
     const canSeeStartNumber = Boolean(access?.isAdmin);
+    const publishedDisciplines = normalizeLiveResultDisciplines(competition.liveResultsDisciplines);
+    const publishedDisciplineSet = new Set<DisciplineCode>(publishedDisciplines);
     if (includeStagingTest && !access?.isAdmin) {
       return NextResponse.json({ error: "Staging test results require admin access" }, { status: 403 });
     }
@@ -233,6 +237,7 @@ export async function GET(request: NextRequest) {
         for (const result of participant.results) {
           const discCode = result.discipline.code as DisciplineCode;
           if (!classEntries[discCode]) continue;
+          if (!publishedDisciplineSet.has(discCode)) continue;
 
           classEntries[discCode].push({
             teamId: team.id,
@@ -280,6 +285,7 @@ export async function GET(request: NextRequest) {
       for (const draft of latestByKey.values()) {
         if (!draft.teamId || !draft.participantId) continue;
         const disciplineCode = draft.disciplineCode as DisciplineCode;
+        if (!publishedDisciplineSet.has(disciplineCode)) continue;
         const classCode = teamClassCodeById.get(draft.teamId) ?? "unclassified";
         const classScoring = getClassScoring(asRecord(draft.proposedResultSnapshot));
         if (!draftRankings.has(classCode)) draftRankings.set(classCode, new Map());
@@ -327,11 +333,11 @@ export async function GET(request: NextRequest) {
       // Rank each discipline. In admin test mode, staged draft rankings override the
       // corresponding official discipline so Legacy points/places stay inspectable.
       const disciplineRankings: Record<DisciplineCode, ReturnType<typeof rankDiscipline>> = {
-        RUN: stagingRankings.RUN ?? rankDiscipline(entries.RUN, "RUN"),
-        BENCH: stagingRankings.BENCH ?? rankDiscipline(entries.BENCH, "BENCH"),
-        STOCK: stagingRankings.STOCK ?? rankDiscipline(entries.STOCK, "STOCK"),
-        ROAD: stagingRankings.ROAD ?? rankDiscipline(entries.ROAD, "ROAD"),
-        MTB: stagingRankings.MTB ?? rankDiscipline(entries.MTB, "MTB"),
+        RUN: publishedDisciplineSet.has("RUN") ? stagingRankings.RUN ?? rankDiscipline(entries.RUN, "RUN") : [],
+        BENCH: publishedDisciplineSet.has("BENCH") ? stagingRankings.BENCH ?? rankDiscipline(entries.BENCH, "BENCH") : [],
+        STOCK: publishedDisciplineSet.has("STOCK") ? stagingRankings.STOCK ?? rankDiscipline(entries.STOCK, "STOCK") : [],
+        ROAD: publishedDisciplineSet.has("ROAD") ? stagingRankings.ROAD ?? rankDiscipline(entries.ROAD, "ROAD") : [],
+        MTB: publishedDisciplineSet.has("MTB") ? stagingRankings.MTB ?? rankDiscipline(entries.MTB, "MTB") : [],
       };
 
       // Calculate team scores
@@ -374,6 +380,7 @@ export async function GET(request: NextRequest) {
         name: competition.name,
         year: competition.year,
         status: competition.status,
+        liveResultsDisciplines: publishedDisciplines,
       },
       results,
       totalTeams: canSeeEmptyResultRows ? teams.length : visibleResultTeamIds.size,
