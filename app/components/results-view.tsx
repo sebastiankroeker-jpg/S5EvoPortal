@@ -78,8 +78,9 @@ export type ResultsFocusRequest = {
   id: number;
   teamId: string;
   participantId?: string | null;
-  discipline: DisciplineCode;
+  discipline?: DisciplineCode;
   classCode?: string | null;
+  view?: ResultTab;
 };
 
 interface ResultsTeamSearchContext {
@@ -158,7 +159,7 @@ function StartNumberCell({ startNumber, showHash = true }: { startNumber?: strin
 
 function VerticalHeader({ children }: { children: string }) {
   return (
-    <span className="inline-flex h-24 items-center justify-end text-[11px] leading-none [writing-mode:vertical-rl] rotate-180">
+    <span className="inline-flex h-20 items-center justify-end text-[11px] leading-none [writing-mode:vertical-rl] rotate-180">
       {children}
     </span>
   );
@@ -203,6 +204,13 @@ function getResultEntryElementId(input: {
     input.teamId,
     stableParticipantId || "participant",
   ].join("-");
+}
+
+function getOverallTeamElementId(input: {
+  classCode: string;
+  teamId: string;
+}) {
+  return ["live-overall", input.classCode, input.teamId].join("-");
 }
 
 function formatPrintTimestamp() {
@@ -472,6 +480,8 @@ export default function ResultsView({
   }, []);
 
   const findResultEntryTarget = useCallback((request: ResultsFocusRequest) => {
+    if (!request.discipline) return null;
+
     const candidateResults = availableResults.filter((result) =>
       !request.classCode || result.classCode === request.classCode,
     );
@@ -492,6 +502,8 @@ export default function ResultsView({
   }, [availableResults]);
 
   const focusResultEntry = useCallback((request: ResultsFocusRequest) => {
+    if (!request.discipline) return false;
+
     const target = findResultEntryTarget(request);
     if (!target) return false;
 
@@ -516,15 +528,43 @@ export default function ResultsView({
     return true;
   }, [findResultEntryTarget, focusElement, watchlistTeamIdSet]);
 
+  const focusOverallTeam = useCallback((request: ResultsFocusRequest) => {
+    const result = availableResults.find((candidate) =>
+      (!request.classCode || candidate.classCode === request.classCode) &&
+      candidate.teamScores.some((team) => team.teamId === request.teamId),
+    );
+    if (!result) return false;
+
+    const elementId = getOverallTeamElementId({
+      classCode: result.classCode,
+      teamId: request.teamId,
+    });
+
+    setActiveTab("overall");
+    setFocusedResultElementId(elementId);
+    setSearchQuery("");
+    setSelectedClassFilters((current) =>
+      current.length > 0 && !current.includes(result.classCode) ? [] : current,
+    );
+    setFavoritesOnly((current) =>
+      current && !watchlistTeamIdSet.has(request.teamId) ? false : current,
+    );
+    focusElement(elementId);
+    return true;
+  }, [availableResults, focusElement, watchlistTeamIdSet]);
+
   useEffect(() => {
     if (!focusRequest || handledExternalFocusRequestIdRef.current === focusRequest.id) return;
     if (!data) return;
 
     handledExternalFocusRequestIdRef.current = focusRequest.id;
-    if (!focusResultEntry(focusRequest)) {
+    const handled = focusRequest.view === "overall"
+      ? focusOverallTeam(focusRequest)
+      : focusResultEntry(focusRequest);
+    if (!handled) {
       onResultTargetMissing?.(focusRequest);
     }
-  }, [data, focusRequest, focusResultEntry, onResultTargetMissing]);
+  }, [data, focusOverallTeam, focusRequest, focusResultEntry, onResultTargetMissing]);
 
   useEffect(() => {
     const elementId = pendingFocusElementIdRef.current;
@@ -864,29 +904,42 @@ function OverallResultsTables({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18 }}
         >
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                {resultClassLabel(classResult)}
-                <Badge variant="secondary" className="text-xs">
-                  {classResult.teamScores.length} Teams
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
+          <Card className="overflow-visible">
+            <CardContent className="pt-3">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] table-fixed text-sm">
-                  <thead>
+                  <colgroup>
+                    <col className="w-14" />
+                    <col className="w-16" />
+                    <col />
+                    {DISCIPLINE_CODES.map((discipline) => (
+                      <col key={discipline} className="w-10" />
+                    ))}
+                    <col className="w-16" />
+                  </colgroup>
+                  <thead className="sticky top-14 z-20 bg-card/95 backdrop-blur">
                     <tr className="border-b text-xs text-muted-foreground">
-                      <th className="w-14 py-2 pr-2 text-left align-bottom">Platz</th>
-                      <th className="w-16 px-1 py-2 text-left align-bottom">STRNR</th>
-                      <th className="py-2 pr-3 text-left align-bottom">Team</th>
+                      <th colSpan={3} className="px-0 py-2 pr-3 text-left align-bottom">
+                        <div className="flex min-h-20 flex-col justify-end">
+                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+                            {resultClassLabel(classResult)}
+                            <Badge variant="secondary" className="text-xs">
+                              {classResult.teamScores.length} Teams
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-[3.5rem_4rem_minmax(0,1fr)] items-end gap-0">
+                            <span>Platz</span>
+                            <span>STRNR</span>
+                            <span>Team</span>
+                          </div>
+                        </div>
+                      </th>
                       {DISCIPLINE_CODES.map((discipline) => (
-                        <th key={discipline} className="w-10 px-0.5 py-2 text-center align-bottom">
+                        <th key={discipline} className="px-0.5 py-2 text-center align-bottom">
                           <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
                         </th>
                       ))}
-                      <th className="w-16 py-2 pl-1 pr-3 text-right align-bottom font-bold">
+                      <th className="py-2 pl-1 pr-3 text-right align-bottom font-bold">
                         <VerticalHeader>Gesamt</VerticalHeader>
                       </th>
                     </tr>
@@ -901,9 +954,21 @@ function OverallResultsTables({
                     )}
                     {classResult.teamScores.map((team) => {
                       const watched = watchlistTeamIdSet.has(team.teamId);
+                      const overallElementId = getOverallTeamElementId({
+                        classCode: classResult.classCode,
+                        teamId: team.teamId,
+                      });
+                      const isOverallFocused = focusedResultElementId === overallElementId;
 
                       return (
-                        <tr key={team.teamId} className="border-b border-border/30 transition-colors hover:bg-muted/30">
+                        <tr
+                          key={team.teamId}
+                          id={overallElementId}
+                          tabIndex={-1}
+                          className={`scroll-mt-24 border-b border-border/30 transition-colors hover:bg-muted/30 focus-visible:outline-none ${
+                            isOverallFocused ? "bg-primary/10 ring-2 ring-inset ring-primary/30" : ""
+                          }`}
+                        >
                           <td className="py-2 pr-2 font-semibold tabular-nums">{team.hasAnyResult === false ? "-" : team.rank}</td>
                           <td className="px-1 py-2">
                             <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -1011,8 +1076,8 @@ function DisciplineResultsTables({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18 }}
           >
-            <Card>
-              <CardHeader className="py-3">
+            <Card className="overflow-visible">
+              <CardHeader className="sticky top-14 z-20 border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
                   {disciplineLabel} - {resultClassLabel(classResult)}
@@ -1029,7 +1094,7 @@ function DisciplineResultsTables({
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[560px] table-fixed text-sm">
-                      <thead>
+                      <thead className="sticky top-[6.75rem] z-10 bg-card/95 backdrop-blur">
                         <tr className="border-b text-xs text-muted-foreground">
                           <th className="w-12 py-2 pr-2 text-left">Platz</th>
                           <th className="w-16 px-2 py-2 text-left">STRNR</th>

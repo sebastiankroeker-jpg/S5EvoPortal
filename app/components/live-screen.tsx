@@ -420,6 +420,20 @@ export default function LiveScreen() {
     focusElement(elementId);
   }, [focusElement, watchedTeamIdSet]);
 
+  const focusTeamOverallResults = useCallback((team: Team) => {
+    if (!canViewLiveResults) return;
+
+    setActiveSegment("ergebnis");
+    setFocusedTeamId(null);
+    setFocusedStartParticipantElementId(null);
+    setResultFocusRequest({
+      id: Date.now(),
+      teamId: team.id,
+      classCode: team.category,
+      view: "overall",
+    });
+  }, [canViewLiveResults]);
+
   const focusParticipantFromTeam = useCallback((team: Team, participant: Participant, disciplineId: string) => {
     if (canViewLiveResults && participant.id && DISCIPLINES.some((discipline) => discipline.id === disciplineId)) {
       setActiveSegment("ergebnis");
@@ -431,6 +445,7 @@ export default function LiveScreen() {
         participantId: participant.id,
         discipline: disciplineId as ResultDisciplineCode,
         classCode: team.category,
+        view: "discipline",
       });
       return;
     }
@@ -442,7 +457,7 @@ export default function LiveScreen() {
     const team = teams.find((entry) => entry.id === request.teamId);
     const participant = team?.participants?.find((entry) => entry.id === request.participantId);
 
-    if (!team || !participant) return;
+    if (!team || !participant || !request.discipline) return;
     focusParticipantInStartList(team, participant, request.discipline);
   }, [focusParticipantInStartList, teams]);
 
@@ -668,12 +683,12 @@ export default function LiveScreen() {
           const sortedCategoryTeams = [...categoryTeams].sort(compareByStartNumber);
 
           return (
-            <Card key={category}>
+            <Card key={category} className="overflow-visible">
               <CardHeader
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="sticky top-14 z-20 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`teams-${category}`)}
               >
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex items-center justify-between gap-2 text-base">
                   <span className="flex items-center gap-2">
                     {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                   </span>
@@ -710,7 +725,18 @@ export default function LiveScreen() {
                                   {formatStartNumber(team.startNumber, false)}
                                 </span>
                               ) : null}
-                              {team.name}
+                              {canViewLiveResults ? (
+                                <button
+                                  type="button"
+                                  className="min-w-0 text-left text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
+                                  title={`${team.name} in der Gesamtergebnis-Liste fokussieren`}
+                                  onClick={() => focusTeamOverallResults(team)}
+                                >
+                                  {team.name}
+                                </button>
+                              ) : (
+                                team.name
+                              )}
                             </h4>
                             <div className="flex items-center gap-2">
                               <Button
@@ -929,9 +955,9 @@ export default function LiveScreen() {
           const isDisciplineExpanded = expandedSections[`start-${discipline.id}`];
 
           return (
-            <Card key={discipline.id} className="overflow-hidden">
+            <Card key={discipline.id} className="overflow-visible">
               <CardHeader
-                className="cursor-pointer px-3 py-2 transition-colors hover:bg-muted/50"
+                className="sticky top-14 z-30 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`start-${discipline.id}`)}
               >
                 <CardTitle className="flex items-center justify-between gap-2 text-base">
@@ -964,7 +990,7 @@ export default function LiveScreen() {
                         return (
                           <div key={category} className="overflow-hidden rounded-md border border-border/40">
                             <div
-                              className="flex cursor-pointer items-center justify-between gap-2 px-2.5 py-2 transition-colors hover:bg-muted/30 sm:px-3"
+                              className="sticky top-[6.5rem] z-20 flex cursor-pointer items-center justify-between gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3"
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
                               <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
@@ -985,7 +1011,7 @@ export default function LiveScreen() {
                                 >
                                   <div className="overflow-x-auto border-t border-border/40 px-1.5 pb-2 pt-1.5 sm:px-2">
                                     <div className="min-w-[360px] space-y-1">
-                                      <div className="grid grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] gap-1.5 px-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+                                      <div className="sticky top-[8.75rem] z-10 grid grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] gap-1.5 bg-card/95 px-1 py-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground backdrop-blur">
                                         <span>Nr.</span>
                                         <span>Name</span>
                                         <span>Team</span>
@@ -1016,7 +1042,19 @@ export default function LiveScreen() {
                                             {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
                                           </span>
                                           <span className="inline-flex min-w-0 items-center gap-1.5">
-                                            <span className="truncate">{participant.firstName} {participant.lastName}</span>
+                                            <button
+                                              type="button"
+                                              className="min-w-0 truncate text-left font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
+                                              title={`${participant.firstName} ${participant.lastName} in Einzelergebnissen fokussieren`}
+                                              onClick={() => {
+                                                const team = teams.find((entry) => entry.id === teamId);
+                                                if (team) {
+                                                  focusParticipantFromTeam(team, participant, discipline.id);
+                                                }
+                                              }}
+                                            >
+                                              {participant.firstName} {participant.lastName}
+                                            </button>
                                             <ParticipantPublicationPreferenceIcon
                                               preference={participant.participantPublicationPreference}
                                             />
@@ -1103,15 +1141,18 @@ export default function LiveScreen() {
   return (
     <div className="space-y-6">
       {canViewTeamLists && (
-        <div className="flex flex-col gap-2 rounded-md border border-border/60 bg-card px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-medium">Start- und Mannschaftsdaten</p>
-            <p className={`text-xs ${cacheState?.fallback ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
-              {cacheState?.fallback ? "Lokaler Stand" : "Datenstand"}: {formatOfflineCacheTimestamp(cacheState?.storedAt)}
-            </p>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => void fetchTeams("refresh")} disabled={refreshing}>
-            {refreshing ? "Aktualisiere..." : "Daten aktualisieren"}
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-auto whitespace-normal text-left leading-snug"
+            onClick={() => void fetchTeams("refresh")}
+            disabled={refreshing}
+          >
+            {refreshing
+              ? "Aktualisiere..."
+              : `${cacheState?.fallback ? "Lokaler Stand" : "Datenstand"} ${formatOfflineCacheTimestamp(cacheState?.storedAt)} - Aktualisieren`}
           </Button>
         </div>
       )}
