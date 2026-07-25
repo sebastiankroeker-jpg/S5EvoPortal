@@ -87,6 +87,14 @@ function formatStartNumber(startNumber?: string | null, showHash = true) {
   return startNumber ? `${showHash ? "#" : ""}${startNumber}` : "";
 }
 
+function StickyTabLabel({ children }: { children: string }) {
+  return (
+    <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
+      {children}
+    </span>
+  );
+}
+
 function isCompetitionTeam(team: Team) {
   return team.registrationMode !== "MARKETPLACE" && team.category !== "sportlerboerse";
 }
@@ -685,9 +693,10 @@ export default function LiveScreen() {
           return (
             <Card key={category} className="overflow-visible">
               <CardHeader
-                className="sticky top-14 z-20 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50"
+                className="sticky top-14 z-20 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50 relative"
                 onClick={() => toggleSection(`teams-${category}`)}
               >
+                <StickyTabLabel>Teams</StickyTabLabel>
                 <CardTitle className="flex items-center justify-between gap-2 text-base">
                   <span className="flex items-center gap-2">
                     {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
@@ -957,9 +966,10 @@ export default function LiveScreen() {
           return (
             <Card key={discipline.id} className="overflow-visible">
               <CardHeader
-                className="sticky top-14 z-30 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50"
+                className="sticky top-14 z-30 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur transition-colors hover:bg-muted/50 relative"
                 onClick={() => toggleSection(`start-${discipline.id}`)}
               >
+                <StickyTabLabel>Startlisten</StickyTabLabel>
                 <CardTitle className="flex items-center justify-between gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     {isDisciplineExpanded ? "▼" : "▶"}
@@ -990,9 +1000,10 @@ export default function LiveScreen() {
                         return (
                           <div key={category} className="overflow-hidden rounded-md border border-border/40">
                             <div
-                              className="sticky top-[6.5rem] z-20 flex cursor-pointer items-center justify-between gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3"
+                              className="sticky top-[6.5rem] z-20 flex cursor-pointer items-center justify-between gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3 relative"
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
+                              <StickyTabLabel>Startlisten</StickyTabLabel>
                               <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
                                 {isClassExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                               </span>

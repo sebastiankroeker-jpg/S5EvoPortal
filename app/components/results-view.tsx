@@ -157,9 +157,17 @@ function StartNumberCell({ startNumber, showHash = true }: { startNumber?: strin
   );
 }
 
+function StickyTabLabel({ children }: { children: string }) {
+  return (
+    <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur">
+      {children}
+    </span>
+  );
+}
+
 function VerticalHeader({ children }: { children: string }) {
   return (
-    <span className="inline-flex h-20 items-center justify-end text-[11px] leading-none [writing-mode:vertical-rl] rotate-180">
+    <span className="absolute bottom-1 left-1 inline-flex items-start justify-start text-left text-[10px] leading-none [writing-mode:vertical-rl] rotate-180">
       {children}
     </span>
   );
@@ -906,7 +914,7 @@ function OverallResultsTables({
         >
           <Card className="overflow-visible">
             <CardContent className="pt-3">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-visible">
                 <table className="w-full min-w-[680px] table-fixed text-sm">
                   <colgroup>
                     <col className="w-14" />
@@ -919,9 +927,10 @@ function OverallResultsTables({
                   </colgroup>
                   <thead className="sticky top-14 z-20 bg-card/95 backdrop-blur">
                     <tr className="border-b text-xs text-muted-foreground">
-                      <th colSpan={3} className="px-0 py-2 pr-3 text-left align-bottom">
-                        <div className="flex min-h-20 flex-col justify-end">
-                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <th colSpan={3} className="relative px-0 py-1.5 pr-3 text-left align-bottom">
+                        <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
+                        <div className="flex min-h-14 flex-col justify-end">
+                          <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-foreground">
                             {resultClassLabel(classResult)}
                             <Badge variant="secondary" className="text-xs">
                               {classResult.teamScores.length} Teams
@@ -935,11 +944,11 @@ function OverallResultsTables({
                         </div>
                       </th>
                       {DISCIPLINE_CODES.map((discipline) => (
-                        <th key={discipline} className="px-0.5 py-2 text-center align-bottom">
+                        <th key={discipline} className="relative h-14 px-0.5 py-1.5 text-left align-bottom">
                           <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
                         </th>
                       ))}
-                      <th className="py-2 pl-1 pr-3 text-right align-bottom font-bold">
+                      <th className="relative h-14 py-1.5 pl-1 pr-3 text-left align-bottom font-bold">
                         <VerticalHeader>Gesamt</VerticalHeader>
                       </th>
                     </tr>
@@ -1077,7 +1086,8 @@ function DisciplineResultsTables({
             transition={{ duration: 0.18 }}
           >
             <Card className="overflow-visible">
-              <CardHeader className="sticky top-14 z-20 border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur">
+              <CardHeader className="sticky top-14 z-20 border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur relative">
+                <StickyTabLabel>Einzelergebnisse</StickyTabLabel>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
                   {disciplineLabel} - {resultClassLabel(classResult)}
