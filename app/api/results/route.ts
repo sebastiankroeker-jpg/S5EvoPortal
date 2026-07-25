@@ -25,6 +25,19 @@ type ClassTeam = Pick<TeamScore, "teamId" | "teamName" | "startNumber" | "classC
 
 type ResultTeamScore = TeamScore & { hasAnyResult?: boolean };
 
+const OVERALL_RESULT_GROUPS = [
+  {
+    code: "damen-gesamt",
+    name: "Damen Gesamt",
+    sourceClassCodes: ["damen-a", "damen-b"],
+  },
+  {
+    code: "herren-gesamt",
+    name: "Herren Gesamt",
+    sourceClassCodes: ["jungsters", "herren", "masters"],
+  },
+] as const;
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
@@ -57,6 +70,16 @@ function startNumberSortValue(value: string | null | undefined) {
   if (!value) return Number.MAX_SAFE_INTEGER;
   const number = Number.parseInt(value, 10);
   return Number.isFinite(number) ? number : Number.MAX_SAFE_INTEGER;
+}
+
+function emptyDisciplineEntries(): Record<DisciplineCode, DisciplineEntry[]> {
+  return {
+    RUN: [],
+    BENCH: [],
+    STOCK: [],
+    ROAD: [],
+    MTB: [],
+  };
 }
 
 function completeTeamScores(scores: TeamScore[], classTeams: ClassTeam[]): ResultTeamScore[] {
@@ -183,6 +206,11 @@ export async function GET(request: NextRequest) {
     const teamClassCodeById = new Map<string, string>();
     const teamStartNumberById = new Map<string, string | null>();
     const classTeams = new Map<string, ClassTeam[]>();
+    const overallGroupBySourceClass: Map<string, typeof OVERALL_RESULT_GROUPS[number]> = new Map(
+      OVERALL_RESULT_GROUPS.flatMap((group) =>
+        group.sourceClassCodes.map((sourceClassCode) => [sourceClassCode, group] as const),
+      ),
+    );
 
     for (const team of teams) {
       const classCode = team.classificationCode || "unclassified";
@@ -193,15 +221,21 @@ export async function GET(request: NextRequest) {
       }));
       teamClassCodeById.set(team.id, classCode);
       teamStartNumberById.set(team.id, canSeeStartNumber ? team.startNumber : null);
-      classTeams.set(classCode, [
-        ...(classTeams.get(classCode) ?? []),
-        {
-          teamId: team.id,
-          teamName: visibleTeamById.get(team.id) ?? "Mannschaft",
-          startNumber: teamStartNumberById.get(team.id) ?? null,
-          classCode,
-        },
-      ]);
+      const classTeam = {
+        teamId: team.id,
+        teamName: visibleTeamById.get(team.id) ?? "Mannschaft",
+        startNumber: teamStartNumberById.get(team.id) ?? null,
+        classCode,
+      };
+      classTeams.set(classCode, [...(classTeams.get(classCode) ?? []), classTeam]);
+
+      const overallGroup = overallGroupBySourceClass.get(classCode);
+      if (overallGroup) {
+        classTeams.set(overallGroup.code, [
+          ...(classTeams.get(overallGroup.code) ?? []),
+          { ...classTeam, classCode: overallGroup.code },
+        ]);
+      }
 
       for (const participant of team.participants) {
         visibleParticipantById.set(participant.id, resolveVisibleParticipantName({
@@ -218,20 +252,19 @@ export async function GET(request: NextRequest) {
       string,
       Record<DisciplineCode, DisciplineEntry[]>
     >();
+    const overallDisciplineEntries = new Map(
+      OVERALL_RESULT_GROUPS.map((group) => [group.code, emptyDisciplineEntries()] as const),
+    );
 
     for (const team of teams) {
       const classCode = team.classificationCode || "unclassified";
       if (!classDisciplineEntries.has(classCode)) {
-        classDisciplineEntries.set(classCode, {
-          RUN: [],
-          BENCH: [],
-          STOCK: [],
-          ROAD: [],
-          MTB: [],
-        });
+        classDisciplineEntries.set(classCode, emptyDisciplineEntries());
       }
 
       const classEntries = classDisciplineEntries.get(classCode)!;
+      const overallGroup = overallGroupBySourceClass.get(classCode);
+      const overallEntries = overallGroup ? overallDisciplineEntries.get(overallGroup.code) : null;
 
       for (const participant of team.participants) {
         for (const result of participant.results) {
@@ -249,6 +282,16 @@ export async function GET(request: NextRequest) {
             publishedRank: result.rank,
             publishedPoints: result.points,
             classCode,
+          });
+
+          overallEntries?.[discCode].push({
+            teamId: team.id,
+            teamName: visibleTeamById.get(team.id) ?? "Mannschaft",
+            startNumber: teamStartNumberById.get(team.id) ?? null,
+            participantId: participant.id,
+            participantName: visibleParticipantById.get(participant.id) ?? "Teilnehmer:in",
+            rawValue: result.rawValue,
+            classCode: overallGroup?.code ?? classCode,
           });
         }
       }
@@ -360,8 +403,48 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Sort results in the official class order: SA, SB, J, DA, DB, HA, HB, HC.
-    results.sort((a, b) => compareClassificationCodes(a.classCode, b.classCode));
+    for (const group of OVERALL_RESULT_GROUPS) {
+      const entries = overallDisciplineEntries.get(group.code);
+      if (!entries) continue;
+
+      const disciplineRankings: Record<DisciplineCode, ReturnType<typeof rankDiscipline>> = {
+        RUN: publishedDisciplineSet.has("RUN") ? rankDiscipline(entries.RUN, "RUN") : [],
+        BENCH: publishedDisciplineSet.has("BENCH") ? rankDiscipline(entries.BENCH, "BENCH") : [],
+        STOCK: publishedDisciplineSet.has("STOCK") ? rankDiscipline(entries.STOCK, "STOCK") : [],
+        ROAD: publishedDisciplineSet.has("ROAD") ? rankDiscipline(entries.ROAD, "ROAD") : [],
+        MTB: publishedDisciplineSet.has("MTB") ? rankDiscipline(entries.MTB, "MTB") : [],
+      };
+      const calculatedTeamScores = calculateTeamScores(disciplineRankings);
+      const teamScores = canSeeEmptyResultRows
+        ? completeTeamScores(calculatedTeamScores, classTeams.get(group.code) ?? [])
+        : calculatedTeamScores;
+      const hasAnyDisciplineEntry = Object.values(disciplineRankings).some((entries) => entries.length > 0);
+
+      if (!canSeeEmptyResultRows && teamScores.length === 0 && !hasAnyDisciplineEntry) {
+        continue;
+      }
+
+      results.push({
+        classCode: group.code,
+        className: group.name,
+        classType: "COMBINED",
+        teamScores,
+        disciplineRankings,
+      });
+    }
+
+    // Sort results in official class order and append the gender overall lists.
+    const overallOrder: Map<string, number> = new Map(OVERALL_RESULT_GROUPS.map((group, index) => [group.code, index]));
+    results.sort((a, b) => {
+      const leftOverallOrder = overallOrder.get(a.classCode);
+      const rightOverallOrder = overallOrder.get(b.classCode);
+      if (leftOverallOrder !== undefined || rightOverallOrder !== undefined) {
+        if (leftOverallOrder === undefined) return -1;
+        if (rightOverallOrder === undefined) return 1;
+        return leftOverallOrder - rightOverallOrder;
+      }
+      return compareClassificationCodes(a.classCode, b.classCode);
+    });
     const visibleResultTeamIds = new Set<string>();
     for (const result of results) {
       for (const team of result.teamScores) {
