@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react";
 import {
   AlertTriangle,
   ArrowDownUp,
+  ChevronDown,
+  ChevronUp,
   Check,
   Clock3,
   Cloud,
@@ -134,6 +136,7 @@ const DISCIPLINE_LABELS: Record<DisciplineCode, string> = {
 const ROAD_CLOCK_SLOT_COUNT = 2;
 const DEFAULT_START_INTERVAL_SECONDS = 30;
 const DEFAULT_MONITOR_ROTATION_SECONDS = 12;
+const DEFAULT_START_NUMBER_KEYPAD_OPEN = true;
 const ROAD_CLOCK_PRIORITY = new Map([
   ["Schüler", 0],
   ["Herren", 1],
@@ -195,6 +198,10 @@ function storageKey(competitionId: string) {
 
 function testStartNumbersStorageKey(competitionId: string) {
   return `s5evo-timekeeping-test-start-numbers-v1:${competitionId}`;
+}
+
+function startNumberKeypadStorageKey(competitionId: string) {
+  return `s5evo-timekeeping-start-number-keypad-open-v1:${competitionId}`;
 }
 
 function createId(prefix: string) {
@@ -497,6 +504,7 @@ export default function TimekeepingPage() {
   const [assignValue, setAssignValue] = useState("");
   const [globalConfigOpen, setGlobalConfigOpen] = useState(false);
   const [monitorConfigOpen, setMonitorConfigOpen] = useState(false);
+  const [startNumberKeypadOpen, setStartNumberKeypadOpen] = useState(DEFAULT_START_NUMBER_KEYPAD_OPEN);
   const [monitorConfig, setMonitorConfig] = useState<MonitorConfig>({
     classificationCodes: [],
     rotationSeconds: DEFAULT_MONITOR_ROTATION_SECONDS,
@@ -527,6 +535,12 @@ export default function TimekeepingPage() {
     if (!activeCompetition?.id) return;
     const stored = window.localStorage.getItem(testStartNumbersStorageKey(activeCompetition.id));
     setStartNumberSource(stored === "1" ? "imported-test" : "official");
+  }, [activeCompetition?.id]);
+
+  useEffect(() => {
+    if (!activeCompetition?.id) return;
+    const stored = window.localStorage.getItem(startNumberKeypadStorageKey(activeCompetition.id));
+    setStartNumberKeypadOpen(stored === null ? DEFAULT_START_NUMBER_KEYPAD_OPEN : stored === "1");
   }, [activeCompetition?.id]);
 
   useEffect(() => {
@@ -629,6 +643,11 @@ export default function TimekeepingPage() {
     if (!activeCompetition?.id) return;
     window.localStorage.setItem(testStartNumbersStorageKey(activeCompetition.id), startNumberSource === "imported-test" ? "1" : "0");
   }, [activeCompetition?.id, startNumberSource]);
+
+  useEffect(() => {
+    if (!activeCompetition?.id) return;
+    window.localStorage.setItem(startNumberKeypadStorageKey(activeCompetition.id), startNumberKeypadOpen ? "1" : "0");
+  }, [activeCompetition?.id, startNumberKeypadOpen]);
 
   useEffect(() => {
     if (!activeCompetition?.id) return;
@@ -1994,14 +2013,28 @@ export default function TimekeepingPage() {
         <section className="rounded-md border border-border/60 bg-card p-2 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>Zuordnung Uhr/Startblock automatisch über Startnummer</span>
-            <span className={cn(
-              "rounded-md border px-2 py-1",
-              finishTargetIsRunning
-                ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
-                : "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200",
-            )}>
-              Ziel: {finishTargetSession?.startBlockName ?? "-"} · {finishTargetIsRunning ? "läuft" : "nicht aktiv"}
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <span className={cn(
+                "rounded-md border px-2 py-1",
+                finishTargetIsRunning
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                  : "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200",
+              )}>
+                Ziel: {finishTargetSession?.startBlockName ?? "-"} · {finishTargetIsRunning ? "läuft" : "nicht aktiv"}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => setStartNumberKeypadOpen((open) => !open)}
+                aria-expanded={startNumberKeypadOpen}
+                aria-controls="start-number-keypad"
+              >
+                {startNumberKeypadOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                {startNumberKeypadOpen ? "Ziffernblock zu" : "Ziffernblock auf"}
+              </Button>
+            </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <div className="relative">
@@ -2033,55 +2066,57 @@ export default function TimekeepingPage() {
 	              Zieleinlauf
 	            </Button>
 	          </div>
-	          <div className="mt-2 grid grid-cols-3 gap-2 sm:max-w-md">
-	            {START_NUMBER_KEYPAD_KEYS.map((digit) => (
+	          {startNumberKeypadOpen && (
+	            <div id="start-number-keypad" className="mt-2 grid grid-cols-3 gap-2 sm:max-w-md">
+	              {START_NUMBER_KEYPAD_KEYS.map((digit) => (
+	                <Button
+	                  key={digit}
+	                  type="button"
+	                  variant="outline"
+	                  className="h-14 text-xl font-semibold tabular-nums"
+	                  disabled={!anyClockIsRunning}
+	                  onPointerDown={(event) => event.preventDefault()}
+	                  onClick={() => appendStartNumberDigit(digit)}
+	                  aria-label={`Startnummer ${digit}`}
+	                >
+	                  {digit}
+	                </Button>
+	              ))}
 	              <Button
-	                key={digit}
+	                type="button"
+	                variant="outline"
+	                className="h-14 gap-2"
+	                disabled={!anyClockIsRunning || !startNumberInput}
+	                onPointerDown={(event) => event.preventDefault()}
+	                onClick={deleteStartNumberDigit}
+	                aria-label="Letzte Ziffer löschen"
+	              >
+	                <Delete className="size-5" />
+	              </Button>
+	              <Button
 	                type="button"
 	                variant="outline"
 	                className="h-14 text-xl font-semibold tabular-nums"
 	                disabled={!anyClockIsRunning}
 	                onPointerDown={(event) => event.preventDefault()}
-	                onClick={() => appendStartNumberDigit(digit)}
-	                aria-label={`Startnummer ${digit}`}
+	                onClick={() => appendStartNumberDigit("0")}
+	                aria-label="Startnummer 0"
 	              >
-	                {digit}
+	                0
 	              </Button>
-	            ))}
-	            <Button
-	              type="button"
-	              variant="outline"
-	              className="h-14 gap-2"
-	              disabled={!anyClockIsRunning || !startNumberInput}
-	              onPointerDown={(event) => event.preventDefault()}
-	              onClick={deleteStartNumberDigit}
-	              aria-label="Letzte Ziffer löschen"
-	            >
-	              <Delete className="size-5" />
-	            </Button>
-	            <Button
-	              type="button"
-	              variant="outline"
-	              className="h-14 text-xl font-semibold tabular-nums"
-	              disabled={!anyClockIsRunning}
-	              onPointerDown={(event) => event.preventDefault()}
-	              onClick={() => appendStartNumberDigit("0")}
-	              aria-label="Startnummer 0"
-	            >
-	              0
-	            </Button>
-	            <Button
-	              type="button"
-	              className="h-14 gap-2 text-base font-semibold"
-	              disabled={!finishTargetIsRunning}
-	              onPointerDown={(event) => event.preventDefault()}
-	              onClick={captureFinish}
-	              aria-label="Enter, Zieleinlauf erfassen"
-	            >
-	              <CornerDownLeft className="size-5" />
-	              Enter
-	            </Button>
-	          </div>
+	              <Button
+	                type="button"
+	                className="h-14 gap-2 text-base font-semibold"
+	                disabled={!finishTargetIsRunning}
+	                onPointerDown={(event) => event.preventDefault()}
+	                onClick={captureFinish}
+	                aria-label="Enter, Zieleinlauf erfassen"
+	              >
+	                <CornerDownLeft className="size-5" />
+	                Enter
+	              </Button>
+	            </div>
+	          )}
 	          {startNumberInput.trim() && (
             <div className={cn(
               "mt-2 rounded-md border px-3 py-2 text-sm",
