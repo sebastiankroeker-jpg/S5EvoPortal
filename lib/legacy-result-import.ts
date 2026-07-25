@@ -269,14 +269,15 @@ function buildBenchDraft(records: LegacyRawResultRecord[]): LegacyResultDraftPre
   const validAttempts = attempts.filter((attempt) => attempt.netWeight !== null && attempt.grossWeight !== null && attempt.netWeight > -999);
   const bestAttempt = validAttempts.toSorted((left, right) => (right.netWeight ?? -Infinity) - (left.netWeight ?? -Infinity))[0] ?? null;
   const dnfAttempt = attempts.find((attempt) => attempt.netWeight === -999 || attempt.grossWeight === -999) ?? null;
-  const scoringAttempt = bestAttempt
-    ?? attempts.find((attempt) => nullableInteger(attempt.raw.AuPunkte) !== null || nullableInteger(attempt.raw.AuPlatzKlasse) !== null)
-    ?? dnfAttempt
-    ?? null;
   const validationMessages = records.flatMap((record) => record.validationMessages);
   if (!bestAttempt && !dnfAttempt) validationMessages.push({ code: "missing_valid_bench_attempt", severity: "error" });
 
-  const scoringRaw = scoringAttempt?.raw ?? first.raw;
+  const scoring = bestAttempt ? pointsAndRanks(bestAttempt.raw) : {
+    classPoints: null,
+    classRank: null,
+    overallGenderPoints: null,
+    overallGenderRank: null,
+  };
   const rawValueText = bestAttempt
     ? `${String(bestAttempt.grossWeight).replace(".", ",")} kg / ${String(bestAttempt.netWeight).replace(".", ",")} netto`
     : null;
@@ -291,7 +292,7 @@ function buildBenchDraft(records: LegacyRawResultRecord[]): LegacyResultDraftPre
     rawValue: bestAttempt?.netWeight ?? (dnfAttempt ? -999 : null),
     rawValueText,
     resultStatus: bestAttempt ? "valid" : dnfAttempt ? "dnf" : "missing_attempt",
-    ...pointsAndRanks(scoringRaw),
+    ...scoring,
     details: {
       attempts,
       bestAttemptNumber: bestAttempt?.attemptNumber ?? null,

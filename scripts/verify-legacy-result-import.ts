@@ -72,6 +72,32 @@ assert.equal(legacyZeroTimeParsed.drafts[0].classPoints, 0);
 assert.equal(legacyZeroTimeParsed.drafts[0].classRank, null);
 assert.ok(legacyZeroTimeParsed.drafts[0].validationMessages.some((message) => message.code === "legacy_zero_point_time"));
 
+const benchCorrectionCsv = [
+  "Bayersoier SuperfuenfkampfGesamtergebnisse;;;;;;;;;;;;",
+  "Diese Datei wird automatisch eingelesen.;;;;;;;;;;;;",
+  "BITTE KEINE MANUELLEN AENDERUNGEN VORNEHMEN!;;;;;;;;;;;;",
+  "Bankdruecken;;;;;;;;;;;;",
+  ";;;;;;;;;;;;",
+  "Au1Startnr;Au1MaID;Au1TlID;Aumw;Au1Klasse;Au1Disziplin;AuStopzeit;AuStopzeitUhr2;AuZeitBasis;AuZeitBasisUhr2;AuZeitBasisZiel;AuUhrGueltig;AuZeit;AuBruttoGewicht;AuGewicht;AuRingeStock;AuRingeStockStreicherg;AuSchubBWZ;AuVersuchnr;AuPunkte;AuPunkteDamenGes;AuPunkteHerrenGes;AuPlatzKlasse;AuPlatzGesamt;AuBemerkung;AuStreichergebnis;AuSummenkennzeichen;AuPunktgleichheit;AuPunktgleichheitGes",
+  "45;;217;;4;4;;;;;;;;;;;;;1;1;1;;9;20;;Falsch;;0;0",
+  "45;;217;;4;4;;;;;;;;-999;-999;;;;2;;;;;;;Wahr;;0;0",
+  "45;;217;;4;4;;;;;;;;-999;-999;;;;3;;;;;;;Wahr;;0;0",
+  "57;;277;;4;4;;;;;;;;;;;;;1;2;2;;8;19;;Falsch;;0;0",
+  "57;;277;;4;4;;;;;;;;50;-20;;;;2;;;;;;;Wahr;;0;0",
+  "57;;277;;4;4;;;;;;;;60;-10;;;;3;;;;;;;Wahr;;0;0",
+].join("\n");
+const benchCorrectionParsed = parseLegacyResultCsv(benchCorrectionCsv);
+const bench45 = benchCorrectionParsed.drafts.find((draft) => draft.startNumber === "45");
+const bench57 = benchCorrectionParsed.drafts.find((draft) => draft.startNumber === "57");
+assert.equal(bench45?.rawValue, -999);
+assert.equal(bench45?.resultStatus, "dnf");
+assert.equal(bench45?.classPoints, null);
+assert.equal(bench45?.classRank, null);
+assert.equal(bench57?.rawValue, -10);
+assert.equal(bench57?.rawValueText, "60 kg / -10 netto");
+assert.equal(bench57?.classPoints, null);
+assert.equal(bench57?.classRank, null);
+
 const foundFixtures = fixtures.filter((fixture) => existsSync(join(inboundDir, fixture.path)));
 assert.ok(foundFixtures.length > 0, "No inbound legacy result fixtures found");
 
