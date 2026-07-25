@@ -245,7 +245,8 @@ export default function RoadTimekeepingMonitorPage() {
 
   const monitorPages = useMemo<MonitorPage[]>(() => {
     return classProgress.flatMap((classification) => {
-      const pagesInClass = Math.max(1, Math.ceil(classification.rows.length / pageSize));
+      if (classification.rows.length === 0) return [];
+      const pagesInClass = Math.ceil(classification.rows.length / pageSize);
       return Array.from({ length: pagesInClass }, (_, pageInClass) => ({
         classProgress: classification,
         pageInClass,
@@ -254,9 +255,9 @@ export default function RoadTimekeepingMonitorPage() {
       }));
     });
   }, [classProgress, pageSize]);
-  const totalPages = Math.max(1, monitorPages.length);
-  const effectivePageIndex = pageIndex % totalPages;
-  const activePage = monitorPages[effectivePageIndex] ?? monitorPages[0] ?? null;
+  const totalPages = monitorPages.length;
+  const effectivePageIndex = totalPages > 0 ? pageIndex % totalPages : 0;
+  const activePage = totalPages > 0 ? monitorPages[effectivePageIndex] ?? monitorPages[0] : null;
   const activeClass = activePage?.classProgress ?? null;
   const visibleRows = activePage?.classProgress.rows.slice(activePage.rowStart, activePage.rowStart + pageSize) ?? [];
   const rankByRowId = useMemo(() => {
@@ -312,9 +313,13 @@ export default function RoadTimekeepingMonitorPage() {
           <div className="flex h-full min-h-[22rem] items-center justify-center rounded-md border border-dashed border-white/25 text-center text-xl text-zinc-300">
             Noch keine lokalen ROAD-Zeitnahme-Daten auf diesem Gerät.
           </div>
-        ) : !activeClass ? (
+        ) : classProgress.length === 0 ? (
           <div className="flex h-full min-h-[22rem] items-center justify-center rounded-md border border-dashed border-white/25 text-center text-xl text-zinc-300">
             Keine Klassen für die Monitor-Auswahl.
+          </div>
+        ) : !activeClass ? (
+          <div className="flex h-full min-h-[22rem] items-center justify-center rounded-md border border-dashed border-white/25 text-center text-xl text-zinc-300">
+            Noch keine Zeiten in den ausgewählten Klassen.
           </div>
         ) : (
           <div className="h-full overflow-hidden rounded-md border border-white/15 bg-zinc-950">
