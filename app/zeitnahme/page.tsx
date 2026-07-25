@@ -16,6 +16,7 @@ import {
   Filter,
   Plus,
   Play,
+  Monitor,
   RefreshCcw,
   Save,
   Settings2,
@@ -31,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCompetition } from "@/lib/competition-context";
 import { usePermissions } from "@/lib/permissions-context";
-import { TIMEKEEPING_LOCAL_BROADCAST_CHANNEL } from "@/lib/timekeeping-local";
+import { TIMEKEEPING_LOCAL_BROADCAST_CHANNEL, timekeepingMonitorConfigStorageKey } from "@/lib/timekeeping-local";
 import { cn } from "@/lib/utils";
 
 type DisciplineCode = "RUN" | "ROAD" | "MTB";
@@ -132,6 +133,7 @@ const DISCIPLINE_LABELS: Record<DisciplineCode, string> = {
 
 const ROAD_CLOCK_SLOT_COUNT = 2;
 const DEFAULT_START_INTERVAL_SECONDS = 30;
+const DEFAULT_MONITOR_ROTATION_SECONDS = 12;
 const ROAD_CLOCK_PRIORITY = new Map([
   ["Schüler", 0],
   ["Herren", 1],
@@ -163,6 +165,11 @@ type SortDirection = "asc" | "desc";
 
 type HelperColumn = "status" | "assignment";
 type StartNumberSource = "official" | "imported-test";
+
+type MonitorConfig = {
+  classificationCodes: string[];
+  rotationSeconds: number;
+};
 
 const HELPER_COLUMNS: { id: HelperColumn; label: string }[] = [
   { id: "status", label: "Sync-Status" },
@@ -489,6 +496,11 @@ export default function TimekeepingPage() {
   const [assigningEventId, setAssigningEventId] = useState<string | null>(null);
   const [assignValue, setAssignValue] = useState("");
   const [globalConfigOpen, setGlobalConfigOpen] = useState(false);
+  const [monitorConfigOpen, setMonitorConfigOpen] = useState(false);
+  const [monitorConfig, setMonitorConfig] = useState<MonitorConfig>({
+    classificationCodes: [],
+    rotationSeconds: DEFAULT_MONITOR_ROTATION_SECONDS,
+  });
   const [roadClockSessionIds, setRoadClockSessionIds] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -515,6 +527,28 @@ export default function TimekeepingPage() {
     if (!activeCompetition?.id) return;
     const stored = window.localStorage.getItem(testStartNumbersStorageKey(activeCompetition.id));
     setStartNumberSource(stored === "1" ? "imported-test" : "official");
+  }, [activeCompetition?.id]);
+
+  useEffect(() => {
+    if (!activeCompetition?.id) return;
+    const stored = window.localStorage.getItem(timekeepingMonitorConfigStorageKey(activeCompetition.id));
+    if (!stored) {
+      setMonitorConfig({ classificationCodes: [], rotationSeconds: DEFAULT_MONITOR_ROTATION_SECONDS });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as Partial<MonitorConfig>;
+      setMonitorConfig({
+        classificationCodes: Array.isArray(parsed.classificationCodes)
+          ? parsed.classificationCodes.filter((code): code is string => typeof code === "string")
+          : [],
+        rotationSeconds: typeof parsed.rotationSeconds === "number" && Number.isFinite(parsed.rotationSeconds)
+          ? Math.max(5, Math.min(60, Math.round(parsed.rotationSeconds)))
+          : DEFAULT_MONITOR_ROTATION_SECONDS,
+      });
+    } catch {
+      setMonitorConfig({ classificationCodes: [], rotationSeconds: DEFAULT_MONITOR_ROTATION_SECONDS });
+    }
   }, [activeCompetition?.id]);
 
   useEffect(() => {
@@ -596,6 +630,11 @@ export default function TimekeepingPage() {
     window.localStorage.setItem(testStartNumbersStorageKey(activeCompetition.id), startNumberSource === "imported-test" ? "1" : "0");
   }, [activeCompetition?.id, startNumberSource]);
 
+  useEffect(() => {
+    if (!activeCompetition?.id) return;
+    window.localStorage.setItem(timekeepingMonitorConfigStorageKey(activeCompetition.id), JSON.stringify(monitorConfig));
+  }, [activeCompetition?.id, monitorConfig]);
+
   const activeSession = useMemo(
     () => state?.sessions.find((session) => session.id === activeSessionId) ?? null,
     [activeSessionId, state?.sessions],
@@ -637,6 +676,17 @@ export default function TimekeepingPage() {
     });
     return [...optionsByCode.values()];
   }, [snapshot?.disciplines]);
+  const roadMonitorClassificationOptions = useMemo(
+    () => snapshot?.disciplines.find((discipline) => discipline.code === "ROAD")?.classifications
+      .filter((classification) => {
+        const normalizedCode = classification.code.toLowerCase();
+        const normalizedLabel = classification.label.toLowerCase();
+        return !normalizedCode.includes("combined")
+          && normalizedLabel !== "herren gesamt"
+          && normalizedLabel !== "damen gesamt";
+      }) ?? [],
+    [snapshot?.disciplines],
+  );
   const visibleClockSessions = useMemo(() => {
     if (activeDiscipline !== "ROAD") return activeSession ? [activeSession] : [];
     const sessionsById = new Map(disciplineSessions.map((session) => [session.id, session]));
@@ -1305,7 +1355,16 @@ export default function TimekeepingPage() {
   const openRoadMonitor = () => {
     if (!activeCompetition?.id) return;
     const params = new URLSearchParams({ competitionId: activeCompetition.id });
-    window.open(`/zeitnahme/monitor?${params.toString()}`, "s5evo-road-monitor", "popup,width=1280,height=720");
+    window.open(`/zeitnahme/monitor?${params.toString()}`, "s5evo-road-monitor", "popup,width=1920,height=1080");
+  };
+
+  const toggleMonitorClassification = (classificationCode: string) => {
+    setMonitorConfig((current) => ({
+      ...current,
+      classificationCodes: current.classificationCodes.includes(classificationCode)
+        ? current.classificationCodes.filter((code) => code !== classificationCode)
+        : [...current.classificationCodes, classificationCode],
+    }));
   };
 
   const filteredEvents = useMemo(() => {
@@ -1554,6 +1613,77 @@ export default function TimekeepingPage() {
     );
   };
 
+  const renderMonitorConfiguration = () => {
+    if (!snapshot || !state) return null;
+    const configuredCount = monitorConfig.classificationCodes.length;
+
+    return (
+      <section className="grid gap-3 rounded-md border border-border/60 bg-card p-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Monitor-Anzeige</p>
+            <p className="text-xs text-muted-foreground">
+              {configuredCount === 0 ? "Alle ROAD-Klassen" : `${configuredCount} ROAD-Klasse(n)`} · Wechsel alle {monitorConfig.rotationSeconds}s
+            </p>
+          </div>
+          <Button type="button" size="sm" className="h-8 gap-1.5 px-2 text-xs" onClick={openRoadMonitor} disabled={!activeCompetition?.id}>
+            <Monitor className="size-4" />
+            Monitor starten
+          </Button>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_10rem]">
+          <div className="grid gap-1">
+            <p className="text-xs font-medium">Anzuzeigende Klassen</p>
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={monitorConfig.classificationCodes.length === 0 ? "default" : "outline"}
+                className="h-8 px-2 text-xs"
+                onClick={() => setMonitorConfig((current) => ({ ...current, classificationCodes: [] }))}
+              >
+                Alle
+              </Button>
+              {roadMonitorClassificationOptions.map((classification) => {
+                const isSelected = monitorConfig.classificationCodes.includes(classification.code);
+                return (
+                  <Button
+                    key={classification.code}
+                    type="button"
+                    size="sm"
+                    variant={isSelected ? "default" : "outline"}
+                    className="h-8 px-2 text-xs"
+                    onClick={() => toggleMonitorClassification(classification.code)}
+                  >
+                    {classification.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          <label className="grid content-start gap-1 text-xs font-medium">
+            Umschalten Sek.
+            <Input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={monitorConfig.rotationSeconds}
+              onChange={(event) => {
+                const nextValue = Number.parseInt(event.target.value, 10);
+                setMonitorConfig((current) => ({
+                  ...current,
+                  rotationSeconds: Number.isFinite(nextValue) ? Math.max(5, Math.min(60, nextValue)) : DEFAULT_MONITOR_ROTATION_SECONDS,
+                }));
+              }}
+              className="h-9"
+            />
+          </label>
+        </div>
+      </section>
+    );
+  };
+
   const renderGlobalConfiguration = () => {
     if (!snapshot || !state) return null;
 
@@ -1791,6 +1921,26 @@ export default function TimekeepingPage() {
               <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
                 {configuredStartBlocks.length} Startblock{configuredStartBlocks.length === 1 ? "" : "s"}
               </span>
+              <Button
+                type="button"
+                size="sm"
+                variant={monitorConfigOpen ? "secondary" : "outline"}
+                className="h-8 w-36 gap-1.5 px-2"
+                onClick={() => setMonitorConfigOpen((open) => !open)}
+              >
+                <Monitor className="size-4" />
+                Konfig Monitor
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 w-36 gap-1.5 px-2"
+                onClick={openRoadMonitor}
+                disabled={!activeCompetition?.id}
+              >
+                <ExternalLink className="size-4" />
+                Monitor starten
+              </Button>
               <select
                 aria-label="Disziplin auswählen"
                 value={activeDiscipline}
@@ -1823,6 +1973,7 @@ export default function TimekeepingPage() {
         </div>
 
         {globalConfigOpen && renderGlobalConfiguration()}
+        {monitorConfigOpen && renderMonitorConfiguration()}
 
         {error && (
           <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">
@@ -1980,10 +2131,6 @@ export default function TimekeepingPage() {
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => setStatsOpen((open) => !open)}>
                 <Timer className="size-4" />
                 Stats
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={openRoadMonitor} disabled={!activeCompetition?.id}>
-                <ExternalLink className="size-4" />
-                Monitor
               </Button>
               <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={resetVisibleData} disabled={syncing || filteredEvents.length === 0}>
                 <Trash2 className="size-4" />

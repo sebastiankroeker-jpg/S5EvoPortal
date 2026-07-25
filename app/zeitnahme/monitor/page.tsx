@@ -17,6 +17,7 @@ import {
   type TimekeepingEventState,
   type TimekeepingSessionState,
   TIMEKEEPING_LOCAL_BROADCAST_CHANNEL,
+  timekeepingMonitorConfigStorageKey,
   timekeepingStorageKey,
 } from "@/lib/timekeeping-local";
 import { cn } from "@/lib/utils";
@@ -28,12 +29,18 @@ type ResultRow = {
   starter: Starter | null;
 };
 
-function statusLabel(event: TimekeepingEventState) {
-  if (event.syncStatus === "conflict") return "Konflikt";
-  if (!event.startNumber) return "Offen";
-  if (event.syncStatus === "local") return "lokal";
-  return "sync";
-}
+type MonitorConfig = {
+  classificationCodes: string[];
+  rotationSeconds: number;
+};
+
+type ClassProgress = {
+  code: string;
+  label: string;
+  total: number;
+  finished: number;
+  rows: ResultRow[];
+};
 
 function readLocalState(competitionId: string | null) {
   if (!competitionId || typeof window === "undefined") return null;
@@ -43,6 +50,25 @@ function readLocalState(competitionId: string | null) {
     return JSON.parse(raw) as PersistedTimekeepingState;
   } catch {
     return null;
+  }
+}
+
+function readLocalMonitorConfig(competitionId: string | null): MonitorConfig {
+  if (!competitionId || typeof window === "undefined") return { classificationCodes: [], rotationSeconds: 12 };
+  const raw = window.localStorage.getItem(timekeepingMonitorConfigStorageKey(competitionId));
+  if (!raw) return { classificationCodes: [], rotationSeconds: 12 };
+  try {
+    const parsed = JSON.parse(raw) as Partial<MonitorConfig>;
+    return {
+      classificationCodes: Array.isArray(parsed.classificationCodes)
+        ? parsed.classificationCodes.filter((code): code is string => typeof code === "string")
+        : [],
+      rotationSeconds: typeof parsed.rotationSeconds === "number" && Number.isFinite(parsed.rotationSeconds)
+        ? Math.max(5, Math.min(60, Math.round(parsed.rotationSeconds)))
+        : 12,
+    };
+  } catch {
+    return { classificationCodes: [], rotationSeconds: 12 };
   }
 }
 
@@ -82,7 +108,11 @@ export default function RoadTimekeepingMonitorPage() {
     const initialCompetitionId = new URLSearchParams(window.location.search).get("competitionId");
     return readLocalState(initialCompetitionId);
   });
-  const [selectedClassificationCodes, setSelectedClassificationCodes] = useState<string[]>([]);
+  const [monitorConfig, setMonitorConfig] = useState<MonitorConfig>(() => {
+    if (typeof window === "undefined") return { classificationCodes: [], rotationSeconds: 12 };
+    const initialCompetitionId = new URLSearchParams(window.location.search).get("competitionId");
+    return readLocalMonitorConfig(initialCompetitionId);
+  });
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(8);
   const [lastSeenAt, setLastSeenAt] = useState<string | null>(null);
@@ -92,6 +122,7 @@ export default function RoadTimekeepingMonitorPage() {
   const refreshLocalState = useCallback(() => {
     const nextState = readLocalState(competitionId);
     setState(nextState);
+    setMonitorConfig(readLocalMonitorConfig(competitionId));
     setLastSeenAt(nextState ? new Date().toISOString() : null);
   }, [competitionId]);
 
@@ -105,6 +136,10 @@ export default function RoadTimekeepingMonitorPage() {
 
     const onStorage = (event: StorageEvent) => {
       if (event.key === timekeepingStorageKey(competitionId)) refreshLocalState();
+      if (event.key === timekeepingMonitorConfigStorageKey(competitionId)) {
+        setMonitorConfig(readLocalMonitorConfig(competitionId));
+        setPageIndex(0);
+      }
     };
 
     window.addEventListener("storage", onStorage);
@@ -128,8 +163,8 @@ export default function RoadTimekeepingMonitorPage() {
 
   useEffect(() => {
     const updatePageSize = () => {
-      const availableRows = Math.floor((window.innerHeight - 245) / 76);
-      setPageSize(Math.max(4, Math.min(14, availableRows)));
+      const availableRows = Math.floor((window.innerHeight - 390) / 86);
+      setPageSize(Math.max(4, Math.min(10, availableRows)));
     };
 
     updatePageSize();
@@ -147,9 +182,15 @@ export default function RoadTimekeepingMonitorPage() {
     () => new Map(monitorClassifications.map((classification, index) => [classification.code, index])),
     [monitorClassifications],
   );
+  const configuredClassificationCodes = useMemo(() => {
+    const configured = monitorConfig.classificationCodes.filter((code) =>
+      monitorClassifications.some((classification) => classification.code === code)
+    );
+    return configured.length > 0 ? configured : monitorClassifications.map((classification) => classification.code);
+  }, [monitorClassifications, monitorConfig.classificationCodes]);
   const rows = useMemo<ResultRow[]>(() => {
     const starters = roadSnapshot?.starters ?? [];
-    const selectedClassifications = new Set(selectedClassificationCodes);
+    const selectedClassifications = new Set(configuredClassificationCodes);
     return roadSessions
       .flatMap((session) =>
         session.events
@@ -162,10 +203,10 @@ export default function RoadTimekeepingMonitorPage() {
           })),
       )
       .filter((row) => {
-        if (!row.starter) return selectedClassifications.size === 0;
+        if (!row.starter) return false;
         const classification = monitorClassifications.find((item) => item.code === row.starter?.classificationCode);
         if (!classification || isOverallClassification(classification.code, classification.label)) return false;
-        return selectedClassifications.size === 0 || selectedClassifications.has(row.starter.classificationCode);
+        return selectedClassifications.has(row.starter.classificationCode);
       })
       .sort((left, right) => {
         const leftClassification = left.starter?.classificationCode ?? "";
@@ -175,31 +216,76 @@ export default function RoadTimekeepingMonitorPage() {
         if (leftOrder !== rightOrder) return leftOrder - rightOrder;
         return compareRows(left, right);
       });
-  }, [classificationOrder, monitorClassifications, roadSessions, roadSnapshot?.starters, selectedClassificationCodes]);
+  }, [classificationOrder, configuredClassificationCodes, monitorClassifications, roadSessions, roadSnapshot?.starters]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const effectivePageIndex = pageIndex % totalPages;
-  const visibleRows = rows.slice(effectivePageIndex * pageSize, effectivePageIndex * pageSize + pageSize);
-  const rankByRowId = useMemo(() => {
-    const rankMap = new Map<string, number>();
+  const classProgress = useMemo<ClassProgress[]>(() => {
     const rowsByClassification = new Map<string, ResultRow[]>();
     rows.forEach((row) => {
-      const classification = row.starter?.classificationCode ?? "unassigned";
+      const classification = row.starter?.classificationCode;
+      if (!classification) return;
       rowsByClassification.set(classification, [...(rowsByClassification.get(classification) ?? []), row]);
     });
-    rowsByClassification.forEach((classificationRows) => {
-      classificationRows.slice().sort(compareRows).forEach((row, index) => rankMap.set(row.id, index + 1));
+
+    return configuredClassificationCodes.map((code) => {
+      const classification = monitorClassifications.find((item) => item.code === code);
+      const starters = (roadSnapshot?.starters ?? []).filter((starter) => starter.classificationCode === code);
+      const classRows = (rowsByClassification.get(code) ?? []).slice().sort(compareRows);
+      const finishedStartNumbers = new Set(classRows.map((row) => normalizeTimekeepingStartNumber(row.event.startNumber)).filter(Boolean));
+      const finished = starters.filter((starter) => finishedStartNumbers.has(normalizeTimekeepingStartNumber(starter.startNumber))).length;
+      return {
+        code,
+        label: classification?.label ?? code,
+        total: starters.length,
+        finished,
+        rows: classRows,
+      };
+    });
+  }, [configuredClassificationCodes, monitorClassifications, roadSnapshot?.starters, rows]);
+
+  const totalPages = Math.max(1, classProgress.length);
+  const effectivePageIndex = pageIndex % totalPages;
+  const activeClass = classProgress[effectivePageIndex] ?? classProgress[0] ?? null;
+  const visibleRows = activeClass?.rows.slice(0, pageSize) ?? [];
+  const rankByRowId = useMemo(() => {
+    const rankMap = new Map<string, number>();
+    classProgress.forEach((classification) => {
+      classification.rows.forEach((row, index) => rankMap.set(row.id, index + 1));
     });
     return rankMap;
-  }, [rows]);
+  }, [classProgress]);
+
+  const latestRows = useMemo(
+    () => rows.slice().sort((left, right) => new Date(right.event.recordedAt).getTime() - new Date(left.event.recordedAt).getTime()).slice(0, 5),
+    [rows],
+  );
+  const activeBlockSummaries = useMemo(() => {
+    return roadSessions.map((session) => {
+      const starters = (roadSnapshot?.starters ?? []).filter((starter) => session.classificationCodes.includes(starter.classificationCode));
+      const finishedStartNumbers = new Set(
+        session.events
+          .filter((event) => event.eventType === "FINISH")
+          .map((event) => normalizeTimekeepingStartNumber(event.startNumber))
+          .filter(Boolean),
+      );
+      const finished = starters.filter((starter) => finishedStartNumbers.has(normalizeTimekeepingStartNumber(starter.startNumber))).length;
+      return {
+        id: session.id,
+        name: session.startBlockName,
+        running: Boolean(session.manualStartedAt && !session.manualStoppedAt),
+        finished,
+        total: starters.length,
+        onCourse: Math.max(0, starters.length - finished),
+      };
+    });
+  }, [roadSessions, roadSnapshot?.starters]);
 
   useEffect(() => {
     if (totalPages <= 1) return;
     const interval = window.setInterval(() => {
       setPageIndex((current) => (current + 1) % totalPages);
-    }, 8000);
+    }, monitorConfig.rotationSeconds * 1000);
     return () => window.clearInterval(interval);
-  }, [totalPages]);
+  }, [monitorConfig.rotationSeconds, totalPages]);
 
   const activeSessionCount = roadSessions.filter((session) => session.manualStartedAt && !session.manualStoppedAt).length;
   const hasLocalOpenItems = rows.some((row) => row.event.syncStatus !== "synced");
@@ -256,46 +342,56 @@ export default function RoadTimekeepingMonitorPage() {
         </div>
       </header>
 
-      <section className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant={selectedClassificationCodes.length === 0 ? "secondary" : "ghost"}
-            className={cn("h-9 border border-white/10 text-zinc-50", selectedClassificationCodes.length === 0 ? "text-zinc-950" : "hover:bg-white/10")}
-            onClick={() => {
-              setSelectedClassificationCodes([]);
-              setPageIndex(0);
-            }}
-          >
-            Alle Wertungsklassen
-          </Button>
-          {monitorClassifications.map((classification) => {
-            const isSelected = selectedClassificationCodes.includes(classification.code);
-            return (
-              <Button
-                key={classification.code}
-                size="sm"
-                variant={isSelected ? "secondary" : "ghost"}
-                className={cn("h-9 border border-white/10 text-zinc-50", isSelected ? "text-zinc-950" : "hover:bg-white/10")}
-                onClick={() => {
-                  setSelectedClassificationCodes((current) =>
-                    current.includes(classification.code)
-                      ? current.filter((code) => code !== classification.code)
-                      : [...current, classification.code],
-                  );
-                  setPageIndex(0);
-                }}
-              >
-                {classification.label}
-              </Button>
-            );
-          })}
+      <section className="grid gap-3 border-b border-white/10 px-5 py-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-3 sm:grid-cols-3">
+          {activeBlockSummaries.map((block) => (
+            <div key={block.id} className={cn(
+              "rounded-md border px-4 py-3",
+              block.running ? "border-cyan-300/70 bg-cyan-400/15" : "border-white/15 bg-white/10",
+            )}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-2xl font-semibold">{block.name}</p>
+                <span className={cn(
+                  "rounded-md px-2 py-1 text-sm font-semibold",
+                  block.running ? "bg-cyan-200 text-zinc-950" : "bg-white/10 text-zinc-200",
+                )}>
+                  {block.running ? "läuft" : "bereit"}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-4xl font-semibold tabular-nums text-emerald-200">{block.finished}</p>
+                  <p className="text-xs uppercase text-zinc-400">Ziel</p>
+                </div>
+                <div>
+                  <p className="text-4xl font-semibold tabular-nums text-amber-200">{block.onCourse}</p>
+                  <p className="text-xs uppercase text-zinc-400">Strecke</p>
+                </div>
+                <div>
+                  <p className="text-4xl font-semibold tabular-nums text-zinc-100">{block.total}</p>
+                  <p className="text-xs uppercase text-zinc-400">Starter</p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="flex items-center gap-3 text-sm text-zinc-300">
-          <span>{rows.length} Ergebnis(se)</span>
-          {selectedClassificationCodes.length > 0 && <span>{selectedClassificationCodes.length} Klasse(n)</span>}
-          {totalPages > 1 && <span>Seite {effectivePageIndex + 1}/{totalPages}</span>}
-          <span>Update {lastSeenAt ? formatTimekeepingClock(lastSeenAt) : "-"}</span>
+
+        <div className="rounded-md border border-white/15 bg-white/10 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xl font-semibold">Letzte Zieleinläufer</p>
+            <p className="text-sm text-zinc-400">Update {lastSeenAt ? formatTimekeepingClock(lastSeenAt) : "-"}</p>
+          </div>
+          <div className="mt-2 grid gap-1.5">
+            {latestRows.length === 0 ? (
+              <p className="text-lg text-zinc-400">Noch keine Zieleinläufer.</p>
+            ) : latestRows.map((row) => (
+              <div key={row.id} className="grid grid-cols-[5rem_minmax(0,1fr)_8rem] items-center gap-3 rounded-md bg-zinc-900/75 px-3 py-2">
+                <span className="font-mono text-2xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</span>
+                <span className="truncate text-xl">{row.starter ? `${row.starter.firstName} ${row.starter.lastName}` : "Ohne Zuordnung"}</span>
+                <span className="text-right font-mono text-2xl font-semibold tabular-nums text-emerald-200">{formatTimekeepingDuration(row.event.netElapsedMs)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -304,48 +400,53 @@ export default function RoadTimekeepingMonitorPage() {
           <div className="flex h-full min-h-[22rem] items-center justify-center rounded-md border border-dashed border-white/25 text-center text-xl text-zinc-300">
             Noch keine lokalen ROAD-Zeitnahme-Daten auf diesem Gerät.
           </div>
-        ) : visibleRows.length === 0 ? (
+        ) : !activeClass ? (
           <div className="flex h-full min-h-[22rem] items-center justify-center rounded-md border border-dashed border-white/25 text-center text-xl text-zinc-300">
-            Keine Zeiten für die aktuelle Klassenauswahl.
+            Keine Klassen für die Monitor-Auswahl.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-md border border-white/15">
+          <div className="overflow-hidden rounded-md border border-white/15 bg-zinc-950">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 bg-zinc-900 px-5 py-4">
+              <div>
+                <p className="text-5xl font-semibold tracking-normal">{activeClass.label}</p>
+                <p className="mt-1 text-lg text-zinc-300">
+                  {activeClass.finished}/{activeClass.total} im Ziel · {Math.max(0, activeClass.total - activeClass.finished)} offen
+                </p>
+              </div>
+              <div className="text-right text-zinc-300">
+                <p className="text-lg">Klasse {effectivePageIndex + 1}/{totalPages}</p>
+                <p className="text-sm">Wechsel {monitorConfig.rotationSeconds}s · {rows.length} Ergebnis(se)</p>
+              </div>
+            </div>
             <table className="w-full table-fixed">
-              <thead className="bg-zinc-900 text-left text-sm uppercase text-zinc-300">
+              <thead className="bg-zinc-900/80 text-left text-base uppercase text-zinc-300">
                 <tr>
-                  <th className="w-20 px-4 py-3">Rang</th>
-                  <th className="w-36 px-4 py-3">Startnr.</th>
-                  <th className="px-4 py-3">Teilnehmer</th>
+                  <th className="w-24 px-5 py-3">Rang</th>
+                  <th className="w-40 px-5 py-3">Startnr.</th>
+                  <th className="px-5 py-3">Teilnehmer</th>
                   <th className="px-4 py-3">Mannschaft</th>
-                  <th className="w-36 px-4 py-3">Klasse</th>
-                  <th className="w-44 px-4 py-3 text-right">Nettozeit</th>
-                  <th className="w-32 px-4 py-3 text-right">Status</th>
+                  <th className="w-52 px-5 py-3 text-right">Nettozeit</th>
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row) => {
+                {visibleRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-14 text-center text-3xl text-zinc-400">
+                      Noch keine Zeiten in dieser Klasse.
+                    </td>
+                  </tr>
+                ) : visibleRows.map((row) => {
                   const rank = rankByRowId.get(row.id) ?? "-";
                   return (
                     <tr key={row.id} className="border-t border-white/10 bg-zinc-950 odd:bg-zinc-900/55">
-                      <td className="px-4 py-3 text-3xl font-semibold tabular-nums text-cyan-200">{rank}</td>
-                      <td className="px-4 py-3 font-mono text-3xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</td>
-                      <td className="truncate px-4 py-3 text-2xl font-medium">
+                      <td className="px-5 py-4 text-5xl font-semibold tabular-nums text-cyan-200">{rank}</td>
+                      <td className="px-5 py-4 font-mono text-5xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</td>
+                      <td className="truncate px-5 py-4 text-4xl font-medium">
                         {row.starter ? `${row.starter.firstName} ${row.starter.lastName}` : "Ohne Zuordnung"}
                       </td>
-                      <td className="truncate px-4 py-3 text-xl text-zinc-200">{row.starter?.teamName ?? "-"}</td>
-                      <td className="truncate px-4 py-3 text-xl text-zinc-200">{row.starter?.classificationLabel ?? "-"}</td>
-                      <td className="px-4 py-3 text-right font-mono text-4xl font-semibold tabular-nums text-emerald-200">
+                      <td className="truncate px-4 py-4 text-3xl text-zinc-200">{row.starter?.teamName ?? "-"}</td>
+                      <td className="px-5 py-4 text-right font-mono text-5xl font-semibold tabular-nums text-emerald-200">
                         {formatTimekeepingDuration(row.event.netElapsedMs)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={cn(
-                          "inline-flex rounded-md px-2 py-1 text-sm font-medium",
-                          row.event.syncStatus === "synced"
-                            ? "bg-emerald-400/15 text-emerald-100"
-                            : "bg-amber-400/15 text-amber-100",
-                        )}>
-                          {statusLabel(row.event)}
-                        </span>
                       </td>
                     </tr>
                   );

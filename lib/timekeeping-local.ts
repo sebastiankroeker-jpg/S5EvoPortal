@@ -92,6 +92,10 @@ export function timekeepingTestStartNumbersStorageKey(competitionId: string) {
   return `s5evo-timekeeping-test-start-numbers-v1:${competitionId}`;
 }
 
+export function timekeepingMonitorConfigStorageKey(competitionId: string) {
+  return `s5evo-timekeeping-monitor-config-v1:${competitionId}`;
+}
+
 export function formatTimekeepingDuration(ms: number | null) {
   if (ms === null || !Number.isFinite(ms)) return "-";
   const totalHundredths = Math.max(0, Math.round(ms / 10));
