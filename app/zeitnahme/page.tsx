@@ -314,27 +314,58 @@ function getFirstStartNumber(starters: Starter[], classificationCodes: string[])
   )?.startNumberValue ?? null;
 }
 
-function hasStoredClassificationConfig(session: TimekeepingSessionState) {
-  return Array.isArray(session.classificationCodes);
+function buildGlobalStartBlocks(snapshot: SnapshotResponse, existingSessions: TimekeepingSessionState[]) {
+  const blocksByName = new Map<string, StartBlockDefinition>();
+  const mergeBlock = (block: StartBlockDefinition) => {
+    const existingBlock = blocksByName.get(block.name);
+    if (!existingBlock) {
+      blocksByName.set(block.name, {
+        name: block.name,
+        classificationCodes: [...block.classificationCodes],
+      });
+      return;
+    }
+    const classificationCodes = new Set([...existingBlock.classificationCodes, ...block.classificationCodes]);
+    blocksByName.set(block.name, {
+      name: block.name,
+      classificationCodes: [...classificationCodes],
+    });
+  };
+
+  snapshot.disciplines.forEach((discipline) => {
+    discipline.defaultStartBlocks.forEach(mergeBlock);
+  });
+  existingSessions.forEach((session) => {
+    mergeBlock({
+      name: session.startBlockName,
+      classificationCodes: session.classificationCodes ?? [],
+    });
+  });
+
+  if (blocksByName.size === 0) {
+    blocksByName.set("Block 1", {
+      name: "Block 1",
+      classificationCodes: snapshot.disciplines[0]?.classifications.map((classification) => classification.code) ?? [],
+    });
+  }
+
+  return [...blocksByName.values()];
 }
 
 function buildDefaultSessions(snapshot: SnapshotResponse, existing?: PersistedState | null): TimekeepingSessionState[] {
   const existingSessions = existing?.sessions ?? [];
+  const globalDefaultBlocks = buildGlobalStartBlocks(snapshot, existingSessions);
   const nextSessions = snapshot.disciplines.flatMap((discipline) => {
-    const existingDisciplineSessions = existingSessions.filter((session) => session.disciplineCode === discipline.code);
-    if (existingDisciplineSessions.some(hasStoredClassificationConfig)) {
-      return existingDisciplineSessions.map((session) => ({
-        ...session,
-        classificationCodes: session.classificationCodes ?? [],
-        firstStartNumber: session.firstStartNumber ?? getFirstStartNumber(discipline.starters, session.classificationCodes ?? []),
-        startIntervalSeconds: session.startIntervalSeconds ?? discipline.defaultStartIntervalSeconds,
-        manualStoppedAt: session.manualStoppedAt ?? null,
-      }));
-    }
-
-    const defaultBlocks = discipline.defaultStartBlocks.length > 0
-      ? discipline.defaultStartBlocks
-      : [{ name: "Block 1", classificationCodes: discipline.classifications.map((classification) => classification.code) }];
+    const availableClassificationCodes = new Set(discipline.classifications.map((classification) => classification.code));
+    const defaultBlocks = globalDefaultBlocks.map((block) => {
+      const classificationCodes = block.classificationCodes.filter((code) => availableClassificationCodes.has(code));
+      return {
+        name: block.name,
+        classificationCodes: classificationCodes.length > 0
+          ? classificationCodes
+          : discipline.classifications.map((classification) => classification.code),
+      };
+    });
     return defaultBlocks.map((block) => {
       const existingSession = existingSessions.find(
         (session) => session.disciplineCode === discipline.code && session.startBlockName === block.name,
@@ -572,6 +603,38 @@ export default function TimekeepingPage() {
     () => state?.sessions.filter((session) => session.disciplineCode === activeDiscipline) ?? [],
     [activeDiscipline, state?.sessions],
   );
+  const configuredStartBlocks = useMemo(() => {
+    const sessionsByBlockName = new Map<string, TimekeepingSessionState[]>();
+    (state?.sessions ?? []).forEach((session) => {
+      const blockSessions = sessionsByBlockName.get(session.startBlockName) ?? [];
+      blockSessions.push(session);
+      sessionsByBlockName.set(session.startBlockName, blockSessions);
+    });
+    return [...sessionsByBlockName.entries()]
+      .map(([name, sessions]) => ({
+        name,
+        sessions,
+        representative: sessions.find((session) => session.disciplineCode === activeDiscipline)
+          ?? sessions.find((session) => session.disciplineCode === "ROAD")
+          ?? sessions[0],
+      }))
+      .sort((left, right) => {
+        const leftPriority = ROAD_CLOCK_PRIORITY.get(left.name) ?? 10;
+        const rightPriority = ROAD_CLOCK_PRIORITY.get(right.name) ?? 10;
+        return leftPriority - rightPriority || left.name.localeCompare(right.name, "de");
+      });
+  }, [activeDiscipline, state?.sessions]);
+  const globalClassificationOptions = useMemo(() => {
+    const optionsByCode = new Map<string, ClassificationOption>();
+    (snapshot?.disciplines ?? []).forEach((discipline) => {
+      discipline.classifications.forEach((classification) => {
+        if (!optionsByCode.has(classification.code)) {
+          optionsByCode.set(classification.code, classification);
+        }
+      });
+    });
+    return [...optionsByCode.values()];
+  }, [snapshot?.disciplines]);
   const visibleClockSessions = useMemo(() => {
     if (activeDiscipline !== "ROAD") return activeSession ? [activeSession] : [];
     const sessionsById = new Map(disciplineSessions.map((session) => [session.id, session]));
@@ -737,6 +800,38 @@ export default function TimekeepingPage() {
     });
   }, []);
 
+  const toggleLinkedStartBlockClassification = (sessionId: string, classificationCode: string) => {
+    setState((current) => {
+      if (!current) return current;
+      const sourceSession = current.sessions.find((session) => session.id === sessionId);
+      if (!sourceSession) return current;
+      const hasClassification = sourceSession.classificationCodes.includes(classificationCode);
+      const nextGlobalClassificationCodes = hasClassification
+        ? sourceSession.classificationCodes.filter((code) => code !== classificationCode)
+        : [...sourceSession.classificationCodes, classificationCode];
+
+      return {
+        ...current,
+        sessions: current.sessions.map((session) => {
+          if (session.startBlockName !== sourceSession.startBlockName) return session;
+          const sessionDisciplineSnapshot = snapshot?.disciplines.find((discipline) => discipline.code === session.disciplineCode);
+          const availableClassificationCodes = new Set(
+            sessionDisciplineSnapshot?.classifications.map((classification) => classification.code) ?? [],
+          );
+          const classificationCodes = nextGlobalClassificationCodes.filter((code) => availableClassificationCodes.has(code));
+          const nextFirstStartNumber = sessionDisciplineSnapshot
+            ? getFirstStartNumber(sessionDisciplineSnapshot.starters, classificationCodes)
+            : null;
+          return recalculateEditableFinishEvents({
+            ...session,
+            classificationCodes,
+            firstStartNumber: nextFirstStartNumber ?? session.firstStartNumber,
+          });
+        }),
+      };
+    });
+  };
+
   const setActiveSessionByDiscipline = (disciplineCode: DisciplineCode) => {
     const nextSession = state?.sessions.find((session) =>
       session.disciplineCode === disciplineCode && (disciplineCode !== "ROAD" || session.startBlockName === "Schüler")
@@ -745,15 +840,21 @@ export default function TimekeepingPage() {
     setActiveSessionId(nextSession?.id ?? null);
   };
 
-  const addStartBlock = (disciplineCode: DisciplineCode) => {
+  const addStartBlock = () => {
     if (!snapshot || !state) return;
-    const targetDiscipline = snapshot.disciplines.find((discipline) => discipline.code === disciplineCode);
-    if (!targetDiscipline) return;
-    const currentDisciplineSessions = state.sessions.filter((session) => session.disciplineCode === disciplineCode);
-    const startBlockName = `Block ${currentDisciplineSessions.length + 1}`;
-    const firstStartNumber = targetDiscipline.firstStartNumber;
+    const existingBlockNames = new Set(state.sessions.map((session) => session.startBlockName));
+    let nextBlockNumber = existingBlockNames.size + 1;
+    let startBlockName = `Block ${nextBlockNumber}`;
+    while (existingBlockNames.has(startBlockName)) {
+      nextBlockNumber += 1;
+      startBlockName = `Block ${nextBlockNumber}`;
+    }
+    const firstStartNumber = snapshot.disciplines.find((discipline) => discipline.code === "ROAD")?.firstStartNumber
+      ?? snapshot.disciplines[0]?.firstStartNumber
+      ?? null;
     const defaultStartIntervalSeconds = snapshot.disciplines.find((discipline) => discipline.code === "ROAD")?.defaultStartIntervalSeconds
-      ?? targetDiscipline.defaultStartIntervalSeconds;
+      ?? snapshot.disciplines[0]?.defaultStartIntervalSeconds
+      ?? 0;
     const nextSessions = snapshot.disciplines.flatMap((discipline) => {
       if (state.sessions.some((session) => session.disciplineCode === discipline.code && session.startBlockName === startBlockName)) {
         return [];
@@ -772,30 +873,17 @@ export default function TimekeepingPage() {
         events: [],
       } satisfies TimekeepingSessionState];
     });
-    const nextSession = nextSessions.find((session) => session.disciplineCode === disciplineCode) ?? nextSessions[0];
+    const nextSession = nextSessions.find((session) => session.disciplineCode === activeDiscipline) ?? nextSessions[0];
     if (!nextSession) return;
     setState((current) => current ? { ...current, sessions: [...current.sessions, ...nextSessions] } : current);
-    if (disciplineCode === "ROAD") {
+    if (activeDiscipline === "ROAD") {
       setRoadClockSessionIds((current) => {
         const baseIds = current.length > 0 ? current : visibleClockSessions.map((session) => session.id);
         const nextIds = baseIds.length < ROAD_CLOCK_SLOT_COUNT ? [...baseIds, nextSession.id] : baseIds;
         return Array.from(new Set(nextIds)).slice(0, ROAD_CLOCK_SLOT_COUNT);
       });
     }
-    setActiveDiscipline(disciplineCode);
     setActiveSessionId(nextSession.id);
-  };
-
-  const toggleRoadClockSession = (sessionId: string) => {
-    const session = state?.sessions.find((item) => item.id === sessionId);
-    if (session?.disciplineCode !== "ROAD") return;
-    setRoadClockSessionIds((current) => {
-      const baseIds = current.length > 0 ? current : visibleClockSessions.map((visibleSession) => visibleSession.id);
-      if (baseIds.includes(sessionId)) return baseIds.filter((currentSessionId) => currentSessionId !== sessionId);
-      return [...baseIds, sessionId].slice(-ROAD_CLOCK_SLOT_COUNT);
-    });
-    setActiveDiscipline("ROAD");
-    setActiveSessionId(sessionId);
   };
 
   const selectStartBlock = (sessionId: string) => {
@@ -810,6 +898,27 @@ export default function TimekeepingPage() {
     }
     setActiveDiscipline(session.disciplineCode);
     setActiveSessionId(sessionId);
+  };
+
+  const selectClockStartBlock = (slotSessionId: string, nextSessionId: string) => {
+    const nextSession = state?.sessions.find((session) => session.id === nextSessionId);
+    if (!nextSession) return;
+    if (nextSession.disciplineCode === "ROAD") {
+      setRoadClockSessionIds((current) => {
+        const baseIds = current.length > 0 ? current : visibleClockSessions.map((session) => session.id);
+        const nextIds = [...baseIds];
+        const slotIndex = nextIds.indexOf(slotSessionId);
+        const duplicateIndex = nextIds.indexOf(nextSessionId);
+        const targetIndex = slotIndex >= 0 ? slotIndex : 0;
+        if (duplicateIndex >= 0 && duplicateIndex !== targetIndex) {
+          nextIds[duplicateIndex] = slotSessionId;
+        }
+        nextIds[targetIndex] = nextSessionId;
+        return Array.from(new Set(nextIds)).slice(0, ROAD_CLOCK_SLOT_COUNT);
+      });
+    }
+    setActiveDiscipline(nextSession.disciplineCode);
+    setActiveSessionId(nextSession.id);
   };
 
   const removeStartBlock = (sessionId: string) => {
@@ -838,24 +947,6 @@ export default function TimekeepingPage() {
     setAssigningEventId(null);
     setAssignValue("");
     setStartNumberInput("");
-  };
-
-  const toggleSessionClassification = (sessionId: string, classificationCode: string) => {
-    updateSessionById(sessionId, (session) => {
-      const sessionDisciplineSnapshot = snapshot?.disciplines.find((discipline) => discipline.code === session.disciplineCode);
-      const hasClassification = session.classificationCodes.includes(classificationCode);
-      const classificationCodes = hasClassification
-        ? session.classificationCodes.filter((code) => code !== classificationCode)
-        : [...session.classificationCodes, classificationCode];
-      const nextFirstStartNumber = sessionDisciplineSnapshot
-        ? getFirstStartNumber(sessionDisciplineSnapshot.starters, classificationCodes)
-        : null;
-      return {
-        ...session,
-        classificationCodes,
-        firstStartNumber: nextFirstStartNumber ?? session.firstStartNumber,
-      };
-    });
   };
 
   const updateSessionBaseTime = (sessionId: string, value: string) => {
@@ -1341,6 +1432,7 @@ export default function TimekeepingPage() {
     const finishedKnownInSession = sessionStarters.filter((starter) =>
       sessionFinishedStartNumbers.has(normalizeStartNumber(starter.startNumber))
     ).length;
+    const blockOptions = state?.sessions.filter((item) => item.disciplineCode === session.disciplineCode) ?? [];
 
     return (
       <section
@@ -1353,12 +1445,25 @@ export default function TimekeepingPage() {
       >
         <div className="grid gap-2">
           <div className="flex flex-wrap items-start justify-between gap-2 text-xs text-muted-foreground">
-            <div className="min-w-0">
-              <p className="font-medium text-foreground">
-                {DISCIPLINE_LABELS[session.disciplineCode]} · {session.startBlockName}
-              </p>
-              <p className="truncate">
-                {getSessionClassLabels(session)}
+            <div className="grid min-w-0 gap-1">
+              <label className="grid gap-1 text-[11px] font-medium uppercase tracking-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+                Startblock
+                <select
+                  aria-label="Startblock für diese Uhr auswählen"
+                  value={session.id}
+                  onChange={(event) => selectClockStartBlock(session.id, event.target.value)}
+                  disabled={isRunning || blockOptions.length <= 1}
+                  className="h-8 min-w-32 rounded-md border border-border/60 bg-background px-2 text-sm normal-case text-foreground disabled:opacity-70"
+                >
+                  {blockOptions.map((blockSession) => (
+                    <option key={blockSession.id} value={blockSession.id}>
+                      {blockSession.startBlockName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="truncate text-xs">
+                {DISCIPLINE_LABELS[session.disciplineCode]} · {getSessionClassLabels(session)}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -1449,9 +1554,6 @@ export default function TimekeepingPage() {
 
   const renderGlobalConfiguration = () => {
     if (!snapshot || !state) return null;
-    const selectedRoadClockSessionIds = new Set(
-      roadClockSessionIds.length > 0 ? roadClockSessionIds : visibleClockSessions.map((session) => session.id),
-    );
 
     return (
       <section className="grid gap-3 rounded-md border border-border/60 bg-card p-3 shadow-sm">
@@ -1486,166 +1588,146 @@ export default function TimekeepingPage() {
         </div>
 
         <div className="grid gap-3">
-          {snapshot.disciplines.map((discipline) => {
-            const sessionsForDiscipline = state.sessions.filter((session) => session.disciplineCode === discipline.code);
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Startblöcke global</p>
+              <p className="text-xs text-muted-foreground">
+                {configuredStartBlocks.length} Startblock{configuredStartBlocks.length === 1 ? "" : "s"} für alle Disziplinen
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-8 gap-1.5 px-2 text-xs"
+              onClick={addStartBlock}
+            >
+              <Plus className="size-4" />
+              Block hinzufügen
+            </Button>
+          </div>
+
+          {configuredStartBlocks.map((block) => {
+            const session = block.representative;
+            const sessionStarters = block.sessions.flatMap((blockSession) => getSessionStarters(blockSession));
+            const canRemove = configuredStartBlocks.length > 1;
             return (
-              <div key={discipline.code} className="grid gap-2 rounded-md border border-border/60 bg-background p-2">
+              <div
+                key={block.name}
+                className={cn(
+                  "grid gap-2 rounded-md border p-2",
+                  block.sessions.some((blockSession) => blockSession.id === activeSessionId)
+                    ? "border-primary/60 bg-primary/5"
+                    : "border-border/60 bg-background",
+                )}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">{DISCIPLINE_LABELS[discipline.code]}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {sessionsForDiscipline.length} Startblock{sessionsForDiscipline.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
                   <Button
                     type="button"
                     size="sm"
-                    variant="secondary"
-                    className="h-8 gap-1.5 px-2 text-xs"
-                    onClick={() => addStartBlock(discipline.code)}
+                    variant={block.sessions.some((blockSession) => blockSession.id === activeSessionId) ? "default" : "outline"}
+                    className="h-8 px-2 text-xs"
+                    onClick={() => selectStartBlock(session.id)}
                   >
-                    <Plus className="size-4" />
-                    Block hinzufügen
+                    {session.startBlockName}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
+                    onClick={() => removeStartBlock(session.id)}
+                    disabled={!canRemove}
+                  >
+                    <Trash2 className="size-4" />
+                    Entfernen
                   </Button>
                 </div>
 
-                <div className="grid gap-2">
-                  {sessionsForDiscipline.map((session) => {
-                    const sessionStarters = getSessionStarters(session);
-                    const canRemove = sessionsForDiscipline.length > 1;
-                    const isVisibleRoadClock = session.disciplineCode === "ROAD" && selectedRoadClockSessionIds.has(session.id);
-                    return (
-                      <div
-                        key={session.id}
-                        className={cn(
-                          "grid gap-2 rounded-md border p-2",
-                          session.id === activeSessionId ? "border-primary/60 bg-primary/5" : "border-border/60 bg-card",
-                        )}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={session.id === activeSessionId ? "default" : "outline"}
-                            className="h-8 px-2 text-xs"
-                            onClick={() => selectStartBlock(session.id)}
-                          >
-                            {session.startBlockName}
-                          </Button>
-                          <div className="flex flex-wrap items-center gap-1">
-                            {session.disciplineCode === "ROAD" && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={isVisibleRoadClock ? "secondary" : "ghost"}
-                                className="h-8 px-2 text-xs"
-                                onClick={() => toggleRoadClockSession(session.id)}
-                              >
-                                {isVisibleRoadClock ? "In Uhr sichtbar" : "In Uhr anzeigen"}
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
-                              onClick={() => removeStartBlock(session.id)}
-                              disabled={!canRemove}
-                            >
-                              <Trash2 className="size-4" />
-                              Entfernen
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-2 sm:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))]">
-                          <label className="grid gap-1 text-xs font-medium">
-                            Blockname global
-                            <Input
-                              value={session.startBlockName}
-                              onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => ({
-                                ...currentSession,
-                                startBlockName: event.target.value,
-                              }))}
-                              className="h-9"
-                            />
-                          </label>
-                          <label className="grid gap-1 text-xs font-medium">
-                            Erste STRNR global
-                            <Input
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={toInputNumber(session.firstStartNumber)}
-                              onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => recalculateEditableFinishEvents({
-                                ...currentSession,
-                                firstStartNumber: event.target.value ? Number.parseInt(event.target.value, 10) : null,
-                              }))}
-                              className="h-9"
-                            />
-                          </label>
-                          <label className="grid gap-1 text-xs font-medium">
-                            Abstand Sek. global
-                            <Input
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={toInputNumber(session.startIntervalSeconds)}
-                              onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => recalculateEditableFinishEvents({
-                                ...currentSession,
-                                startIntervalSeconds: event.target.value ? Number.parseInt(event.target.value, 10) : 0,
-                              }))}
-                              className="h-9"
-                            />
-                          </label>
-                        </div>
-
-                        <div className="grid gap-1">
-                          <p className="text-xs font-medium">Klassen in diesem Block</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {discipline.classifications.map((classification) => {
-                              const isSelected = session.classificationCodes.includes(classification.code);
-                              return (
-                                <Button
-                                  key={classification.code}
-                                  type="button"
-                                  size="sm"
-                                  variant={isSelected ? "default" : "outline"}
-                                  className="h-8 px-2 text-xs"
-                                  onClick={() => toggleSessionClassification(session.id, classification.code)}
-                                >
-                                  {classification.label}
-                                </Button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {sessionStarters.length > 0 && (
-                          <div className="rounded-md border border-border/60 bg-background">
-                            <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                              <span>Starter im Block</span>
-                              <span className="font-mono tabular-nums">{sessionStarters.length}</span>
-                            </div>
-                            <div className="max-h-32 overflow-auto">
-                              {sessionStarters.slice(0, 30).map((starter) => (
-                                <div
-                                  key={`${starter.participantId}-${starter.startNumber}`}
-                                  className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-0"
-                                >
-                                  <span className="font-mono font-semibold tabular-nums">
-                                    {starter.startNumber}
-                                    {starter.isTestStartNumber && <span className="ml-1 text-[10px] text-amber-700">Test</span>}
-                                  </span>
-                                  <span className="min-w-0 truncate">
-                                    {starter.firstName} {starter.lastName} · {starter.teamName} · {starter.classificationLabel}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))]">
+                  <label className="grid gap-1 text-xs font-medium">
+                    Blockname
+                    <Input
+                      value={session.startBlockName}
+                      onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => ({
+                        ...currentSession,
+                        startBlockName: event.target.value,
+                      }))}
+                      className="h-9"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium">
+                    Erste STRNR
+                    <Input
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={toInputNumber(session.firstStartNumber)}
+                      onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => recalculateEditableFinishEvents({
+                        ...currentSession,
+                        firstStartNumber: event.target.value ? Number.parseInt(event.target.value, 10) : null,
+                      }))}
+                      className="h-9"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium">
+                    Abstand Sek.
+                    <Input
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={toInputNumber(session.startIntervalSeconds)}
+                      onChange={(event) => updateLinkedStartBlocks(session.id, (currentSession) => recalculateEditableFinishEvents({
+                        ...currentSession,
+                        startIntervalSeconds: event.target.value ? Number.parseInt(event.target.value, 10) : 0,
+                      }))}
+                      className="h-9"
+                    />
+                  </label>
                 </div>
+
+                <div className="grid gap-1">
+                  <p className="text-xs font-medium">Klassen in diesem Block</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {globalClassificationOptions.map((classification) => {
+                      const isSelected = session.classificationCodes.includes(classification.code);
+                      return (
+                        <Button
+                          key={classification.code}
+                          type="button"
+                          size="sm"
+                          variant={isSelected ? "default" : "outline"}
+                          className="h-8 px-2 text-xs"
+                          onClick={() => toggleLinkedStartBlockClassification(session.id, classification.code)}
+                        >
+                          {classification.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {sessionStarters.length > 0 && (
+                  <div className="rounded-md border border-border/60 bg-background">
+                    <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                      <span>Starter im Block</span>
+                      <span className="font-mono tabular-nums">{sessionStarters.length}</span>
+                    </div>
+                    <div className="max-h-32 overflow-auto">
+                      {sessionStarters.slice(0, 30).map((starter) => (
+                        <div
+                          key={`${starter.participantId}-${starter.disciplineCode}-${starter.startNumber}`}
+                          className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-0"
+                        >
+                          <span className="font-mono font-semibold tabular-nums">
+                            {starter.startNumber}
+                            {starter.isTestStartNumber && <span className="ml-1 text-[10px] text-amber-700">Test</span>}
+                          </span>
+                          <span className="min-w-0 truncate">
+                            {DISCIPLINE_LABELS[starter.disciplineCode]} · {starter.firstName} {starter.lastName} · {starter.teamName} · {starter.classificationLabel}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1683,11 +1765,23 @@ export default function TimekeepingPage() {
       <main className="mx-auto flex max-w-5xl flex-col gap-3 px-3 py-3 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold leading-tight">Zeitnahme</h1>
-              <Button
-                type="button"
-                size="sm"
+	            <div className="flex flex-wrap items-center gap-2">
+	              <h1 className="text-lg font-semibold leading-tight">Zeitnahme</h1>
+	              <select
+	                aria-label="Disziplin auswählen"
+	                value={activeDiscipline}
+	                onChange={(event) => setActiveSessionByDiscipline(event.target.value as DisciplineCode)}
+	                className="h-8 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground"
+	              >
+	                {(snapshot?.disciplines ?? []).map((discipline) => (
+	                  <option key={discipline.code} value={discipline.code}>
+	                    {DISCIPLINE_LABELS[discipline.code]}
+	                  </option>
+	                ))}
+	              </select>
+	              <Button
+	                type="button"
+	                size="sm"
                 variant={globalConfigOpen ? "secondary" : "outline"}
                 className="h-8 gap-1.5 px-2"
                 onClick={() => setGlobalConfigOpen((open) => !open)}
@@ -1699,21 +1793,9 @@ export default function TimekeepingPage() {
             <p className="truncate text-xs text-muted-foreground">
               {snapshot?.competition.name ?? activeCompetition?.name ?? "Wettkampf"} · {activeSession?.startBlockName ?? "Block"}
             </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-1.5 text-xs">
-            <select
-              aria-label="Disziplin auswählen"
-              value={activeDiscipline}
-              onChange={(event) => setActiveSessionByDiscipline(event.target.value as DisciplineCode)}
-              className="h-8 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground"
-            >
-              {(snapshot?.disciplines ?? []).map((discipline) => (
-                <option key={discipline.code} value={discipline.code}>
-                  {DISCIPLINE_LABELS[discipline.code]}
-                </option>
-              ))}
-            </select>
-            <span className={cn(
+	          </div>
+	          <div className="flex flex-wrap items-center justify-end gap-1.5 text-xs">
+	            <span className={cn(
               "inline-flex items-center gap-1 rounded-md border px-2 py-1",
               unsyncedCount > 0 ? "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200" : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200",
             )}>

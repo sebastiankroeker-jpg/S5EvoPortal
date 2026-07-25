@@ -15,11 +15,6 @@ const DEFAULT_START_BLOCKS = [
   { name: "Jugend & Damen", classificationCodes: ["jugend", "damen-a", "damen-b"] },
   { name: "Herren", classificationCodes: ["jungsters", "herren", "masters"] },
 ] as const;
-const DEFAULT_ROAD_START_BLOCKS = [
-  { name: "Schüler", classificationCodes: ["schueler-a", "schueler-b"] },
-  { name: "Herren", classificationCodes: ["jungsters", "herren", "masters"] },
-] as const;
-
 function toStartNumberValue(startNumber: string | null) {
   if (!startNumber) return null;
   const parsed = Number.parseInt(startNumber, 10);
@@ -123,7 +118,7 @@ export async function GET(request: NextRequest) {
       code,
       name: competition.disciplines.find((discipline) => discipline.code === code)?.name ?? code,
       defaultStartIntervalSeconds: code === "ROAD" ? 30 : 0,
-      defaultStartBlocks: code === "ROAD" ? DEFAULT_ROAD_START_BLOCKS : DEFAULT_START_BLOCKS,
+      defaultStartBlocks: DEFAULT_START_BLOCKS,
       firstStartNumber,
       classifications: CLASSIFICATION_DISPLAY_ORDER.map((classificationCode) => ({
         code: classificationCode,
