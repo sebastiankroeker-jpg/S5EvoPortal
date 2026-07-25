@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
     return {
       code,
       name: competition.disciplines.find((discipline) => discipline.code === code)?.name ?? code,
-      defaultStartIntervalSeconds: code === "ROAD" ? 30 : 0,
+      defaultStartIntervalSeconds: 30,
       defaultStartBlocks: DEFAULT_START_BLOCKS,
       firstStartNumber,
       classifications: CLASSIFICATION_DISPLAY_ORDER.map((classificationCode) => ({

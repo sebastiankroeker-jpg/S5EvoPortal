@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     ? sessionPayload.startBlockName.trim()
     : "Block 1";
   const firstStartNumber = parseOptionalInteger(sessionPayload.firstStartNumber);
-  const startIntervalSeconds = parseOptionalInteger(sessionPayload.startIntervalSeconds) ?? (disciplineCode === "ROAD" ? 30 : 0);
+  const startIntervalSeconds = parseOptionalInteger(sessionPayload.startIntervalSeconds) ?? 30;
   const manualStartedAt = parseDate(sessionPayload.manualStartedAt);
 
   const validEvents = events.flatMap((event) => {

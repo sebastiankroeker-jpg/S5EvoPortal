@@ -131,6 +131,7 @@ const DISCIPLINE_LABELS: Record<DisciplineCode, string> = {
 };
 
 const ROAD_CLOCK_SLOT_COUNT = 2;
+const DEFAULT_START_INTERVAL_SECONDS = 30;
 const ROAD_CLOCK_PRIORITY = new Map([
   ["Schüler", 0],
   ["Herren", 1],
@@ -377,6 +378,7 @@ function buildDefaultSessions(snapshot: SnapshotResponse, existing?: PersistedSt
             ? existingSession.classificationCodes
             : block.classificationCodes,
           firstStartNumber: existingSession.firstStartNumber ?? getFirstStartNumber(discipline.starters, block.classificationCodes),
+          startIntervalSeconds: existingSession.startIntervalSeconds || discipline.defaultStartIntervalSeconds || DEFAULT_START_INTERVAL_SECONDS,
           manualStoppedAt: existingSession.manualStoppedAt ?? null,
         };
       }
@@ -387,7 +389,7 @@ function buildDefaultSessions(snapshot: SnapshotResponse, existing?: PersistedSt
         startBlockName: block.name,
         classificationCodes: block.classificationCodes,
         firstStartNumber: getFirstStartNumber(discipline.starters, block.classificationCodes) ?? discipline.firstStartNumber,
-        startIntervalSeconds: discipline.defaultStartIntervalSeconds,
+        startIntervalSeconds: discipline.defaultStartIntervalSeconds || DEFAULT_START_INTERVAL_SECONDS,
         manualStartedAt: null,
         manualStoppedAt: null,
         events: [],
@@ -854,7 +856,7 @@ export default function TimekeepingPage() {
       ?? null;
     const defaultStartIntervalSeconds = snapshot.disciplines.find((discipline) => discipline.code === "ROAD")?.defaultStartIntervalSeconds
       ?? snapshot.disciplines[0]?.defaultStartIntervalSeconds
-      ?? 0;
+      ?? DEFAULT_START_INTERVAL_SECONDS;
     const nextSessions = snapshot.disciplines.flatMap((discipline) => {
       if (state.sessions.some((session) => session.disciplineCode === discipline.code && session.startBlockName === startBlockName)) {
         return [];
@@ -867,7 +869,7 @@ export default function TimekeepingPage() {
         startBlockName,
         classificationCodes: allClassificationCodes,
         firstStartNumber: firstStartNumber ?? discipline.firstStartNumber,
-        startIntervalSeconds: defaultStartIntervalSeconds,
+        startIntervalSeconds: defaultStartIntervalSeconds || DEFAULT_START_INTERVAL_SECONDS,
         manualStartedAt: null,
         manualStoppedAt: null,
         events: [],
@@ -1446,8 +1448,8 @@ export default function TimekeepingPage() {
         <div className="grid gap-2">
           <div className="flex flex-wrap items-start justify-between gap-2 text-xs text-muted-foreground">
             <div className="grid min-w-0 gap-1">
-              <label className="grid gap-1 text-[11px] font-medium uppercase tracking-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
-                Startblock
+              <label className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+                <span>Startblock</span>
                 <select
                   aria-label="Startblock für diese Uhr auswählen"
                   value={session.id}
@@ -1609,7 +1611,7 @@ export default function TimekeepingPage() {
 
           {configuredStartBlocks.map((block) => {
             const session = block.representative;
-            const sessionStarters = block.sessions.flatMap((blockSession) => getSessionStarters(blockSession));
+            const sessionStarters = getSessionStarters(session);
             const canRemove = configuredStartBlocks.length > 1;
             return (
               <div
@@ -1707,7 +1709,7 @@ export default function TimekeepingPage() {
                 {sessionStarters.length > 0 && (
                   <div className="rounded-md border border-border/60 bg-background">
                     <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                      <span>Starter im Block</span>
+                      <span>Starter im Block ({DISCIPLINE_LABELS[activeDiscipline]})</span>
                       <span className="font-mono tabular-nums">{sessionStarters.length}</span>
                     </div>
                     <div className="max-h-32 overflow-auto">
@@ -1732,6 +1734,15 @@ export default function TimekeepingPage() {
             );
           })}
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 w-full"
+          onClick={() => setGlobalConfigOpen(false)}
+        >
+          Übergreifende Konfiguration zuklappen
+        </Button>
       </section>
     );
   };
@@ -1765,34 +1776,34 @@ export default function TimekeepingPage() {
       <main className="mx-auto flex max-w-5xl flex-col gap-3 px-3 py-3 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
-	            <div className="flex flex-wrap items-center gap-2">
-	              <h1 className="text-lg font-semibold leading-tight">Zeitnahme</h1>
-	              <select
-	                aria-label="Disziplin auswählen"
-	                value={activeDiscipline}
-	                onChange={(event) => setActiveSessionByDiscipline(event.target.value as DisciplineCode)}
-	                className="h-8 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground"
-	              >
-	                {(snapshot?.disciplines ?? []).map((discipline) => (
-	                  <option key={discipline.code} value={discipline.code}>
-	                    {DISCIPLINE_LABELS[discipline.code]}
-	                  </option>
-	                ))}
-	              </select>
-	              <Button
-	                type="button"
-	                size="sm"
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold leading-tight">Zeitnahme</h1>
+              <Button
+                type="button"
+                size="sm"
                 variant={globalConfigOpen ? "secondary" : "outline"}
-                className="h-8 gap-1.5 px-2"
+                className="h-8 w-36 gap-1.5 px-2"
                 onClick={() => setGlobalConfigOpen((open) => !open)}
               >
                 <Settings2 className="size-4" />
                 Konfiguration
               </Button>
+              <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+                {configuredStartBlocks.length} Startblock{configuredStartBlocks.length === 1 ? "" : "s"}
+              </span>
+              <select
+                aria-label="Disziplin auswählen"
+                value={activeDiscipline}
+                onChange={(event) => setActiveSessionByDiscipline(event.target.value as DisciplineCode)}
+                className="h-8 w-36 rounded-md border border-border/60 bg-background px-2 text-sm text-foreground"
+              >
+                {(snapshot?.disciplines ?? []).map((discipline) => (
+                  <option key={discipline.code} value={discipline.code}>
+                    {DISCIPLINE_LABELS[discipline.code]}
+                  </option>
+                ))}
+              </select>
             </div>
-            <p className="truncate text-xs text-muted-foreground">
-              {snapshot?.competition.name ?? activeCompetition?.name ?? "Wettkampf"} · {activeSession?.startBlockName ?? "Block"}
-            </p>
 	          </div>
 	          <div className="flex flex-wrap items-center justify-end gap-1.5 text-xs">
 	            <span className={cn(
@@ -1825,17 +1836,13 @@ export default function TimekeepingPage() {
           </div>
         )}
 
-        <div className="text-xs text-muted-foreground">
-          {disciplineSessions.length} Startblock{disciplineSessions.length === 1 ? "" : "s"} konfiguriert
-        </div>
-
         <div className={cn("grid gap-2", activeDiscipline === "ROAD" && visibleClockSessions.length > 1 && "lg:grid-cols-2")}>
           {visibleClockSessions.map((session) => renderClockCard(session))}
         </div>
 
         <section className="rounded-md border border-border/60 bg-card p-2 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span>Zielblock automatisch per Startnummer</span>
+            <span>Zuordnung Uhr/Startblock automatisch über Startnummer</span>
             <span className={cn(
               "rounded-md border px-2 py-1",
               finishTargetIsRunning
@@ -1854,14 +1861,13 @@ export default function TimekeepingPage() {
 	                enterKeyHint="enter"
 	                placeholder="Startnummer optional"
 	                value={startNumberInput}
-	                readOnly
 	                onChange={(event) => setSanitizedStartNumberInput(event.target.value)}
 	                onKeyDown={handleStartNumberKeyDown}
 	                onPaste={(event) => {
 	                  event.preventDefault();
 	                  setSanitizedStartNumberInput(event.clipboardData.getData("text"));
 	                }}
-	                className="h-24 pl-12 text-2xl"
+	                className="h-24 pl-12 text-2xl caret-primary"
 	                disabled={!anyClockIsRunning}
 	              />
 	            </div>
