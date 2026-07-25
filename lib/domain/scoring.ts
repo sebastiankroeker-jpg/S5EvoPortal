@@ -38,6 +38,8 @@ export interface DisciplineEntry {
   participantName: string;
   rawValue: number | null; // null = nicht angetreten
   rawValueText?: string | null;
+  publishedRank?: number | null;
+  publishedPoints?: number | null;
   tieBreakers?: number[];
   classCode: string;
 }
@@ -128,7 +130,22 @@ export function rankDiscipline(
     currentRank = i + 2; // Next rank skips tied positions
   }
 
-  return ranked;
+  if (!ranked.some((entry) => entry.publishedRank !== undefined || entry.publishedPoints !== undefined)) {
+    return ranked;
+  }
+
+  return ranked
+    .map((entry) => ({
+      ...entry,
+      rank: entry.publishedRank ?? entry.rank,
+      points: entry.publishedPoints ?? entry.points,
+    }))
+    .sort((left, right) => {
+      if (left.rank !== right.rank) return left.rank - right.rank;
+      if (left.points !== right.points) return right.points - left.points;
+      return (Number.parseInt(left.startNumber ?? "", 10) || Number.MAX_SAFE_INTEGER)
+        - (Number.parseInt(right.startNumber ?? "", 10) || Number.MAX_SAFE_INTEGER);
+    });
 }
 
 /**

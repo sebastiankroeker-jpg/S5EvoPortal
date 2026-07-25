@@ -241,6 +241,8 @@ export async function GET(request: NextRequest) {
             participantId: participant.id,
             participantName: visibleParticipantById.get(participant.id) ?? "Teilnehmer:in",
             rawValue: result.rawValue,
+            publishedRank: result.rank,
+            publishedPoints: result.points,
             classCode,
           });
         }
