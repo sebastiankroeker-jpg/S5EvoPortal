@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import Sidebar from "./sidebar";
 import CommandPill from "./command-pill";
 import RoleSwitcher from "./role-switcher";
@@ -13,13 +14,17 @@ interface LayoutWrapperProps {
 
 export default function LayoutWrapper({ children }: LayoutWrapperProps) {
   const { status } = useSession();
+  const pathname = usePathname();
   const { hasConsent } = usePrivacyConsent();
   const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const showDesktopSidebar = status === "authenticated";
+  const isMonitorRoute = pathname?.startsWith("/zeitnahme/monitor") ?? false;
 
   // Sidebar State synchronisieren
   useEffect(() => {
+    if (isMonitorRoute) return;
+
     const handleStorageChange = () => {
       if (!functionalStorageAllowed) {
         setIsCollapsed(false);
@@ -47,7 +52,11 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("sidebar-toggle", handleStorageChange);
     };
-  }, [functionalStorageAllowed]);
+  }, [functionalStorageAllowed, isMonitorRoute]);
+
+  if (isMonitorRoute) {
+    return <>{children}</>;
+  }
 
   return (
     <>

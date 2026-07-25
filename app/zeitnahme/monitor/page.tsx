@@ -42,6 +42,13 @@ type ClassProgress = {
   rows: ResultRow[];
 };
 
+type MonitorPage = {
+  classProgress: ClassProgress;
+  pageInClass: number;
+  pagesInClass: number;
+  rowStart: number;
+};
+
 function readLocalState(competitionId: string | null) {
   if (!competitionId || typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(timekeepingStorageKey(competitionId));
@@ -163,8 +170,8 @@ export default function RoadTimekeepingMonitorPage() {
 
   useEffect(() => {
     const updatePageSize = () => {
-      const availableRows = Math.floor((window.innerHeight - 390) / 86);
-      setPageSize(Math.max(4, Math.min(10, availableRows)));
+      const availableRows = Math.floor((window.innerHeight - 250) / 74);
+      setPageSize(Math.max(5, Math.min(12, availableRows)));
     };
 
     updatePageSize();
@@ -242,10 +249,22 @@ export default function RoadTimekeepingMonitorPage() {
     });
   }, [configuredClassificationCodes, monitorClassifications, roadSnapshot?.starters, rows]);
 
-  const totalPages = Math.max(1, classProgress.length);
+  const monitorPages = useMemo<MonitorPage[]>(() => {
+    return classProgress.flatMap((classification) => {
+      const pagesInClass = Math.max(1, Math.ceil(classification.rows.length / pageSize));
+      return Array.from({ length: pagesInClass }, (_, pageInClass) => ({
+        classProgress: classification,
+        pageInClass,
+        pagesInClass,
+        rowStart: pageInClass * pageSize,
+      }));
+    });
+  }, [classProgress, pageSize]);
+  const totalPages = Math.max(1, monitorPages.length);
   const effectivePageIndex = pageIndex % totalPages;
-  const activeClass = classProgress[effectivePageIndex] ?? classProgress[0] ?? null;
-  const visibleRows = activeClass?.rows.slice(0, pageSize) ?? [];
+  const activePage = monitorPages[effectivePageIndex] ?? monitorPages[0] ?? null;
+  const activeClass = activePage?.classProgress ?? null;
+  const visibleRows = activePage?.classProgress.rows.slice(activePage.rowStart, activePage.rowStart + pageSize) ?? [];
   const rankByRowId = useMemo(() => {
     const rankMap = new Map<string, number>();
     classProgress.forEach((classification) => {
@@ -312,16 +331,13 @@ export default function RoadTimekeepingMonitorPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-zinc-950 text-zinc-50">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 px-5 py-4">
+    <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-zinc-950 text-zinc-50">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 px-5 py-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <Monitor className="size-8 text-cyan-300" />
-            <h1 className="text-3xl font-semibold tracking-normal">Rad Einzelzeitfahren</h1>
+            <Monitor className="size-7 text-cyan-300" />
+            <h1 className="text-2xl font-semibold tracking-normal">Rad Einzelzeitfahren</h1>
           </div>
-          <p className="mt-1 truncate text-base text-zinc-300">
-            {state?.cachedSnapshot?.competition.name ?? activeCompetition?.name ?? "Wettkampf"} · provisorische Live-Zeiten
-          </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
           <span className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 py-2">
@@ -342,33 +358,33 @@ export default function RoadTimekeepingMonitorPage() {
         </div>
       </header>
 
-      <section className="grid gap-3 border-b border-white/10 px-5 py-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-2 border-b border-white/10 px-5 py-2.5 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="grid gap-3 sm:grid-cols-3">
           {activeBlockSummaries.map((block) => (
             <div key={block.id} className={cn(
-              "rounded-md border px-4 py-3",
+              "rounded-md border px-3 py-2",
               block.running ? "border-cyan-300/70 bg-cyan-400/15" : "border-white/15 bg-white/10",
             )}>
               <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-2xl font-semibold">{block.name}</p>
+                <p className="truncate text-xl font-semibold">{block.name}</p>
                 <span className={cn(
-                  "rounded-md px-2 py-1 text-sm font-semibold",
+                  "rounded-md px-2 py-0.5 text-xs font-semibold",
                   block.running ? "bg-cyan-200 text-zinc-950" : "bg-white/10 text-zinc-200",
                 )}>
                   {block.running ? "läuft" : "bereit"}
                 </span>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <p className="text-4xl font-semibold tabular-nums text-emerald-200">{block.finished}</p>
+                  <p className="text-3xl font-semibold tabular-nums text-emerald-200">{block.finished}</p>
                   <p className="text-xs uppercase text-zinc-400">Ziel</p>
                 </div>
                 <div>
-                  <p className="text-4xl font-semibold tabular-nums text-amber-200">{block.onCourse}</p>
+                  <p className="text-3xl font-semibold tabular-nums text-amber-200">{block.onCourse}</p>
                   <p className="text-xs uppercase text-zinc-400">Strecke</p>
                 </div>
                 <div>
-                  <p className="text-4xl font-semibold tabular-nums text-zinc-100">{block.total}</p>
+                  <p className="text-3xl font-semibold tabular-nums text-zinc-100">{block.total}</p>
                   <p className="text-xs uppercase text-zinc-400">Starter</p>
                 </div>
               </div>
@@ -376,26 +392,26 @@ export default function RoadTimekeepingMonitorPage() {
           ))}
         </div>
 
-        <div className="rounded-md border border-white/15 bg-white/10 px-4 py-3">
+        <div className="rounded-md border border-white/15 bg-white/10 px-3 py-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xl font-semibold">Letzte Zieleinläufer</p>
+            <p className="text-lg font-semibold">Letzte Zieleinläufer</p>
             <p className="text-sm text-zinc-400">Update {lastSeenAt ? formatTimekeepingClock(lastSeenAt) : "-"}</p>
           </div>
-          <div className="mt-2 grid gap-1.5">
+          <div className="mt-1.5 grid gap-1">
             {latestRows.length === 0 ? (
               <p className="text-lg text-zinc-400">Noch keine Zieleinläufer.</p>
             ) : latestRows.map((row) => (
-              <div key={row.id} className="grid grid-cols-[5rem_minmax(0,1fr)_8rem] items-center gap-3 rounded-md bg-zinc-900/75 px-3 py-2">
-                <span className="font-mono text-2xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</span>
-                <span className="truncate text-xl">{row.starter ? `${row.starter.firstName} ${row.starter.lastName}` : "Ohne Zuordnung"}</span>
-                <span className="text-right font-mono text-2xl font-semibold tabular-nums text-emerald-200">{formatTimekeepingDuration(row.event.netElapsedMs)}</span>
+              <div key={row.id} className="grid grid-cols-[4rem_minmax(0,1fr)_7.5rem] items-center gap-3 rounded-md bg-zinc-900/75 px-3 py-1.5">
+                <span className="font-mono text-xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</span>
+                <span className="truncate text-lg">{row.starter ? `${row.starter.firstName} ${row.starter.lastName}` : "Ohne Zuordnung"}</span>
+                <span className="text-right font-mono text-xl font-semibold tabular-nums text-emerald-200">{formatTimekeepingDuration(row.event.netElapsedMs)}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="min-h-0 flex-1 px-5 py-4">
+      <section className="min-h-0 flex-1 overflow-hidden px-5 py-2.5">
         {!state || !roadSnapshot ? (
           <div className="flex h-full min-h-[22rem] items-center justify-center rounded-md border border-dashed border-white/25 text-center text-xl text-zinc-300">
             Noch keine lokalen ROAD-Zeitnahme-Daten auf diesem Gerät.
@@ -405,27 +421,29 @@ export default function RoadTimekeepingMonitorPage() {
             Keine Klassen für die Monitor-Auswahl.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-md border border-white/15 bg-zinc-950">
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 bg-zinc-900 px-5 py-4">
+          <div className="h-full overflow-hidden rounded-md border border-white/15 bg-zinc-950">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 bg-zinc-900 px-5 py-2.5">
               <div>
-                <p className="text-5xl font-semibold tracking-normal">{activeClass.label}</p>
-                <p className="mt-1 text-lg text-zinc-300">
+                <p className="text-4xl font-semibold tracking-normal">{activeClass.label}</p>
+                <p className="text-base text-zinc-300">
                   {activeClass.finished}/{activeClass.total} im Ziel · {Math.max(0, activeClass.total - activeClass.finished)} offen
                 </p>
               </div>
               <div className="text-right text-zinc-300">
-                <p className="text-lg">Klasse {effectivePageIndex + 1}/{totalPages}</p>
-                <p className="text-sm">Wechsel {monitorConfig.rotationSeconds}s · {rows.length} Ergebnis(se)</p>
+                <p className="text-lg">Klasse {configuredClassificationCodes.indexOf(activeClass.code) + 1}/{configuredClassificationCodes.length}</p>
+                <p className="text-sm">
+                  Seite {(activePage?.pageInClass ?? 0) + 1}/{activePage?.pagesInClass ?? 1} · Wechsel {monitorConfig.rotationSeconds}s
+                </p>
               </div>
             </div>
             <table className="w-full table-fixed">
-              <thead className="bg-zinc-900/80 text-left text-base uppercase text-zinc-300">
+              <thead className="bg-zinc-900/80 text-left text-sm uppercase text-zinc-300">
                 <tr>
-                  <th className="w-24 px-5 py-3">Rang</th>
-                  <th className="w-40 px-5 py-3">Startnr.</th>
-                  <th className="px-5 py-3">Teilnehmer</th>
-                  <th className="px-4 py-3">Mannschaft</th>
-                  <th className="w-52 px-5 py-3 text-right">Nettozeit</th>
+                  <th className="w-20 px-5 py-2">Rang</th>
+                  <th className="w-32 px-5 py-2">Startnr.</th>
+                  <th className="px-5 py-2">Teilnehmer</th>
+                  <th className="px-4 py-2">Mannschaft</th>
+                  <th className="w-48 px-5 py-2 text-right">Nettozeit</th>
                 </tr>
               </thead>
               <tbody>
@@ -438,14 +456,14 @@ export default function RoadTimekeepingMonitorPage() {
                 ) : visibleRows.map((row) => {
                   const rank = rankByRowId.get(row.id) ?? "-";
                   return (
-                    <tr key={row.id} className="border-t border-white/10 bg-zinc-950 odd:bg-zinc-900/55">
-                      <td className="px-5 py-4 text-5xl font-semibold tabular-nums text-cyan-200">{rank}</td>
-                      <td className="px-5 py-4 font-mono text-5xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</td>
-                      <td className="truncate px-5 py-4 text-4xl font-medium">
+                    <tr key={row.id} className="h-[4.25rem] border-t border-white/10 bg-zinc-950 odd:bg-zinc-900/55">
+                      <td className="px-5 py-2 text-4xl font-semibold tabular-nums text-cyan-200">{rank}</td>
+                      <td className="px-5 py-2 font-mono text-4xl font-semibold tabular-nums">{row.event.startNumber ?? "-"}</td>
+                      <td className="truncate px-5 py-2 text-3xl font-medium">
                         {row.starter ? `${row.starter.firstName} ${row.starter.lastName}` : "Ohne Zuordnung"}
                       </td>
-                      <td className="truncate px-4 py-4 text-3xl text-zinc-200">{row.starter?.teamName ?? "-"}</td>
-                      <td className="px-5 py-4 text-right font-mono text-5xl font-semibold tabular-nums text-emerald-200">
+                      <td className="truncate px-4 py-2 text-2xl text-zinc-200">{row.starter?.teamName ?? "-"}</td>
+                      <td className="px-5 py-2 text-right font-mono text-4xl font-semibold tabular-nums text-emerald-200">
                         {formatTimekeepingDuration(row.event.netElapsedMs)}
                       </td>
                     </tr>
@@ -457,14 +475,6 @@ export default function RoadTimekeepingMonitorPage() {
         )}
       </section>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-3 text-sm text-zinc-400">
-        <span>
-          Blöcke: {roadSessions.map((session) => session.startBlockName).join(", ") || "-"}
-        </span>
-        <span>
-          Snapshot {state?.snapshotVersion ? formatTimekeepingClock(state.snapshotVersion) : "-"}
-        </span>
-      </footer>
     </main>
   );
 }
