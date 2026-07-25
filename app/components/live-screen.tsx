@@ -59,6 +59,13 @@ type StartListEntry = {
   teamCategory: string;
   startNumber?: string | null;
 };
+type LiveResultAvailability = {
+  results?: Array<{
+    disciplineRankings?: Partial<Record<NonNullable<ResultDisciplineCode>, Array<{
+      participantId?: string | null;
+    }>>>;
+  }>;
+};
 
 const categoryEmojis: Record<string, string> = {
   "schueler-a": "SA",
@@ -268,6 +275,7 @@ export default function LiveScreen() {
   const [focusedTeamId, setFocusedTeamId] = useState<string | null>(null);
   const [focusedStartParticipantElementId, setFocusedStartParticipantElementId] = useState<string | null>(null);
   const [resultFocusRequest, setResultFocusRequest] = useState<ResultsFocusRequest | null>(null);
+  const [availableParticipantResultKeys, setAvailableParticipantResultKeys] = useState<Set<string> | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const pendingFocusElementIdRef = useRef<string | null>(null);
   const focusRequestIdRef = useRef(0);
@@ -280,6 +288,10 @@ export default function LiveScreen() {
   const cacheKey = useMemo(
     () => activeCompetition?.id ? `s5evo.offline.liveTeams.v1.${activeCompetition.id}.${activeRole}` : null,
     [activeCompetition?.id, activeRole],
+  );
+  const resultsCacheKey = useMemo(
+    () => activeCompetition?.id ? `s5evo.offline.results.v1.${activeCompetition.id}.official` : null,
+    [activeCompetition?.id],
   );
   const availableSegments = useMemo<Segment[]>(() => ["teams", "start", "ergebnis"], []);
   const watchedTeamIdSet = useMemo(() => new Set(watchedTeamIds), [watchedTeamIds]);
@@ -336,6 +348,51 @@ export default function LiveScreen() {
   useEffect(() => {
     void fetchTeams("initial");
   }, [fetchTeams]);
+
+  useEffect(() => {
+    if (!canViewLiveResults || !activeCompetition?.id || !resultsCacheKey) {
+      setAvailableParticipantResultKeys(null);
+      return;
+    }
+
+    let cancelled = false;
+    const applyAvailability = (payload: LiveResultAvailability | null | undefined) => {
+      const next = new Set<string>();
+      for (const result of payload?.results ?? []) {
+        for (const [discipline, entries] of Object.entries(result.disciplineRankings ?? {})) {
+          for (const entry of entries ?? []) {
+            if (entry.participantId) next.add(`${discipline}:${entry.participantId}`);
+          }
+        }
+      }
+      if (!cancelled) setAvailableParticipantResultKeys(next);
+    };
+
+    const cached = readOfflineCache<LiveResultAvailability>(resultsCacheKey);
+    if (cached) applyAvailability(cached.data);
+
+    const loadAvailability = async () => {
+      try {
+        const params = new URLSearchParams({ competitionId: activeCompetition.id });
+        const response = await fetch(`/api/results?${params.toString()}`, { cache: "no-store" });
+        const payload = await response.json().catch(() => null) as LiveResultAvailability | { error?: string } | null;
+        if (!response.ok || !payload || !("results" in payload)) {
+          throw new Error((payload as { error?: string } | null)?.error || "Ergebnisse konnten nicht geladen werden.");
+        }
+        applyAvailability(payload);
+        writeOfflineCache(resultsCacheKey, payload);
+      } catch (error) {
+        console.error("Failed to load live result availability:", error);
+        if (!cached && !cancelled) setAvailableParticipantResultKeys(new Set());
+      }
+    };
+
+    void loadAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCompetition?.id, canViewLiveResults, resultsCacheKey]);
 
   useEffect(() => {
     if (!availableSegments.includes(activeSegment)) {
@@ -704,7 +761,7 @@ export default function LiveScreen() {
                 className="sticky top-11 z-40 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`teams-${category}`)}
               >
-                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-base">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     {isExpanded ? "▼" : "▶"} {categoryEmojis[category] || "🏆"} {getCategoryLabel(category)}
                   </span>
@@ -977,7 +1034,7 @@ export default function LiveScreen() {
                 className="sticky top-11 z-40 cursor-pointer border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur transition-colors hover:bg-muted/50"
                 onClick={() => toggleSection(`start-${discipline.id}`)}
               >
-                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-base">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     {isDisciplineExpanded ? "▼" : "▶"}
                     <DisciplineBrandIcon code={discipline.id} label={discipline.label} className="size-6 rounded" />
@@ -1008,7 +1065,7 @@ export default function LiveScreen() {
                         return (
                           <div key={category} className="overflow-visible rounded-md border border-border/40">
                             <div
-                              className="sticky top-[5.15rem] z-30 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3"
+                              className="sticky top-[5.15rem] z-30 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/40 bg-card/95 px-2.5 py-1.5 backdrop-blur transition-colors hover:bg-muted/30 sm:px-3"
                               onClick={() => toggleSection(`start-${discipline.id}-${category}`)}
                             >
                               <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
@@ -1030,7 +1087,7 @@ export default function LiveScreen() {
                                 >
                                   <div className="overflow-x-auto overflow-y-visible border-t border-border/40 px-1.5 pb-2 pt-1.5 sm:px-2">
                                     <div className="min-w-[360px] space-y-1">
-                                      <div className="sticky top-[7.6rem] z-20 grid grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] gap-1.5 bg-card/95 px-1 py-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground backdrop-blur">
+                                      <div className="grid grid-cols-[2.8rem_minmax(7.25rem,1fr)_minmax(10rem,1.25fr)] gap-1.5 border-b border-border/30 bg-card/95 px-1 py-1 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
                                         <span>Nr.</span>
                                         <span>Name</span>
                                         <span>Team</span>
@@ -1042,6 +1099,10 @@ export default function LiveScreen() {
                                         teamId,
                                         disciplineId: discipline.id,
                                       });
+                                      const hasParticipantResult = Boolean(
+                                        participant.id &&
+                                        availableParticipantResultKeys?.has(`${discipline.id}:${participant.id}`),
+                                      );
 
                                       return (
                                         <div
@@ -1061,19 +1122,25 @@ export default function LiveScreen() {
                                             {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
                                           </span>
                                           <span className="inline-flex min-w-0 items-center gap-1.5">
-                                            <button
-                                              type="button"
-                                              className="min-w-0 truncate text-left font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
-                                              title={`${participant.firstName} ${participant.lastName} in Einzelergebnissen fokussieren`}
-                                              onClick={() => {
-                                                const team = teams.find((entry) => entry.id === teamId);
-                                                if (team) {
-                                                  focusParticipantFromTeam(team, participant, discipline.id);
-                                                }
-                                              }}
-                                            >
-                                              {participant.firstName} {participant.lastName}
-                                            </button>
+                                            {hasParticipantResult ? (
+                                              <button
+                                                type="button"
+                                                className="min-w-0 truncate text-left font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
+                                                title={`${participant.firstName} ${participant.lastName} in Einzelergebnissen fokussieren`}
+                                                onClick={() => {
+                                                  const team = teams.find((entry) => entry.id === teamId);
+                                                  if (team) {
+                                                    focusParticipantFromTeam(team, participant, discipline.id);
+                                                  }
+                                                }}
+                                              >
+                                                {participant.firstName} {participant.lastName}
+                                              </button>
+                                            ) : (
+                                              <span className="min-w-0 truncate font-medium text-foreground">
+                                                {participant.firstName} {participant.lastName}
+                                              </span>
+                                            )}
                                             <ParticipantPublicationPreferenceIcon
                                               preference={participant.participantPublicationPreference}
                                             />

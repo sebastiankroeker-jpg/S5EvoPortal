@@ -980,14 +980,14 @@ function OverallResultTable({
             className="overflow-x-auto overflow-y-hidden"
             onScroll={() => syncHorizontalScroll("header")}
           >
-            <div className="min-w-[600px] px-2 py-1.5 text-xs text-muted-foreground sm:px-3" style={{ display: "grid", gridTemplateColumns: overallResultColumns }}>
+            <div className="relative min-w-[600px] px-2 py-1.5 text-xs text-muted-foreground sm:px-3" style={{ display: "grid", gridTemplateColumns: overallResultColumns }}>
               <div className="col-span-3 mb-1 flex min-w-0 items-center gap-2 pr-2 text-sm font-semibold text-foreground">
                 <span className="truncate">{resultClassLabel(classResult)}</span>
                 <Badge variant="secondary" className="shrink-0 text-xs">
                   {classResult.teamScores.length} Teams
                 </Badge>
               </div>
-              <div className="mb-1 flex min-w-0 items-center justify-center" style={{ gridColumn: "4 / -1" }}>
+              <div className="pointer-events-none absolute inset-x-0 top-1.5 flex justify-center">
                 <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
               </div>
               <span>Platz</span>
@@ -1146,7 +1146,7 @@ function DisciplineResultsTables({
           >
             <Card className="gap-0 overflow-visible py-0">
               <CardHeader className="sticky top-11 z-40 border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur">
-                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-base">
+                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
                   <span className="flex min-w-0 items-center gap-2">
                     <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
                     <span className="truncate">{disciplineLabel} - {resultClassLabel(classResult)}</span>
