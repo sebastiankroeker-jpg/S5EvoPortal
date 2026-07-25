@@ -907,155 +907,209 @@ function OverallResultsTables({
   return (
     <div className="space-y-4">
       {results.map((classResult) => (
-        <motion.div
+        <OverallResultTable
           key={classResult.classCode}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
-        >
-          <Card className="gap-0 overflow-visible py-0">
-            <CardContent className="p-2 sm:p-3">
-              <div className="overflow-x-auto overflow-y-clip">
-                <table className="w-full min-w-[680px] table-fixed text-sm">
-                  <colgroup>
-                    <col className="w-14" />
-                    <col className="w-16" />
-                    <col />
-                    {DISCIPLINE_CODES.map((discipline) => (
-                      <col key={discipline} className="w-10" />
-                    ))}
-                    <col className="w-16" />
-                  </colgroup>
-                  <thead className="sticky top-11 z-40 bg-card/95 backdrop-blur">
-                    <tr className="border-b text-xs text-muted-foreground">
-                      <th colSpan={3} className="relative px-0 py-1.5 pr-3 text-left align-bottom">
-                        <div className="flex min-h-12 flex-col justify-end">
-                          <div className="mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
-                              <span className="truncate">{resultClassLabel(classResult)}</span>
-                              <Badge variant="secondary" className="shrink-0 text-xs">
-                                {classResult.teamScores.length} Teams
-                              </Badge>
-                            </div>
-                            <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
-                          </div>
-                          <div className="grid grid-cols-[3.5rem_4rem_minmax(0,1fr)] items-end gap-0">
-                            <span>Platz</span>
-                            <span>STRNR</span>
-                            <span>Team</span>
-                          </div>
-                        </div>
-                      </th>
-                      {DISCIPLINE_CODES.map((discipline) => (
-                        <th key={discipline} className="relative h-12 px-0.5 py-1.5 text-left align-bottom">
-                          <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
-                        </th>
-                      ))}
-                      <th className="relative h-12 py-1.5 pl-1 pr-3 text-left align-bottom font-bold">
-                        <VerticalHeader>Gesamt</VerticalHeader>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classResult.teamScores.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="py-6 text-center text-sm text-muted-foreground">
-                          Noch keine Gesamtergebnisse für diese Klasse.
-                        </td>
-                      </tr>
-                    )}
-                    {classResult.teamScores.map((team) => {
-                      const watched = watchlistTeamIdSet.has(team.teamId);
-                      const overallElementId = getOverallTeamElementId({
-                        classCode: classResult.classCode,
-                        teamId: team.teamId,
-                      });
-                      const isOverallFocused = focusedResultElementId === overallElementId;
-
-                      return (
-                        <tr
-                          key={team.teamId}
-                          id={overallElementId}
-                          tabIndex={-1}
-                          className={`scroll-mt-24 border-b border-border/30 transition-colors hover:bg-muted/30 focus-visible:outline-none ${
-                            isOverallFocused ? "bg-primary/10 ring-2 ring-inset ring-primary/30" : ""
-                          }`}
-                        >
-                          <td className="py-2 pr-2 font-semibold tabular-nums">{team.hasAnyResult === false ? "-" : team.rank}</td>
-                          <td className="px-1 py-2">
-                            <span className="inline-flex min-w-0 items-center gap-1.5">
-                              <StartNumberCell startNumber={team.startNumber} showHash={false} />
-                              {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
-                            </span>
-                          </td>
-                          <td className="py-2 pr-3 font-medium leading-snug">
-                            {onFocusTeam ? (
-                              <button
-                                type="button"
-                                className="min-w-0 whitespace-normal break-words text-left text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
-                                title={`${team.teamName} in Live-Teams fokussieren`}
-                                onClick={() => onFocusTeam(team.teamId)}
-                              >
-                                {team.teamName}
-                              </button>
-                            ) : (
-                              <span className="min-w-0 whitespace-normal break-words">{team.teamName}</span>
-                            )}
-                          </td>
-                          {DISCIPLINE_CODES.map((discipline) => {
-                            const entry = (classResult.disciplineRankings[discipline] ?? []).find((candidate) => candidate.teamId === team.teamId);
-                            const resultElementId = entry
-                              ? getResultEntryElementId({
-                                  classCode: classResult.classCode,
-                                  discipline,
-                                  teamId: entry.teamId,
-                                  participantId: entry.participantId,
-                                })
-                              : null;
-                            const isFocused = resultElementId !== null && focusedResultElementId === resultElementId;
-                            const value = team.hasAnyResult === false ? "-" : team.disciplinePoints[discipline];
-
-                            return (
-                              <td key={discipline} className="px-0.5 py-2 text-center text-xs text-muted-foreground tabular-nums">
-                                {entry ? (
-                                  <button
-                                    type="button"
-                                    className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded border border-primary/25 bg-primary/5 px-1 font-semibold text-primary tabular-nums underline decoration-primary/40 underline-offset-2 transition-colors hover:bg-primary/10 hover:decoration-primary ${
-                                      isFocused ? "bg-primary/10 ring-2 ring-primary/30" : ""
-                                    }`}
-                                    title={`${entry.participantName} in Einzelergebnissen fokussieren`}
-                                    onClick={() => {
-                                      onFocusResultEntry({
-                                        id: Date.now(),
-                                        teamId: entry.teamId,
-                                        participantId: entry.participantId,
-                                        discipline,
-                                        classCode: classResult.classCode,
-                                      });
-                                    }}
-                                  >
-                                    {value}
-                                  </button>
-                                ) : (
-                                  value
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="py-2 pl-1 pr-3 text-right font-bold tabular-nums">
-                            {team.hasAnyResult === false ? "-" : team.totalPoints}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+          classResult={classResult}
+          watchlistTeamIdSet={watchlistTeamIdSet}
+          focusedResultElementId={focusedResultElementId}
+          onFocusTeam={onFocusTeam}
+          onFocusResultEntry={onFocusResultEntry}
+        />
       ))}
     </div>
+  );
+}
+
+const overallResultColumns = "2.75rem 3.25rem minmax(11rem,1fr) repeat(5,2.65rem) 3rem";
+const disciplineResultColumns = "2.5rem 3.25rem minmax(8rem,1.08fr) minmax(8rem,1fr) 5rem";
+
+function OverallResultColGroup() {
+  return (
+    <colgroup>
+      <col style={{ width: "2.75rem" }} />
+      <col style={{ width: "3.25rem" }} />
+      <col />
+      {DISCIPLINE_CODES.map((discipline) => (
+        <col key={discipline} style={{ width: "2.65rem" }} />
+      ))}
+      <col style={{ width: "3rem" }} />
+    </colgroup>
+  );
+}
+
+function OverallResultTable({
+  classResult,
+  watchlistTeamIdSet,
+  focusedResultElementId,
+  onFocusTeam,
+  onFocusResultEntry,
+}: {
+  classResult: ClassResult;
+  watchlistTeamIdSet: Set<string>;
+  focusedResultElementId: string | null;
+  onFocusTeam?: (teamId: string) => void;
+  onFocusResultEntry: (request: ResultsFocusRequest) => boolean;
+}) {
+  const headerScrollRef = useRef<HTMLDivElement | null>(null);
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollSyncSourceRef = useRef<"header" | "body" | null>(null);
+
+  const syncHorizontalScroll = useCallback((source: "header" | "body") => {
+    if (scrollSyncSourceRef.current !== null && scrollSyncSourceRef.current !== source) return;
+    const sourceElement = source === "header" ? headerScrollRef.current : bodyScrollRef.current;
+    const targetElement = source === "header" ? bodyScrollRef.current : headerScrollRef.current;
+    if (!sourceElement || !targetElement) return;
+
+    scrollSyncSourceRef.current = source;
+    targetElement.scrollLeft = sourceElement.scrollLeft;
+    window.requestAnimationFrame(() => {
+      scrollSyncSourceRef.current = null;
+    });
+  }, []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18 }}
+    >
+      <Card className="gap-0 overflow-visible py-0">
+        <div className="sticky top-11 z-40 border-b border-border/60 bg-card/95 backdrop-blur">
+          <div
+            ref={headerScrollRef}
+            className="overflow-x-auto overflow-y-hidden"
+            onScroll={() => syncHorizontalScroll("header")}
+          >
+            <div className="min-w-[600px] px-2 py-1.5 text-xs text-muted-foreground sm:px-3" style={{ display: "grid", gridTemplateColumns: overallResultColumns }}>
+              <div className="col-span-3 mb-1 flex min-w-0 items-center gap-2 pr-2 text-sm font-semibold text-foreground">
+                <span className="truncate">{resultClassLabel(classResult)}</span>
+                <Badge variant="secondary" className="shrink-0 text-xs">
+                  {classResult.teamScores.length} Teams
+                </Badge>
+              </div>
+              <div className="mb-1 flex min-w-0 items-center justify-center" style={{ gridColumn: "4 / -1" }}>
+                <StickyTabLabel>Gesamtergebnisse</StickyTabLabel>
+              </div>
+              <span>Platz</span>
+              <span>STRNR</span>
+              <span>Team</span>
+              {DISCIPLINE_CODES.map((discipline) => (
+                <span key={discipline} className="relative h-11 px-0.5">
+                  <VerticalHeader>{getOverallDisciplineHeader(discipline)}</VerticalHeader>
+                </span>
+              ))}
+              <span className="relative h-11 px-0.5 font-bold">
+                <VerticalHeader>Gesamt</VerticalHeader>
+              </span>
+            </div>
+          </div>
+        </div>
+        <CardContent className="p-0">
+          <div
+            ref={bodyScrollRef}
+            className="overflow-x-auto overflow-y-visible px-2 pb-2 sm:px-3 sm:pb-3"
+            onScroll={() => syncHorizontalScroll("body")}
+          >
+            <table className="w-full min-w-[600px] table-fixed text-sm">
+              <OverallResultColGroup />
+              <tbody>
+                {classResult.teamScores.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
+                      Noch keine Gesamtergebnisse für diese Klasse.
+                    </td>
+                  </tr>
+                )}
+                {classResult.teamScores.map((team) => {
+                  const watched = watchlistTeamIdSet.has(team.teamId);
+                  const overallElementId = getOverallTeamElementId({
+                    classCode: classResult.classCode,
+                    teamId: team.teamId,
+                  });
+                  const isOverallFocused = focusedResultElementId === overallElementId;
+
+                  return (
+                    <tr
+                      key={team.teamId}
+                      id={overallElementId}
+                      tabIndex={-1}
+                      className={`scroll-mt-24 border-b border-border/30 transition-colors hover:bg-muted/30 focus-visible:outline-none ${
+                        isOverallFocused ? "bg-primary/10 ring-2 ring-inset ring-primary/30" : ""
+                      }`}
+                    >
+                      <td className="py-2 pr-1 font-semibold tabular-nums">{team.hasAnyResult === false ? "-" : team.rank}</td>
+                      <td className="px-1 py-2">
+                        <span className="inline-flex min-w-0 items-center gap-1">
+                          <StartNumberCell startNumber={team.startNumber} showHash={false} />
+                          {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-2 font-medium leading-snug">
+                        {onFocusTeam ? (
+                          <button
+                            type="button"
+                            className="min-w-0 whitespace-normal break-words text-left text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
+                            title={`${team.teamName} in Live-Teams fokussieren`}
+                            onClick={() => onFocusTeam(team.teamId)}
+                          >
+                            {team.teamName}
+                          </button>
+                        ) : (
+                          <span className="min-w-0 whitespace-normal break-words">{team.teamName}</span>
+                        )}
+                      </td>
+                      {DISCIPLINE_CODES.map((discipline) => {
+                        const entry = (classResult.disciplineRankings[discipline] ?? []).find((candidate) => candidate.teamId === team.teamId);
+                        const resultElementId = entry
+                          ? getResultEntryElementId({
+                              classCode: classResult.classCode,
+                              discipline,
+                              teamId: entry.teamId,
+                              participantId: entry.participantId,
+                            })
+                          : null;
+                        const isFocused = resultElementId !== null && focusedResultElementId === resultElementId;
+                        const value = team.hasAnyResult === false ? "-" : team.disciplinePoints[discipline];
+
+                        return (
+                          <td key={discipline} className="px-0.5 py-2 text-center text-xs text-muted-foreground tabular-nums">
+                            {entry ? (
+                              <button
+                                type="button"
+                                className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded border border-primary/25 bg-primary/5 px-1 font-semibold text-primary tabular-nums underline decoration-primary/40 underline-offset-2 transition-colors hover:bg-primary/10 hover:decoration-primary ${
+                                  isFocused ? "bg-primary/10 ring-2 ring-primary/30" : ""
+                                }`}
+                                title={`${entry.participantName} in Einzelergebnissen fokussieren`}
+                                onClick={() => {
+                                  onFocusResultEntry({
+                                    id: Date.now(),
+                                    teamId: entry.teamId,
+                                    participantId: entry.participantId,
+                                    discipline,
+                                    classCode: classResult.classCode,
+                                  });
+                                }}
+                              >
+                                {value}
+                              </button>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2 pl-1 text-right font-bold tabular-nums">
+                        {team.hasAnyResult === false ? "-" : team.totalPoints}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -1102,7 +1156,10 @@ function DisciplineResultsTables({
                     {entries.length} Starter:innen
                   </Badge>
                 </CardTitle>
-                <div className="grid grid-cols-[3rem_4.5rem_minmax(7rem,1fr)_minmax(7rem,1fr)_5.5rem] gap-1.5 border-t border-border/40 pt-1.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+                <div
+                  className="grid gap-1 border-t border-border/40 pt-1.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground"
+                  style={{ gridTemplateColumns: disciplineResultColumns }}
+                >
                   <span>Platz</span>
                   <span>STRNR</span>
                   <span>Name</span>
@@ -1117,7 +1174,14 @@ function DisciplineResultsTables({
                   </p>
                 ) : (
                   <div className="overflow-x-auto overflow-y-visible">
-                    <table className="w-full min-w-[560px] table-fixed text-sm">
+                    <table className="w-full min-w-[520px] table-fixed text-sm">
+                      <colgroup>
+                        <col style={{ width: "2.5rem" }} />
+                        <col style={{ width: "3.25rem" }} />
+                        <col />
+                        <col />
+                        <col style={{ width: "5rem" }} />
+                      </colgroup>
                       <tbody>
                         {entries.map((entry, index) => {
                           const watched = watchlistTeamIdSet.has(entry.teamId);
@@ -1139,7 +1203,7 @@ function DisciplineResultsTables({
                                   : ""
                               }`}
                             >
-                              <td className="py-2 pr-2 font-semibold tabular-nums">
+                              <td className="py-2 pr-1 font-semibold tabular-nums">
                                 <button
                                   type="button"
                                   className="text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
@@ -1156,14 +1220,14 @@ function DisciplineResultsTables({
                                   {entry.rank}
                                 </button>
                               </td>
-                              <td className="px-2 py-2">
-                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                              <td className="px-1 py-2">
+                                <span className="inline-flex min-w-0 items-center gap-1">
                                   <StartNumberCell startNumber={entry.startNumber} showHash={false} />
                                   {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
                                 </span>
                               </td>
-                              <td className="truncate px-2 py-2 font-medium">{entry.participantName}</td>
-                              <td className="truncate px-2 py-2 text-muted-foreground">
+                              <td className="truncate px-1.5 py-2 font-medium">{entry.participantName}</td>
+                              <td className="truncate px-1.5 py-2 text-muted-foreground">
                                 {onFocusTeam ? (
                                   <button
                                     type="button"
@@ -1177,7 +1241,7 @@ function DisciplineResultsTables({
                                   <span className="truncate">{entry.teamName}</span>
                                 )}
                               </td>
-                              <td className="py-2 pl-2 text-right font-mono tabular-nums">
+                              <td className="py-2 pl-1 text-right font-mono tabular-nums">
                                 <span>{entry.rawValueText || formatValue(entry.rawValue, discipline)}</span>
                                 {discipline === "STOCK" && <StockTieBreakerLine entry={entry} />}
                               </td>
