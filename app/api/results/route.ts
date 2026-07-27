@@ -11,6 +11,8 @@ import { canRoleViewLiveResults, type TeamScopeRole } from "@/lib/team-access-co
 import {
   rankDiscipline,
   calculateTeamScores,
+  compareTeamScores,
+  hasEqualTeamScoreRank,
   type DisciplineCode,
   type DisciplineEntry,
   type RankedEntry,
@@ -66,12 +68,6 @@ function getLegacyStockDetails(snapshot: ResultSnapshot) {
   };
 }
 
-function startNumberSortValue(value: string | null | undefined) {
-  if (!value) return Number.MAX_SAFE_INTEGER;
-  const number = Number.parseInt(value, 10);
-  return Number.isFinite(number) ? number : Number.MAX_SAFE_INTEGER;
-}
-
 function emptyDisciplineEntries(): Record<DisciplineCode, DisciplineEntry[]> {
   return {
     RUN: [],
@@ -96,14 +92,10 @@ function completeTeamScores(scores: TeamScore[], classTeams: ClassTeam[]): Resul
     });
   }
 
-  const completed = [...scoreByTeamId.values()].sort((left, right) => {
-    const pointDiff = right.totalPoints - left.totalPoints;
-    if (pointDiff !== 0) return pointDiff;
-    return startNumberSortValue(left.startNumber) - startNumberSortValue(right.startNumber);
-  });
+  const completed = [...scoreByTeamId.values()].sort(compareTeamScores);
 
   for (let index = 0; index < completed.length; index += 1) {
-    if (index > 0 && completed[index].totalPoints === completed[index - 1].totalPoints) {
+    if (index > 0 && hasEqualTeamScoreRank(completed[index], completed[index - 1])) {
       completed[index].rank = completed[index - 1].rank;
     } else {
       completed[index].rank = index + 1;

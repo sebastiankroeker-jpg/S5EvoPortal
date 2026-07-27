@@ -30,6 +30,8 @@ export const DISCIPLINE_SORT: Record<DisciplineCode, SortDirection> = {
   MTB: "ASC",
 };
 
+export const DISCIPLINE_CODES: DisciplineCode[] = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"];
+
 export interface DisciplineEntry {
   teamId: string;
   teamName: string;
@@ -57,6 +59,36 @@ export interface TeamScore {
   disciplinePoints: Record<DisciplineCode, number>;
   totalPoints: number;
   rank: number;
+}
+
+function disciplinePointProfile(score: Pick<TeamScore, "disciplinePoints">) {
+  return DISCIPLINE_CODES
+    .map((discipline) => score.disciplinePoints[discipline] ?? 0)
+    .sort((left, right) => right - left);
+}
+
+export function compareTeamScores(left: TeamScore, right: TeamScore) {
+  const totalDiff = right.totalPoints - left.totalPoints;
+  if (totalDiff !== 0) return totalDiff;
+
+  const leftProfile = disciplinePointProfile(left);
+  const rightProfile = disciplinePointProfile(right);
+  for (let index = 0; index < leftProfile.length; index += 1) {
+    const pointDiff = rightProfile[index] - leftProfile[index];
+    if (pointDiff !== 0) return pointDiff;
+  }
+
+  const leftStartNumber = Number.parseInt(left.startNumber ?? "", 10) || Number.MAX_SAFE_INTEGER;
+  const rightStartNumber = Number.parseInt(right.startNumber ?? "", 10) || Number.MAX_SAFE_INTEGER;
+  return leftStartNumber - rightStartNumber;
+}
+
+export function hasEqualTeamScoreRank(left: TeamScore, right: TeamScore) {
+  if (left.totalPoints !== right.totalPoints) return false;
+
+  const leftProfile = disciplinePointProfile(left);
+  const rightProfile = disciplinePointProfile(right);
+  return leftProfile.every((points, index) => points === rightProfile[index]);
 }
 
 /**
@@ -181,12 +213,13 @@ export function calculateTeamScores(
     score.totalPoints = Object.values(score.disciplinePoints).reduce((a, b) => a + b, 0);
   }
 
-  // Rank by total points (DESC)
-  scores.sort((a, b) => b.totalPoints - a.totalPoints);
+  // Rank by total points, then by stronger individual results.
+  scores.sort(compareTeamScores);
 
-  // Assign ranks with ties
+  // Assign ranks. Equal totals only stay tied when the individual point
+  // profile is equal as well.
   for (let i = 0; i < scores.length; i++) {
-    if (i > 0 && scores[i].totalPoints === scores[i - 1].totalPoints) {
+    if (i > 0 && hasEqualTeamScoreRank(scores[i], scores[i - 1])) {
       scores[i].rank = scores[i - 1].rank;
     } else {
       scores[i].rank = i + 1;
