@@ -139,14 +139,16 @@ function formatValue(val: number | null, disc: DisciplineCode): string {
   return String(val);
 }
 
-function StockTieBreakerLine({ entry }: { entry: RankedEntry }) {
+function StockTieBreakerLine({ entry, align = "right" }: { entry: RankedEntry; align?: "left" | "right" }) {
   if (!entry.stockBwz && entry.stockDropped === null && entry.stockDropped === undefined) return null;
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger
-          className="mt-1 inline-flex max-w-full items-center justify-end gap-1 text-[11px] leading-tight text-muted-foreground underline decoration-dotted underline-offset-2"
+          className={`mt-1 inline-flex max-w-full items-center gap-1 text-[11px] leading-tight text-muted-foreground underline decoration-dotted underline-offset-2 ${
+            align === "right" ? "justify-end" : "justify-start"
+          }`}
           aria-label="Stock-Bewertungsdetails anzeigen"
         >
           <span className="truncate">
@@ -958,7 +960,7 @@ function OverallResultsTables({
 function getOverallResultColumns(visibleDisciplines: DisciplineCode[]) {
   return `2.75rem 3.25rem minmax(11rem,1fr) repeat(${visibleDisciplines.length},2.65rem) 3rem`;
 }
-const disciplineResultColumns = "2.5rem 3.25rem minmax(8rem,1.08fr) minmax(8rem,1fr) 5rem";
+const disciplineResultColumns = "2.5rem 3.25rem minmax(9rem,1.1fr) minmax(8rem,0.9fr) 6.75rem";
 
 function OverallResultColGroup({ visibleDisciplines }: { visibleDisciplines: DisciplineCode[] }) {
   return (
@@ -1152,6 +1154,135 @@ function OverallResultTable({
   );
 }
 
+function DisciplineResultRankButton({
+  entry,
+  classCode,
+  onFocusOverallTeam,
+}: {
+  entry: RankedEntry;
+  classCode: string;
+  onFocusOverallTeam: (request: ResultsFocusRequest) => boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
+      title={`${entry.teamName} in Gesamtergebnissen fokussieren`}
+      onClick={() => {
+        onFocusOverallTeam({
+          id: Date.now(),
+          teamId: entry.teamId,
+          classCode,
+          view: "overall",
+        });
+      }}
+    >
+      {entry.rank}
+    </button>
+  );
+}
+
+function DisciplineResultTeamName({
+  entry,
+  onFocusTeam,
+  className = "",
+}: {
+  entry: RankedEntry;
+  onFocusTeam?: (teamId: string) => void;
+  className?: string;
+}) {
+  if (onFocusTeam) {
+    return (
+      <button
+        type="button"
+        className={`min-w-0 truncate text-left font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary ${className}`}
+        title={`${entry.teamName} in Live-Teams fokussieren`}
+        onClick={() => onFocusTeam(entry.teamId)}
+      >
+        {entry.teamName}
+      </button>
+    );
+  }
+
+  return <span className={`truncate ${className}`}>{entry.teamName}</span>;
+}
+
+function DisciplineResultValue({ entry, discipline, align = "right" }: {
+  entry: RankedEntry;
+  discipline: DisciplineCode;
+  align?: "left" | "right";
+}) {
+  return (
+    <div className={align === "right" ? "text-right" : "text-left"}>
+      <div className="font-mono text-base font-semibold leading-none tabular-nums md:text-sm md:font-normal md:leading-normal">
+        {entry.rawValueText || formatValue(entry.rawValue, discipline)}
+      </div>
+      {discipline === "STOCK" && <StockTieBreakerLine entry={entry} align={align} />}
+    </div>
+  );
+}
+
+function DisciplineResultResponsiveRow({
+  entry,
+  discipline,
+  classCode,
+  watched,
+  resultElementId,
+  focusedResultElementId,
+  onFocusTeam,
+  onFocusOverallTeam,
+}: {
+  entry: RankedEntry;
+  discipline: DisciplineCode;
+  classCode: string;
+  watched: boolean;
+  resultElementId: string;
+  focusedResultElementId: string | null;
+  onFocusTeam?: (teamId: string) => void;
+  onFocusOverallTeam: (request: ResultsFocusRequest) => boolean;
+}) {
+  return (
+    <div
+      id={resultElementId}
+      tabIndex={-1}
+      className={`scroll-mt-24 rounded-md border border-border/50 bg-card px-3 py-2.5 shadow-sm transition-colors hover:bg-muted/30 focus-visible:outline-none md:grid md:rounded-none md:border-x-0 md:border-t-0 md:border-border/30 md:px-0 md:py-0 md:shadow-none ${
+        focusedResultElementId === resultElementId ? "bg-primary/10 ring-2 ring-inset ring-primary/30" : ""
+      }`}
+      style={{ gridTemplateColumns: disciplineResultColumns }}
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 md:contents">
+        <div className="pt-0.5 text-sm font-semibold tabular-nums md:py-2 md:pr-1">
+          <DisciplineResultRankButton entry={entry} classCode={classCode} onFocusOverallTeam={onFocusOverallTeam} />
+        </div>
+        <div className="hidden px-1 py-2 md:block">
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <StartNumberCell startNumber={entry.startNumber} showHash={false} />
+            {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
+          </span>
+        </div>
+        <div className="min-w-0 md:truncate md:px-1.5 md:py-2 md:font-medium">
+          <div className="flex min-w-0 items-center gap-1.5 md:block">
+            <span className="truncate text-sm font-semibold leading-snug md:font-medium">{entry.participantName}</span>
+            {watched && <Star className="size-3.5 shrink-0 fill-current text-primary md:hidden" aria-label="Favorit" />}
+          </div>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground md:hidden">
+            <StartNumberCell startNumber={entry.startNumber} />
+            <span className="min-w-0 max-w-full truncate">
+              <DisciplineResultTeamName entry={entry} onFocusTeam={onFocusTeam} />
+            </span>
+          </div>
+        </div>
+        <div className="hidden truncate px-1.5 py-2 text-muted-foreground md:block">
+          <DisciplineResultTeamName entry={entry} onFocusTeam={onFocusTeam} />
+        </div>
+        <div className="md:py-2 md:pl-1">
+          <DisciplineResultValue entry={entry} discipline={discipline} align="right" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DisciplineResultsTables({
   results,
   visibleDisciplines,
@@ -1179,123 +1310,72 @@ function DisciplineResultsTables({
           const disciplineLabel = getDisciplineLabel(discipline);
 
           return (
-          <motion.div
-            key={`${classResult.classCode}-${discipline}`}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18 }}
-          >
-            <Card className="gap-0 overflow-visible py-0">
-              <CardHeader className="sticky top-11 z-40 border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur">
-                <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-base">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
-                    <span className="truncate">{disciplineLabel} - {resultClassLabel(classResult)}</span>
-                  </span>
-                  <StickyTabLabel>Einzelergebnisse</StickyTabLabel>
-                  <Badge variant="secondary" className="justify-self-end text-xs">
-                    {entries.length} Starter:innen
-                  </Badge>
-                </CardTitle>
-                <div
-                  className="grid gap-1 border-t border-border/40 pt-1.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground"
-                  style={{ gridTemplateColumns: disciplineResultColumns }}
-                >
-                  <span>Platz</span>
-                  <span>STRNR</span>
-                  <span>Name</span>
-                  <span>Mannschaft</span>
-                  <span className="text-right">Wert</span>
-                </div>
-              </CardHeader>
-              <CardContent className="p-2 pt-0 sm:p-3 sm:pt-0">
-                {entries.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    Keine Einzelergebnisse für diese Auswahl.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto overflow-y-visible">
-                    <table className="w-full min-w-[520px] table-fixed text-sm">
-                      <colgroup>
-                        <col style={{ width: "2.5rem" }} />
-                        <col style={{ width: "3.25rem" }} />
-                        <col />
-                        <col />
-                        <col style={{ width: "5rem" }} />
-                      </colgroup>
-                      <tbody>
-                        {entries.map((entry, index) => {
-                          const watched = watchlistTeamIdSet.has(entry.teamId);
-                          const resultElementId = getResultEntryElementId({
-                            classCode: classResult.classCode,
-                            discipline,
-                            teamId: entry.teamId,
-                            participantId: entry.participantId,
-                          });
-
-                          return (
-                            <tr
-                              key={`${entry.teamId}-${discipline}-${index}`}
-                              id={resultElementId}
-                              tabIndex={-1}
-                              className={`scroll-mt-24 border-b border-border/30 transition-colors hover:bg-muted/30 focus-visible:outline-none ${
-                                focusedResultElementId === resultElementId
-                                  ? "bg-primary/10 ring-2 ring-inset ring-primary/30"
-                                  : ""
-                              }`}
-                            >
-                              <td className="py-2 pr-1 font-semibold tabular-nums">
-                                <button
-                                  type="button"
-                                  className="text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
-                                  title={`${entry.teamName} in Gesamtergebnissen fokussieren`}
-                                  onClick={() => {
-                                    onFocusOverallTeam({
-                                      id: Date.now(),
-                                      teamId: entry.teamId,
-                                      classCode: classResult.classCode,
-                                      view: "overall",
-                                    });
-                                  }}
-                                >
-                                  {entry.rank}
-                                </button>
-                              </td>
-                              <td className="px-1 py-2">
-                                <span className="inline-flex min-w-0 items-center gap-1">
-                                  <StartNumberCell startNumber={entry.startNumber} showHash={false} />
-                                  {watched && <Star className="size-3.5 shrink-0 fill-current text-primary" aria-label="Favorit" />}
-                                </span>
-                              </td>
-                              <td className="truncate px-1.5 py-2 font-medium">{entry.participantName}</td>
-                              <td className="truncate px-1.5 py-2 text-muted-foreground">
-                                {onFocusTeam ? (
-                                  <button
-                                    type="button"
-                                    className="min-w-0 truncate text-left font-medium text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
-                                    title={`${entry.teamName} in Live-Teams fokussieren`}
-                                    onClick={() => onFocusTeam(entry.teamId)}
-                                  >
-                                    {entry.teamName}
-                                  </button>
-                                ) : (
-                                  <span className="truncate">{entry.teamName}</span>
-                                )}
-                              </td>
-                              <td className="py-2 pl-1 text-right font-mono tabular-nums">
-                                <span>{entry.rawValueText || formatValue(entry.rawValue, discipline)}</span>
-                                {discipline === "STOCK" && <StockTieBreakerLine entry={entry} />}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+            <motion.div
+              key={`${classResult.classCode}-${discipline}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              <Card className="gap-0 overflow-visible py-0">
+                <CardHeader className="sticky top-11 z-40 border-b border-border/60 bg-card/95 px-3 py-1.5 backdrop-blur">
+                  <CardTitle className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-base md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <DisciplineBrandIcon code={discipline} label={disciplineLabel} className="size-6 rounded" />
+                      <span className="truncate">{disciplineLabel} - {resultClassLabel(classResult)}</span>
+                    </span>
+                    <span className="hidden md:inline-flex">
+                      <StickyTabLabel>Einzelergebnisse</StickyTabLabel>
+                    </span>
+                    <Badge variant="secondary" className="justify-self-end text-xs">
+                      {entries.length} Starter:innen
+                    </Badge>
+                  </CardTitle>
+                  <div
+                    className="hidden gap-1 border-t border-border/40 pt-1.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground md:grid"
+                    style={{ gridTemplateColumns: disciplineResultColumns }}
+                  >
+                    <span>Platz</span>
+                    <span>STRNR</span>
+                    <span>Name</span>
+                    <span>Mannschaft</span>
+                    <span className="text-right">Wert</span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+                </CardHeader>
+                <CardContent className="p-2 pt-0 sm:p-3 sm:pt-0">
+                  {entries.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">
+                      Keine Einzelergebnisse für diese Auswahl.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 md:space-y-0">
+                      {entries.map((entry, index) => {
+                        const watched = watchlistTeamIdSet.has(entry.teamId);
+                        const resultElementId = getResultEntryElementId({
+                          classCode: classResult.classCode,
+                          discipline,
+                          teamId: entry.teamId,
+                          participantId: entry.participantId,
+                        });
+
+                        return (
+                          <DisciplineResultResponsiveRow
+                            key={`${entry.teamId}-${discipline}-${index}`}
+                            entry={entry}
+                            discipline={discipline}
+                            classCode={classResult.classCode}
+                            watched={watched}
+                            resultElementId={resultElementId}
+                            focusedResultElementId={focusedResultElementId}
+                            onFocusTeam={onFocusTeam}
+                            onFocusOverallTeam={onFocusOverallTeam}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         }),
       )}
