@@ -998,7 +998,7 @@ export default function AdminPage() {
 
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => router.push("/admin/logs")}>
-                Zu Runtime-Logs
+                Zu Besucher & Logs
               </Button>
               <Button variant="outline" size="sm" onClick={() => router.push("/admin/mail-log")}>
                 Zum Mail-Protokoll
@@ -2129,7 +2129,7 @@ export default function AdminPage() {
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <Button variant="outline" className="justify-start" onClick={() => router.push("/admin/logs")}>
-                      🧾 Runtime-Logs
+                      📈 Besucher & Logs
                     </Button>
                     <Button variant="outline" className="justify-start" onClick={() => router.push("/admin/mail-log")}>
                       ✉️ Mail-Protokoll

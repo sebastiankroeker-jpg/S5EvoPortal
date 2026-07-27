@@ -205,8 +205,8 @@ export default function AdminLogsPage() {
       <NavBar />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Runtime-Logs</h1>
-          <p className="text-sm text-muted-foreground">Error-Feed aus Vercel Production-Logs für schnelle Incident-Analyse.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Besucher & Logs</h1>
+          <p className="text-sm text-muted-foreground">Page-View-Statistiken und Error-Feed aus Vercel Production-Logs.</p>
         </div>
 
         <Card>

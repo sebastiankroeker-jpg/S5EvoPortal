@@ -22,6 +22,7 @@ export interface NavigationMenuItem {
     | "admin-competition"
     | "admin-news"
     | "admin-results"
+    | "admin-logs"
     | "admin-users"
     | "admin-audits"
     | "admin-archive"
@@ -65,6 +66,14 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     keywords: ["ergebnisdaten", "ergebnisse", "result staging", "resultate", "raw packages", "drafts", "publikation", "zeitnahme import"],
     permission: "config.edit",
     icon: "📊",
+    requiresAuth: true,
+  },
+  {
+    id: "admin-logs",
+    label: "Admin: Besucher & Logs",
+    keywords: ["besucher", "besucherzaehler", "besucherzähler", "visits", "page views", "statistik", "statistiken", "runtime logs", "vercel logs", "betrieb"],
+    permission: "config.edit",
+    icon: "📈",
     requiresAuth: true,
   },
   {

@@ -205,6 +205,9 @@ export default function CommandPill() {
       case "admin-results":
         navigateAndClose("/admin/ergebnisse");
         break;
+      case "admin-logs":
+        navigateAndClose("/admin/logs");
+        break;
       case "admin-users":
         navigateAndClose("/admin?tab=users");
         break;

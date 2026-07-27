@@ -280,6 +280,7 @@ export default function Sidebar() {
             {can("config.edit") && (
               <>
                 <SidebarItem icon="📊" label="Ergebnisdaten" onClick={() => router.push("/admin/ergebnisse")} isActive={pathname === "/admin/ergebnisse"} sidebarCollapsed={sidebarCollapsed} />
+                <SidebarItem icon="📈" label="Besucher/Logs" onClick={() => router.push("/admin/logs")} isActive={pathname === "/admin/logs"} sidebarCollapsed={sidebarCollapsed} />
                 <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} sidebarCollapsed={sidebarCollapsed} />
                 <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} sidebarCollapsed={sidebarCollapsed} />
               </>
