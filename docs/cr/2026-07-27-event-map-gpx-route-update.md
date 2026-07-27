@@ -1,6 +1,6 @@
 # CR: Event-Map GPX Route Update
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-27
 Type: feature
 Risk: medium
@@ -258,18 +258,25 @@ copied into application source or CR prose beyond sanitized technical facts.
 
 ## Deploy
 
-- Deployment needed: yes, after implementation approval
-- Deployment ID:
-- Deployment URL:
-- Production alias:
-- Deployed at:
+- Deployment needed: yes
+- Commit: `981ce3b Add sanitized GPX route tracks`
+- Deployment ID: `dpl_5yaT1RfDHSQ3zVP875Bb6nVYmfrP`
+- Deployment URL: `https://s5-evo-portal-7pyfc51cl-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-27 19:51 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `HEAD https://portal.s5evo.de` -> 200
+  - `HEAD https://portal.s5evo.de/karte` -> 200
 - API checks:
+  - `npm run smoke:public` -> pass
 - Sensitive-data/API leakage checks:
-- Result:
+  - No API serializers changed.
+  - Pre-deploy source grep confirmed `lib/event-map/course-routes.ts` contains
+    only sanitized coordinate data and no raw GPX metadata.
+- Result: pass
 
 ## Follow-Ups
 

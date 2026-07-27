@@ -1,5 +1,43 @@
 # SESSION_HANDOFF
 
+## CR deployed: Event-map GPX route update - 2026-07-27 19:51 UTC
+
+- Sebastian supplied GPX/XML files for the competition routes and requested
+  adding them to the map with personal information removed; one round is enough
+  where recordings contain multiple rounds.
+- CR document:
+  `docs/cr/2026-07-27-event-map-gpx-route-update.md`.
+- Implemented, committed, deployed:
+  - Commit: `981ce3b Add sanitized GPX route tracks`
+  - Deploy: `dpl_5yaT1RfDHSQ3zVP875Bb6nVYmfrP`
+  - Production alias: `https://portal.s5evo.de`
+  - Added additional route tracks in `lib/event-map/course-routes.ts`:
+    - `running-gpx-round`: about 1.85 km, 24 simplified coordinates.
+    - `road-gpx-round`: about 4.38 km, 44 simplified coordinates.
+    - `mtb-gpx-round`: about 4.23 km, 55 simplified coordinates.
+  - Existing draft routes remain; GPX routes are additional and still marked
+    `draft_digitization` for Sebastian plausibility review.
+- Privacy decisions:
+  - Raw GPX files were not committed.
+  - Original file names, track titles, timestamps, telemetry extensions,
+    heart-rate, power, cadence, and temperature data were not copied into source.
+  - Only `[lng, lat]` coordinate arrays and a sanitized source note are bundled.
+- Checks green:
+  - `npx eslint lib/event-map/course-routes.ts app/components/event-map.tsx app/components/admin-event-map-page.tsx`
+  - `npx tsc --noEmit --incremental false`
+  - `npm run build`
+  - `git diff --check`
+  - targeted `COURSE_ROUTES` check for the three new IDs.
+- Post-deploy smoke:
+  - `npm run smoke:public` -> pass
+  - `HEAD https://portal.s5evo.de` -> 200
+  - `HEAD https://portal.s5evo.de/karte` -> 200
+- Remaining gap: authenticated/manual admin map browser smoke; Sebastian should
+  visually sanity-check the route shapes/classes.
+- New open topic from Sebastian: whether participant data can be hidden from
+  search engines. Recommended next CR: add explicit `noindex`/robots guardrails
+  for participant/team/result surfaces and define the exact route scope.
+
 ## CR deployed: Admin-only visitor counter V1 - 2026-07-24 20:31 UTC
 
 - Sebastian requested an internal visitor counter for admins and approved V1
