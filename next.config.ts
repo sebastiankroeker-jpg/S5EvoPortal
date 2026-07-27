@@ -2,6 +2,41 @@ import type { NextConfig } from "next";
 
 const isStaticExport = process.env.NEXT_OUTPUT_MODE === "export";
 
+const noIndexHeader = {
+  key: "X-Robots-Tag",
+  value: "noindex, nofollow, noarchive",
+};
+
+const sensitiveRoutePatterns = [
+  "/",
+  "/teilnehmer",
+  "/anmeldung",
+  "/aenderungen",
+  "/claim-links",
+  "/claim/:path*",
+  "/participant-claim/:path*",
+  "/mtc-anonym/:path*",
+  "/sportlerboerse",
+  "/sportlerboerse/:path*",
+  "/sportlerboerse-dashboard",
+  "/nachrichten",
+  "/profile",
+  "/admin/:path*",
+  "/zeitnahme/:path*",
+  "/api/results",
+  "/api/teams",
+  "/api/teams/:path*",
+  "/api/participants/:path*",
+  "/api/claim/:path*",
+  "/api/participant-claim/:path*",
+  "/api/mtc-anonym/:path*",
+  "/api/admin/:path*",
+  "/api/messages/:path*",
+  "/api/profile/:path*",
+  "/api/privacy/:path*",
+  "/api/timekeeping/:path*",
+];
+
 const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
@@ -29,6 +64,10 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      ...sensitiveRoutePatterns.map((source) => ({
+        source,
+        headers: [noIndexHeader],
+      })),
     ];
   },
   async redirects() {
