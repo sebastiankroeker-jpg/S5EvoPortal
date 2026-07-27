@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { getUtcDayStart } from "@/lib/server-visitor-counter";
+import { getUtcDayStart, resolveVisitorCounterCompetition } from "@/lib/server-visitor-counter";
 import { getVisitorRouteLabel, normalizeVisitorRouteKey, VISITOR_ROUTE_CONFIG } from "@/lib/visitor-counter";
 import { requireTenantRoles } from "@/lib/server-permissions";
 
@@ -26,7 +26,8 @@ function sumCount(entry: { _sum: { count: number | null } } | null | undefined) 
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ["ADMIN"]);
+    const competition = await resolveVisitorCounterCompetition();
+    const auth = await requireTenantRoles(session, ["ADMIN"], competition ? { tenantId: competition.tenantId } : {});
     if ("error" in auth) return auth.error;
 
     const today = getUtcDayStart();
@@ -35,6 +36,7 @@ export async function GET() {
 
     const baseWhere = {
       tenantId: auth.tenantId,
+      ...(competition ? { competitionId: competition.id } : {}),
       surface: "portal",
     };
 
