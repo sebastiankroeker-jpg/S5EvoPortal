@@ -26,6 +26,7 @@ type ResultSnapshot = Record<string, unknown> | null;
 type ClassTeam = Pick<TeamScore, "teamId" | "teamName" | "startNumber" | "classCode">;
 
 type ResultTeamScore = TeamScore & { hasAnyResult?: boolean };
+type StockDetails = { stockBwz?: string | null; stockDropped?: number | null; tieBreakers?: number[] };
 
 const OVERALL_RESULT_GROUPS = [
   {
@@ -62,10 +63,49 @@ function getLegacyStockDetails(snapshot: ResultSnapshot) {
   const details = asRecord(legacy?.details);
   if (!details) return {};
 
+  return stockDetailsFromLegacyDetails(details);
+}
+
+function stockBwzSortValue(value: string | null | undefined) {
+  if (!value) return 0;
+  const parsed = Number.parseInt(value.replace(/\D/g, "") || "0", 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function stockDetailsFromLegacyDetails(details: Record<string, unknown>): StockDetails {
+  const maskedBwz = typeof details.maskedBwz === "string" ? details.maskedBwz : null;
+  const rawBwz = typeof details.bwz === "string" ? details.bwz : maskedBwz;
+  const dropped = asNumber(details.dropped);
+
   return {
-    stockBwz: typeof details.maskedBwz === "string" ? details.maskedBwz : null,
-    stockDropped: asNumber(details.dropped),
+    stockBwz: maskedBwz ?? rawBwz ?? null,
+    stockDropped: dropped,
+    tieBreakers: [stockBwzSortValue(rawBwz), dropped ?? 0],
   };
+}
+
+function stockDetailsFromShots(shots: Array<{ value: number; isStrikeout: boolean }>): StockDetails {
+  if (shots.length === 0) return {};
+  const sortedValues = [...shots].map((shot) => shot.value).sort((left, right) => right - left);
+  const droppedShot = shots.find((shot) => shot.isStrikeout) ?? null;
+  const dropped = droppedShot?.value ?? sortedValues.at(-1) ?? null;
+  const countedValues = shots
+    .filter((shot) => !shot.isStrikeout)
+    .map((shot) => shot.value)
+    .sort((left, right) => right - left);
+
+  return {
+    stockBwz: countedValues.length > 0 ? countedValues.join("-") : sortedValues.join("-"),
+    stockDropped: dropped,
+    tieBreakers: countedValues,
+  };
+}
+
+function getPublicationStockDetails(snapshot: ResultSnapshot): StockDetails {
+  if (snapshot?.disciplineCode !== "STOCK") return {};
+  const legacy = asRecord(snapshot?.legacy);
+  const details = asRecord(legacy?.details);
+  return details ? stockDetailsFromLegacyDetails(details) : {};
 }
 
 function emptyDisciplineEntries(): Record<DisciplineCode, DisciplineEntry[]> {
@@ -181,12 +221,39 @@ export async function GET(request: NextRequest) {
             results: {
               include: {
                 discipline: { select: { code: true, name: true } },
+                shots: { orderBy: { shotNumber: "asc" } },
               },
             },
           },
         },
       },
     });
+
+    const latestStockPublicationItems = await prisma.resultPublicationItem.findMany({
+      where: {
+        disciplineCode: "STOCK",
+        resultId: { not: null },
+        publication: {
+          competitionId,
+          status: "PUBLISHED",
+          revertedAt: null,
+        },
+      },
+      select: {
+        resultId: true,
+        draft: { select: { proposedResultSnapshot: true } },
+        publication: { select: { version: true, publishedAt: true } },
+      },
+      orderBy: [
+        { publication: { version: "desc" } },
+        { createdAt: "desc" },
+      ],
+    });
+    const stockDetailsByResultId = new Map<string, StockDetails>();
+    for (const item of latestStockPublicationItems) {
+      if (!item.resultId || stockDetailsByResultId.has(item.resultId)) continue;
+      stockDetailsByResultId.set(item.resultId, getPublicationStockDetails(asRecord(item.draft?.proposedResultSnapshot)));
+    }
 
     // Load classifications for this competition
     const classifications = await prisma.classification.findMany({
@@ -263,6 +330,12 @@ export async function GET(request: NextRequest) {
           const discCode = result.discipline.code as DisciplineCode;
           if (!classEntries[discCode]) continue;
           if (!publishedDisciplineSet.has(discCode)) continue;
+          const stockDetails = discCode === "STOCK"
+            ? {
+                ...stockDetailsFromShots(result.shots),
+                ...(stockDetailsByResultId.get(result.id) ?? {}),
+              }
+            : {};
 
           classEntries[discCode].push({
             teamId: team.id,
@@ -273,6 +346,7 @@ export async function GET(request: NextRequest) {
             rawValue: result.rawValue,
             publishedRank: result.rank,
             publishedPoints: result.points,
+            ...stockDetails,
             classCode,
           });
 
@@ -283,6 +357,9 @@ export async function GET(request: NextRequest) {
             participantId: participant.id,
             participantName: visibleParticipantById.get(participant.id) ?? "Teilnehmer:in",
             rawValue: result.rawValue,
+            publishedRank: result.rank,
+            publishedPoints: result.points,
+            ...stockDetails,
             classCode: overallGroup?.code ?? classCode,
           });
         }

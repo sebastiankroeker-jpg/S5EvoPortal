@@ -19,20 +19,55 @@ function addUtcDays(date: Date, days: number) {
   return next;
 }
 
+function parseDateParam(value: string | null) {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
+function formatDay(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
 function sumCount(entry: { _sum: { count: number | null } } | null | undefined) {
   return entry?._sum.count ?? 0;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const competition = await resolveVisitorCounterCompetition();
     const auth = await requireTenantRoles(session, ["ADMIN"], competition ? { tenantId: competition.tenantId } : {});
     if ("error" in auth) return auth.error;
 
+    const url = new URL(request.url);
     const today = getUtcDayStart();
     const last7Start = addUtcDays(today, -6);
-    const last14Start = addUtcDays(today, -13);
+    const requestedFrom = parseDateParam(url.searchParams.get("from"));
+    const requestedTo = parseDateParam(url.searchParams.get("to"));
+    let rangeFrom = requestedFrom ?? addUtcDays(today, -13);
+    let rangeTo = requestedTo ?? today;
+    if (rangeFrom > rangeTo) {
+      [rangeFrom, rangeTo] = [rangeTo, rangeFrom];
+    }
+    const maxRangeDays = 120;
+    const dayCount = Math.floor((rangeTo.getTime() - rangeFrom.getTime()) / 86_400_000) + 1;
+    if (dayCount > maxRangeDays) {
+      rangeFrom = addUtcDays(rangeTo, -(maxRangeDays - 1));
+    }
+    const rangeToExclusive = addUtcDays(rangeTo, 1);
 
     const baseWhere = {
       tenantId: auth.tenantId,
@@ -78,7 +113,7 @@ export async function GET() {
       }),
       prisma.pageViewCounter.groupBy({
         by: ["day"],
-        where: { ...baseWhere, day: { gte: last14Start } },
+        where: { ...baseWhere, day: { gte: rangeFrom, lt: rangeToExclusive } },
         _sum: { count: true },
         orderBy: { day: "asc" },
       }),
@@ -102,6 +137,13 @@ export async function GET() {
       })
       .filter((entry) => entry.today > 0 || entry.last7Days > 0 || entry.total > 0)
       .sort((left, right) => right.last7Days - left.last7Days || right.total - left.total || left.label.localeCompare(right.label, "de"));
+    const dailyByDay = new Map(dailyRows.map((row) => [formatDay(row.day), row._sum.count ?? 0]));
+    const daily = [];
+    for (let cursor = new Date(rangeFrom); cursor <= rangeTo; cursor = addUtcDays(cursor, 1)) {
+      const day = formatDay(cursor);
+      daily.push({ day, count: dailyByDay.get(day) ?? 0 });
+    }
+    const rangeTotal = daily.reduce((sum, row) => sum + row.count, 0);
 
     return NextResponse.json(
       {
@@ -109,12 +151,15 @@ export async function GET() {
           today: sumCount(todayAggregate),
           last7Days: sumCount(last7Aggregate),
           total: sumCount(totalAggregate),
+          range: rangeTotal,
         },
         byRoute,
-        daily: dailyRows.map((row) => ({
-          day: row.day.toISOString().slice(0, 10),
-          count: row._sum.count ?? 0,
-        })),
+        daily,
+        range: {
+          from: formatDay(rangeFrom),
+          to: formatDay(rangeTo),
+          maxDays: maxRangeDays,
+        },
       },
       { headers: NO_STORE_HEADERS },
     );

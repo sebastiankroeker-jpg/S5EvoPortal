@@ -42,6 +42,8 @@ export interface DisciplineEntry {
   rawValueText?: string | null;
   publishedRank?: number | null;
   publishedPoints?: number | null;
+  stockBwz?: string | null;
+  stockDropped?: number | null;
   tieBreakers?: number[];
   classCode: string;
 }

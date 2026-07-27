@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Printer, RefreshCw, SlidersHorizontal, Star, XCircle } from "lucide-react";
+import { Info, Printer, RefreshCw, SlidersHorizontal, Star, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompetition } from "@/lib/competition-context";
 import { CLASSIFICATIONS, CLASSIFICATION_DISPLAY_ORDER, compareClassificationCodes } from "@/lib/domain/classification";
 import { DISCIPLINES } from "@/lib/domain/team";
@@ -142,11 +143,24 @@ function StockTieBreakerLine({ entry }: { entry: RankedEntry }) {
   if (!entry.stockBwz && entry.stockDropped === null && entry.stockDropped === undefined) return null;
 
   return (
-    <span className="mt-1 block text-[11px] leading-tight text-muted-foreground">
-      {entry.stockBwz ? `BWZ: ${entry.stockBwz}` : null}
-      {entry.stockBwz && entry.stockDropped !== null && entry.stockDropped !== undefined ? " · " : null}
-      {entry.stockDropped !== null && entry.stockDropped !== undefined ? `Streichergebnis: ${entry.stockDropped}` : null}
-    </span>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          className="mt-1 inline-flex max-w-full items-center justify-end gap-1 text-[11px] leading-tight text-muted-foreground underline decoration-dotted underline-offset-2"
+          aria-label="Stock-Bewertungsdetails anzeigen"
+        >
+          <span className="truncate">
+            {entry.stockBwz ? `BWZ ${entry.stockBwz}` : null}
+            {entry.stockBwz && entry.stockDropped !== null && entry.stockDropped !== undefined ? " · " : null}
+            {entry.stockDropped !== null && entry.stockDropped !== undefined ? `Streicher ${entry.stockDropped}` : null}
+          </span>
+          <Info className="size-3 shrink-0" aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent side="left" align="end" className="max-w-72 text-left">
+          Bewertungszahl und Streichergebnis entscheiden beim Stockschießen über die Reihenfolge, wenn die Ringsumme gleich ist.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

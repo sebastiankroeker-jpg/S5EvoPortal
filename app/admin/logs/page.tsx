@@ -49,11 +49,23 @@ type VisitorCounterResponse = {
     today: number;
     last7Days: number;
     total: number;
+    range?: number;
   };
   byRoute?: VisitorCounterRoute[];
   daily?: Array<{ day: string; count: number }>;
+  range?: { from: string; to: string; maxDays: number };
   error?: string;
 };
+
+function utcDateInputValue(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(date: Date, days: number) {
+  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
 
 function formatTimestamp(value: string | null): string {
   if (!value) return "—";
@@ -66,6 +78,44 @@ function statusBadgeVariant(statusCode: number): "destructive" | "outline" | "se
   if (statusCode >= 500) return "destructive";
   if (statusCode >= 400) return "secondary";
   return "outline";
+}
+
+function formatVisitorDay(value: string) {
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+}
+
+function VisitorDailyChart({ rows }: { rows: Array<{ day: string; count: number }> }) {
+  const maxCount = Math.max(1, ...rows.map((row) => row.count));
+  const compactLabels = rows.length > 18;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex h-48 items-end gap-1 rounded-md border border-border/60 bg-muted/20 px-2 py-3">
+        {rows.map((row) => {
+          const height = Math.max(row.count > 0 ? 8 : 2, Math.round((row.count / maxCount) * 160));
+          return (
+            <div key={row.day} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+              <div
+                className="w-full min-w-2 rounded-t-sm bg-primary/80"
+                style={{ height }}
+                title={`${formatVisitorDay(row.day)}: ${row.count} Besucher`}
+                aria-label={`${formatVisitorDay(row.day)}: ${row.count} Besucher`}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="grid text-[10px] text-muted-foreground" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }}>
+        {rows.map((row, index) => (
+          <span key={row.day} className="truncate text-center">
+            {!compactLabels || index === 0 || index === rows.length - 1 || index % 7 === 0 ? formatVisitorDay(row.day) : ""}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function AdminLogsPage() {
@@ -85,6 +135,8 @@ export default function AdminLogsPage() {
   const [visitorLoading, setVisitorLoading] = useState(false);
   const [visitorError, setVisitorError] = useState<string | null>(null);
   const [visitorStats, setVisitorStats] = useState<VisitorCounterResponse | null>(null);
+  const [visitorFrom, setVisitorFrom] = useState(() => utcDateInputValue(addUtcDays(new Date(), -13)));
+  const [visitorTo, setVisitorTo] = useState(() => utcDateInputValue(new Date()));
 
   const navigateFromBottomTab = (tabId: string) => {
     navigateFromExternalBottomTab(router, tabId);
@@ -135,7 +187,10 @@ export default function AdminLogsPage() {
     setVisitorError(null);
 
     try {
-      const response = await fetch("/api/admin/visitor-counter", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (visitorFrom) params.set("from", visitorFrom);
+      if (visitorTo) params.set("to", visitorTo);
+      const response = await fetch(`/api/admin/visitor-counter?${params.toString()}`, { cache: "no-store" });
       const data = (await response.json()) as VisitorCounterResponse;
       if (!response.ok) {
         setVisitorStats(null);
@@ -149,7 +204,7 @@ export default function AdminLogsPage() {
     } finally {
       setVisitorLoading(false);
     }
-  }, []);
+  }, [visitorFrom, visitorTo]);
 
   useEffect(() => {
     if (!permissionsLoading && hasAdminAccess) {
@@ -227,7 +282,22 @@ export default function AdminLogsPage() {
                 {visitorError}
               </p>
             ) : null}
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Von</p>
+                <Input type="date" value={visitorFrom} onChange={(event) => setVisitorFrom(event.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Bis</p>
+                <Input type="date" value={visitorTo} onChange={(event) => setVisitorTo(event.target.value)} />
+              </div>
+              <div className="flex items-end">
+                <Button variant="outline" className="w-full" onClick={() => void loadVisitorStats()} disabled={visitorLoading}>
+                  Anwenden
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-md border border-border/60 p-3">
                 <p className="text-xs text-muted-foreground">Heute</p>
                 <p className="text-2xl font-semibold">{visitorStats?.summary?.today ?? 0}</p>
@@ -240,7 +310,22 @@ export default function AdminLogsPage() {
                 <p className="text-xs text-muted-foreground">Gesamt</p>
                 <p className="text-2xl font-semibold">{visitorStats?.summary?.total ?? 0}</p>
               </div>
+              <div className="rounded-md border border-border/60 p-3">
+                <p className="text-xs text-muted-foreground">Auswahl</p>
+                <p className="text-2xl font-semibold">{visitorStats?.summary?.range ?? 0}</p>
+              </div>
             </div>
+            {visitorStats?.daily?.length ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-medium">Tage / Besucher</p>
+                  <p className="text-xs text-muted-foreground">
+                    {visitorStats.range?.from ?? visitorFrom} bis {visitorStats.range?.to ?? visitorTo}
+                  </p>
+                </div>
+                <VisitorDailyChart rows={visitorStats.daily} />
+              </div>
+            ) : null}
             {visitorStats?.byRoute?.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] text-sm">
