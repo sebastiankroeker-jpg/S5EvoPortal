@@ -19,9 +19,8 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`, aligned with `origin/main` at the time of this handoff.
-- Source consolidation for the deployed permission/Friends change is in
-  progress; verify `git status` and the latest commit before starting the audit.
+- Branch: `main`, aligned with `origin/main`.
+- HEAD: `72614c9 Add dynamic role permissions and Friends map access`.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -41,9 +40,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_9LpqN8yWyDnscGRHYDLz7vPkKX75`
+  - ID: `dpl_E8i4FtbMXvxD1zgBbUSBx55pBU3y`
   - URL:
-    `https://s5-evo-portal-6drw9nxx1-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-56rnp5pc5-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`

@@ -262,11 +262,12 @@ Decision from Sebastian, 2026-07-27:
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID: `dpl_9LpqN8yWyDnscGRHYDLz7vPkKX75`
+- Source commit: `72614c9 Add dynamic role permissions and Friends map access`
+- Deployment ID: `dpl_E8i4FtbMXvxD1zgBbUSBx55pBU3y`
 - Deployment URL:
-  `https://s5-evo-portal-6drw9nxx1-sebastiankroeker-2781s-projects.vercel.app`
+  `https://s5-evo-portal-56rnp5pc5-sebastiankroeker-2781s-projects.vercel.app`
 - Production alias: `https://portal.s5evo.de`
-- Deployed at: 2026-07-28 04:37 UTC
+- Deployed at: 2026-07-28 07:00 UTC
 
 ## Post-Deploy Smoke
 
