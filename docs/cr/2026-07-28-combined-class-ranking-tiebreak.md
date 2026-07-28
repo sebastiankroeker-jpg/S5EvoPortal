@@ -1,6 +1,6 @@
 # CR: Ergebnis-Hotfix — Gesamtklassen-Rangfolge und Startnummern
 
-Status: In implementation (local only)
+Status: Deployed
 Date: 2026-07-28
 Type: hotfix
 Risk: medium
@@ -85,11 +85,15 @@ konnte die Gesamtklasse nicht gegen alle enthaltenen Teams neu ranken.
 - Local checks: TypeScript, ESLint, diff check and production build passed.
 - Targeted verification: `verify:combined-class-ranking` and
   `verify:results-start-number-visibility` passed.
+- Production smoke: public core flows passed; the live 2026 results payload
+  contains `startNumber` values.
 
 ## Deploy
 
-- Deployment needed: yes
+- Deployment needed: completed
 - Production alias: https://portal.s5evo.de
+- Production source commit: `ee03206`
+- Production deployment: `dpl_66UWz5J4VYgrpbmJk16N2dd9Csqy` (READY)
 
 ## Follow-Ups
 
