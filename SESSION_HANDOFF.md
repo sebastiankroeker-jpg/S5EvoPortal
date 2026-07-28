@@ -20,7 +20,9 @@ and decision record.
 ## Current repository state
 
 - Branch: `main`, aligned with `origin/main`.
-- HEAD: `72614c9 Add dynamic role permissions and Friends map access`.
+- Functional baseline: `72614c9 Add dynamic role permissions and Friends map
+  access`. Later documentation-only commits do not change that source baseline;
+  verify the current HEAD with `git log -1`.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
