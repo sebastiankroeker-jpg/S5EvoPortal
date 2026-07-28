@@ -46,13 +46,7 @@ type TeamStatsSource = {
   participants?: unknown[];
 };
 
-const HOME_TITLE = "33. Bad Bayersoier Fünfkampf für Mannschaften";
-
-const HOME_ANNOUNCEMENT = {
-  title: "Aktuelles & Ankündigung",
-  body: "Von Samstagabend, 18. Juli, bis Sonntagvormittag kam es zu Fehlern in der Anmeldung. Die Ursache ist behoben und die Anmeldung funktioniert nun wieder.",
-  signoff: "Viele Grüße, Orga-Team",
-};
+const HOME_TITLE_FALLBACK = "Bayersoier Fünfkampf für Mannschaften";
 
 const FLYER_INFO_2026 = {
   registrationDeadline: "22.07.2026",
@@ -111,7 +105,7 @@ function formatCompetitionDate(competitionInfo: CompetitionInfo | null) {
   if (competitionInfo.dateEnd) {
     const d2 = new Date(competitionInfo.dateEnd);
     const f2 = d2.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
-    return `${f1}. - ${f2}`;
+    return `${f1} – ${f2}`;
   }
   return d1.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
 }
@@ -122,7 +116,7 @@ function canUsePublicTeamRegistration(competitionInfo: CompetitionInfo | null) {
   return statusAllowsRegistration && isRegistrationDeadlineOpen(competitionInfo.registrationDeadline);
 }
 
-function HomeBrandHeader({ dateLabel }: { dateLabel?: string }) {
+function HomeBrandHeader({ title, dateLabel }: { title?: string | null; dateLabel?: string }) {
   return (
     <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
       <div className="relative size-32 overflow-hidden rounded-full sm:size-40">
@@ -136,7 +130,7 @@ function HomeBrandHeader({ dateLabel }: { dateLabel?: string }) {
         />
       </div>
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold sm:text-3xl">{HOME_TITLE}</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">{title || HOME_TITLE_FALLBACK}</h1>
         {dateLabel && <p className="text-muted-foreground">{dateLabel}</p>}
       </div>
     </div>
@@ -157,15 +151,7 @@ function CompetitionStatusFooter({ status }: { status?: string | null }) {
 }
 
 function AnnouncementCard({ entries }: { entries: HomeNewsEntry[] }) {
-  const visibleEntries = entries.length > 0
-    ? entries
-    : [{
-        id: "static-announcement",
-        title: HOME_ANNOUNCEMENT.title,
-        body: `${HOME_ANNOUNCEMENT.body}\n\n${HOME_ANNOUNCEMENT.signoff}`,
-        publishedAt: null,
-        updatedAt: "",
-      }];
+  if (entries.length === 0) return null;
 
   return (
     <Card>
@@ -173,7 +159,7 @@ function AnnouncementCard({ entries }: { entries: HomeNewsEntry[] }) {
         <CardTitle className="text-center text-base">Aktuelles & Neuigkeiten</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-sm leading-6">
-        {visibleEntries.map((entry, index) => (
+        {entries.map((entry, index) => (
           <div key={entry.id} className={index > 0 ? "border-t border-border/50 pt-4" : undefined}>
             <p className="font-medium">{entry.title}</p>
             <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{entry.body}</p>
@@ -336,6 +322,7 @@ export default function HomeScreen() {
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const publicPortalRegistrationEnabled = competitionInfo?.tenant?.publicPortalRegistrationEnabled === true;
   const publicTeamRegistrationOpen = canUsePublicTeamRegistration(competitionInfo);
+  const showLegacy2026Flyer = competitionInfo?.year === 2026;
 
   // Load competition info and stats
   useEffect(() => {
@@ -428,7 +415,7 @@ export default function HomeScreen() {
         animate={{ opacity: 1, scale: 1 }}
         className="text-center space-y-8 py-8"
       >
-        <HomeBrandHeader dateLabel="24. + 25.07." />
+        <HomeBrandHeader title={competitionInfo?.name} dateLabel={formatCompetitionDate(competitionInfo)} />
 
         <Card className={theme === "bunt" ? "bunt-card max-w-md mx-auto" : "max-w-md mx-auto"}>
           <CardContent className="space-y-4 pt-6">
@@ -497,11 +484,13 @@ export default function HomeScreen() {
 
         <div className="max-w-3xl mx-auto space-y-6">
           <AnnouncementCard entries={homeNewsEntries} />
-          <FlyerInfoCard
-            onRegisterClick={() => { window.location.href = "/anmeldung"; }}
-            onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
-            registrationOpen={publicTeamRegistrationOpen}
-          />
+          {showLegacy2026Flyer && (
+            <FlyerInfoCard
+              onRegisterClick={() => { window.location.href = "/anmeldung"; }}
+              onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
+              registrationOpen={publicTeamRegistrationOpen}
+            />
+          )}
         </div>
       </motion.div>
     );
@@ -515,15 +504,17 @@ export default function HomeScreen() {
       className="space-y-6 py-4"
     >
       {/* Competition Header */}
-      <HomeBrandHeader dateLabel={formatCompetitionDate(competitionInfo)} />
+      <HomeBrandHeader title={competitionInfo?.name} dateLabel={formatCompetitionDate(competitionInfo)} />
 
       <AnnouncementCard entries={homeNewsEntries} />
 
-      <FlyerInfoCard
-        onRegisterClick={() => handleQuickAction("registration")}
-        onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
-        registrationOpen={publicTeamRegistrationOpen}
-      />
+      {showLegacy2026Flyer && (
+        <FlyerInfoCard
+          onRegisterClick={() => handleQuickAction("registration")}
+          onMarketplaceClick={() => { window.location.href = "/sportlerboerse"; }}
+          registrationOpen={publicTeamRegistrationOpen}
+        />
+      )}
 
       {/* Stats Overview */}
       {teamStats && (
