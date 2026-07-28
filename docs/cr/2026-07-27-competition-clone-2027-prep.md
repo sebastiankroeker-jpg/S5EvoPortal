@@ -1,6 +1,6 @@
 # CR: Competition clone and 5Kampf 2027 preparation
 
-Status: Local implementation complete — release approval pending
+Status: Deployed — authenticated admin dry-run pending
 Date: 2026-07-27
 Type: feature
 Risk: medium
@@ -225,6 +225,8 @@ Decision from Sebastian, 2026-07-27:
 - Required release evidence: local scope/API tests, TypeScript/build,
   unauthenticated API check after deploy, and a manual authenticated admin
   dry-run before any production clone.
+- Feature release approved by: Sebastian, “Go”, 2026-07-28 12:12 UTC.
+- Still not approved: invoking the clone write action against production data.
 
 ## Implementation Notes
 
@@ -275,17 +277,29 @@ Decision from Sebastian, 2026-07-27:
 ## Deploy
 
 - Deployment needed: yes
-- Deployment ID:
+- Functional commit: `d4c7218 Add competition clone preparation flow`
+- Deployment ID: `dpl_4mPUfDrcF9Gim3tauCcVQFzWXCEF`
 - Deployment URL:
-- Production alias:
-- Deployed at:
+  `https://s5-evo-portal-f4itmubmk-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-28 12:15 UTC; Vercel `READY` and alias verified.
+- Migration/data action: none. The feature deploy did not create or alter a
+  competition, participant, team, result, role, or other production record.
 
 ## Post-Deploy Smoke
 
-- Routes checked:
-- API checks:
-- Sensitive-data/API leakage checks:
-- Result:
+- Routes checked: `/`, `/login`, `/anmeldung`, `/aenderungen`,
+  `/api/competition`, and `/api/results` all returned the expected public
+  responses; the legacy domain redirects to production.
+- API checks: protected `/api/teams`, `/api/admin/pending-changes`,
+  `/api/admin/users?competitionId=invalid`, and the new clone endpoint all
+  return `401` without a session.
+- Sensitive-data/API leakage checks: the unauthenticated clone `POST` was
+  rejected before source resolution or dry-run execution; no clone data was
+  returned and no data action was performed.
+- Result: green. The authenticated admin dry-run remains the next manual
+  feature test. Actual clone creation remains behind its separate confirmation
+  gate.
 
 ## Follow-Ups
 

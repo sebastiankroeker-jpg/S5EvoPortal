@@ -19,9 +19,9 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `40d9d7a` is pushed to
+- Branch: `main`; production source commit `d4c7218` is pushed to
   `origin/main`.
-- Functional baseline: `40d9d7a Remove legacy operational role compatibility`.
+- Functional baseline: `d4c7218 Add competition clone preparation flow`.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -32,6 +32,7 @@ and decision record.
     `docs/cr/2026-07-27-friends-role-map-access.md`.
   - competition-scoped operational roles: `104e803`.
   - legacy operational-role compatibility removal: `40d9d7a`.
+  - competition clone preparation flow: `d4c7218`.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
@@ -48,9 +49,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_HSDTjtAdyEaxxSwdDfgstM5WCS2S`
+  - ID: `dpl_4mPUfDrcF9Gim3tauCcVQFzWXCEF`
   - URL:
-    `https://s5-evo-portal-2fslz0tj8-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-f4itmubmk-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -69,6 +70,8 @@ and decision record.
     `ZEITNAHME` rows and zero legacy tenant-wide moderators;
   - authenticated cross-competition smokes remain a documented gap because no
     controlled test sessions are available.
+  - clone feature deployment: public smoke is green; the new clone API
+    returns `401` without a session and did not create any production data.
 - The latest known portal deployment state and smoke evidence belongs in the
   relevant CR; do not treat older deployment IDs as current. Before another
   production change, verify the live alias and run the normal smoke suite.
@@ -128,8 +131,8 @@ and decision record.
    `FRIENDS` is tenant-scoped and seeded with `portal.map.view`, without admin,
    participant/contact/export, audit, timekeeping or staging permissions.
 
-6. **Competition clone / 5Kampf 2027 preparation** — Local implementation
-   complete; feature release approval pending, medium risk.
+6. **Competition clone / 5Kampf 2027 preparation** — Deployed; authenticated
+   admin dry-run pending, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
    Admin-only, transactional clone of configuration, persisted disciplines and
    non-archived competition news into a reviewed draft;
@@ -140,8 +143,8 @@ and decision record.
    production clone has been performed. Sebastian confirmed the class policy:
    the selected competition year drives age totals and youth cohorts, while
    2026 remains reproducible. The 2027 matrix and the 2019 cohort boundary
-   are covered locally. Release still needs its own Go; after deployment use
-   an authenticated admin dry-run, then request a separate Go before creating
+   are covered locally and the feature is deployed in `d4c7218`. Next: run
+   an authenticated admin dry-run; then request a separate Go before creating
    any production 2027 competition.
 
 ## Working method
@@ -169,7 +172,6 @@ and decision record.
 4. Retain the authenticated cross-competition smoke gap in the security
    release record; create controlled role test sessions before the next
    permission-sensitive release where feasible.
-5. For the active competition-clone CR, obtain a separate feature release
-   approval, run an authenticated admin dry-run after deployment, and keep
-   actual production target creation behind its own explicit data-mutation
-   gate.
+5. For the active competition-clone CR, run an authenticated admin dry-run
+   and keep actual production target creation behind its own explicit
+   data-mutation gate.
