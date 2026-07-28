@@ -66,17 +66,26 @@ export async function GET(request: NextRequest) {
           select: competitionSelect,
         })
       : await prisma.competition.findFirst({
-          where: { status: "RUNNING" },
+          where: {
+            status: "RUNNING",
+            OR: [{ portalVisibility: "PUBLIC" }, { portalVisibility: null }],
+          },
           orderBy: [{ year: "desc" }, { createdAt: "desc" }],
           select: competitionSelect,
         }) ??
         await prisma.competition.findFirst({
-          where: { status: "CLOSED" },
+          where: {
+            status: "CLOSED",
+            OR: [{ portalVisibility: "PUBLIC" }, { portalVisibility: null }],
+          },
           orderBy: [{ year: "desc" }, { createdAt: "desc" }],
           select: competitionSelect,
         }) ??
         await prisma.competition.findFirst({
-          where: { status: { not: "DRAFT" } },
+          where: {
+            status: { not: "DRAFT" },
+            OR: [{ portalVisibility: "PUBLIC" }, { portalVisibility: null }],
+          },
           orderBy: [{ year: "desc" }, { createdAt: "desc" }],
           select: competitionSelect,
         });
