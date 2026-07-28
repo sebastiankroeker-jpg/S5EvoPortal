@@ -21,6 +21,8 @@ type IncomingEvent = {
   payload?: unknown;
 };
 
+class TimekeepingSessionScopeError extends Error {}
+
 function parseDate(value: unknown) {
   if (typeof value !== "string") return null;
   const date = new Date(value);
@@ -118,107 +120,116 @@ export async function POST(request: NextRequest) {
     }];
   });
 
-  const result = await prisma.$transaction(async (tx) => {
-    const timekeepingSession = sessionId
-      ? await tx.timekeepingSession.upsert({
-          where: { id: sessionId },
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const existingSession = sessionId
+        ? await tx.timekeepingSession.findUnique({
+            where: { id: sessionId },
+            select: { id: true, tenantId: true, competitionId: true },
+          })
+        : null;
+
+      if (
+        existingSession &&
+        (existingSession.tenantId !== auth.tenantId || existingSession.competitionId !== competitionId)
+      ) {
+        throw new TimekeepingSessionScopeError();
+      }
+
+      const timekeepingSession = existingSession
+        ? await tx.timekeepingSession.update({
+            where: { id: existingSession.id },
+            data: {
+              deviceId,
+              deviceName,
+              startBlockName,
+              firstStartNumber,
+              startIntervalSeconds,
+              manualStartedAt,
+            },
+          })
+        : await tx.timekeepingSession.create({
+            data: {
+              ...(sessionId ? { id: sessionId } : {}),
+              tenantId: auth.tenantId,
+              competitionId,
+              createdById: auth.user.id,
+              deviceId,
+              deviceName,
+              disciplineCode: disciplineCode as (typeof TIMEKEEPING_DISCIPLINES)[number],
+              startBlockName,
+              firstStartNumber,
+              startIntervalSeconds,
+              manualStartedAt,
+            },
+          });
+
+      let accepted = 0;
+      for (const event of validEvents) {
+        await tx.timekeepingEvent.upsert({
+          where: {
+            sessionId_clientEventId: {
+              sessionId: timekeepingSession.id,
+              clientEventId: event.clientEventId,
+            },
+          },
           create: {
-            id: sessionId,
-            tenantId: auth.tenantId,
-            competitionId,
-            createdById: auth.user.id,
-            deviceId,
-            deviceName,
-            disciplineCode: disciplineCode as (typeof TIMEKEEPING_DISCIPLINES)[number],
-            startBlockName,
-            firstStartNumber,
-            startIntervalSeconds,
-            manualStartedAt,
+            ...event,
+            sessionId: timekeepingSession.id,
           },
           update: {
-            deviceId,
-            deviceName,
-            startBlockName,
-            firstStartNumber,
-            startIntervalSeconds,
-            manualStartedAt,
+            eventType: event.eventType,
+            recordedAt: event.recordedAt,
+            startNumber: event.startNumber,
+            rawElapsedMs: event.rawElapsedMs,
+            netElapsedMs: event.netElapsedMs,
+            note: event.note,
+            payload: event.payload,
+            actorId: event.actorId,
           },
-        })
-      : await tx.timekeepingSession.create({
+        });
+        accepted += 1;
+      }
+
+      if (validEvents.length > 0) {
+        await tx.auditEvent.create({
           data: {
             tenantId: auth.tenantId,
             competitionId,
-            createdById: auth.user.id,
-            deviceId,
-            deviceName,
-            disciplineCode: disciplineCode as (typeof TIMEKEEPING_DISCIPLINES)[number],
-            startBlockName,
-            firstStartNumber,
-            startIntervalSeconds,
-            manualStartedAt,
+            actorId: auth.user.id,
+            action: "TIMEKEEPING_EVENTS_SYNCED",
+            scopeType: "TIMEKEEPING_SESSION",
+            scopeId: timekeepingSession.id,
+            entityType: "TimekeepingEvent",
+            entityId: timekeepingSession.id,
+            afterData: {
+              disciplineCode,
+              startBlockName,
+              deviceId,
+              deviceName,
+              received: validEvents.length,
+              accepted,
+            },
           },
         });
+      }
 
-    let accepted = 0;
-    for (const event of validEvents) {
-      await tx.timekeepingEvent.upsert({
-        where: {
-          sessionId_clientEventId: {
-            sessionId: timekeepingSession.id,
-            clientEventId: event.clientEventId,
-          },
-        },
-        create: {
-          ...event,
-          sessionId: timekeepingSession.id,
-        },
-        update: {
-          eventType: event.eventType,
-          recordedAt: event.recordedAt,
-          startNumber: event.startNumber,
-          rawElapsedMs: event.rawElapsedMs,
-          netElapsedMs: event.netElapsedMs,
-          note: event.note,
-          payload: event.payload,
-          actorId: event.actorId,
-        },
-      });
-      accepted += 1;
+      return {
+        sessionId: timekeepingSession.id,
+        accepted,
+        received: events.length,
+        ignored: events.length - validEvents.length,
+        syncedAt: new Date().toISOString(),
+      };
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof TimekeepingSessionScopeError) {
+      return NextResponse.json({ error: "Timekeeping session not found" }, { status: 404 });
     }
-
-    if (validEvents.length > 0) {
-      await tx.auditEvent.create({
-        data: {
-          tenantId: auth.tenantId,
-          competitionId,
-          actorId: auth.user.id,
-          action: "TIMEKEEPING_EVENTS_SYNCED",
-          scopeType: "TIMEKEEPING_SESSION",
-          scopeId: timekeepingSession.id,
-          entityType: "TimekeepingEvent",
-          entityId: timekeepingSession.id,
-          afterData: {
-            disciplineCode,
-            startBlockName,
-            deviceId,
-            deviceName,
-            received: validEvents.length,
-            accepted,
-          },
-        },
-      });
-    }
-
-    return {
-      sessionId: timekeepingSession.id,
-      accepted,
-      received: events.length,
-      ignored: events.length - validEvents.length,
-      syncedAt: new Date().toISOString(),
-    };
-  });
-
-  return NextResponse.json(result);
+    throw error;
+  }
 }
 
 export async function DELETE(request: NextRequest) {

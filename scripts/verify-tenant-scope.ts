@@ -25,6 +25,7 @@ function assertIncludes(source: string, expected: string, label: string) {
 const competitionScopedRoutes = [
   "app/api/admin/audit-events/route.ts",
   "app/api/admin/claim-audit/route.ts",
+  "app/api/admin/daily-orga-export/route.ts",
   "app/api/admin/deleted-teams/route.ts",
   "app/api/admin/mail-events/route.ts",
   "app/api/admin/orga-summary/route.ts",
@@ -33,14 +34,19 @@ const competitionScopedRoutes = [
   "app/api/admin/result-staging/batches/route.ts",
   "app/api/admin/result-staging/batches/[batchId]/route.ts",
   "app/api/admin/result-staging/batches/[batchId]/corrections/route.ts",
+  "app/api/admin/result-staging/batches/[batchId]/publish-preview/route.ts",
+  "app/api/admin/result-staging/batches/[batchId]/publish/route.ts",
   "app/api/admin/result-staging/legacy-results/import/route.ts",
   "app/api/admin/result-staging/legacy-running/import/route.ts",
   "app/api/admin/result-staging/reset/preview/route.ts",
   "app/api/admin/result-staging/reset/route.ts",
+  "app/api/admin/result-staging/timekeeping/sessions/[sessionId]/route.ts",
   "app/api/admin/result-staging/timekeeping/sessions/route.ts",
+  "app/api/admin/role-permissions/route.ts",
   "app/api/admin/start-numbers/import/route.ts",
   "app/api/admin/start-numbers/reset/route.ts",
   "app/api/admin/team-access-audit/route.ts",
+  "app/api/admin/teams-export/route.ts",
 ] as const;
 
 for (const route of competitionScopedRoutes) {
@@ -105,9 +111,15 @@ assertIncludes(adminConversationsRoute, "requireAnyTenantRoles(session, [\"ADMIN
 assertIncludes(adminConversationsRoute, "tenantId: { in: auth.tenantIds }", "message admin conversations route");
 assertIncludes(adminConversationsRoute, "const tenantId = participant?.team.competition.tenantId ?? team?.competition.tenantId ?? tenantRole?.tenantId", "message admin conversations route");
 
+const timekeepingEventsRoute = readSource("app/api/timekeeping/events/route.ts");
+assertIncludes(timekeepingEventsRoute, "existingSession.tenantId !== auth.tenantId", "timekeeping session tenant scope");
+assertIncludes(timekeepingEventsRoute, "existingSession.competitionId !== competitionId", "timekeeping session competition scope");
+
 const allowedCustomCompetitionScopeRoutes = new Map<string, string>([
   ["app/api/admin/competition/route.ts", "uses requireCompetitionAdmin() after resolving selected competition id"],
   ["app/api/admin/competitions/route.ts", "lists all admin tenants for the competition switcher"],
+  ["app/api/admin/home-news/route.ts", "resolves the optional competition and rechecks ADMIN in its tenant"],
+  ["app/api/admin/home-news/[entryId]/route.ts", "loads the entry scope and rechecks ADMIN in its competition tenant"],
   ["app/api/admin/pending-changes/route.ts", "uses resolveScopedTenantId() and existing targeted guard"],
   ["app/api/admin/pending-changes/[id]/route.ts", "uses resolvePendingChangeTenantId() before role auth"],
   ["app/api/admin/users/route.ts", "uses resolveScopedTenantId() and existing targeted guard"],
@@ -116,14 +128,115 @@ const allowedCustomCompetitionScopeRoutes = new Map<string, string>([
   ["app/api/dashboard-layouts/route.ts", "resolves competition tenant before requireTenantRoles()"],
   ["app/api/dashboard-layouts/[id]/route.ts", "loads layout tenant before requireTenantRoles()"],
   ["app/api/admin/result-staging/timekeeping/import/route.ts", "loads competition tenant before requireTenantRoles() with fallback disabled"],
+  ["app/api/admin/visitor-counter/route.ts", "derives the active competition and passes its tenant id explicitly"],
 ]);
 
 const tenantLevelRoutes = new Map<string, string>([
-  ["app/api/admin/changelog-entries/route.ts", "tenant-level changelog moderation"],
-  ["app/api/admin/changelog-entries/[entryId]/route.ts", "entry-id scoped changelog route"],
-  ["app/api/admin/runtime-logs/route.ts", "tenant/project-level runtime log viewer"],
+  ["app/api/admin/changelog-entries/route.ts", "global portal changelog moderation"],
+  ["app/api/admin/changelog-entries/[entryId]/route.ts", "global portal changelog entry route"],
+  ["app/api/admin/runtime-logs/route.ts", "global Vercel project runtime log viewer"],
   ["app/api/admin/tenant/route.ts", "tenant settings route"],
 ]);
+
+type RouteScope =
+  | "framework"
+  | "public"
+  | "capability"
+  | "secret"
+  | "self"
+  | "entity"
+  | "competition"
+  | "tenant"
+  | "global"
+  | "mixed";
+
+const routeScopeInventory = new Map<string, RouteScope>([
+  ["app/api/admin/audit-events/route.ts", "competition"],
+  ["app/api/admin/changelog-entries/[entryId]/route.ts", "global"],
+  ["app/api/admin/changelog-entries/route.ts", "global"],
+  ["app/api/admin/claim-audit/route.ts", "competition"],
+  ["app/api/admin/claim-links/route.ts", "mixed"],
+  ["app/api/admin/competition/reset/route.ts", "competition"],
+  ["app/api/admin/competition/route.ts", "mixed"],
+  ["app/api/admin/competitions/route.ts", "tenant"],
+  ["app/api/admin/daily-orga-export/route.ts", "competition"],
+  ["app/api/admin/deleted-teams/[id]/restore/route.ts", "entity"],
+  ["app/api/admin/deleted-teams/route.ts", "competition"],
+  ["app/api/admin/home-news/[entryId]/route.ts", "entity"],
+  ["app/api/admin/home-news/route.ts", "mixed"],
+  ["app/api/admin/mail-events/route.ts", "competition"],
+  ["app/api/admin/marketplace-matching/route.ts", "competition"],
+  ["app/api/admin/orga-summary/route.ts", "competition"],
+  ["app/api/admin/participant-audit/route.ts", "competition"],
+  ["app/api/admin/participant-change-bundles/[id]/decision/route.ts", "entity"],
+  ["app/api/admin/participant-change-bundles/[id]/route.ts", "entity"],
+  ["app/api/admin/participant-change-bundles/route.ts", "entity"],
+  ["app/api/admin/participants/route.ts", "competition"],
+  ["app/api/admin/pending-changes/[id]/route.ts", "entity"],
+  ["app/api/admin/pending-changes/route.ts", "competition"],
+  ["app/api/admin/result-staging/batches/[batchId]/corrections/route.ts", "competition"],
+  ["app/api/admin/result-staging/batches/[batchId]/publish-preview/route.ts", "competition"],
+  ["app/api/admin/result-staging/batches/[batchId]/publish/route.ts", "competition"],
+  ["app/api/admin/result-staging/batches/[batchId]/route.ts", "competition"],
+  ["app/api/admin/result-staging/batches/route.ts", "competition"],
+  ["app/api/admin/result-staging/legacy-results/import/route.ts", "competition"],
+  ["app/api/admin/result-staging/legacy-running/import/route.ts", "competition"],
+  ["app/api/admin/result-staging/reset/preview/route.ts", "competition"],
+  ["app/api/admin/result-staging/reset/route.ts", "competition"],
+  ["app/api/admin/result-staging/timekeeping/import/route.ts", "competition"],
+  ["app/api/admin/result-staging/timekeeping/sessions/[sessionId]/route.ts", "competition"],
+  ["app/api/admin/result-staging/timekeeping/sessions/route.ts", "competition"],
+  ["app/api/admin/role-permissions/route.ts", "tenant"],
+  ["app/api/admin/runtime-logs/route.ts", "global"],
+  ["app/api/admin/start-numbers/import/route.ts", "competition"],
+  ["app/api/admin/start-numbers/reset/route.ts", "competition"],
+  ["app/api/admin/team-access-audit/route.ts", "competition"],
+  ["app/api/admin/teams-export/route.ts", "competition"],
+  ["app/api/admin/tenant/route.ts", "tenant"],
+  ["app/api/admin/users/[id]/roles/route.ts", "tenant"],
+  ["app/api/admin/users/[id]/route.ts", "tenant"],
+  ["app/api/admin/users/route.ts", "tenant"],
+  ["app/api/admin/visitor-counter/route.ts", "competition"],
+  ["app/api/auth/[...nextauth]/route.ts", "framework"],
+  ["app/api/auth/federated-logout/route.ts", "framework"],
+  ["app/api/claim/[token]/route.ts", "capability"],
+  ["app/api/competition/route.ts", "public"],
+  ["app/api/cron/daily-orga-export/route.ts", "secret"],
+  ["app/api/dashboard-layouts/[id]/route.ts", "entity"],
+  ["app/api/dashboard-layouts/route.ts", "mixed"],
+  ["app/api/home-news/route.ts", "public"],
+  ["app/api/messages/admin-conversations/route.ts", "tenant"],
+  ["app/api/messages/admin-targets/route.ts", "tenant"],
+  ["app/api/messages/conversations/[id]/messages/route.ts", "entity"],
+  ["app/api/messages/conversations/[id]/read/route.ts", "entity"],
+  ["app/api/messages/conversations/[id]/route.ts", "entity"],
+  ["app/api/messages/conversations/route.ts", "mixed"],
+  ["app/api/messages/support-contexts/route.ts", "self"],
+  ["app/api/messages/unread-count/route.ts", "self"],
+  ["app/api/mtc-anonym/[token]/route.ts", "capability"],
+  ["app/api/participant-claim/[token]/route.ts", "capability"],
+  ["app/api/participants/[id]/invite/route.ts", "entity"],
+  ["app/api/participants/[id]/route.ts", "entity"],
+  ["app/api/privacy/preferences/route.ts", "self"],
+  ["app/api/profile/presence/route.ts", "self"],
+  ["app/api/profile/roles/route.ts", "self"],
+  ["app/api/profile/route.ts", "self"],
+  ["app/api/results/route.ts", "competition"],
+  ["app/api/teams/[id]/managers/route.ts", "entity"],
+  ["app/api/teams/[id]/mtc-edit-link/route.ts", "entity"],
+  ["app/api/teams/[id]/route.ts", "entity"],
+  ["app/api/teams/route.ts", "mixed"],
+  ["app/api/timekeeping/events/route.ts", "competition"],
+  ["app/api/timekeeping/snapshot/route.ts", "competition"],
+  ["app/api/visitor-counter/route.ts", "public"],
+]);
+
+const allApiRoutes = walk("app/api").filter((path) => path.endsWith("/route.ts")).sort();
+assert.deepEqual(
+  [...routeScopeInventory.keys()].sort(),
+  allApiRoutes,
+  "API route inventory is stale; classify every added or removed route",
+);
 
 const scannedRoutes = [
   ...walk("app/api/admin"),
@@ -149,3 +262,4 @@ assert.deepEqual(
 
 console.log("tenant scope verification ok");
 console.log(`entity scoped routes verified: ${entityScopedRoutes.size}`);
+console.log(`API routes classified: ${routeScopeInventory.size}`);

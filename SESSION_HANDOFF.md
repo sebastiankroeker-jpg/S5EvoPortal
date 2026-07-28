@@ -19,7 +19,7 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`, aligned with `origin/main`.
+- Branch: `main`; audit changes are currently local and uncommitted.
 - Functional baseline: `72614c9 Add dynamic role permissions and Friends map
   access`. Later documentation-only commits do not change that source baseline;
   verify the current HEAD with `git log -1`.
@@ -34,6 +34,9 @@ and decision record.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
+- The new role-grant follow-up CR is currently hidden by the local
+  `.git/info/exclude` rule `/docs/*`; include it explicitly with `git add -f`
+  when the approved audit package is committed.
 - This handoff was consolidated from an append-only document. The complete
   prior version is preserved at
   `docs/handoffs/archive/2026-07-28-session-handoff-pre-consolidation.md`.
@@ -75,23 +78,32 @@ and decision record.
 
 ## Active CRs — ordered work queue
 
-1. **Competition-scoped permissions audit** — Draft, high risk.
+1. **Competition-scoped permissions audit** — Implemented locally, high risk.
    `docs/cr/2026-07-27-competition-scoped-permissions-audit.md`
-   Audit authorization boundaries first. No schema migration, role reassignment
-   or production mutation is included without a separately approved follow-up.
+   All 78 API routes are classified by the executable inventory in
+   `scripts/verify-tenant-scope.ts`. The audit found and locally fixed a
+   cross-scope timekeeping-session-ID write path. The fix is not deployed.
+   Target model: tenant-wide `ADMIN`, additive competition grants for
+   `MODERATOR` and `ZEITNAHME`; `FRIENDS` timing remains open.
 
-2. **Dynamic permission role mapping** — Deployed.
+2. **Competition-scoped role grants** — Draft, high risk.
+   `docs/cr/2026-07-28-competition-scoped-role-grants.md`
+   Add `CompetitionRole`, strict competition guards, scoped profile/cache and
+   two-competition negative tests. No schema migration, role conversion or
+   production deploy without a separate explicit approval.
+
+3. **Dynamic permission role mapping** — Deployed.
    `docs/cr/2026-07-27-dynamic-permission-role-mapping.md`
    V1 provides tenant-scoped mappings for system roles. Only
    `admin.roles.manage` and `portal.map.view` are active permission consumers;
    legacy route guards remain until the audit.
 
-3. **Friends role with map access** — Deployed.
+4. **Friends role with map access** — Deployed.
    `docs/cr/2026-07-27-friends-role-map-access.md`
    `FRIENDS` is tenant-scoped and seeded with `portal.map.view`, without admin,
    participant/contact/export, audit, timekeeping or staging permissions.
 
-4. **Competition clone / 5Kampf 2027 preparation** — Draft, medium risk.
+5. **Competition clone / 5Kampf 2027 preparation** — Draft, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
    Clone configuration, map routes and home/news into a new draft competition;
    never clone teams, participants, contacts, results, tokens, messages,
@@ -119,10 +131,8 @@ and decision record.
 1. Read this file, then open the selected CR only.
 2. Re-check `git status --short --branch`, current production reachability and
    any deployment/migration state relevant to that CR.
-3. For the permissions work, start with CR 1 on GPT-5.6 Sol: build a
-   route/guard inventory and
-   classify tenant, competition, entity, public and global access paths.
-4. Treat `PermissionObject` / tenant-scoped `RolePermission` and the legacy
-   role helpers as the current dual authorization baseline.
-5. Do not add competition grants or mass-convert legacy guards during the audit
-   without a separate implementation approval.
+3. Review the completed audit CR and the local timekeeping scope fix.
+4. Obtain explicit approval before committing/pushing/deploying that fix.
+5. Start the competition-role follow-up only after its schema/auth gate is
+   approved; treat `PermissionObject`, tenant-scoped `RolePermission` and the
+   legacy role helpers as the current production authorization baseline.
