@@ -1,6 +1,6 @@
 # CR: Competition clone and 5Kampf 2027 preparation
 
-Status: Clone scope hotfix local — release approval pending
+Status: Feature deployed; source-scope hotfix deployed
 Date: 2026-07-27
 Type: feature
 Risk: medium

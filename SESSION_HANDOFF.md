@@ -19,9 +19,9 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `d4c7218` is pushed to
+- Branch: `main`; production source commit `7414bb4` is pushed to
   `origin/main`.
-- Functional baseline: `d4c7218 Add competition clone preparation flow`.
+- Functional baseline: `7414bb4 Harden tenant context resolution`.
 - Local high-risk work pending separate release approval:
   `docs/cr/2026-07-28-tenant-context-resolution-hardening.md` removes the
   implicit first-matching-tenant fallback, includes the clone preview fix and
@@ -54,9 +54,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_4mPUfDrcF9Gim3tauCcVQFzWXCEF`
+  - ID: `dpl_BnrF18c3TrPWfuTnXNa8dSqKntjD`
   - URL:
-    `https://s5-evo-portal-f4itmubmk-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-dvexidy9z-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -136,18 +136,19 @@ and decision record.
    `FRIENDS` is tenant-scoped and seeded with `portal.map.view`, without admin,
    participant/contact/export, audit, timekeeping or staging permissions.
 
-6. **Tenant context resolution hardening** — Local, high risk; release
-   approval pending.
+6. **Tenant context resolution hardening** — Deployed, high risk.
    `docs/cr/2026-07-28-tenant-context-resolution-hardening.md`
    The historical closed 2024 event remains in a second tenant; intended model
    is one club tenant with multiple competitions. Direct tenant auth now needs
    an explicit tenant ID, competition/entity routes resolve their own target,
-   and portal-global routes opt into any-tenant admin access. Local scope,
-   clone, admin-scope, TypeScript and production-build checks are green. No DB
-   migration or data mutation. Authenticated two-tenant smoke remains a gap.
+   and portal-global routes opt into any-tenant admin access. Commit `7414bb4`
+   and deployment `dpl_BnrF18c3TrPWfuTnXNa8dSqKntjD` are READY on the portal
+   alias. Scope, clone, admin-scope, TypeScript, production build and public
+   smoke are green. No DB migration or data mutation. Authenticated two-tenant
+   smoke remains a gap.
 
-7. **Competition clone / 5Kampf 2027 preparation** — Included in the local
-   tenant-hardening release; release approval pending, medium risk.
+7. **Competition clone / 5Kampf 2027 preparation** — Feature and source-scope
+   hotfix deployed; authenticated preview pending, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
    Admin-only, transactional clone of configuration, persisted disciplines and
    non-archived competition news into a reviewed draft;
@@ -160,7 +161,7 @@ and decision record.
    2026 remains reproducible. The 2027 matrix and the 2019 cohort boundary
    are covered locally and the feature is deployed in `d4c7218`. The first
    authenticated preview exposed a source-tenant resolution regression; its
-   narrower competition-specific admin guard is included in the broader local
+   narrower competition-specific admin guard is deployed in the broader
    tenant-context hardening release. Then run the authenticated admin dry-run;
    request a separate Go before creating any production 2027 competition.
 

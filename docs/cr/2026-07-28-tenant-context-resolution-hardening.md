@@ -1,6 +1,6 @@
 # CR: Tenant Context Resolution Hardening
 
-Status: In Progress (local only)
+Status: Deployed
 Date: 2026-07-28
 Type: hotfix
 Risk: high
@@ -115,7 +115,7 @@ revealed that the static allowlist did not prevent this pattern from returning.
   mutate roles, contacts, claim state, layouts and logs.
 - Approved by: Sebastian (`Go`)
 - Approval timestamp: 2026-07-28 13:02 UTC
-- Release approval: pending separately.
+- Release approval: Sebastian (`Go`), 2026-07-28 13:24 UTC.
 
 ## Implementation Notes
 
@@ -180,7 +180,28 @@ revealed that the static allowlist did not prevent this pattern from returning.
 
 ## Deploy
 
-- Deployment needed: yes, pending separate approval.
+- Deployment needed: yes, completed.
+- Functional commit: `7414bb4 Harden tenant context resolution`.
+- Auto-deploy: `dpl_9bA2NL98rddoLF7BGuf5YXqFFtG1`, READY.
+- Explicit deploy: `dpl_BnrF18c3TrPWfuTnXNa8dSqKntjD`, READY.
+- Deployment URL:
+  `https://s5-evo-portal-dvexidy9z-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`.
+- Migration/data mutation: none.
+
+## Post-Deploy Smoke
+
+- Public smoke against the production alias -> green: root, login,
+  registration, changes, competition and results APIs.
+- Protected APIs remain protected without a session: teams and pending changes
+  -> 401; clone preview with an invalid source ID -> 401; claim-link global
+  toggle -> 401.
+- `/karte` without a session -> 307 redirect.
+- Sensitive-data/API leakage: no payload was emitted in smoke output; no clone
+  or other production data was created.
+- Authenticated manual smoke: Sebastian must re-run clone preview using the
+  selected 2026 competition; controlled two-tenant session remains unavailable
+  to the agent.
 
 ## Follow-Ups
 
