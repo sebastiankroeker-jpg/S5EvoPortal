@@ -1,6 +1,6 @@
 # CR: Wettbewerbs-Sichtbarkeit, Auswahl und Anmeldung
 
-Status: In implementation (local only)
+Status: Deployed; 2027 configuration pending
 Date: 2026-07-28
 Type: schema + feature
 Risk: high
@@ -161,14 +161,18 @@ Sebastian hat entschieden:
   Portal-User acceptance, legacy-Draft fail-closed semantics, `RUNNING`
   default precedence, explicit-registration-ID guard and public-detail marker
   are covered by `verify:competition-visibility`.
-- Sensitive-data negative checks:
-- Authenticated role smoke:
+- Sensitive-data negative checks: anonymous 2027 Draft list access is closed;
+  direct detail access returns `404`; an anonymous write is rejected. No
+  private Draft identifier is returned by `/api/competitions`.
+- Authenticated role smoke: pending the separate 2027 Portal-User settings and
+  a controlled Portal-User session.
 
 ## Deploy
 
-- Deployment needed: yes
-- Deployment ID:
+- Deployment needed: completed
+- Deployment ID: `dpl_9oCeTRwq7vkB9KsQeRShZPL5AVNe` (READY)
 - Production alias: https://portal.s5evo.de
+- Production source commit: `f0023cc`
 
 ## Follow-Ups
 

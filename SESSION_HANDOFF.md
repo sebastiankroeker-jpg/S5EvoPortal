@@ -19,22 +19,20 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `ee03206` is pushed to
+- Branch: `main`; production source commit `f0023cc` is pushed to
   `origin/main`.
-- Functional baseline: `ee03206 Fix combined result rankings and start numbers`.
+- Functional baseline: `f0023cc Add competition visibility and registration controls`.
 - The completed
   high-risk production-data action is:
   `docs/cr/2026-07-28-competition-classification-configuration.md` makes
   persisted, per-competition classes the rule source for registration,
   changes, results, timekeeping and clone. Its schema/feature and the exact
   reviewed 2026 baseline backfill are deployed.
-- Local, release-blocked work (2026-07-28):
-  - `docs/cr/2026-07-28-competition-portal-visibility-and-selection.md`
-    separates lifecycle from portal/registration visibility, removes implicit
-    registration competition selection, adds a role-aware selector/read API
-    and requires an additive schema migration. Sebastian decided 2027 is
-    initially Portal-User-only; its actual configuration remains a separate
-    post-feature production-data action.
+- Follow-up production-data action (2026-07-28): set the existing 2027 Draft
+  in Admin to `PORTAL_USERS` for both portal visibility and registration,
+  then run the authenticated Portal-User registration smoke. Sebastian has
+  already decided this is the intended configuration; the change itself
+  remains a deliberate UI action.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -49,6 +47,8 @@ and decision record.
   - task-oriented navigation and shared menu source: `6999e6f`.
   - combined-class ranking/tiebreak correction and result-list start-number
     visibility: `ee03206`.
+  - competition visibility, default selection and explicit registration
+    competition context: `f0023cc`.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
@@ -65,9 +65,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_66UWz5J4VYgrpbmJk16N2dd9Csqy`
+  - ID: `dpl_9oCeTRwq7vkB9KsQeRShZPL5AVNe`
   - URL:
-    `https://s5-evo-portal-mnbekca8m-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-bp520k406-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -75,6 +75,7 @@ and decision record.
   - `20260728091500_add_competition_roles`
   - `20260728105000_disallow_tenant_wide_operational_roles`
   - `20260728133000_add_competition_classification_metadata`
+  - `20260728162000_add_competition_portal_visibility`
 - Latest verification:
   - public smoke passed;
   - `/api/admin/users?competitionId=invalid` without session -> 401;
@@ -90,6 +91,10 @@ and decision record.
   - result-hotfix smoke: `/api/results` for 2026 is public as before and its
     payload includes persisted start numbers; combined classes recompute their
     rank from raw values instead of source-class published ranks.
+  - competition visibility smoke: anonymous `/api/competitions` does not list
+    the 2027 Draft, its direct `/api/competition?id=` read returns `404`, and
+    an anonymous registration write is rejected. The authenticated
+    Portal-User success path remains pending the deliberate 2027 UI setting.
   - clone feature deployment: public smoke is green; the new clone API
     returns `401` without a session and did not create any production data.
 - The latest known portal deployment state and smoke evidence belongs in the
