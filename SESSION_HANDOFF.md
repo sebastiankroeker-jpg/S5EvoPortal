@@ -19,15 +19,15 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `7414bb4` is pushed to
+- Branch: `main`; production source commit `efe5302` is pushed to
   `origin/main`.
-- Functional baseline: `7414bb4 Harden tenant context resolution`.
-- Local high-risk work pending separate release approval:
+- Functional baseline: `efe5302 Configure classifications per competition`.
+- No local high-risk feature work is pending release approval. The remaining
+  high-risk production-data decision is:
   `docs/cr/2026-07-28-competition-classification-configuration.md` makes
   persisted, per-competition classes the rule source for registration,
-  changes, results, timekeeping and clone. It contains an additive migration
-  and an admin editor, but no production migration, class backfill, commit,
-  deploy or 2027 competition creation has occurred.
+  changes, results, timekeeping and clone. Its schema/feature is deployed;
+  only the explicit 2026 class-data backfill remains unperformed.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -64,6 +64,7 @@ and decision record.
   - `20260728043100_seed_friends_map_permission`
   - `20260728091500_add_competition_roles`
   - `20260728105000_disallow_tenant_wide_operational_roles`
+  - `20260728133000_add_competition_classification_metadata`
 - Latest verification:
   - public smoke passed;
   - `/api/admin/users?competitionId=invalid` without session -> 401;
@@ -166,14 +167,15 @@ and decision record.
    tenant-context hardening release. The authenticated admin dry-run is green;
    request a separate Go before creating any production 2027 competition.
 
-8. **Wettkampfspezifische Klassenkonfiguration** — Local high-risk CR.
+8. **Wettkampfspezifische Klassenkonfiguration** — Feature deployed,
+   production-data gate open.
    `docs/cr/2026-07-28-competition-classification-configuration.md`
-   The existing empty 2026 `Classification` table is the reason clone preview
-   showed zero classes. Local implementation adds rule metadata and makes the
-   table authoritative while retaining the exact legacy fallback until an
-   explicitly approved backfill. Local lint, TypeScript, class/clone/scope
-   verification and production build are green. Release and 2026 data backfill
-   require separate Go decisions.
+   The 2026 `Classification` table remains empty, which is why source preview
+   still reports zero persisted classes. The deployed feature retains the
+   exact non-persisted fallback until an explicitly approved 2026 backfill.
+   The 2024 CLOSED competition has ten existing historic class rows; they were
+   not modified. The production migration, public smoke and new-endpoint 401
+   check are green. Only the 2026 data backfill needs a separate Go.
 
 ## Working method
 
@@ -200,8 +202,9 @@ and decision record.
 4. Retain the authenticated cross-competition smoke gap in the security
    release record; create controlled role test sessions before the next
    permission-sensitive release where feasible.
-5. For the active class-configuration CR, review the local diff and request
-   separate approval for additive migration/release. After deployment, request
-   a second, distinct approval before writing the reviewed 2026 class rows.
+5. For the deployed class-configuration CR, request a separate, explicit data
+   approval before writing the reviewed exact 2026 class rows. Verify an
+   authenticated admin flow plus registration, timekeeping and results before
+   considering custom class-rule changes.
    Keep actual 2027 production target creation behind its own data-mutation
    gate.

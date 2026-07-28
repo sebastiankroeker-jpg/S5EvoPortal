@@ -1,6 +1,6 @@
 # CR: Wettkampfspezifische Klassenkonfiguration
 
-Status: In implementation (local only)
+Status: Feature deployed; 2026 class-data backfill pending separate approval
 Date: 2026-07-28
 Type: schema + feature
 Risk: high
@@ -206,7 +206,30 @@ vor dem Anlegen des 2027-Entwurfs und vor dem Navigation-/IA-CR umgesetzt.
 
 ## Deploy
 
-- Deployment needed: yes, separately approved.
+- Deployment needed: yes — completed.
+- Functional commit: `efe5302 feat: configure classifications per competition`.
+- Production migration: `20260728133000_add_competition_classification_metadata`
+  applied successfully. It is additive only and contains no data writes.
+- Deployment ID: `dpl_9s5s3yYcSW349kjPSsMn8ZR3Uau6`.
+- Deployment URL:
+  `https://s5-evo-portal-1sg7io8ll-sebastiankroeker-2781s-projects.vercel.app`.
+- Production alias: `https://portal.s5evo.de` — READY.
+- Deployed at: 2026-07-28 UTC.
+
+## Post-Deploy Smoke
+
+- Public smoke: passed (`/`, `/login`, `/anmeldung`, `/aenderungen`, public
+  competition/results API and legacy-domain redirect).
+- Protected API smoke: existing Teams/Pending Changes endpoints return 401
+  without a session; the new class-admin endpoint returns 401 without a
+  session.
+- Public configuration shape: `/api/competition` returns the non-sensitive
+  ten-rule fallback shape only (code, label/rule metadata); no participant
+  data is present.
+- Production inventory, aggregate only: 2024 CLOSED has 10 historical class
+  rows; 2026 OPEN has 0 rows. The migration did not create or modify either
+  set.
+- Result: feature is live; no 2026 class data has been backfilled.
 
 ## Follow-Ups
 
