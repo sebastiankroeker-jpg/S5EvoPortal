@@ -6,7 +6,7 @@ import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { createParticipantClaimInvitation } from "@/lib/participant-claim-invitation";
 import { serializeSnapshot, toParticipantSnapshot } from "@/lib/participant-change";
 import { prisma } from "@/lib/prisma";
-import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
+import { getCompetitionRoleFlagsForUserId } from "@/lib/server-permissions";
 import { resolveTeamAccess } from "@/lib/team-manager-access";
 
 function isValidEmail(value?: string | null) {
@@ -42,6 +42,7 @@ export async function POST(
           },
           competition: {
             select: {
+              id: true,
               name: true,
               year: true,
               date: true,
@@ -74,7 +75,11 @@ export async function POST(
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
   }
 
-  const access = await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId);
+  const access = await getCompetitionRoleFlagsForUserId(
+    user.id,
+    participant.team.competition.tenantId,
+    participant.team.competition.id,
+  );
   const teamAccess = resolveTeamAccess({
     team: participant.team,
     user,

@@ -415,6 +415,8 @@ model User {
 
   // Relations
   tenantRoles                 TenantRole[]
+  competitionRoles            CompetitionRole[]          @relation("CompetitionRoleUser")
+  competitionRolesGranted     CompetitionRole[]          @relation("CompetitionRoleGrantedBy")
   ownedTeams                  Team[]                     @relation("TeamOwner")
   chiefOfTeams                Team[]                     @relation("TeamChief")
   teamMemberRoles             TeamMemberRole[]           @relation("TeamMemberRoleUser")
@@ -471,6 +473,25 @@ model TenantRole {
   @@unique([userId, tenantId, role])
   @@index([tenantId, role])
   @@map("tenant_roles")
+}
+
+model CompetitionRole {
+  id        String   @id @default(cuid())
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId        String
+  user          User        @relation("CompetitionRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  grantedById   String?
+  grantedBy     User?       @relation("CompetitionRoleGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, competitionId, role])
+  @@index([competitionId, role])
+  @@index([userId, competitionId])
+  @@map("competition_roles")
 }
 
 model PermissionObject {
@@ -558,6 +579,7 @@ model Competition {
   resultPublications   ResultPublication[]
   resultResetSnapshots ResultResetSnapshot[]
   homeNewsEntries      HomeNewsEntry[]
+  competitionRoles     CompetitionRole[]
   consentPreferences   ConsentPreference[]
   pageViewCounters     PageViewCounter[]
 

@@ -13,45 +13,23 @@ import {
 } from "@/lib/participant-change";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
-
-async function resolveScopedTenantId(userId: string, fallbackTenantId: string, competitionId: string | null) {
-  if (!competitionId) return { tenantId: fallbackTenantId };
-
-  const competition = await prisma.competition.findUnique({
-    where: { id: competitionId },
-    select: { id: true, tenantId: true },
-  });
-
-  if (!competition) {
-    return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
-  }
-
-  const roleFlags = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
-  if (!roleFlags.isAdmin && !roleFlags.isModerator) {
-    return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
-  }
-
-  return { tenantId: competition.tenantId, competitionId: competition.id };
-}
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 // GET /api/admin/pending-changes — Änderungsanträge für das Admin-Dashboard
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
-  if ("error" in auth) return auth.error;
-
   const scope = request.nextUrl.searchParams.get("scope");
   const competitionId = request.nextUrl.searchParams.get("competitionId");
+  const auth = await requireCompetitionRoles(session, ["ADMIN", "MODERATOR"], competitionId);
+  if ("error" in auth) return auth.error;
+
   const includeDirectChanges = scope === "all";
   const whereStatus =
     scope === "all"
       ? undefined
       : "PENDING";
-  const scopedTenant = await resolveScopedTenantId(auth.user.id, auth.tenantId, competitionId);
-  if ("error" in scopedTenant) return scopedTenant.error;
-  const scopedTenantId = scopedTenant.tenantId;
-  const scopedCompetitionId = scopedTenant.competitionId;
+  const scopedTenantId = auth.tenantId;
+  const scopedCompetitionId = auth.competitionId;
 
   const changeRequests = await prisma.changeRequest.findMany({
     where: {

@@ -20,17 +20,17 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           <AuthRedirectBridge />
         </Suspense>
         <PresenceHeartbeat />
-        <PermissionsProvider>
-          <ThemeProvider>
-            <NotificationProvider>
-              <CompetitionProvider>
+        <CompetitionProvider>
+          <PermissionsProvider>
+            <ThemeProvider>
+              <NotificationProvider>
                 <VisitorCounterReporter />
                 {children}
                 <PrivacyConsentBanner />
-              </CompetitionProvider>
-            </NotificationProvider>
-          </ThemeProvider>
-        </PermissionsProvider>
+              </NotificationProvider>
+            </ThemeProvider>
+          </PermissionsProvider>
+        </CompetitionProvider>
       </PrivacyConsentProvider>
     </SessionProvider>
   );

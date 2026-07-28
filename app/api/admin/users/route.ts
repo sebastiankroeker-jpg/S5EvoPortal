@@ -2,27 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
-
-async function resolveScopedTenantId(userId: string, fallbackTenantId: string, competitionId: string | null) {
-  if (!competitionId) return { tenantId: fallbackTenantId };
-
-  const competition = await prisma.competition.findUnique({
-    where: { id: competitionId },
-    select: { id: true, tenantId: true },
-  });
-
-  if (!competition) {
-    return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
-  }
-
-  const roleFlags = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
-  if (!roleFlags.isAdmin) {
-    return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
-  }
-
-  return { tenantId: competition.tenantId, competitionId: competition.id };
-}
+import { COMPETITION_SCOPED_ROLES, requireCompetitionRoles } from "@/lib/server-permissions";
 
 type TeamScope = {
   id: string;
@@ -86,13 +66,11 @@ const teamScopeSelect = {
 // GET /api/admin/users — Alle User mit Rollen laden
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
-  if ("error" in auth) return auth.error;
   const url = new URL(request.url);
-  const scopedTenant = await resolveScopedTenantId(auth.user.id, auth.tenantId, url.searchParams.get("competitionId"));
-  if ("error" in scopedTenant) return scopedTenant.error;
-  const scopedTenantId = scopedTenant.tenantId;
-  const scopedCompetitionId = scopedTenant.competitionId;
+  const auth = await requireCompetitionRoles(session, ["ADMIN"], url.searchParams.get("competitionId"));
+  if ("error" in auth) return auth.error;
+  const scopedTenantId = auth.tenantId;
+  const scopedCompetitionId = auth.competitionId;
   const teamCompetitionScope = {
     tenantId: scopedTenantId,
     ...(scopedCompetitionId ? { id: scopedCompetitionId } : {}),
@@ -103,6 +81,7 @@ export async function GET(request: Request) {
       deletedAt: null,
       OR: [
         { tenantRoles: { some: { tenantId: scopedTenantId } } },
+        { competitionRoles: { some: { competitionId: scopedCompetitionId } } },
         {
           ownedTeams: {
             some: {
@@ -154,6 +133,18 @@ export async function GET(request: Request) {
       tenantRoles: {
         where: { tenantId: scopedTenantId },
         include: { tenant: { select: { name: true } } },
+      },
+      competitionRoles: {
+        where: { competitionId: scopedCompetitionId },
+        include: {
+          competition: {
+            select: {
+              id: true,
+              tenantId: true,
+              tenant: { select: { name: true } },
+            },
+          },
+        },
       },
       ownedTeams: {
         where: {
@@ -320,7 +311,44 @@ export async function GET(request: Request) {
         upsertTeamScope(memberRole.team, "Team Manager:in", { isTeamManager: true });
       }
 
-      const visibleRoles = u.tenantRoles.filter((tenantRole) => tenantRole.role !== "TEAMCHEF" || teamScopes.size > 0);
+      const visibleTenantRoles = u.tenantRoles.filter(
+        (tenantRole) => tenantRole.role !== "TEAMCHEF" || teamScopes.size > 0,
+      );
+      const rolesByName = new Map<string, {
+        id: string;
+        role: string;
+        tenantId: string;
+        tenantName: string;
+        competitionId: string | null;
+        scope: "TENANT" | "COMPETITION" | "LEGACY_TENANT_WIDE";
+      }>();
+
+      for (const tenantRole of visibleTenantRoles) {
+        rolesByName.set(tenantRole.role, {
+          id: tenantRole.id,
+          role: tenantRole.role,
+          tenantId: tenantRole.tenantId,
+          tenantName: tenantRole.tenant.name,
+          competitionId: null,
+          scope: COMPETITION_SCOPED_ROLES.includes(
+            tenantRole.role as (typeof COMPETITION_SCOPED_ROLES)[number],
+          )
+            ? "LEGACY_TENANT_WIDE"
+            : "TENANT",
+        });
+      }
+
+      for (const competitionRole of u.competitionRoles) {
+        rolesByName.set(competitionRole.role, {
+          id: competitionRole.id,
+          role: competitionRole.role,
+          tenantId: competitionRole.competition.tenantId,
+          tenantName: competitionRole.competition.tenant.name,
+          competitionId: competitionRole.competition.id,
+          scope: "COMPETITION",
+        });
+      }
+      const visibleRoles = [...rolesByName.values()];
 
       return {
         id: u.id,
@@ -329,12 +357,7 @@ export async function GET(request: Request) {
         authentikSub: u.authentikSub,
         lastSeenAt: u.lastSeenAt,
         createdAt: u.createdAt,
-        roles: visibleRoles.map((tr) => ({
-          id: tr.id,
-          role: tr.role,
-          tenantId: tr.tenantId,
-          tenantName: tr.tenant.name,
-        })),
+        roles: visibleRoles,
         teamCount: teamScopes.size,
         accountScope: visibleRoles.length > 0 || teamScopes.size > 0 ? "TENANT_SCOPED" : "UNSCOPED_PORTAL",
         teamScopes: Array.from(teamScopes.values()),

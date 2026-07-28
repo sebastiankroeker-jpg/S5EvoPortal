@@ -1,6 +1,6 @@
 # CR: Competition-scoped role grants
 
-Status: Draft
+Status: Release in progress
 Date: 2026-07-28
 Type: schema
 Risk: high
@@ -116,12 +116,15 @@ Audit source:
 
 ## Open Questions
 
-- Decision 1:
-  - Make `FRIENDS` competition-scoped during this rollout, or defer until the
-    2027 clone has separate maps/news?
-- Decision 2:
-  - Should global runtime logs use a fixed operator allowlist first, or a new
-    platform-level permission model?
+- Resolved:
+  - `FRIENDS` remains tenant-wide while the map is a single shared portal
+    surface. Revisit before the 2027 clone exposes competition-specific
+    maps/news.
+  - Global runtime logs remain outside this migration. They require a separate
+    platform-operator decision and must not inherit new competition grants.
+  - Existing tenant-wide `MODERATOR`/`ZEITNAHME` rows remain explicitly
+    labelled legacy grants until an admin converts them from the selected
+    competition. New assignments use `CompetitionRole`.
 
 ## Acceptance Criteria
 
@@ -208,25 +211,132 @@ Audit source:
   - Incorrect migration could broaden or remove access to personal and result
     data.
 - Approved by:
-- Approval timestamp:
+  - Sebastian ("Next") for local implementation and verification.
+  - Sebastian ("Go") for the additive production migration, complete
+    commit/push, Vercel production deploy and post-deploy smoke.
+- Approval timestamp: 2026-07-28 09:08 UTC
+- Release approval timestamp: 2026-07-28 09:49 UTC
+- Not yet approved:
+  - conversion of any existing role assignment.
 
 ## Implementation Notes
 
 - Files changed:
+  - Schema/migration:
+    - `prisma/schema.prisma`
+    - `prisma/migrations/20260728091500_add_competition_roles/migration.sql`
+  - Authorization policy:
+    - `lib/competition-role-policy.ts`
+    - `lib/server-permissions.ts`
+    - `lib/teamchef-role.ts`
+  - Effective profile/offline scope:
+    - `app/api/profile/roles/route.ts`
+    - `lib/permissions-context.tsx`
+    - `lib/pwa-offline-cache.ts`
+    - `app/providers.tsx`
+  - Role management/switcher:
+    - `app/api/admin/users/route.ts`
+    - `app/api/admin/users/[id]/roles/route.ts`
+    - `app/api/admin/competitions/route.ts`
+    - `app/components/user-management.tsx`
+  - Protected competition/entity flows:
+    - timekeeping, teams, participants, results, pending changes, claim links,
+      dashboard layouts, marketplace matching and admin messaging routes.
+  - Verification:
+    - `scripts/verify-competition-role-scope.ts`
+    - existing scope guards and authenticated smoke URL updates.
 - Important decisions during implementation:
+  - The database accepts only `MODERATOR` and `ZEITNAHME` in
+    `CompetitionRole`; `ADMIN` cannot be made competition-scoped.
+  - Effective competition roles are tenant-wide roles plus explicit
+    competition grants. Tenant/competition mismatch fails closed.
+  - Tenant-wide `MODERATOR`/`ZEITNAHME` rows are compatibility grants and are
+    returned as `LEGACY_TENANT_WIDE`.
+  - Saving a user's roles for a selected competition atomically removes their
+    legacy operational tenant grants and writes the selected competition
+    grants. Grants for other competitions remain untouched.
+  - `ADMIN`, `FRIENDS` and the existing participant role remain tenant-wide in
+    this rollout; team manager/team chief authority stays entity-derived.
+  - Moderator and timekeeping competition switching lists only authorized
+    competitions. The response is data-minimized to switcher fields.
+  - Admin messaging and message targets are restricted to the active
+    competition. Guessing a target user from another competition is rejected.
+  - Role cache V2 is keyed by session subject, tenant and competition. Legacy
+    V1 cache entries are removed, logout clears the current user's scoped
+    entries, and dynamic permissions fail closed during offline fallback.
+- Production inventory (aggregate only, no user data):
+  - 2 competitions.
+  - 3 legacy tenant-wide `ZEITNAHME` grants.
+  - 0 legacy tenant-wide `MODERATOR` grants.
+  - Those three timekeeping grants require explicit competition selection;
+    they are not automatically narrowed.
+- Git note:
+  - `lib/competition-role-policy.ts`,
+    `scripts/verify-competition-role-scope.ts` and the new migration are hidden
+    by local `.git/info/exclude` rules and must be staged explicitly with
+    `git add -f` in the approved release package.
 
 ## Verification
 
 - Local checks:
+  - `npx prisma validate` -> green.
+  - `npm run verify:competition-role-scope` -> green; two-competition
+    moderator/timekeeping negative matrix, tenant-admin positive matrix,
+    legacy labelling and static guard assertions.
+  - `npm run verify:tenant-scope` -> green; all 78 routes classified.
+  - `npm run verify:admin-dashboard-scope` -> green.
+  - `npm run verify:admin-csv-export-scope` -> green.
+  - `npm run verify:admin-competition-scope` -> green.
+  - legacy result/running import guards -> green.
+  - targeted ESLint -> green.
+  - `npx tsc --noEmit --incremental false` -> green.
+  - `git diff --check` -> green.
 - Build:
+  - `npm run build` -> green; 77 app pages generated.
 - Targeted verification:
+  - Competition A operational grant does not appear in competition B.
+  - Tenant `ADMIN` remains effective in both competitions.
+  - Unsupported competition `ADMIN` grant is rejected by policy and DB
+    constraint.
+  - Team/participant/pending-change helpers resolve entity -> competition ->
+    tenant before effective-role authorization.
+  - Missing `competitionId` fails closed for operational non-admin routes.
+  - Timekeeping GET/POST/DELETE use strict competition authorization.
+  - Admin messaging lists and creates only in the selected competition.
 - Sensitive-data negative checks:
+  - No production participant/contact/result payload was read or logged.
+  - Only aggregate production role counts were inspected.
+  - No mail, export, reset or production-data mutation was executed.
 - Authenticated role smoke:
+  - Gap: no reusable controlled Admin/Moderator/Timekeeping test cookies.
+  - Required before legacy compatibility is removed.
 - Manual smoke:
+  - Not run against production because this package is local and the migration
+    is not approved.
 
 ## Deploy
 
-- Deployment needed: yes
+- Deployment needed: yes; approved and in progress.
+- Production migration:
+  - `20260728091500_add_competition_roles` applied successfully at
+    2026-07-28 09:53 UTC.
+  - `npx prisma migrate status` confirms all 47 migrations are applied.
+  - No existing `TenantRole` or production role assignment was modified.
+- Safe rollout order:
+  1. Apply the additive `CompetitionRole` migration. The current application
+     ignores the new table, so this is backward-compatible.
+  2. Commit/push the complete source package, explicitly including locally
+     excluded files.
+  3. Wait for Vercel `READY`, verify the production alias and run public plus
+     unauthenticated protected-route smoke.
+  4. Run controlled authenticated Admin/Timekeeping smoke when test sessions
+     are available.
+  5. Convert the three legacy timekeeping grants only after each target
+     competition is confirmed.
+- Rollback:
+  - Re-alias the previous application deployment. The additive table may remain
+    unused; do not drop it while grants exist.
+  - No automatic legacy-role deletion or backfill is part of migration deploy.
 - Deployment ID:
 - Deployment URL:
 - Production alias:
@@ -241,5 +351,10 @@ Audit source:
 
 ## Follow-Ups
 
+- Confirm target competitions for the three legacy timekeeping grants.
+- Add controlled multi-role test accounts/cookies for authenticated production
+  negative smoke.
+- Remove legacy tenant-wide operational compatibility only after all grants are
+  converted and verified.
 - Evaluate `COMPETITION_ADMIN` only when a concrete operating model requires it.
 - Replace global runtime-log access with explicit platform scope.

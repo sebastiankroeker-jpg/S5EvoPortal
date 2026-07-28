@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { CLASSIFICATION_DISPLAY_ORDER, CLASSIFICATIONS } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 const TIMEKEEPING_ROLES = ["ZEITNAHME"] as const;
 const TIMEKEEPING_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
@@ -53,10 +53,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Competition not found" }, { status: 404 });
   }
 
-  const auth = await requireTenantRoles(session, [...TIMEKEEPING_ROLES], {
-    tenantId: competition.tenantId,
-    fallbackToFirstMatchingTenant: false,
-  });
+  const auth = await requireCompetitionRoles(session, [...TIMEKEEPING_ROLES], competitionId);
   if ("error" in auth) return auth.error;
 
   const teams = await prisma.team.findMany({

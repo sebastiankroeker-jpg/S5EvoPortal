@@ -27,9 +27,9 @@ import {
 } from "@/lib/participant-edit-result";
 import { recordParticipantNotificationAuditEvents } from "@/lib/participant-notification-audit";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
-async function resolvePendingChangeTenantId(routeId: string) {
+async function resolvePendingChangeScope(routeId: string) {
   if (routeId.startsWith("direct:")) {
     const auditLogId = routeId.slice("direct:".length);
     const auditLog = await prisma.participantAuditLog.findUnique({
@@ -40,7 +40,7 @@ async function resolvePendingChangeTenantId(routeId: string) {
             team: {
               select: {
                 competition: {
-                  select: { tenantId: true },
+                  select: { id: true, tenantId: true },
                 },
               },
             },
@@ -49,14 +49,19 @@ async function resolvePendingChangeTenantId(routeId: string) {
       },
     });
 
-    return auditLog?.participant.team.competition.tenantId ?? null;
+    return auditLog?.participant.team.competition ?? null;
   }
 
   const changeRequest = await prisma.changeRequest.findUnique({
     where: { id: routeId },
-    select: { tenantId: true },
+    select: { tenantId: true, competitionId: true },
   });
-  if (changeRequest?.tenantId) return changeRequest.tenantId;
+  if (changeRequest?.tenantId && changeRequest.competitionId) {
+    return {
+      id: changeRequest.competitionId,
+      tenantId: changeRequest.tenantId,
+    };
+  }
 
   const pendingChange = await prisma.pendingChange.findUnique({
     where: { id: routeId },
@@ -66,7 +71,7 @@ async function resolvePendingChangeTenantId(routeId: string) {
           team: {
             select: {
               competition: {
-                select: { tenantId: true },
+                select: { id: true, tenantId: true },
               },
             },
           },
@@ -75,7 +80,7 @@ async function resolvePendingChangeTenantId(routeId: string) {
     },
   });
 
-  return pendingChange?.participant.team.competition.tenantId ?? null;
+  return pendingChange?.participant.team.competition ?? null;
 }
 
 // PATCH /api/admin/pending-changes/[id] — Legacy-Sync-Status pflegen
@@ -91,12 +96,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Ungueltiger Legacy-Status" }, { status: 400 });
   }
 
-  const scopedTenantId = await resolvePendingChangeTenantId(routeId);
+  const scopedCompetition = await resolvePendingChangeScope(routeId);
+  if (!scopedCompetition) {
+    return NextResponse.json({ error: "Aenderung nicht gefunden" }, { status: 404 });
+  }
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
-    tenantId: scopedTenantId,
-    fallbackToFirstMatchingTenant: !scopedTenantId,
-  });
+  const auth = await requireCompetitionRoles(session, ["ADMIN", "MODERATOR"], scopedCompetition.id);
   if ("error" in auth) return auth.error;
 
   if (routeId.startsWith("direct:")) {
@@ -213,12 +218,12 @@ export async function PUT(
   const action = body.action;
   const comment = typeof body.comment === "string" ? body.comment.trim() : "";
 
-  const scopedTenantId = await resolvePendingChangeTenantId(routeId);
+  const scopedCompetition = await resolvePendingChangeScope(routeId);
+  if (!scopedCompetition) {
+    return NextResponse.json({ error: "Aenderungsantrag nicht gefunden" }, { status: 404 });
+  }
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
-    tenantId: scopedTenantId,
-    fallbackToFirstMatchingTenant: !scopedTenantId,
-  });
+  const auth = await requireCompetitionRoles(session, ["ADMIN", "MODERATOR"], scopedCompetition.id);
   if ("error" in auth) return auth.error;
 
   if (!["approve", "reject"].includes(action)) {

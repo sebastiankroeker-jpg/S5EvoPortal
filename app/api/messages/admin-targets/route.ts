@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireAnyTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 type AdminMessageTarget = {
   userId: string;
@@ -65,9 +65,13 @@ function targetDescription(target: TargetAggregate) {
   return remaining > 0 ? `${visible} · +${remaining} weitere Verknuepfungen` : visible;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = await requireAnyTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  const auth = await requireCompetitionRoles(
+    session,
+    ["ADMIN", "MODERATOR"],
+    request.nextUrl.searchParams.get("competitionId"),
+  );
   if ("error" in auth) return auth.error;
 
   const [tenantUsers, participants, teams] = await Promise.all([
@@ -76,7 +80,7 @@ export async function GET() {
         deletedAt: null,
         authentikSub: { not: null },
         id: { not: auth.user.id },
-        tenantRoles: { some: { tenantId: { in: auth.tenantIds } } },
+        competitionRoles: { some: { competitionId: auth.competitionId } },
       },
       select: { id: true, email: true, name: true, authentikSub: true },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }],
@@ -87,7 +91,7 @@ export async function GET() {
         deletedAt: null,
         userId: { not: null },
         user: { deletedAt: null, authentikSub: { not: null }, id: { not: auth.user.id } },
-        team: { deletedAt: null, competition: { tenantId: { in: auth.tenantIds } } },
+        team: { deletedAt: null, competitionId: auth.competitionId },
       },
       select: {
         id: true,
@@ -104,7 +108,7 @@ export async function GET() {
     prisma.team.findMany({
       where: {
         deletedAt: null,
-        competition: { tenantId: { in: auth.tenantIds } },
+        competitionId: auth.competitionId,
         OR: [
           { ownerId: { not: auth.user.id } },
           { teamChiefId: { not: null } },
@@ -130,7 +134,7 @@ export async function GET() {
   for (const user of tenantUsers) {
     addTarget(targets, {
       user,
-      context: "Portal-Rolle im aktuellen Mandanten",
+      context: "Portal-Rolle im ausgewählten Wettkampf",
     });
   }
 

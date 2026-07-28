@@ -38,7 +38,7 @@ import { evaluateTeamState } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 import { isRegistrationDeadlineOpen } from "@/lib/registration-deadline";
-import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
+import { getCompetitionRoleFlagsForUserId } from "@/lib/server-permissions";
 import { normalizeEmail, resolveCurrentUser } from "@/lib/current-user";
 import { resolveTeamAccess } from "@/lib/team-manager-access";
 
@@ -145,7 +145,11 @@ export async function GET(
   const { user } = await resolveCurrentUser(session, { createIfMissing: true });
 
   const access = user
-    ? await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId)
+    ? await getCompetitionRoleFlagsForUserId(
+        user.id,
+        participant.team.competition.tenantId,
+        participant.team.competition.id,
+      )
     : null;
   const normalizedSessionEmail = normalizeEmail(session.user.email);
   const teamAccess = resolveTeamAccess({
@@ -305,7 +309,11 @@ export async function PUT(
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
   }
 
-  const access = await getTenantRoleFlagsForUserId(user.id, participant.team.competition.tenantId);
+  const access = await getCompetitionRoleFlagsForUserId(
+    user.id,
+    participant.team.competition.tenantId,
+    participant.team.competition.id,
+  );
   const isAdmin = access.isAdmin;
   const normalizedSessionEmail = normalizeEmail(session.user.email);
   const teamAccess = resolveTeamAccess({

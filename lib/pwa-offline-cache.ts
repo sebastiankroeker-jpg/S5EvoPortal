@@ -43,6 +43,20 @@ export function writeOfflineCache<T>(key: string, data: T) {
   }
 }
 
+export function removeOfflineCachesByPrefix(prefix: string) {
+  if (!hasLocalStorage()) return;
+
+  try {
+    const keys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+      .filter((key): key is string => Boolean(key && key.startsWith(prefix)));
+    for (const key of keys) {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Cache cleanup is best-effort and must not block logout.
+  }
+}
+
 export function formatOfflineCacheTimestamp(value?: string | null) {
   if (!value) return "kein lokaler Stand";
 

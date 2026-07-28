@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { getTenantRoleFlagsForUserId } from "@/lib/server-permissions";
+import {
+  getCompetitionRoleFlagsForUserId,
+  getTenantRoleFlagsForUserId,
+} from "@/lib/server-permissions";
 import { normalizeEmail } from "@/lib/current-user";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -182,9 +185,18 @@ export async function getDefaultMessagingTenantId(userId: string, userEmail?: st
   return context?.tenantId ?? null;
 }
 
-export async function canManageSupportConversations(userId: string, tenantId: string) {
+export async function canManageSupportConversations(
+  userId: string,
+  tenantId: string,
+  competitionId?: string | null,
+) {
+  if (competitionId) {
+    const roles = await getCompetitionRoleFlagsForUserId(userId, tenantId, competitionId);
+    return roles.isAdmin || roles.isModerator;
+  }
+
   const roles = await getTenantRoleFlagsForUserId(userId, tenantId);
-  return roles.isAdmin || roles.isModerator;
+  return roles.isAdmin || roles.legacyTenantWideRoles.includes("MODERATOR");
 }
 
 export async function getManageableSupportTenantIds(userId: string) {
@@ -259,7 +271,11 @@ export async function ensureConversationAccess(conversationId: string, userId: s
   }
 
   const participant = conversation.participants.find((entry) => entry.userId === userId && !entry.leftAt) ?? null;
-  const canManage = await canManageSupportConversations(userId, conversation.tenantId);
+  const canManage = await canManageSupportConversations(
+    userId,
+    conversation.tenantId,
+    conversation.competition?.id,
+  );
   const hasAdminMailboxParticipant = conversation.participants.some((entry) =>
     ["ADMIN", "MODERATOR"].includes(entry.role),
   );

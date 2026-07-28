@@ -23,15 +23,15 @@ const userDeleteRoute = readSource("app/api/admin/users/[id]/route.ts");
 const approvalQueue = readSource("app/components/approval-queue.tsx");
 const userManagement = readSource("app/components/user-management.tsx");
 
-for (const [label, source] of [
-  ["pending changes route", pendingChangesRoute],
-  ["users route", usersRoute],
-] as const) {
-  assertIncludes(source, "resolveScopedTenantId", label);
-  assertIncludes(source, "getTenantRoleFlagsForUserId", label);
-  assertIncludes(source, 'searchParams.get("competitionId")', label);
-  assertIncludes(source, "scopedTenantId", label);
-}
+assertIncludes(pendingChangesRoute, "requireCompetitionRoles", "pending changes route");
+assertIncludes(pendingChangesRoute, 'searchParams.get("competitionId")', "pending changes route");
+assertIncludes(pendingChangesRoute, "const scopedTenantId = auth.tenantId", "pending changes route");
+assertIncludes(pendingChangesRoute, "const scopedCompetitionId = auth.competitionId", "pending changes route");
+
+assertIncludes(usersRoute, "requireCompetitionRoles", "users route");
+assertIncludes(usersRoute, 'searchParams.get("competitionId")', "users route");
+assertIncludes(usersRoute, "const scopedTenantId = auth.tenantId", "users route");
+assertIncludes(usersRoute, "const scopedCompetitionId = auth.competitionId", "users route");
 
 assertIncludes(pendingChangesRoute, "competitionId: scopedCompetitionId", "pending changes route");
 assertIncludes(pendingChangesRoute, "tenantId: scopedTenantId", "pending changes route");
@@ -43,8 +43,9 @@ assertIncludes(usersRoute, "tenantId: scopedTenantId", "users route");
 assertDoesNotInclude(usersRoute, "tenantId: auth.tenantId,", "users route");
 
 assertIncludes(userRolesRoute, "body.competitionId", "user roles route");
-assertIncludes(userRolesRoute, "tenantId: scopedTenantId", "user roles route");
-assertDoesNotInclude(userRolesRoute, "tenantId: auth.tenantId,", "user roles route");
+assertIncludes(userRolesRoute, "requireCompetitionRoles", "user roles route");
+assertIncludes(userRolesRoute, "competitionId: scopedCompetitionId", "user roles route");
+assertIncludes(userRolesRoute, "tenantId: auth.tenantId", "user roles route");
 
 assertIncludes(userDeleteRoute, 'searchParams.get("competitionId")', "user delete route");
 assertIncludes(userDeleteRoute, "tenantId: scopedTenantId", "user delete route");

@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
 
     const session = await getServerSession(authOptions);
     const access = session?.user?.email
-      ? await getScopedRoleFlags(session.user.email, competition.tenantId, session)
+      ? await getScopedRoleFlags(session.user.email, competition.tenantId, session, competition.id)
       : null;
     const effectiveRole: TeamScopeRole = access?.isAdmin
       ? "ADMIN"

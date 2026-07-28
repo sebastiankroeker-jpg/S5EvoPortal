@@ -30,16 +30,21 @@ assertIncludes(
   "prisma.tenantRole.findMany",
   "admin competition switcher",
 );
-assertIncludes(competitionsRoute, "userId: auth.user.id", "admin competition switcher");
-assertIncludes(competitionsRoute, 'role: "ADMIN"', "admin competition switcher");
+assertIncludes(competitionsRoute, "resolveCurrentUser", "admin competition switcher");
+assertIncludes(competitionsRoute, "userId: user.id", "admin competition switcher");
 assertIncludes(
   competitionsRoute,
-  "const adminTenantIds = [...new Set(adminTenantRoles.map((role) => role.tenantId))]",
+  'role: { in: ["ADMIN", "MODERATOR", "ZEITNAHME"] }',
   "admin competition switcher",
 );
 assertIncludes(
   competitionsRoute,
-  "where: { tenantId: { in: adminTenantIds } }",
+  "prisma.competitionRole.findMany",
+  "admin competition switcher",
+);
+assertIncludes(
+  competitionsRoute,
+  "{ id: { in: competitionIds } }",
   "admin competition switcher",
 );
 assertDoesNotInclude(

@@ -5,6 +5,7 @@ type RoleDbClient = PrismaClient | Prisma.TransactionClient;
 type TeamchefRoleInput = {
   userId: string;
   tenantId: string;
+  competitionId?: string;
 };
 
 export function collectTeamAccessUserIds(input: {
@@ -24,13 +25,16 @@ export function collectTeamAccessUserIds(input: {
 
 export async function hasDerivedTeamchefScope(
   db: RoleDbClient,
-  { userId, tenantId }: TeamchefRoleInput,
+  { userId, tenantId, competitionId }: TeamchefRoleInput,
 ) {
   const [legacyTeam, managerRole] = await Promise.all([
     db.team.findFirst({
       where: {
         deletedAt: null,
-        competition: { tenantId },
+        competition: {
+          tenantId,
+          ...(competitionId ? { id: competitionId } : {}),
+        },
         teamChiefId: userId,
       },
       select: { id: true },
@@ -42,7 +46,10 @@ export async function hasDerivedTeamchefScope(
         revokedAt: null,
         team: {
           deletedAt: null,
-          competition: { tenantId },
+          competition: {
+            tenantId,
+            ...(competitionId ? { id: competitionId } : {}),
+          },
         },
       },
       select: { id: true },

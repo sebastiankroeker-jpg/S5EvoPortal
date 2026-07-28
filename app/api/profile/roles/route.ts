@@ -1,17 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { resolveCurrentUser } from '@/lib/current-user';
 import { hasDerivedTeamchefScope } from '@/lib/teamchef-role';
-import { getEffectivePermissionsForUserId } from '@/lib/server-permissions';
+import {
+  getCompetitionRoleFlagsForUserId,
+  getEffectivePermissionsForUserId,
+} from '@/lib/server-permissions';
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
   Pragma: "no-cache",
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
@@ -22,54 +25,53 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ roles: ["TEILNEHMER"] }, { headers: NO_STORE_HEADERS });
     }
-    const tenantRoles = user
-      ? await prisma.tenantRole.findMany({
-          where: { userId: user.id },
-          select: { role: true, tenantId: true },
-        })
-      : [];
-    const tenantId = tenantRoles[0]?.tenantId ?? (await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } }))?.id ?? null;
-    const hasTeamchefScope = tenantId
-      ? await hasDerivedTeamchefScope(prisma, {
-          userId: user.id,
-          tenantId,
-        })
-      : false;
 
-    if (tenantRoles.length === 0) {
-      // Eingeloggt aber noch keine DB-Rollen:
-      // Neu-Registrierte bekommen nie automatisch ADMIN,
-      // sondern nur die Standardrollen für die Anmeldung.
-      const tenant = await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } });
-
-      if (tenant) {
-        await prisma.tenantRole.createMany({
-          data: [
-            { userId: user.id, tenantId: tenant.id, role: "TEILNEHMER" },
-          ],
-          skipDuplicates: true,
-        });
-      }
-
-      const roles = ["TEILNEHMER"];
-      if (hasTeamchefScope) roles.unshift("TEAMCHEF");
-      const permissions = tenant
-        ? await getEffectivePermissionsForUserId(user.id, tenant.id)
-        : [];
-      return NextResponse.json({ roles, permissions }, { headers: NO_STORE_HEADERS });
+    const competitionId = request.nextUrl.searchParams.get("competitionId")?.trim() || null;
+    if (!competitionId) {
+      return NextResponse.json(
+        { error: "competitionId erforderlich", roles: ["TEILNEHMER"] },
+        { status: 400, headers: NO_STORE_HEADERS },
+      );
     }
 
-    // Unique Rollen extrahieren - keine implizite Hochstufung
-    const roles = [...new Set(tenantRoles.map((tr) => tr.role).filter((role) => role !== "TEAMCHEF"))] as string[];
+    const competition = await prisma.competition.findUnique({
+      where: { id: competitionId },
+      select: { id: true, tenantId: true },
+    });
+    if (!competition) {
+      return NextResponse.json(
+        { error: "Wettkampf nicht gefunden", roles: ["TEILNEHMER"] },
+        { status: 404, headers: NO_STORE_HEADERS },
+      );
+    }
+
+    const [roleFlags, hasTeamchefScope] = await Promise.all([
+      getCompetitionRoleFlagsForUserId(user.id, competition.tenantId, competition.id),
+      hasDerivedTeamchefScope(prisma, {
+        userId: user.id,
+        tenantId: competition.tenantId,
+        competitionId: competition.id,
+      }),
+    ]);
+
+    const roles = roleFlags.roles.filter((role) => role !== "TEAMCHEF") as string[];
     if (hasTeamchefScope && !roles.includes("TEAMCHEF")) {
       roles.push("TEAMCHEF");
     }
 
-    const permissions = tenantId
-      ? await getEffectivePermissionsForUserId(user.id, tenantId)
-      : [];
+    const permissions = await getEffectivePermissionsForUserId(
+      user.id,
+      competition.tenantId,
+      competition.id,
+    );
     return NextResponse.json(
-      { roles: roles.length ? roles : ["TEILNEHMER"], permissions },
+      {
+        roles: roles.length ? roles : ["TEILNEHMER"],
+        permissions,
+        tenantId: competition.tenantId,
+        competitionId: competition.id,
+        legacyTenantWideRoles: roleFlags.legacyTenantWideRoles,
+      },
       { headers: NO_STORE_HEADERS },
     );
 

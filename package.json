@@ -17,6 +17,7 @@
     "verify:legacy-running-import": "tsx scripts/verify-legacy-running-import.ts",
     "verify:admin-competition-scope": "tsx scripts/verify-admin-competition-scope.ts",
     "verify:tenant-scope": "tsx scripts/verify-tenant-scope.ts",
+    "verify:competition-role-scope": "tsx scripts/verify-competition-role-scope.ts",
     "verify:team-draft": "tsx scripts/verify-team-draft-evaluation.ts",
     "verify:participant-edit-flow": "tsx scripts/verify-participant-edit-flow.ts",
     "db:migrate": "prisma migrate dev",

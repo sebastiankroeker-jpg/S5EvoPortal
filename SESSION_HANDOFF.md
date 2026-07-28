@@ -19,7 +19,8 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; source commit `6bf9e10` is pushed to `origin/main`.
+- Branch: `main`; production source commit `6bf9e10` is pushed to
+  `origin/main`. Competition-role release is in progress.
 - Functional baseline: `6bf9e10 Harden competition-scoped permission guards`.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
@@ -49,6 +50,7 @@ and decision record.
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
   - `20260728043100_seed_friends_map_permission`
+  - `20260728091500_add_competition_roles`
 - Latest verification:
   - public smoke passed;
   - `/api/admin/role-permissions` without session -> 401;
@@ -85,11 +87,17 @@ and decision record.
    Target model: tenant-wide `ADMIN`, additive competition grants for
    `MODERATOR` and `ZEITNAHME`; `FRIENDS` timing remains open.
 
-2. **Competition-scoped role grants** — Draft, high risk.
+2. **Competition-scoped role grants** — Release in progress, high risk.
    `docs/cr/2026-07-28-competition-scoped-role-grants.md`
-   Add `CompetitionRole`, strict competition guards, scoped profile/cache and
-   two-competition negative tests. No schema migration, role conversion or
-   production deploy without a separate explicit approval.
+   Adds `CompetitionRole` for `MODERATOR`/`ZEITNAHME`, strict competition and
+   entity guards, selected-competition admin UI/messaging, scoped profile/cache
+   and a green two-competition negative matrix. The additive production
+   migration is applied; source deployment is in progress.
+   Aggregate inventory: 2 competitions, 3 legacy tenant-wide timekeeping
+   grants, no legacy moderators. Release migration, commit/push and deploy were
+   approved on 2026-07-28; role conversion remains separately gated.
+   New policy/test/migration files are hidden by local `.git/info/exclude` and
+   require explicit `git add -f` when the release package is approved.
 
 3. **Dynamic permission role mapping** — Deployed.
    `docs/cr/2026-07-27-dynamic-permission-role-mapping.md`
@@ -131,6 +139,10 @@ and decision record.
 2. Re-check `git status --short --branch`, current production reachability and
    any deployment/migration state relevant to that CR.
 3. Treat the completed audit and deployed timekeeping scope fix as baseline.
-4. Start the competition-role follow-up only after its schema/auth gate is
-   approved; treat `PermissionObject`, tenant-scoped `RolePermission` and the
-   legacy role helpers as the current production authorization baseline.
+4. Review the locally completed competition-role CR and diff.
+5. At the release gate, request one explicit approval covering additive DB
+   migration, forced staging of excluded files, commit/push to auto-deploying
+   `main` and Vercel production deploy.
+6. Apply the additive migration before pushing the application, then verify
+   Vercel/alias/smoke. Convert the three legacy timekeeping grants only after
+   their target competitions are confirmed.

@@ -5,7 +5,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveCurrentUser } from "@/lib/current-user";
 import {
   buildMessagePreview,
-  getManageableSupportTenantIds,
   getSupportContextsForUser,
   normalizeMessageBody,
   normalizeMessageSubject,
@@ -14,6 +13,7 @@ import {
 } from "@/lib/messaging";
 import { sendMessageNotificationEmail } from "@/lib/mail/message-notification";
 import { prisma } from "@/lib/prisma";
+import { getCompetitionRoleFlagsForUserId } from "@/lib/server-permissions";
 
 async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -50,11 +50,23 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const mode = url.searchParams.get("mode") === "admin" ? "admin" : "mine";
   const requestedStatus = url.searchParams.get("status");
+  const competitionId = url.searchParams.get("competitionId")?.trim() || null;
   const allowedStatuses = new Set(["OPEN", "WAITING_FOR_ADMIN", "WAITING_FOR_USER", "CLOSED"]);
   const status = allowedStatuses.has(requestedStatus || "") ? requestedStatus : null;
-  const manageableTenantIds = await getManageableSupportTenantIds(user.id);
-  const canManageSupport = manageableTenantIds.length > 0;
+  const competition = competitionId
+    ? await prisma.competition.findUnique({
+        where: { id: competitionId },
+        select: { id: true, tenantId: true },
+      })
+    : null;
+  const roleFlags = competition
+    ? await getCompetitionRoleFlagsForUserId(user.id, competition.tenantId, competition.id)
+    : null;
+  const canManageSupport = Boolean(roleFlags?.isAdmin || roleFlags?.isModerator);
   if (mode === "admin" && !canManageSupport) {
+    if (!competitionId) {
+      return NextResponse.json({ error: "competitionId erforderlich" }, { status: 400 });
+    }
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
@@ -64,7 +76,8 @@ export async function GET(request: NextRequest) {
       ...(status ? { status: status as "OPEN" | "WAITING_FOR_ADMIN" | "WAITING_FOR_USER" | "CLOSED" } : {}),
       ...(mode === "admin"
         ? {
-            tenantId: { in: manageableTenantIds },
+            tenantId: competition!.tenantId,
+            competitionId: competition!.id,
             type: "SUPPORT" as const,
             participants: {
               some: {
@@ -144,22 +157,43 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const adminRoles = await tx.tenantRole.findMany({
-      where: {
-        tenantId: context.tenantId,
-        role: { in: ["ADMIN", "MODERATOR"] },
-        user: { deletedAt: null },
-      },
-      select: { userId: true, role: true },
-    });
+    const [adminRoles, competitionModeratorRoles] = await Promise.all([
+      tx.tenantRole.findMany({
+        where: {
+          tenantId: context.tenantId,
+          role: { in: ["ADMIN", "MODERATOR"] },
+          user: { deletedAt: null },
+        },
+        select: { userId: true, role: true },
+      }),
+      context.competitionId
+        ? tx.competitionRole.findMany({
+            where: {
+              competitionId: context.competitionId,
+              role: "MODERATOR",
+              user: { deletedAt: null },
+            },
+            select: { userId: true },
+          })
+        : Promise.resolve([]),
+    ]);
 
+    const adminParticipants = new Map<string, "ADMIN" | "MODERATOR">();
     for (const adminRole of adminRoles) {
       if (adminRole.userId === user.id) continue;
+      adminParticipants.set(adminRole.userId, adminRole.role === "ADMIN" ? "ADMIN" : "MODERATOR");
+    }
+    for (const moderatorRole of competitionModeratorRoles) {
+      if (moderatorRole.userId === user.id) continue;
+      adminParticipants.set(moderatorRole.userId, "MODERATOR");
+    }
+
+    for (const [userId, role] of adminParticipants) {
       await tx.conversationParticipant.create({
         data: {
           conversationId: created.id,
-          userId: adminRole.userId,
-          role: adminRole.role === "ADMIN" ? "ADMIN" : "MODERATOR",
+          userId,
+          role,
         },
       });
     }

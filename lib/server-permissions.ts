@@ -3,12 +3,42 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { resolveCurrentUser } from "@/lib/current-user";
+import {
+  COMPETITION_SCOPED_ROLES,
+  resolveEffectiveCompetitionRoles,
+} from "@/lib/competition-role-policy";
 
 export type AppRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER" | "FRIENDS";
 export type PermissionKey = "admin.roles.manage" | "portal.map.view";
+export { COMPETITION_SCOPED_ROLES };
+const COMPETITION_SCOPED_ROLE_SET = new Set<AppRole>(COMPETITION_SCOPED_ROLES);
 
-export async function getEffectivePermissionsForUserId(userId: string, tenantId: string): Promise<PermissionKey[]> {
-  const roleFlags = await getTenantRoleFlagsForUserId(userId, tenantId);
+function buildRoleFlags(roles: AppRole[], legacyTenantWideRoles: AppRole[] = []) {
+  const uniqueRoles = [...new Set(roles)];
+  const roleSet = new Set<AppRole>(uniqueRoles);
+  const isAdmin = roleSet.has("ADMIN");
+  const isModerator = roleSet.has("MODERATOR");
+  const isTimekeeper = roleSet.has("ZEITNAHME");
+
+  return {
+    roles: uniqueRoles,
+    legacyTenantWideRoles: [...new Set(legacyTenantWideRoles)],
+    isAdmin,
+    isModerator,
+    isTimekeeper,
+    canViewAllTeams: isAdmin || isModerator,
+    canEditAllTeams: isAdmin || isModerator,
+  };
+}
+
+export async function getEffectivePermissionsForUserId(
+  userId: string,
+  tenantId: string,
+  competitionId?: string,
+): Promise<PermissionKey[]> {
+  const roleFlags = competitionId
+    ? await getCompetitionRoleFlagsForUserId(userId, tenantId, competitionId)
+    : await getTenantRoleFlagsForUserId(userId, tenantId);
   if (roleFlags.roles.length === 0) return [];
 
   const grants = await prisma.rolePermission.findMany({
@@ -27,8 +57,9 @@ export async function hasEffectivePermissionForUserId(
   userId: string,
   tenantId: string,
   permission: PermissionKey,
+  competitionId?: string,
 ): Promise<boolean> {
-  return (await getEffectivePermissionsForUserId(userId, tenantId)).includes(permission);
+  return (await getEffectivePermissionsForUserId(userId, tenantId, competitionId)).includes(permission);
 }
 
 export async function hasEffectivePermissionForAnyTenant(
@@ -57,25 +88,56 @@ export async function getTenantRoleFlagsForUserId(userId: string, tenantId: stri
   });
 
   const roles = tenantRoles.map((tenantRole) => tenantRole.role as AppRole);
-  const roleSet = new Set<AppRole>(roles);
-  const isAdmin = roleSet.has("ADMIN");
-  const isModerator = roleSet.has("MODERATOR");
-  const isTimekeeper = roleSet.has("ZEITNAHME");
+  return buildRoleFlags(roles, roles.filter((role) => COMPETITION_SCOPED_ROLE_SET.has(role)));
+}
 
-  return {
-    roles,
-    isAdmin,
-    isModerator,
-    isTimekeeper,
-    canViewAllTeams: isAdmin || isModerator,
-    canEditAllTeams: isAdmin || isModerator,
-  };
+export async function getCompetitionRoleFlagsForUserId(
+  userId: string,
+  tenantId: string,
+  competitionId: string,
+) {
+  const competition = await prisma.competition.findUnique({
+    where: { id: competitionId },
+    select: { tenantId: true },
+  });
+  if (!competition || competition.tenantId !== tenantId) {
+    return buildRoleFlags([]);
+  }
+
+  const [tenantRoles, competitionRoles] = await Promise.all([
+    prisma.tenantRole.findMany({
+      where: { userId, tenantId },
+      select: { role: true },
+    }),
+    prisma.competitionRole.findMany({
+      where: {
+        userId,
+        competitionId,
+        competition: { tenantId },
+        role: { in: [...COMPETITION_SCOPED_ROLES] },
+      },
+      select: { role: true },
+    }),
+  ]);
+
+  const tenantRoleValues = tenantRoles.map((tenantRole) => tenantRole.role as AppRole);
+  const scopedRoleValues = competitionRoles.map((competitionRole) => competitionRole.role as AppRole);
+  const effectiveRoles = resolveEffectiveCompetitionRoles({
+    tenantRoles: tenantRoleValues,
+    competitionRoles: scopedRoleValues,
+  });
+
+  return buildRoleFlags(
+    effectiveRoles.roles as AppRole[],
+    effectiveRoles.legacyTenantWideRoles as AppRole[],
+  );
 }
 
 export async function getScopedRoleFlags(
   userEmail: string,
   tenantId?: string,
   session?: Parameters<typeof resolveCurrentUser>[0],
+  competitionId?: string,
 ) {
   const resolved = session ? await resolveCurrentUser(session, { createIfMissing: true }) : { user: null };
   const user =
@@ -92,9 +154,12 @@ export async function getScopedRoleFlags(
     }));
 
   const roleFlags = user && tenantId
-    ? await getTenantRoleFlagsForUserId(user.id, tenantId)
+    ? competitionId
+      ? await getCompetitionRoleFlagsForUserId(user.id, tenantId, competitionId)
+      : await getTenantRoleFlagsForUserId(user.id, tenantId)
     : {
         roles: [] as AppRole[],
+        legacyTenantWideRoles: [] as AppRole[],
         isAdmin: false,
         isModerator: false,
         isTimekeeper: false,
@@ -123,11 +188,16 @@ type RequireTenantRolesSuccess = {
   tenantId: string;
   competitionId?: string;
   roles: AppRole[];
+  legacyTenantWideRoles: AppRole[];
   isAdmin: boolean;
   isModerator: boolean;
   isTimekeeper: boolean;
   canViewAllTeams: boolean;
   canEditAllTeams: boolean;
+};
+
+type RequireCompetitionRolesSuccess = Omit<RequireTenantRolesSuccess, "competitionId"> & {
+  competitionId: string;
 };
 
 type RequireAnyTenantRolesSuccess = {
@@ -175,6 +245,27 @@ async function requireResolvedTenantRoles(
     user,
     tenantId,
     ...(competitionId ? { competitionId } : {}),
+    ...roleFlags,
+  };
+}
+
+async function requireResolvedCompetitionRoles(
+  user: ResolvedUser,
+  allowedRoles: AppRole[],
+  tenantId: string,
+  competitionId: string,
+): Promise<RequireTenantRolesError | RequireCompetitionRolesSuccess> {
+  const roleFlags = await getCompetitionRoleFlagsForUserId(user.id, tenantId, competitionId);
+  if (!allowedRoles.some((role) => roleFlags.roles.includes(role))) {
+    return {
+      error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }),
+    };
+  }
+
+  return {
+    user,
+    tenantId,
+    competitionId,
     ...roleFlags,
   };
 }
@@ -248,11 +339,31 @@ export async function requireCompetitionTenantRoles(
 ): Promise<RequireTenantRolesError | RequireTenantRolesSuccess> {
   const normalizedCompetitionId = competitionId?.trim() || null;
   if (!normalizedCompetitionId) {
+    if (allowedRoles.some((role) => COMPETITION_SCOPED_ROLE_SET.has(role))) {
+      return requireCompetitionRoles(session, allowedRoles, normalizedCompetitionId, options);
+    }
     return requireTenantRoles(session, allowedRoles, options);
   }
 
+  return requireCompetitionRoles(session, allowedRoles, normalizedCompetitionId, options);
+}
+
+export async function requireCompetitionRoles(
+  session: Session | null,
+  allowedRoles: AppRole[],
+  competitionId: string | null | undefined,
+  options: Pick<RequireTenantRolesOptions, "createIfMissing"> = {},
+): Promise<RequireTenantRolesError | RequireCompetitionRolesSuccess> {
+  const normalizedCompetitionId = competitionId?.trim() || null;
   const resolved = await requireAuthenticatedSessionUser(session, options);
   if ("error" in resolved) return resolved;
+
+  if (!normalizedCompetitionId) {
+    return {
+      error: NextResponse.json({ error: "competitionId erforderlich" }, { status: 400 }),
+    };
+  }
+
   const { user } = resolved;
 
   const competition = await prisma.competition.findUnique({
@@ -266,7 +377,7 @@ export async function requireCompetitionTenantRoles(
     };
   }
 
-  return requireResolvedTenantRoles(user, allowedRoles, competition.tenantId, competition.id);
+  return requireResolvedCompetitionRoles(user, allowedRoles, competition.tenantId, competition.id);
 }
 
 export async function requireTeamTenantRoles(
@@ -301,7 +412,7 @@ export async function requireTeamTenantRoles(
     };
   }
 
-  return requireResolvedTenantRoles(resolved.user, allowedRoles, team.competition.tenantId, team.competition.id);
+  return requireResolvedCompetitionRoles(resolved.user, allowedRoles, team.competition.tenantId, team.competition.id);
 }
 
 export async function requireParticipantTenantRoles(
@@ -343,7 +454,12 @@ export async function requireParticipantTenantRoles(
     };
   }
 
-  return requireResolvedTenantRoles(resolved.user, allowedRoles, participant.team.competition.tenantId, participant.team.competition.id);
+  return requireResolvedCompetitionRoles(
+    resolved.user,
+    allowedRoles,
+    participant.team.competition.tenantId,
+    participant.team.competition.id,
+  );
 }
 
 export async function requirePendingChangesTenantRoles(
@@ -397,7 +513,7 @@ export async function requirePendingChangesTenantRoles(
   }
 
   const [tenantId, competitionId] = [...competitionScopes.entries()][0];
-  return requireResolvedTenantRoles(resolved.user, allowedRoles, tenantId, competitionId);
+  return requireResolvedCompetitionRoles(resolved.user, allowedRoles, tenantId, competitionId);
 }
 
 export async function requirePendingChangeBundleTenantRoles(
@@ -451,5 +567,5 @@ export async function requirePendingChangeBundleTenantRoles(
   }
 
   const [tenantId, competitionId] = [...competitionScopes.entries()][0];
-  return requireResolvedTenantRoles(resolved.user, allowedRoles, tenantId, competitionId);
+  return requireResolvedCompetitionRoles(resolved.user, allowedRoles, tenantId, competitionId);
 }

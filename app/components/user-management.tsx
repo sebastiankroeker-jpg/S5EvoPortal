@@ -42,6 +42,8 @@ interface UserRole {
   role: string;
   tenantId: string;
   tenantName: string;
+  competitionId: string | null;
+  scope: "TENANT" | "COMPETITION" | "LEGACY_TENANT_WIDE";
 }
 
 interface UserEntry {
@@ -941,12 +943,21 @@ export default function UserManagement() {
                             return (
                               <span
                                 key={role.id}
+                                title={
+                                  role.scope === "COMPETITION"
+                                    ? "Gilt nur für den ausgewählten Wettkampf"
+                                    : role.scope === "LEGACY_TENANT_WIDE"
+                                      ? "Legacy-Zuweisung: gilt noch für alle Wettkämpfe dieses Mandanten"
+                                      : "Gilt mandantenweit"
+                                }
                                 className={joinClasses(
                                   "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
                                   info?.color
                                 )}
                               >
                                 {info?.icon} {info?.label || role.role}
+                                {role.scope === "COMPETITION" && " · Wettkampf"}
+                                {role.scope === "LEGACY_TENANT_WIDE" && " · Legacy tenantweit"}
                               </span>
                             );
                           })
@@ -959,7 +970,11 @@ export default function UserManagement() {
                     {editingUser === user.id && (
                       <div className="mt-3 space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          Wähle die globalen Portal-Rollen für diesen Benutzer. Teamchef- und Managerrechte werden pro Mannschaft in den Team-Zeilen darunter vergeben.
+                          Admin, Friends und Teilnehmer gelten mandantenweit.
+                          Moderator und Zeitnahme gelten nur für den ausgewählten
+                          Wettkampf. Eine gespeicherte Legacy-Zuweisung wird
+                          dabei auf diesen Wettkampf begrenzt. Teamchef- und
+                          Managerrechte werden je Mannschaft vergeben.
                         </p>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                           {ALL_ROLES.map((role) => {

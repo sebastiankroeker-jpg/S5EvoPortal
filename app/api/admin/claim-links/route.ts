@@ -10,6 +10,7 @@ import { recordParticipantClaimAuditEvent } from "@/lib/participant-claim-audit"
 import { recordClaimAuditEvent } from "@/lib/registration-claim-audit";
 import {
   requireCompetitionTenantRoles,
+  requireCompetitionRoles,
   requireParticipantTenantRoles,
   requireTeamTenantRoles,
   requireTenantRoles,
@@ -46,7 +47,7 @@ function getRequestMeta(request: NextRequest) {
 
 async function requireAdminAccess() {
   const session = await getServerSession(authOptions);
-  return requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  return requireTenantRoles(session, ["ADMIN"]);
 }
 
 async function requireCompetitionAdminAccess(competitionId: string | null) {
@@ -700,7 +701,7 @@ export async function PATCH(request: NextRequest) {
             team: {
               include: {
                 competition: {
-                  select: { tenantId: true },
+                  select: { id: true, tenantId: true },
                 },
               },
             },
@@ -713,10 +714,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Claim-Link nicht gefunden" }, { status: 404 });
     }
 
-    const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
-      tenantId: token.participant.team.competition.tenantId,
-      fallbackToFirstMatchingTenant: false,
-    });
+    const auth = await requireCompetitionRoles(
+      session,
+      ["ADMIN", "MODERATOR"],
+      token.participant.team.competition.id,
+    );
     if ("error" in auth) return auth.error;
 
     const updated = await prisma.participantClaimToken.update({
@@ -755,7 +757,7 @@ export async function PATCH(request: NextRequest) {
       team: {
         include: {
           competition: {
-            select: { tenantId: true },
+            select: { id: true, tenantId: true },
           },
         },
       },
@@ -766,10 +768,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Claim-Link nicht gefunden" }, { status: 404 });
   }
 
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"], {
-    tenantId: token.team.competition.tenantId,
-    fallbackToFirstMatchingTenant: false,
-  });
+  const auth = await requireCompetitionRoles(
+    session,
+    ["ADMIN", "MODERATOR"],
+    token.team.competition.id,
+  );
   if ("error" in auth) return auth.error;
 
   const updated = await prisma.registrationClaimToken.update({

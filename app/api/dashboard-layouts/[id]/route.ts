@@ -9,7 +9,11 @@ import {
   sanitizeTeamDashboardLayoutConfig,
 } from "@/lib/dashboard-layout-config";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles, type AppRole } from "@/lib/server-permissions";
+import {
+  requireCompetitionRoles,
+  requireTenantRoles,
+  type AppRole,
+} from "@/lib/server-permissions";
 
 export const runtime = "nodejs";
 
@@ -30,10 +34,14 @@ async function loadLayoutForMutation(id: string) {
   }
 
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, DASHBOARD_ACCESS_ROLES, {
-    tenantId: layout.tenantId,
-    createIfMissing: true,
-  });
+  const auth = layout.competitionId
+    ? await requireCompetitionRoles(session, DASHBOARD_ACCESS_ROLES, layout.competitionId, {
+        createIfMissing: true,
+      })
+    : await requireTenantRoles(session, DASHBOARD_ACCESS_ROLES, {
+        tenantId: layout.tenantId,
+        createIfMissing: true,
+      });
   if ("error" in auth) return auth;
 
   if (layout.scope === "GLOBAL" && !auth.isAdmin) {

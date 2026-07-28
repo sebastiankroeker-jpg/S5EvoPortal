@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 const TIMEKEEPING_ROLES = ["ZEITNAHME"] as const;
 const TIMEKEEPING_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
@@ -64,10 +64,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Competition not found" }, { status: 404 });
   }
 
-  const auth = await requireTenantRoles(session, [...TIMEKEEPING_ROLES], {
-    tenantId: competition.tenantId,
-    fallbackToFirstMatchingTenant: false,
-  });
+  const auth = await requireCompetitionRoles(session, [...TIMEKEEPING_ROLES], competitionId);
   if ("error" in auth) return auth.error;
 
   const disciplineCode = typeof sessionPayload.disciplineCode === "string" ? sessionPayload.disciplineCode : "";
@@ -261,10 +258,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Competition not found" }, { status: 404 });
   }
 
-  const auth = await requireTenantRoles(session, [...TIMEKEEPING_ROLES], {
-    tenantId: competition.tenantId,
-    fallbackToFirstMatchingTenant: false,
-  });
+  const auth = await requireCompetitionRoles(session, [...TIMEKEEPING_ROLES], competitionId);
   if ("error" in auth) return auth.error;
 
   const timekeepingSession = await prisma.timekeepingSession.findFirst({

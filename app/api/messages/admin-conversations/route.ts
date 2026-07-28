@@ -12,7 +12,7 @@ import {
 } from "@/lib/messaging";
 import { sendMessageNotificationEmail } from "@/lib/mail/message-notification";
 import { prisma } from "@/lib/prisma";
-import { requireAnyTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 function conversationInclude() {
   return {
@@ -37,10 +37,14 @@ function conversationInclude() {
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = await requireAnyTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  const body = await request.json().catch(() => ({}));
+  const auth = await requireCompetitionRoles(
+    session,
+    ["ADMIN", "MODERATOR"],
+    typeof body.competitionId === "string" ? body.competitionId : null,
+  );
   if ("error" in auth) return auth.error;
 
-  const body = await request.json().catch(() => ({}));
   const targetUserId = typeof body.targetUserId === "string" ? body.targetUserId : "";
   const teamId = typeof body.teamId === "string" && body.teamId ? body.teamId : null;
   const participantId = typeof body.participantId === "string" && body.participantId ? body.participantId : null;
@@ -57,15 +61,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nachricht ist zu kurz" }, { status: 400 });
   }
 
-  const [targetUser, tenantRole, participant, team] = await Promise.all([
+  const [targetUser, targetCompetitionRole, participant, team] = await Promise.all([
     prisma.user.findFirst({
       where: { id: targetUserId, deletedAt: null },
       select: { id: true, name: true, email: true, authentikSub: true },
     }),
-    prisma.tenantRole.findFirst({
-      where: { userId: targetUserId, tenantId: { in: auth.tenantIds } },
-      select: { id: true, tenantId: true },
-      orderBy: { createdAt: "asc" },
+    prisma.competitionRole.findFirst({
+      where: { userId: targetUserId, competitionId: auth.competitionId },
+      select: { id: true },
     }),
     participantId
       ? prisma.participant.findFirst({
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest) {
             id: participantId,
             deletedAt: null,
             userId: targetUserId,
-            team: { deletedAt: null, competition: { tenantId: { in: auth.tenantIds } } },
+            team: { deletedAt: null, competitionId: auth.competitionId },
           },
           select: {
             id: true,
@@ -89,7 +92,7 @@ export async function POST(request: NextRequest) {
           where: {
             id: teamId,
             deletedAt: null,
-            competition: { tenantId: { in: auth.tenantIds } },
+            competitionId: auth.competitionId,
           },
           select: {
             id: true,
@@ -127,13 +130,13 @@ export async function POST(request: NextRequest) {
         team.teamChiefId === targetUserId ||
         team.memberRoles.length > 0),
   );
-  const contextAllowsTarget = Boolean(tenantRole || participant || teamUserMatch);
+  const contextAllowsTarget = Boolean(targetCompetitionRole || participant || teamUserMatch);
   if (!contextAllowsTarget) {
     return NextResponse.json({ error: "Zielperson gehoert nicht zum aktuellen Kontext" }, { status: 403 });
   }
 
-  const competitionId = participant?.team.competitionId ?? team?.competitionId ?? null;
-  const tenantId = participant?.team.competition.tenantId ?? team?.competition.tenantId ?? tenantRole?.tenantId ?? auth.tenantIds[0];
+  const competitionId = auth.competitionId;
+  const tenantId = auth.tenantId;
   const resolvedTeamId = participant?.teamId ?? team?.id ?? null;
   const now = new Date();
   const subject = normalizeMessageSubject(
@@ -169,17 +172,30 @@ export async function POST(request: NextRequest) {
     if (senderDisplayMode === "PERSONAL") {
       participantRows.set(auth.user.id, "MEMBER");
     } else {
-      const adminRoles = await tx.tenantRole.findMany({
-        where: {
-          tenantId,
-          role: { in: ["ADMIN", "MODERATOR"] },
-          user: { deletedAt: null },
-        },
-        select: { userId: true, role: true },
-      });
+      const [adminRoles, competitionModeratorRoles] = await Promise.all([
+        tx.tenantRole.findMany({
+          where: {
+            tenantId,
+            role: { in: ["ADMIN", "MODERATOR"] },
+            user: { deletedAt: null },
+          },
+          select: { userId: true, role: true },
+        }),
+        tx.competitionRole.findMany({
+          where: {
+            competitionId,
+            role: "MODERATOR",
+            user: { deletedAt: null },
+          },
+          select: { userId: true },
+        }),
+      ]);
 
       for (const adminRole of adminRoles) {
         participantRows.set(adminRole.userId, adminRole.role === "ADMIN" ? "ADMIN" : "MODERATOR");
+      }
+      for (const moderatorRole of competitionModeratorRoles) {
+        participantRows.set(moderatorRole.userId, "MODERATOR");
       }
     }
 

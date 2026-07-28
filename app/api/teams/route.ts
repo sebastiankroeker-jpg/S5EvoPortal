@@ -471,7 +471,7 @@ export async function GET(request: NextRequest) {
         : { user: null };
       const normalizedUserEmail = normalizeEmail(userEmail);
       const access = userEmail
-        ? await getScopedRoleFlags(userEmail, competition?.tenantId, session)
+        ? await getScopedRoleFlags(userEmail, competition?.tenantId, session, competitionId ?? undefined)
         : {
             user: null,
             roles: [],

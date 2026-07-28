@@ -551,6 +551,7 @@ export async function GET(
           },
           competition: {
             select: {
+              id: true,
               tenantId: true,
               teamOwnerFilterVisibleForTeamchef: true,
               participantsCanViewAllTeams: true,
@@ -567,7 +568,7 @@ export async function GET(
       }
 
       const { user } = await resolveCurrentUser(session, { createIfMissing: true });
-      const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session);
+      const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session, team.competition.id);
       const effectiveScopeRole = resolveEffectiveTeamScopeRole(roleContext, access.roles);
       const canViewRequestedScope =
         roleContext
@@ -685,7 +686,7 @@ export async function PATCH(
     const existingTeam = await prisma.team.findFirst({
       where: { id, deletedAt: null },
       include: {
-        competition: { select: { tenantId: true } },
+        competition: { select: { id: true, tenantId: true } },
         participants: {
           where: { deletedAt: null },
           orderBy: { createdAt: 'asc' },
@@ -712,7 +713,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
 
-    const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId, session);
+    const access = await getScopedRoleFlags(
+      userEmail,
+      existingTeam.competition.tenantId,
+      session,
+      existingTeam.competition.id,
+    );
     if (!access.canEditAllTeams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -919,6 +925,7 @@ export async function PUT(
           },
           competition: {
             select: {
+              id: true,
               tenantId: true,
               name: true,
               year: true,
@@ -945,7 +952,12 @@ export async function PUT(
       }
 
       const { user } = await resolveCurrentUser(session, { createIfMissing: true });
-      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId, session);
+      const access = await getScopedRoleFlags(
+        userEmail,
+        existingTeam.competition.tenantId,
+        session,
+        existingTeam.competition.id,
+      );
       const normalizedUserEmail = normalizeEmail(userEmail);
       const teamAccess = resolveTeamAccess({
         team: existingTeam,
@@ -2297,7 +2309,12 @@ export async function DELETE(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
 
-      const access = await getScopedRoleFlags(userEmail, existingTeam.competition.tenantId, session);
+      const access = await getScopedRoleFlags(
+        userEmail,
+        existingTeam.competition.tenantId,
+        session,
+        existingTeam.competition.id,
+      );
       const teamAccess = resolveTeamAccess({
         team: existingTeam,
         user,

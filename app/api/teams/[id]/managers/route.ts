@@ -89,7 +89,7 @@ export async function POST(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session);
+  const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session, team.competition.id);
   const teamAccess = resolveTeamAccess({
     team,
     user,
@@ -261,7 +261,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session);
+  const access = await getScopedRoleFlags(userEmail, team.competition.tenantId, session, team.competition.id);
   const teamAccess = resolveTeamAccess({
     team,
     user,

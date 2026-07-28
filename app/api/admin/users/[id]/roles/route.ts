@@ -3,31 +3,11 @@ import { getServerSession } from "next-auth";
 import { Role } from "@prisma/client";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "ZEITNAHME", "TEILNEHMER", "FRIENDS"];
-
-async function resolveScopedTenantId(userId: string, fallbackTenantId: string, competitionId: unknown) {
-  if (typeof competitionId !== "string" || competitionId.trim().length === 0) {
-    return { tenantId: fallbackTenantId };
-  }
-
-  const competition = await prisma.competition.findUnique({
-    where: { id: competitionId },
-    select: { tenantId: true },
-  });
-
-  if (!competition) {
-    return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
-  }
-
-  const roleFlags = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
-  if (!roleFlags.isAdmin) {
-    return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
-  }
-
-  return { tenantId: competition.tenantId };
-}
+const COMPETITION_ROLES: Role[] = ["MODERATOR", "ZEITNAHME"];
+const TENANT_ROLES: Role[] = ["ADMIN", "TEILNEHMER", "FRIENDS"];
 
 // PUT /api/admin/users/[id]/roles — Rollen eines Users setzen
 export async function PUT(
@@ -35,25 +15,33 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
-  if ("error" in auth) return auth.error;
-
   const { id } = await params;
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Ungültiger Request" }, { status: 400 });
+  }
+
   const { roles } = body; // string[] z.B. ["ADMIN", "TEILNEHMER"]
-  const scopedTenant = await resolveScopedTenantId(auth.user.id, auth.tenantId, body.competitionId);
-  if ("error" in scopedTenant) return scopedTenant.error;
-  const scopedTenantId = scopedTenant.tenantId;
+  const competitionId = typeof body.competitionId === "string" ? body.competitionId.trim() : "";
+  const auth = await requireCompetitionRoles(session, ["ADMIN"], competitionId);
+  if ("error" in auth) return auth.error;
+  const scopedCompetitionId = auth.competitionId;
+  if (!scopedCompetitionId) {
+    return NextResponse.json({ error: "competitionId erforderlich" }, { status: 400 });
+  }
 
   if (!Array.isArray(roles)) {
     return NextResponse.json({ error: "roles muss ein Array sein" }, { status: 400 });
   }
 
-  const filteredRoles = roles.filter(
-    (role): role is Role => typeof role === "string" && VALID_ROLES.includes(role as Role)
-  );
+  if (!roles.every((role) => typeof role === "string" && VALID_ROLES.includes(role as Role))) {
+    return NextResponse.json({ error: "Mindestens eine Rolle ist ungültig" }, { status: 400 });
+  }
 
-  // User + Default-Tenant finden
+  const filteredRoles = [...new Set(roles as Role[])];
+  const tenantRoles = filteredRoles.filter((role) => TENANT_ROLES.includes(role));
+  const competitionRoles = filteredRoles.filter((role) => COMPETITION_ROLES.includes(role));
+
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) {
     return NextResponse.json({ error: "User nicht gefunden" }, { status: 404 });
@@ -65,15 +53,15 @@ export async function PUT(
   }
 
   const currentTenantRoles = await prisma.tenantRole.findMany({
-    where: { userId: id, tenantId: scopedTenantId },
+    where: { userId: id, tenantId: auth.tenantId },
     select: { role: true },
   });
   const hadAdminRole = currentTenantRoles.some((tenantRole) => tenantRole.role === "ADMIN");
-  const keepsAdminRole = filteredRoles.includes("ADMIN");
+  const keepsAdminRole = tenantRoles.includes("ADMIN");
 
   if (hadAdminRole && !keepsAdminRole) {
     const adminCount = await prisma.tenantRole.count({
-      where: { tenantId: scopedTenantId, role: "ADMIN" },
+      where: { tenantId: auth.tenantId, role: "ADMIN" },
     });
 
     if (adminCount <= 1) {
@@ -81,21 +69,46 @@ export async function PUT(
     }
   }
 
-  // Bestehende Rollen für diesen Tenant löschen und neue setzen
   await prisma.$transaction([
     prisma.tenantRole.deleteMany({
-      where: { userId: id, tenantId: scopedTenantId },
+      where: {
+        userId: id,
+        tenantId: auth.tenantId,
+        role: { in: VALID_ROLES },
+      },
     }),
-    ...filteredRoles.map((role) =>
+    ...tenantRoles.map((role) =>
       prisma.tenantRole.create({
         data: {
           userId: id,
-          tenantId: scopedTenantId,
+          tenantId: auth.tenantId,
           role,
+        },
+      })
+    ),
+    prisma.competitionRole.deleteMany({
+      where: {
+        userId: id,
+        competitionId: scopedCompetitionId,
+        role: { in: COMPETITION_ROLES },
+      },
+    }),
+    ...competitionRoles.map((role) =>
+      prisma.competitionRole.create({
+        data: {
+          userId: id,
+          competitionId: scopedCompetitionId,
+          role,
+          grantedById: auth.user.id,
         },
       })
     ),
   ]);
 
-  return NextResponse.json({ success: true, roles: filteredRoles, tenantId: scopedTenantId });
+  return NextResponse.json({
+    success: true,
+    roles: filteredRoles,
+    tenantId: auth.tenantId,
+    competitionId: scopedCompetitionId,
+  });
 }

@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { openUserDashboard } from "@/lib/admin-routing";
+import { useCompetition } from "@/lib/competition-context";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 import { useTheme } from "@/lib/theme-context";
 import { cn } from "@/lib/utils";
@@ -401,6 +402,7 @@ function readReceiptLabel(conversation: ConversationSummary, message: Conversati
 
 export default function MessageCenter() {
   const { sparkleEnabled } = useTheme();
+  const { active: activeCompetition } = useCompetition();
   const { hasConsent } = usePrivacyConsent();
   const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const localDraftsAllowed = hasConsent("LOCAL_OFFLINE");
@@ -866,6 +868,9 @@ export default function MessageCenter() {
     setError("");
     try {
       const params = new URLSearchParams({ mode: nextMode });
+      if (activeCompetition?.id) {
+        params.set("competitionId", activeCompetition.id);
+      }
       const response = await fetch(`/api/messages/conversations?${params.toString()}`);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Nachrichten konnten nicht geladen werden");
@@ -885,7 +890,7 @@ export default function MessageCenter() {
     } finally {
       setLoading(false);
     }
-  }, [adminDefaultApplied, mode]);
+  }, [activeCompetition?.id, adminDefaultApplied, mode]);
 
   const loadContexts = useCallback(async () => {
     try {
@@ -899,9 +904,12 @@ export default function MessageCenter() {
   }, []);
 
   const loadAdminTargets = useCallback(async () => {
+    if (!activeCompetition?.id) return [];
     setAdminTargetsLoading(true);
     try {
-      const response = await fetch("/api/messages/admin-targets");
+      const response = await fetch(
+        `/api/messages/admin-targets?competitionId=${encodeURIComponent(activeCompetition.id)}`,
+      );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Empfänger konnten nicht geladen werden");
       const entries = Array.isArray(data.targets) ? data.targets.filter(Boolean) as AdminMessageTarget[] : [];
@@ -914,7 +922,7 @@ export default function MessageCenter() {
     } finally {
       setAdminTargetsLoading(false);
     }
-  }, []);
+  }, [activeCompetition?.id]);
 
   useEffect(() => {
     void loadConversations(mode);
@@ -1001,6 +1009,7 @@ export default function MessageCenter() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           targetUserId: adminComposeTarget.userId,
+          competitionId: activeCompetition?.id,
           teamId: adminComposeTarget.teamId,
           participantId: adminComposeTarget.participantId,
           subject: adminSubject,

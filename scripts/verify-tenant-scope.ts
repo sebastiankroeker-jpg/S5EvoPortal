@@ -64,9 +64,9 @@ assertIncludes(competitionResetRoute, 'request.nextUrl.searchParams.get("id")', 
 assertIncludes(competitionResetRoute, "const competitionId = typeof body.id", "competition reset POST");
 
 const pendingChangeDecisionRoute = readSource("app/api/admin/pending-changes/[id]/route.ts");
-assertIncludes(pendingChangeDecisionRoute, "resolvePendingChangeTenantId", "pending change decision route");
-assertIncludes(pendingChangeDecisionRoute, "tenantId: scopedTenantId", "pending change decision route");
-assertIncludes(pendingChangeDecisionRoute, "fallbackToFirstMatchingTenant: !scopedTenantId", "pending change decision route");
+assertIncludes(pendingChangeDecisionRoute, "resolvePendingChangeScope", "pending change decision route");
+assertIncludes(pendingChangeDecisionRoute, "requireCompetitionRoles", "pending change decision route");
+assertIncludes(pendingChangeDecisionRoute, "scopedCompetition.id", "pending change decision route");
 
 const entityScopedRoutes = new Map<string, string[]>([
   [
@@ -74,7 +74,7 @@ const entityScopedRoutes = new Map<string, string[]>([
     [
       "requireParticipantTenantRoles(session, [\"ADMIN\", \"MODERATOR\"], participantId)",
       "requireTeamTenantRoles(session, [\"ADMIN\", \"MODERATOR\"], teamId)",
-      "fallbackToFirstMatchingTenant: false",
+      "requireCompetitionRoles(",
     ],
   ],
   [
@@ -103,13 +103,14 @@ for (const [route, expectedMarkers] of entityScopedRoutes) {
 }
 
 const adminTargetsRoute = readSource("app/api/messages/admin-targets/route.ts");
-assertIncludes(adminTargetsRoute, "requireAnyTenantRoles(session, [\"ADMIN\", \"MODERATOR\"])", "message admin targets route");
-assertIncludes(adminTargetsRoute, "tenantId: { in: auth.tenantIds }", "message admin targets route");
+assertIncludes(adminTargetsRoute, "requireCompetitionRoles(", "message admin targets route");
+assertIncludes(adminTargetsRoute, 'request.nextUrl.searchParams.get("competitionId")', "message admin targets route");
+assertIncludes(adminTargetsRoute, "competitionId: auth.competitionId", "message admin targets route");
 
 const adminConversationsRoute = readSource("app/api/messages/admin-conversations/route.ts");
-assertIncludes(adminConversationsRoute, "requireAnyTenantRoles(session, [\"ADMIN\", \"MODERATOR\"])", "message admin conversations route");
-assertIncludes(adminConversationsRoute, "tenantId: { in: auth.tenantIds }", "message admin conversations route");
-assertIncludes(adminConversationsRoute, "const tenantId = participant?.team.competition.tenantId ?? team?.competition.tenantId ?? tenantRole?.tenantId", "message admin conversations route");
+assertIncludes(adminConversationsRoute, "requireCompetitionRoles(", "message admin conversations route");
+assertIncludes(adminConversationsRoute, "competitionId: auth.competitionId", "message admin conversations route");
+assertIncludes(adminConversationsRoute, "const competitionId = auth.competitionId", "message admin conversations route");
 
 const timekeepingEventsRoute = readSource("app/api/timekeeping/events/route.ts");
 assertIncludes(timekeepingEventsRoute, "existingSession.tenantId !== auth.tenantId", "timekeeping session tenant scope");
@@ -120,11 +121,11 @@ const allowedCustomCompetitionScopeRoutes = new Map<string, string>([
   ["app/api/admin/competitions/route.ts", "lists all admin tenants for the competition switcher"],
   ["app/api/admin/home-news/route.ts", "resolves the optional competition and rechecks ADMIN in its tenant"],
   ["app/api/admin/home-news/[entryId]/route.ts", "loads the entry scope and rechecks ADMIN in its competition tenant"],
-  ["app/api/admin/pending-changes/route.ts", "uses resolveScopedTenantId() and existing targeted guard"],
+  ["app/api/admin/pending-changes/route.ts", "uses strict requireCompetitionRoles()"],
   ["app/api/admin/pending-changes/[id]/route.ts", "uses resolvePendingChangeTenantId() before role auth"],
-  ["app/api/admin/users/route.ts", "uses resolveScopedTenantId() and existing targeted guard"],
+  ["app/api/admin/users/route.ts", "uses strict requireCompetitionRoles()"],
   ["app/api/admin/users/[id]/route.ts", "uses resolveScopedTenantId() and existing targeted guard"],
-  ["app/api/admin/users/[id]/roles/route.ts", "uses resolveScopedTenantId() and existing targeted guard"],
+  ["app/api/admin/users/[id]/roles/route.ts", "uses strict requireCompetitionRoles()"],
   ["app/api/dashboard-layouts/route.ts", "resolves competition tenant before requireTenantRoles()"],
   ["app/api/dashboard-layouts/[id]/route.ts", "loads layout tenant before requireTenantRoles()"],
   ["app/api/admin/result-staging/timekeeping/import/route.ts", "loads competition tenant before requireTenantRoles() with fallback disabled"],

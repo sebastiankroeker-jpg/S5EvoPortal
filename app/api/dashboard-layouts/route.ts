@@ -10,7 +10,11 @@ import {
   sanitizeTeamDashboardLayoutConfig,
 } from "@/lib/dashboard-layout-config";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles, type AppRole } from "@/lib/server-permissions";
+import {
+  requireCompetitionRoles,
+  requireTenantRoles,
+  type AppRole,
+} from "@/lib/server-permissions";
 
 export const runtime = "nodejs";
 
@@ -37,10 +41,13 @@ async function resolveLayoutAuth(competitionId?: string | null) {
     return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
   }
 
-  const auth = await requireTenantRoles(session, DASHBOARD_ACCESS_ROLES, {
-    tenantId: competition?.tenantId,
-    createIfMissing: true,
-  });
+  const auth = competition
+    ? await requireCompetitionRoles(session, DASHBOARD_ACCESS_ROLES, competition.id, {
+        createIfMissing: true,
+      })
+    : await requireTenantRoles(session, DASHBOARD_ACCESS_ROLES, {
+        createIfMissing: true,
+      });
   if ("error" in auth) return auth;
 
   return { ...auth, competition };

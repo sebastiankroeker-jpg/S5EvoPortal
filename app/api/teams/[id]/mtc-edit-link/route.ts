@@ -61,7 +61,12 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const access = await getScopedRoleFlags(authenticatedUserEmail, team.competition.tenantId, session);
+  const access = await getScopedRoleFlags(
+    authenticatedUserEmail,
+    team.competition.tenantId,
+    session,
+    team.competition.id,
+  );
   const teamAccess = resolveTeamAccess({
     team,
     user,

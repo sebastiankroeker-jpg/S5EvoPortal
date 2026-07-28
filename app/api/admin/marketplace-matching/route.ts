@@ -68,7 +68,7 @@ async function requireMatchingUser(session: Session | null, competitionId?: stri
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  const access = await getScopedRoleFlags(userEmail, competition.tenantId, session);
+  const access = await getScopedRoleFlags(userEmail, competition.tenantId, session, competition.id);
 
   return { user, userEmail, competition, access };
 }
