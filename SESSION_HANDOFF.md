@@ -19,9 +19,9 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `104e803` is pushed to
+- Branch: `main`; production source commit `40d9d7a` is pushed to
   `origin/main`.
-- Functional baseline: `104e803 Add competition-scoped operational roles`.
+- Functional baseline: `40d9d7a Remove legacy operational role compatibility`.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -31,6 +31,7 @@ and decision record.
     `docs/cr/2026-07-27-dynamic-permission-role-mapping.md` and
     `docs/cr/2026-07-27-friends-role-map-access.md`.
   - competition-scoped operational roles: `104e803`.
+  - legacy operational-role compatibility removal: `40d9d7a`.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
@@ -47,19 +48,20 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_DaFCPmSoqw96wfUsvk43U6ZvH1VB`
+  - ID: `dpl_HSDTjtAdyEaxxSwdDfgstM5WCS2S`
   - URL:
-    `https://s5-evo-portal-h7wi6mevq-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-2fslz0tj8-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
   - `20260728043100_seed_friends_map_permission`
   - `20260728091500_add_competition_roles`
+  - `20260728105000_disallow_tenant_wide_operational_roles`
 - Latest verification:
   - public smoke passed;
   - `/api/admin/users?competitionId=invalid` without session -> 401;
   - `/api/timekeeping/snapshot` for the active competition without session
-    -> 401;
+    -> 401; without a competition ID -> 400 validation failure;
   - `/api/profile/roles` without session -> 200 with only `ZUSCHAUER`;
   - `/karte` without session -> 307 redirect;
   - post-conversion aggregate inventory: three competition-scoped
@@ -106,13 +108,13 @@ and decision record.
    scoped timekeeping grants for the active competition, no tenant-wide
    operational grants. The role conversion is complete.
 
-3. **Remove legacy operational-role compatibility** — Local implementation
-   complete; high-risk release approval pending.
+3. **Remove legacy operational-role compatibility** — Deployed, high risk.
    `docs/cr/2026-07-28-remove-legacy-operational-role-compatibility.md`
    Removes effective tenant-wide `MODERATOR`/`ZEITNAHME` fallback paths and
    adds a database constraint preventing their future creation. Local scope
-   matrix, route inventory, ESLint, TypeScript and production build are green.
-   No migration, commit, push or deploy has been performed. The only remaining
+   matrix, route inventory, ESLint, TypeScript, production build and
+   post-deploy smoke are green. Constraint migration is applied in `40d9d7a`,
+   deployment `dpl_HSDTjtAdyEaxxSwdDfgstM5WCS2S` is READY. The only remaining
    test gap is a controlled authenticated production cross-competition smoke.
 
 4. **Dynamic permission role mapping** — Deployed.
@@ -155,10 +157,8 @@ and decision record.
 2. Re-check `git status --short --branch`, current production reachability and
    any deployment/migration state relevant to that CR.
 3. Treat the completed audit and deployed competition-role model as baseline.
-4. For the active legacy-removal CR, reconfirm the zero-row production
-   inventory immediately before its database migration and retain the
-   authenticated cross-competition smoke gap in the release record.
-5. Obtain a separate production release approval before applying the CHECK
-   constraint, committing/pushing or deploying the legacy-removal CR.
-6. For the next independent product CR, review the draft competition-clone
+4. Retain the authenticated cross-competition smoke gap in the security
+   release record; create controlled role test sessions before the next
+   permission-sensitive release where feasible.
+5. For the next independent product CR, review the draft competition-clone
    preparation and its separate production-data gate.

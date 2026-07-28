@@ -1,6 +1,6 @@
 # CR: Remove legacy tenant-wide operational-role compatibility
 
-Status: Implementation complete — release approval pending
+Status: Deployed
 Date: 2026-07-28
 Type: schema
 Tier: High-risk
@@ -138,18 +138,31 @@ removed so a future competition cannot be reached through a stale role row.
 
 ## Deploy
 
-- Deployment needed: yes; not approved.
-- Deployment ID:
+- Deployment needed: yes; approved by Sebastian, “Go”, 2026-07-28 11:15 UTC.
+- Migration: `20260728105000_disallow_tenant_wide_operational_roles` applied
+  successfully; `prisma migrate status` confirms all 48 migrations are current.
+- Functional commit: `40d9d7a Remove legacy operational role compatibility`.
+- Deployment ID: `dpl_HSDTjtAdyEaxxSwdDfgstM5WCS2S` (`READY`).
 - Deployment URL:
-- Production alias:
-- Deployed at:
+  `https://s5-evo-portal-2fslz0tj8-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de` (confirmed aliased).
+- Deployed at: 2026-07-28 UTC.
 
 ## Post-Deploy Smoke
 
-- Routes checked:
-- API checks:
-- Sensitive-data/API leakage checks:
-- Result:
+- Routes checked: public smoke passed for `/`, `/login`, `/anmeldung`,
+  `/aenderungen`, `/api/competition`, `/api/results` and the legacy-domain
+  redirect; `/karte` redirects unauthenticated users (307).
+- API checks: unauthenticated `/api/admin/competitions` and
+  `/api/admin/users?competitionId=invalid` return 401; a timekeeping snapshot
+  without a competition ID returns 400 validation failure, and with the active
+  competition ID returns 401 without a session.
+- Sensitive-data/API leakage checks: unauthenticated `/api/profile/roles`
+  returns only `ZUSCHAUER`; no legacy role scope is exposed.
+- Production inventory after migration: zero tenant-wide `MODERATOR`/
+  `ZEITNAHME` rows and three competition-scoped `ZEITNAHME` grants.
+- Result: green. The authenticated positive/negative cross-competition role
+  smoke remains a documented gap because no controlled test sessions exist.
 
 ## Follow-Ups
 
