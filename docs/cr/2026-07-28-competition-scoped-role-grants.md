@@ -1,6 +1,6 @@
 # CR: Competition-scoped role grants
 
-Status: Release in progress
+Status: Deployed
 Date: 2026-07-28
 Type: schema
 Risk: high
@@ -311,12 +311,11 @@ Audit source:
   - Gap: no reusable controlled Admin/Moderator/Timekeeping test cookies.
   - Required before legacy compatibility is removed.
 - Manual smoke:
-  - Not run against production because this package is local and the migration
-    is not approved.
+  - Production smoke completed after the approved release; details below.
 
 ## Deploy
 
-- Deployment needed: yes; approved and in progress.
+- Deployment needed: yes; completed.
 - Production migration:
   - `20260728091500_add_competition_roles` applied successfully at
     2026-07-28 09:53 UTC.
@@ -337,17 +336,34 @@ Audit source:
   - Re-alias the previous application deployment. The additive table may remain
     unused; do not drop it while grants exist.
   - No automatic legacy-role deletion or backfill is part of migration deploy.
-- Deployment ID:
+- Source commit: `104e803 Add competition-scoped operational roles`
+- Deployment ID: `dpl_DaFCPmSoqw96wfUsvk43U6ZvH1VB`
 - Deployment URL:
-- Production alias:
-- Deployed at:
+  `https://s5-evo-portal-h7wi6mevq-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-28 10:00 UTC
 
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/`, `/login`, `/anmeldung`, `/aenderungen` -> 200.
+  - `/karte` without session -> 307 to `/`.
+  - legacy domain -> 308 to production.
 - API checks:
+  - `/api/competition` and `/api/results` -> 200.
+  - `/api/teams` and `/api/admin/pending-changes` without session -> 401.
+  - `/api/admin/users?competitionId=invalid` without session -> 401.
+  - `/api/timekeeping/snapshot` with the active competition and without
+    session -> 401.
+  - `/api/profile/roles` without session -> 200 with only `ZUSCHAUER`.
 - Sensitive-data/API leakage checks:
-- Result:
+  - No production participant/contact/result payload was read.
+  - Aggregate post-migration inventory confirms zero `CompetitionRole` rows,
+    three legacy tenant-wide `ZEITNAHME` rows and zero legacy tenant-wide
+    `MODERATOR` rows.
+  - No existing role assignment was converted or deleted.
+- Result: green. Vercel reports `READY`; `portal.s5evo.de` resolves to the
+  deployment above.
 
 ## Follow-Ups
 

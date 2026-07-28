@@ -19,9 +19,9 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `6bf9e10` is pushed to
-  `origin/main`. Competition-role release is in progress.
-- Functional baseline: `6bf9e10 Harden competition-scoped permission guards`.
+- Branch: `main`; production source commit `104e803` is pushed to
+  `origin/main`.
+- Functional baseline: `104e803 Add competition-scoped operational roles`.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -30,6 +30,7 @@ and decision record.
   - dynamic permission matrix and Friends map access:
     `docs/cr/2026-07-27-dynamic-permission-role-mapping.md` and
     `docs/cr/2026-07-27-friends-role-map-access.md`.
+  - competition-scoped operational roles: `104e803`.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
@@ -43,9 +44,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_RfsnagAZeSdP3TZTjSjt8YcZxvGw`
+  - ID: `dpl_DaFCPmSoqw96wfUsvk43U6ZvH1VB`
   - URL:
-    `https://s5-evo-portal-h2mj8j9qy-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-h7wi6mevq-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -53,11 +54,15 @@ and decision record.
   - `20260728091500_add_competition_roles`
 - Latest verification:
   - public smoke passed;
-  - `/api/admin/role-permissions` without session -> 401;
-  - `/api/admin/participants?competitionId=invalid` without session -> 401;
+  - `/api/admin/users?competitionId=invalid` without session -> 401;
+  - `/api/timekeeping/snapshot` for the active competition without session
+    -> 401;
+  - `/api/profile/roles` without session -> 200 with only `ZUSCHAUER`;
   - `/karte` without session -> 307 redirect;
-  - authenticated Friends/non-admin and cross-competition timekeeping smokes
-    remain documented gaps because no controlled test sessions are available.
+  - post-migration aggregate inventory: zero `CompetitionRole` rows, three
+    legacy tenant-wide `ZEITNAHME` rows and no legacy tenant-wide moderators;
+  - authenticated cross-competition smokes remain a documented gap because no
+    controlled test sessions are available.
 - The latest known portal deployment state and smoke evidence belongs in the
   relevant CR; do not treat older deployment IDs as current. Before another
   production change, verify the live alias and run the normal smoke suite.
@@ -87,17 +92,15 @@ and decision record.
    Target model: tenant-wide `ADMIN`, additive competition grants for
    `MODERATOR` and `ZEITNAHME`; `FRIENDS` timing remains open.
 
-2. **Competition-scoped role grants** — Release in progress, high risk.
+2. **Competition-scoped role grants** — Deployed, high risk.
    `docs/cr/2026-07-28-competition-scoped-role-grants.md`
    Adds `CompetitionRole` for `MODERATOR`/`ZEITNAHME`, strict competition and
    entity guards, selected-competition admin UI/messaging, scoped profile/cache
-   and a green two-competition negative matrix. The additive production
-   migration is applied; source deployment is in progress.
+   and a green two-competition negative matrix. Migration, source and Vercel
+   production deployment are complete in `104e803`.
    Aggregate inventory: 2 competitions, 3 legacy tenant-wide timekeeping
    grants, no legacy moderators. Release migration, commit/push and deploy were
    approved on 2026-07-28; role conversion remains separately gated.
-   New policy/test/migration files are hidden by local `.git/info/exclude` and
-   require explicit `git add -f` when the release package is approved.
 
 3. **Dynamic permission role mapping** — Deployed.
    `docs/cr/2026-07-27-dynamic-permission-role-mapping.md`
@@ -138,11 +141,10 @@ and decision record.
 1. Read this file, then open the selected CR only.
 2. Re-check `git status --short --branch`, current production reachability and
    any deployment/migration state relevant to that CR.
-3. Treat the completed audit and deployed timekeeping scope fix as baseline.
-4. Review the locally completed competition-role CR and diff.
-5. At the release gate, request one explicit approval covering additive DB
-   migration, forced staging of excluded files, commit/push to auto-deploying
-   `main` and Vercel production deploy.
-6. Apply the additive migration before pushing the application, then verify
-   Vercel/alias/smoke. Convert the three legacy timekeeping grants only after
-   their target competitions are confirmed.
+3. Treat the completed audit and deployed competition-role model as baseline.
+4. Confirm target competitions for the three legacy timekeeping grants before
+   converting any role assignment.
+5. Keep legacy compatibility until controlled authenticated cross-competition
+   tests are available and green.
+6. For the next independent product CR, review the draft competition-clone
+   preparation and its separate production-data gate.
