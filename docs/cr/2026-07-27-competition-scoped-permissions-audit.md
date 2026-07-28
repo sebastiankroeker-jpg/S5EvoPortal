@@ -1,6 +1,6 @@
 # CR: Competition-scoped permissions audit
 
-Status: Implemented locally
+Status: Deployed
 Date: 2026-07-27
 Type: hotfix
 Risk: high
@@ -118,7 +118,7 @@ executable inventory assigns each route one primary category.
 ### F-01 — Timekeeping session ID was not scope-bound
 
 - Severity: High
-- Status: Fixed locally
+- Status: Fixed and deployed
 - Surface: `app/api/timekeeping/events/route.ts`
 - Finding:
   - The caller was authorized against the submitted competition tenant.
@@ -131,7 +131,8 @@ executable inventory assigns each route one primary category.
     scope.
   - Only then update it; otherwise create a new session in the authorized scope.
   - `verify:tenant-scope` now asserts both scope comparisons.
-- Production status: not deployed.
+- Production status: deployed with commit `6bf9e10` in
+  `dpl_RfsnagAZeSdP3TZTjSjt8YcZxvGw`.
 
 ### F-02 — Non-admin grants are tenant-wide, not competition-scoped
 
@@ -314,7 +315,7 @@ executable inventory assigns each route one primary category.
 - Expected implementation steps:
   - Implement the follow-up CR for competition-scoped role grants.
   - Keep the executable 78-route inventory current.
-  - Deploy the local timekeeping scope fix only after explicit approval.
+  - Treat the deployed timekeeping scope fix as the production baseline.
 - Required checks:
   - `npm run verify:tenant-scope`
   - existing admin scope guard scripts
@@ -392,10 +393,16 @@ executable inventory assigns each route one primary category.
 ## Deploy
 
 - Deployment needed: yes for F-01 only; approved 2026-07-28 08:41 UTC
-- Deployment ID:
+- Source commit: `6bf9e10 Harden competition-scoped permission guards`
+- Deployment ID: `dpl_RfsnagAZeSdP3TZTjSjt8YcZxvGw`
 - Deployment URL:
-- Production alias:
-- Deployed at:
+  `https://s5-evo-portal-h2mj8j9qy-sebastiankroeker-2781s-projects.vercel.app`
+- Production alias: `https://portal.s5evo.de`
+- Deployed at: 2026-07-28 08:47 UTC
+- Deployment note:
+  - The Git push also created automatic production deployment
+    `dpl_CxscBKeBRLY2LpeqFWRKdV4CHfEr`, which reached `READY`.
+  - The explicit approved deployment above is the final alias target.
 - Rollback:
   - No database migration or production-data mutation is part of this package.
   - Restore the prior application commit/deployment if the timekeeping sync
@@ -405,9 +412,24 @@ executable inventory assigns each route one primary category.
 ## Post-Deploy Smoke
 
 - Routes checked:
+  - `/`, `/login`, `/anmeldung`, `/aenderungen`
+  - `/api/competition`, `/api/results`, `/api/teams`
+  - `/api/admin/pending-changes`, `/api/admin/role-permissions`
+  - `/api/admin/participants?competitionId=invalid`
+  - `/karte`
 - API checks:
+  - Public smoke suite passed against `https://portal.s5evo.de`.
+  - `/api/teams` and protected admin APIs returned 401 without a session.
+  - `/karte` returned a 307 login redirect without a session.
 - Sensitive-data/API leakage checks:
-- Result:
+  - No production payload was printed or persisted.
+  - No authenticated write, mail, export, reset or production-data mutation was
+    executed.
+  - The affected timekeeping write path was not invoked against production
+    without a controlled authenticated test session and safe test entities.
+- Result: green for deploy, alias, public and unauthenticated boundaries.
+  Authenticated cross-competition timekeeping remains the explicitly documented
+  test gap.
 
 ## Follow-Ups
 

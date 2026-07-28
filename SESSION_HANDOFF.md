@@ -19,10 +19,8 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; audit changes are currently local and uncommitted.
-- Functional baseline: `72614c9 Add dynamic role permissions and Friends map
-  access`. Later documentation-only commits do not change that source baseline;
-  verify the current HEAD with `git log -1`.
+- Branch: `main`; source commit `6bf9e10` is pushed to `origin/main`.
+- Functional baseline: `6bf9e10 Harden competition-scoped permission guards`.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -34,9 +32,8 @@ and decision record.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
-- The new role-grant follow-up CR is currently hidden by the local
-  `.git/info/exclude` rule `/docs/*`; include it explicitly with `git add -f`
-  when the approved audit package is committed.
+- The competition-role follow-up CR is versioned at
+  `docs/cr/2026-07-28-competition-scoped-role-grants.md`.
 - This handoff was consolidated from an append-only document. The complete
   prior version is preserved at
   `docs/handoffs/archive/2026-07-28-session-handoff-pre-consolidation.md`.
@@ -45,9 +42,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_E8i4FtbMXvxD1zgBbUSBx55pBU3y`
+  - ID: `dpl_RfsnagAZeSdP3TZTjSjt8YcZxvGw`
   - URL:
-    `https://s5-evo-portal-56rnp5pc5-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-h2mj8j9qy-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -55,8 +52,10 @@ and decision record.
 - Latest verification:
   - public smoke passed;
   - `/api/admin/role-permissions` without session -> 401;
+  - `/api/admin/participants?competitionId=invalid` without session -> 401;
   - `/karte` without session -> 307 redirect;
-  - authenticated Friends/non-admin smoke remains a documented gap.
+  - authenticated Friends/non-admin and cross-competition timekeeping smokes
+    remain documented gaps because no controlled test sessions are available.
 - The latest known portal deployment state and smoke evidence belongs in the
   relevant CR; do not treat older deployment IDs as current. Before another
   production change, verify the live alias and run the normal smoke suite.
@@ -78,11 +77,11 @@ and decision record.
 
 ## Active CRs — ordered work queue
 
-1. **Competition-scoped permissions audit** — Implemented locally, high risk.
+1. **Competition-scoped permissions audit** — Deployed.
    `docs/cr/2026-07-27-competition-scoped-permissions-audit.md`
    All 78 API routes are classified by the executable inventory in
-   `scripts/verify-tenant-scope.ts`. The audit found and locally fixed a
-   cross-scope timekeeping-session-ID write path. The fix is not deployed.
+   `scripts/verify-tenant-scope.ts`. The high-severity cross-scope
+   timekeeping-session-ID write path is fixed and deployed in `6bf9e10`.
    Target model: tenant-wide `ADMIN`, additive competition grants for
    `MODERATOR` and `ZEITNAHME`; `FRIENDS` timing remains open.
 
@@ -131,8 +130,7 @@ and decision record.
 1. Read this file, then open the selected CR only.
 2. Re-check `git status --short --branch`, current production reachability and
    any deployment/migration state relevant to that CR.
-3. Review the completed audit CR and the local timekeeping scope fix.
-4. Obtain explicit approval before committing/pushing/deploying that fix.
-5. Start the competition-role follow-up only after its schema/auth gate is
+3. Treat the completed audit and deployed timekeeping scope fix as baseline.
+4. Start the competition-role follow-up only after its schema/auth gate is
    approved; treat `PermissionObject`, tenant-scoped `RolePermission` and the
    legacy role helpers as the current production authorization baseline.
