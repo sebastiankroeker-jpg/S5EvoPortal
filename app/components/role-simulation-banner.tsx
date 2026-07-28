@@ -11,6 +11,7 @@ const ROLE_LABELS = {
   ZEITNAHME: "Zeitnahme",
   TEAMCHEF: "Teamchef:in",
   TEILNEHMER: "Teilnehmer:in",
+  FRIENDS: "Friends",
   ZUSCHAUER: "Zuschauer:in",
 };
 

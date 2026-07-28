@@ -256,7 +256,7 @@ export default function Sidebar() {
         <SectionLabel label="Navigation" sidebarCollapsed={sidebarCollapsed} />
         <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} sidebarCollapsed={sidebarCollapsed} />
         <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} sidebarCollapsed={sidebarCollapsed} />
-        {can("config.edit") && (
+        {can("portal.map.view") && (
           <SidebarItem icon="🗺️" label="Karte" onClick={() => router.push("/karte")} isActive={pathname === "/karte"} sidebarCollapsed={sidebarCollapsed} />
         )}
         <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} sidebarCollapsed={sidebarCollapsed} />

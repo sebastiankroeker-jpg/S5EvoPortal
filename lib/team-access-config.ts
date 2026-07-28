@@ -1,4 +1,4 @@
-export type TeamScopeRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER" | "ZUSCHAUER";
+export type TeamScopeRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER" | "FRIENDS" | "ZUSCHAUER";
 export type LivePublicationVisibility = "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
 
 export type CompetitionTeamAccessConfig = {
@@ -95,6 +95,7 @@ export function canRoleViewAllTeams(
     case "TEAMCHEF":
       return normalized.participantsCanViewAllTeams;
     case "TEILNEHMER":
+    case "FRIENDS":
       return normalized.participantsCanViewAllTeams;
     case "ZUSCHAUER":
       return normalized.spectatorsCanViewAllTeams;
@@ -138,5 +139,6 @@ export function resolveEffectiveTeamScopeRole(
   if (availableRoles.includes("MODERATOR")) return "MODERATOR";
   if (availableRoles.includes("TEAMCHEF")) return "TEAMCHEF";
   if (availableRoles.includes("TEILNEHMER")) return "TEILNEHMER";
+  if (availableRoles.includes("FRIENDS")) return "FRIENDS";
   return "ZUSCHAUER";
 }

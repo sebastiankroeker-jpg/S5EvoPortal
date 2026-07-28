@@ -17,7 +17,8 @@ interface PermissionsContextType {
 
 const PermissionsContext = createContext<PermissionsContextType | null>(null);
 const ROLES_CACHE_KEY = "s5evo.offline.profileRoles.v1";
-const VALID_ROLES = new Set<Role>(["ADMIN", "MODERATOR", "ZEITNAHME", "TEAMCHEF", "TEILNEHMER", "ZUSCHAUER"]);
+const VALID_ROLES = new Set<Role>(["ADMIN", "MODERATOR", "ZEITNAHME", "TEAMCHEF", "TEILNEHMER", "FRIENDS", "ZUSCHAUER"]);
+const DYNAMIC_PERMISSIONS = new Set<Permission>(["admin.roles.manage", "portal.map.view"]);
 
 interface PermissionsProviderProps {
   children: ReactNode;
@@ -29,7 +30,7 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const sessionEmail = session?.user?.email ?? null;
   
   // Rollen aus der DB laden
-  const [dbRoles, setDbRoles] = useState<{ email: string | null; roles: Role[]; fallback?: boolean } | null>(() => {
+  const [dbRoles, setDbRoles] = useState<{ email: string | null; roles: Role[]; permissions?: Permission[]; fallback?: boolean } | null>(() => {
     if (typeof navigator !== "undefined" && navigator.onLine) return null;
     const cached = readOfflineCache<{ email: string | null; roles: Role[] }>(ROLES_CACHE_KEY);
     const cachedRoles = cached?.data.roles?.filter((role): role is Role => VALID_ROLES.has(role as Role)) ?? [];
@@ -52,7 +53,10 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
           const nextRoles = (data.roles?.length ? data.roles : ["TEILNEHMER"])
             .filter((role: string): role is Role => VALID_ROLES.has(role as Role));
           const roles = nextRoles.length ? nextRoles : ["TEILNEHMER"];
-          setDbRoles({ email: sessionEmail, roles });
+          const permissions = Array.isArray(data.permissions)
+            ? data.permissions.filter((permission: unknown): permission is Permission => typeof permission === "string")
+            : [];
+          setDbRoles({ email: sessionEmail, roles, permissions });
           writeOfflineCache(ROLES_CACHE_KEY, { email: sessionEmail, roles });
         }
       })
@@ -86,6 +90,9 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
     // Bei Simulation: nur gegen simulierte Rolle prüfen
     if (isSimulating && simulatedRole) {
       return canCheck([simulatedRole], permission);
+    }
+    if (DYNAMIC_PERMISSIONS.has(permission) && !dbRoles?.fallback) {
+      return dbRoles?.permissions?.includes(permission) ?? false;
     }
     // Sonst gegen echte Rollen
     return canCheck(roles, permission);

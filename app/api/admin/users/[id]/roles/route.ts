@@ -5,7 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
 
-const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "ZEITNAHME", "TEILNEHMER"];
+const VALID_ROLES: Role[] = ["ADMIN", "MODERATOR", "ZEITNAHME", "TEILNEHMER", "FRIENDS"];
 
 async function resolveScopedTenantId(userId: string, fallbackTenantId: string, competitionId: unknown) {
   if (typeof competitionId !== "string" || competitionId.trim().length === 0) {

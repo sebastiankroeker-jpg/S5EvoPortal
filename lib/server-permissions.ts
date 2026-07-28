@@ -4,7 +4,48 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveCurrentUser } from "@/lib/current-user";
 
-export type AppRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER";
+export type AppRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER" | "FRIENDS";
+export type PermissionKey = "admin.roles.manage" | "portal.map.view";
+
+export async function getEffectivePermissionsForUserId(userId: string, tenantId: string): Promise<PermissionKey[]> {
+  const roleFlags = await getTenantRoleFlagsForUserId(userId, tenantId);
+  if (roleFlags.roles.length === 0) return [];
+
+  const grants = await prisma.rolePermission.findMany({
+    where: {
+      tenantId,
+      role: { in: roleFlags.roles },
+    },
+    select: { permission: { select: { key: true } } },
+  });
+
+  return [...new Set(grants.map((grant) => grant.permission.key))]
+    .filter((key): key is PermissionKey => key === "admin.roles.manage" || key === "portal.map.view");
+}
+
+export async function hasEffectivePermissionForUserId(
+  userId: string,
+  tenantId: string,
+  permission: PermissionKey,
+): Promise<boolean> {
+  return (await getEffectivePermissionsForUserId(userId, tenantId)).includes(permission);
+}
+
+export async function hasEffectivePermissionForAnyTenant(
+  userId: string,
+  permission: PermissionKey,
+): Promise<boolean> {
+  const tenantRoles = await prisma.tenantRole.findMany({
+    where: { userId },
+    select: { tenantId: true },
+    distinct: ["tenantId"],
+  });
+
+  for (const { tenantId } of tenantRoles) {
+    if (await hasEffectivePermissionForUserId(userId, tenantId, permission)) return true;
+  }
+  return false;
+}
 type ResolvedUser = NonNullable<Awaited<ReturnType<typeof resolveCurrentUser>>["user"]>;
 
 export async function getTenantRoleFlagsForUserId(userId: string, tenantId: string) {

@@ -11,7 +11,7 @@ import EventMap from "@/app/components/event-map";
 export default function AdminEventMapPage() {
   const { data: session, status } = useSession();
   const { can, isLoading: permissionsLoading } = usePermissions();
-  const hasAdminAccess = !!session && can("config.edit");
+  const hasMapAccess = !!session && can("portal.map.view");
 
   if (status === "loading" || permissionsLoading) {
     return (
@@ -24,7 +24,7 @@ export default function AdminEventMapPage() {
     );
   }
 
-  if (!hasAdminAccess) {
+  if (!hasMapAccess) {
     return (
       <div className="min-h-screen bg-background">
         <NavBar />
@@ -32,7 +32,7 @@ export default function AdminEventMapPage() {
           <Card className="w-full">
             <CardHeader>
               <CardTitle>Kein Zugriff</CardTitle>
-              <CardDescription>Die Event-Karte ist vorerst nur fuer Admins sichtbar.</CardDescription>
+              <CardDescription>Die Event-Karte ist nur für berechtigte Portal-User sichtbar.</CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/">

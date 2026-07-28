@@ -35,6 +35,7 @@ import {
 } from "@/lib/account-link-status";
 import { useCompetition } from "@/lib/competition-context";
 import { useNotifications } from "@/lib/notification-context";
+import PermissionMatrix from "./permission-matrix";
 
 interface UserRole {
   id: string;
@@ -99,7 +100,7 @@ type UserMailFilter = "all" | "hasEmail" | "missingEmail";
 type UserLinkFilter = "all" | "linked" | "portal_account" | "invitation_open" | "placeholder_user" | "needs_attention";
 type UserSortField = "nameAsc" | "lastSeenDesc" | "createdDesc" | "teamCountDesc";
 
-const ALL_ROLES = ["ADMIN", "MODERATOR", "ZEITNAHME", "TEILNEHMER"] as const;
+const ALL_ROLES = ["ADMIN", "MODERATOR", "ZEITNAHME", "TEILNEHMER", "FRIENDS"] as const;
 const ONLINE_WINDOW_MS = 3 * 60 * 1000;
 const RECENT_ACTIVITY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ROLE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
@@ -108,6 +109,7 @@ const ROLE_INFO: Record<string, { icon: string; label: string; color: string; de
   ZEITNAHME: { icon: "⏱️", label: "Zeitnahme", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300", desc: "Stoppuhr & Rohzeiten" },
   TEAMCHEF: { icon: "📋", label: "Teamchef:in", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", desc: "Eigene Teams" },
   TEILNEHMER: { icon: "🏃", label: "Teilnehmer:in", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300", desc: "Eigene Daten" },
+  FRIENDS: { icon: "🗺️", label: "Friends", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300", desc: "Portalzugriff + Karte" },
 };
 const TEAM_CLASS_BADGES: Record<string, { shortLabel: string; label: string; className: string }> = {
   "schueler-a": { shortLabel: "SA", label: "Schüler A", className: "border-sky-300 bg-sky-50 text-sky-800" },
@@ -711,6 +713,7 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-4">
+      <PermissionMatrix />
       <Card>
         <CardHeader className="space-y-3">
           <div className="flex flex-col gap-2">

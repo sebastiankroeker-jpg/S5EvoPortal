@@ -4,6 +4,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { resolveCurrentUser } from '@/lib/current-user';
 import { hasDerivedTeamchefScope } from '@/lib/teamchef-role';
+import { getEffectivePermissionsForUserId } from '@/lib/server-permissions';
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
@@ -52,7 +53,10 @@ export async function GET() {
 
       const roles = ["TEILNEHMER"];
       if (hasTeamchefScope) roles.unshift("TEAMCHEF");
-      return NextResponse.json({ roles }, { headers: NO_STORE_HEADERS });
+      const permissions = tenant
+        ? await getEffectivePermissionsForUserId(user.id, tenant.id)
+        : [];
+      return NextResponse.json({ roles, permissions }, { headers: NO_STORE_HEADERS });
     }
 
     // Unique Rollen extrahieren - keine implizite Hochstufung
@@ -61,7 +65,13 @@ export async function GET() {
       roles.push("TEAMCHEF");
     }
 
-    return NextResponse.json({ roles: roles.length ? roles : ["TEILNEHMER"] }, { headers: NO_STORE_HEADERS });
+    const permissions = tenantId
+      ? await getEffectivePermissionsForUserId(user.id, tenantId)
+      : [];
+    return NextResponse.json(
+      { roles: roles.length ? roles : ["TEILNEHMER"], permissions },
+      { headers: NO_STORE_HEADERS },
+    );
 
   } catch (error) {
     console.error('Roles API error:', error);
