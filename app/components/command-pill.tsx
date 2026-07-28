@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { fullSignOut } from "@/lib/auth-helpers";
 import { usePermissions } from "@/lib/permissions-context";
-import { useNotifications } from "@/lib/notification-context";
 import { useTheme, type Theme } from "@/lib/theme-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { X, Search, Menu, Sparkles } from "lucide-react";
-import { getPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
+import { getPermittedNavigationMenuItems, groupPermittedNavigationMenuItems, isClaimNavigationPath, type NavigationMenuItem } from "@/lib/navigation-menu";
 import { navigateFromExternalBottomTab } from "@/lib/bottom-tab-navigation";
 import { openTeamDashboard } from "@/lib/admin-routing";
 import { useCompetition } from "@/lib/competition-context";
@@ -34,7 +33,6 @@ export default function CommandPill() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { can, activeRole, roles, simulatedRole, setSimulatedRole, isSimulating } = usePermissions();
-  const notifications = useNotifications();
   const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
   const { active: activeCompetition, loading: competitionLoading } = useCompetition();
   const activeCompetitionId = activeCompetition?.id ?? null;
@@ -57,12 +55,16 @@ export default function CommandPill() {
       </span>
     ));
 
-  const permittedMenuItems = getPermittedNavigationMenuItems({
+  const permittedMenuItems = useMemo(() => getPermittedNavigationMenuItems({
     authenticated: Boolean(session?.user),
     can,
     roles,
     pathname,
-  });
+  }), [can, pathname, roles, session?.user]);
+  const navigationGroups = useMemo(
+    () => groupPermittedNavigationMenuItems(permittedMenuItems),
+    [permittedMenuItems],
+  );
 
   // Search implementation
   const performSearch = useCallback(async (query: string, signal?: AbortSignal) => {
@@ -471,114 +473,24 @@ export default function CommandPill() {
               <div className="bg-card border border-border/50 rounded-md shadow-xl p-4 max-h-[80vh] overflow-y-auto thin-scrollbar">
                 {session?.user && (
                   <>
-                    {/* Navigation Section */}
-                    <div>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                        ── Navigation ──────────────
-                      </div>
-                      <div className="space-y-1">
-                        {can("team.create") && (
-                          <Button
-                            variant="ghost"
-                            className="w-full justify-start h-7 px-2 text-sm"
-                            onClick={() => {
-                              window.sessionStorage.setItem("s5evo-team-view", "register");
-                              switchToTab("registration", { teamView: "register" });
-                            }}
-                          >
-                            📋 Anmeldung
-                          </Button>
-                        )}
-                        {(can("team.view.own") || can("team.view.all")) && (
-                          <Button
-                            variant="ghost"
-                            className="w-full justify-start h-7 px-2 text-sm"
-                            onClick={() => switchToTab("dashboard")}
-                          >
-                            📊 Meine Teams
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start h-7 px-2 text-sm"
-                          onClick={() => {
-                            notifications.info("Ergebnisse", "Ergebnisse werden hier angezeigt, sobald der Wettkampf läuft.");
-                            closeBurger();
-                          }}
-                        >
-                          🏆 Ergebnisse
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start h-7 px-2 text-sm"
-                          onClick={() => {
-                            notifications.info("Ranglisten", "Ranglisten werden hier angezeigt, sobald der Wettkampf läuft.");
-                            closeBurger();
-                          }}
-                        >
-                          📈 Ranglisten
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Admin Section */}
-                    {(can("team.view.all") || can("results.edit") || can("config.edit")) && (
-                      <div>
-                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                          ──────────────────────────
+                    {navigationGroups.map((group) => (
+                      <div key={group.section} className="space-y-1">
+                        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          {group.label}
                         </div>
-                        <div className="space-y-1">
-                          {can("team.view.all") && (
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start h-7 px-2 text-sm"
-                              onClick={() => switchToTab("dashboard")}
-                            >
-                              👥 Alle Teams
-                            </Button>
-                          )}
-                          {can("results.edit") && (
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start h-7 px-2 text-sm"
-                              onClick={() => {
-                                notifications.info("Ergebnis-Erfassung", "Die Ergebnis-Erfassung wird hier als Nächstes angebunden.");
-                                closeBurger();
-                              }}
-                            >
-                              ✏️ Ergebnis-Erfassung
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Settings Section */}
-                    <div>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                        ── Einstellungen ───────────
-                      </div>
-                      <div className="space-y-1">
-                        {can("config.edit") && (
+                        {group.items.map((item) => (
                           <Button
+                            key={item.id}
                             variant="ghost"
-                            className="w-full justify-start h-7 px-2 text-sm"
-                            onClick={() => navigateAndClose("/admin")}
+                            className="h-7 w-full justify-start px-2 text-sm"
+                            onClick={() => handleMenuSelection(item)}
                           >
-                            ⚙️ Administration
+                            <span className="mr-2" aria-hidden>{item.icon}</span>
+                            {item.label}
                           </Button>
-                        )}
-                        {(can("team.view.all") || can("results.edit")) && (
-                          <Button
-                            variant="ghost"
-                            className="w-full justify-start h-7 px-2 text-sm"
-                            onClick={() => navigateAndClose("/orga-links")}
-                          >
-                            🗂️ Orga-Links
-                          </Button>
-                        )}
+                        ))}
                       </div>
-                    </div>
+                    ))}
 
                     {/* Role Simulation */}
                     {roles.includes("ADMIN") && (
@@ -640,38 +552,6 @@ export default function CommandPill() {
                       </Button>
                     </div>
 
-                    {/* Account Section */}
-                    <div>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                        ── Konto ───────────────────
-                      </div>
-                      <div className="space-y-1">
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start h-7 px-2 text-sm"
-                          onClick={() => navigateAndClose("/profile")}
-                        >
-                          👤 Profil
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start h-7 px-2 text-sm"
-                          onClick={() => navigateAndClose("/changelog")}
-                        >
-                          📋 Changelog
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start h-7 px-2 text-sm"
-                          onClick={() => {
-                            fullSignOut();
-                            closeBurger();
-                          }}
-                        >
-                          🚪 Abmelden
-                        </Button>
-                      </div>
-                    </div>
                   </>
                 )}
 

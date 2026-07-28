@@ -36,6 +36,16 @@ export interface NavigationMenuItem {
   roles?: Role[];
 }
 
+/** Presentation groups only; existing route and API guards remain authoritative. */
+export type NavigationSection = "competition" | "work" | "manage" | "account";
+
+export const NAVIGATION_SECTION_LABELS: Record<NavigationSection, string> = {
+  competition: "Wettkampf",
+  work: "Arbeiten",
+  manage: "Verwalten",
+  account: "Konto",
+};
+
 const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
   {
     id: "changes",
@@ -200,7 +210,7 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     label: "Karte",
     keywords: ["karte", "map", "anfahrt", "orte", "strecken", "sponsoren"],
     icon: "🗺️",
-    permission: "config.edit",
+    permission: "portal.map.view",
     requiresAuth: true,
   },
   {
@@ -248,6 +258,35 @@ const CLAIM_ROUTE_ITEM_IDS = new Set<NavigationMenuItem["id"]>([
   "sign-out",
 ]);
 
+const NAVIGATION_SECTION_BY_ID: Record<NavigationMenuItem["id"], NavigationSection> = {
+  home: "competition",
+  registration: "competition",
+  "my-teams": "competition",
+  live: "competition",
+  map: "competition",
+  "all-teams": "work",
+  participants: "work",
+  changes: "work",
+  timekeeping: "work",
+  "sportlerboerse-dashboard": "work",
+  "sportlerboerse-mtc": "work",
+  orga: "work",
+  "claim-links": "manage",
+  "orga-links": "manage",
+  administration: "manage",
+  "admin-competition": "manage",
+  "admin-news": "manage",
+  "admin-results": "manage",
+  "admin-logs": "manage",
+  "admin-users": "manage",
+  "admin-audits": "manage",
+  "admin-archive": "manage",
+  profile: "account",
+  messages: "account",
+  changelog: "account",
+  "sign-out": "account",
+};
+
 export function isClaimNavigationPath(pathname?: string | null) {
   return Boolean(pathname && pathname.startsWith("/claim/"));
 }
@@ -283,4 +322,22 @@ export function getPermittedNavigationMenuItems({
 
       return item;
     });
+}
+
+/** Shared grouping for desktop sidebar, search and the mobile command menu. */
+export function groupPermittedNavigationMenuItems(items: NavigationMenuItem[]) {
+  const grouped = new Map<NavigationSection, NavigationMenuItem[]>();
+  for (const section of Object.keys(NAVIGATION_SECTION_LABELS) as NavigationSection[]) {
+    grouped.set(section, []);
+  }
+  for (const item of items) {
+    grouped.get(NAVIGATION_SECTION_BY_ID[item.id])?.push(item);
+  }
+  return (Object.keys(NAVIGATION_SECTION_LABELS) as NavigationSection[])
+    .map((section) => ({
+      section,
+      label: NAVIGATION_SECTION_LABELS[section],
+      items: grouped.get(section) ?? [],
+    }))
+    .filter((group) => group.items.length > 0);
 }

@@ -6,15 +6,14 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { fullSignOut } from "@/lib/auth-helpers";
 import { usePermissions } from "@/lib/permissions-context";
 import { useTheme, type Theme } from "@/lib/theme-context";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
 import SearchOverlay from "./search-overlay";
-import { isClaimNavigationPath } from "@/lib/navigation-menu";
-import { useCompetition } from "@/lib/competition-context";
+import { getPermittedNavigationMenuItems, groupPermittedNavigationMenuItems, type NavigationMenuItem } from "@/lib/navigation-menu";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
-import { canRoleViewAllTeams } from "@/lib/team-access-config";
 import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
 
 const MAIN_TABS = ["home", "registration", "dashboard", "orga", "live"] as const;
@@ -72,8 +71,7 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { can, activeRole } = usePermissions();
-  const { active: activeCompetition } = useCompetition();
+  const { can, roles } = usePermissions();
   const { hasConsent } = usePrivacyConsent();
   const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
   const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
@@ -104,13 +102,13 @@ export default function Sidebar() {
     const storedTab = window.sessionStorage.getItem("s5evo-active-tab");
     return isMainTab(storedTab) ? storedTab : "home";
   });
-  const isClaimPath = isClaimNavigationPath(pathname);
-  const showOrgaSection = !isClaimPath && (can("team.view.all") || can("results.edit"));
-  const showTimekeepingSection = !isClaimPath && can("timekeeping.use");
-  const participantCanBrowseTeams = canRoleViewAllTeams(activeRole, activeCompetition);
-  const teamLabel = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "Mein Team" : "Mannschaften";
-  const teamIcon = isClaimPath || (activeRole === "TEILNEHMER" && !participantCanBrowseTeams) ? "🏃" : "📋";
   const sidebarCollapsed = functionalStorageAllowed ? storedSidebarCollapsed : false;
+  const navigationGroups = groupPermittedNavigationMenuItems(getPermittedNavigationMenuItems({
+    authenticated: Boolean(session?.user),
+    can,
+    roles,
+    pathname,
+  }));
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -187,6 +185,74 @@ export default function Sidebar() {
     router.push(`/admin?tab=${tab}`);
   };
 
+  const handleMenuSelection = (item: NavigationMenuItem) => {
+    switch (item.id) {
+      case "home": return switchToTab("home");
+      case "registration":
+        if (session?.user) {
+          window.sessionStorage.setItem("s5evo-team-view", "register");
+          return switchToTab("registration", { teamView: "register" });
+        }
+        return router.push("/anmeldung");
+      case "my-teams": return switchToTab("dashboard", { dashboardScope: "mine" });
+      case "all-teams": return switchToTab("dashboard", { dashboardScope: "all" });
+      case "live": return switchToTab("live");
+      case "orga": return switchToTab("orga");
+      case "map": return router.push("/karte");
+      case "timekeeping": return router.push("/zeitnahme");
+      case "profile": return router.push("/profile");
+      case "messages": return router.push("/nachrichten");
+      case "sportlerboerse-dashboard": return router.push("/sportlerboerse-dashboard");
+      case "sportlerboerse-mtc": return router.push("/sportlerboerse/mtc");
+      case "participants": return router.push("/teilnehmer");
+      case "changes": return router.push("/aenderungen");
+      case "claim-links": return router.push("/claim-links");
+      case "orga-links": return router.push("/orga-links");
+      case "administration": return router.push("/admin");
+      case "admin-competition": return openAdminTab("competition");
+      case "admin-news": return openAdminTab("news");
+      case "admin-results": return router.push("/admin/ergebnisse");
+      case "admin-logs": return router.push("/admin/logs");
+      case "admin-users": return openAdminTab("users");
+      case "admin-audits": return openAdminTab("audits");
+      case "admin-archive": return openAdminTab("restore");
+      case "changelog": return router.push("/changelog");
+      case "sign-out": return fullSignOut();
+    }
+  };
+
+  const isMenuItemActive = (item: NavigationMenuItem) => {
+    if (pathname === "/") {
+      if (item.id === "home") return activeTab === "home";
+      if (item.id === "registration") return activeTab === "registration";
+      if (item.id === "my-teams" || item.id === "all-teams") return activeTab === "dashboard";
+      if (item.id === "live") return activeTab === "live";
+      if (item.id === "orga") return activeTab === "orga";
+    }
+    if (item.id === "map") return pathname === "/karte";
+    if (item.id === "timekeeping") return pathname === "/zeitnahme";
+    if (item.id === "profile") return pathname === "/profile";
+    if (item.id === "messages") return pathname === "/nachrichten";
+    if (item.id === "changes") return pathname === "/aenderungen";
+    if (item.id === "claim-links") return pathname === "/claim-links";
+    if (item.id === "orga-links") return pathname === "/orga-links";
+    if (item.id === "sportlerboerse-dashboard") return pathname === "/sportlerboerse-dashboard";
+    if (item.id === "sportlerboerse-mtc") return pathname === "/sportlerboerse/mtc";
+    if (item.id === "participants") return pathname === "/teilnehmer";
+    if (item.id === "admin-results") return pathname === "/admin/ergebnisse";
+    if (item.id === "admin-logs") return pathname === "/admin/logs";
+    if (item.id === "changelog") return pathname === "/changelog";
+    if (pathname === "/admin") {
+      if (item.id === "administration") return true;
+      if (item.id === "admin-competition") return adminTab === "competition" || adminTab === "tenant";
+      if (item.id === "admin-news") return adminTab === "news";
+      if (item.id === "admin-users") return adminTab === "users";
+      if (item.id === "admin-audits") return adminTab === "audits";
+      if (item.id === "admin-archive") return adminTab === "restore";
+    }
+    return false;
+  };
+
   if (!session?.user) return null;
 
   return (
@@ -253,51 +319,21 @@ export default function Sidebar() {
 
       {/* Navigation — kompakt, kein Scroll nötig */}
       <div className="flex-1 py-1.5 px-1 space-y-0.5 overflow-y-auto">
-        <SectionLabel label="Navigation" sidebarCollapsed={sidebarCollapsed} />
-        <SidebarItem icon={teamIcon} label={teamLabel} onClick={() => switchToTab(isClaimPath ? "dashboard" : "registration")} isActive={pathname === "/" && (activeTab === "registration" || (isClaimPath && activeTab === "dashboard"))} sidebarCollapsed={sidebarCollapsed} />
-        <SidebarItem icon="🏆" label="Live" onClick={() => switchToTab("live")} isActive={pathname === "/" && activeTab === "live"} sidebarCollapsed={sidebarCollapsed} />
-        {can("portal.map.view") && (
-          <SidebarItem icon="🗺️" label="Karte" onClick={() => router.push("/karte")} isActive={pathname === "/karte"} sidebarCollapsed={sidebarCollapsed} />
-        )}
-        <SidebarItem icon="👤" label="Profil" onClick={() => router.push("/profile")} isActive={pathname === "/profile"} sidebarCollapsed={sidebarCollapsed} />
-        <SidebarItem icon="🏠" label="Home" onClick={() => switchToTab("home")} isActive={pathname === "/" && activeTab === "home"} sidebarCollapsed={sidebarCollapsed} />
-        <SidebarItem icon="📋" label="Changelog" onClick={() => router.push("/changelog")} isActive={pathname === "/changelog"} sidebarCollapsed={sidebarCollapsed} />
-
-        {showOrgaSection && (
-          <>
-            <SectionLabel label="Orga-Team" sidebarCollapsed={sidebarCollapsed} />
-            {can("config.edit") && (
-              <>
-                <SidebarItem icon="🗞️" label="Admin: News" onClick={() => openAdminTab("news")} isActive={pathname === "/admin" && adminTab === "news"} sidebarCollapsed={sidebarCollapsed} />
-              </>
-            )}
-            {can("team.view.all") && (
-              <SidebarItem icon="📝" label="Änderungen" onClick={() => router.push("/aenderungen")} isActive={pathname === "/aenderungen"} sidebarCollapsed={sidebarCollapsed} />
-            )}
-            {showTimekeepingSection && (
-              <SidebarItem icon="✏️" label="Zeiterfassung" onClick={() => router.push("/zeitnahme")} isActive={pathname === "/zeitnahme"} sidebarCollapsed={sidebarCollapsed} />
-            )}
-            {can("config.edit") && (
-              <>
-                <SidebarItem icon="📊" label="Ergebnisdaten" onClick={() => router.push("/admin/ergebnisse")} isActive={pathname === "/admin/ergebnisse"} sidebarCollapsed={sidebarCollapsed} />
-                <SidebarItem icon="📈" label="Besucher/Logs" onClick={() => router.push("/admin/logs")} isActive={pathname === "/admin/logs"} sidebarCollapsed={sidebarCollapsed} />
-                <SidebarItem icon="👥" label="Benutzer" onClick={() => openAdminTab("users")} isActive={pathname === "/admin" && adminTab === "users"} sidebarCollapsed={sidebarCollapsed} />
-                <SidebarItem icon="🧾" label="Audits" onClick={() => openAdminTab("audits")} isActive={pathname === "/admin" && adminTab === "audits"} sidebarCollapsed={sidebarCollapsed} />
-              </>
-            )}
-            <SidebarItem icon="🗂️" label="Orga Links" onClick={() => router.push("/orga-links")} isActive={pathname === "/orga-links"} sidebarCollapsed={sidebarCollapsed} />
-            {can("config.edit") && (
-              <SidebarItem icon="🏢" label="Tenant/Wettkampf" onClick={() => openAdminTab("competition")} isActive={pathname === "/admin" && (adminTab === "tenant" || adminTab === "competition")} sidebarCollapsed={sidebarCollapsed} />
-            )}
-            <SidebarItem icon="⚙️" label="Orga" onClick={() => switchToTab("orga")} isActive={pathname === "/" && activeTab === "orga"} sidebarCollapsed={sidebarCollapsed} />
-            {can("team.view.all") && (
-              <SidebarItem icon="👥" label="Alle Teams" onClick={() => switchToTab("dashboard", { dashboardScope: "all" })} isActive={pathname === "/" && activeTab === "dashboard"} sidebarCollapsed={sidebarCollapsed} />
-            )}
-            {can("team.view.all") && (
-              <SidebarItem icon="🧩" label="Sportler-Börse" onClick={() => router.push("/sportlerboerse-dashboard")} isActive={pathname === "/sportlerboerse-dashboard"} sidebarCollapsed={sidebarCollapsed} />
-            )}
-          </>
-        )}
+        {navigationGroups.map((group) => (
+          <div key={group.section}>
+            <SectionLabel label={group.label} sidebarCollapsed={sidebarCollapsed} />
+            {group.items.map((item) => (
+              <SidebarItem
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                onClick={() => handleMenuSelection(item)}
+                isActive={isMenuItemActive(item)}
+                sidebarCollapsed={sidebarCollapsed}
+              />
+            ))}
+          </div>
+        ))}
 
         <SectionLabel label="Themes" sidebarCollapsed={sidebarCollapsed} />
         <div className={`${sidebarCollapsed ? "flex flex-col items-center gap-1" : "flex gap-1 justify-center px-2"}`}>
