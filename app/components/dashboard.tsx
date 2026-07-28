@@ -162,6 +162,7 @@ interface Participant {
   teamOwnerEmail?: string;
   teamCanEdit?: boolean;
   teamCategory?: string;
+  teamCompetitionYear?: number | null;
   teamRegistrationMode?: Team["registrationMode"];
   teamMarketplaceStatus?: Team["marketplaceStatus"];
   teamParticipants?: Participant[];
@@ -2722,6 +2723,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
       teamCategory: team.category,
       teamRegistrationMode: team.registrationMode,
       teamMarketplaceStatus: team.marketplaceStatus,
+      teamCompetitionYear: activeCompetition?.year ?? null,
       teamParticipants: team.participants ?? [],
     });
   };
@@ -5449,6 +5451,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           showAdminInfo={canEditAll}
           showOwnerClaimInfo={isAdmin}
           canManageTeamManagers={editingTeam.canManageTeamManagers === true}
+          competitionYear={activeCompetition?.year}
         />
       )}
       {editingMarketplaceTeam && (
@@ -5462,6 +5465,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
         <MarketplaceMatchingModal
           team={activeMarketplaceMatchingTeam}
           competitionId={activeCompetition?.id}
+          competitionYear={activeCompetition?.year}
           initialDisciplineFilter={marketplaceMatchingDisciplineFilter}
           canManageSlots={canEditAll}
           onAddParticipant={handleMarketplaceMatchingAdd}
@@ -5494,6 +5498,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
 function MarketplaceMatchingModal({
   team,
   competitionId,
+  competitionYear,
   initialDisciplineFilter,
   canManageSlots = false,
   onAddParticipant,
@@ -5505,6 +5510,7 @@ function MarketplaceMatchingModal({
 }: {
   team: Team;
   competitionId?: string;
+  competitionYear?: number | null;
   initialDisciplineFilter?: string;
   canManageSlots?: boolean;
   onAddParticipant: (targetTeamId: string, participantId: string, targetDiscipline?: string) => void | Promise<void>;
@@ -5565,6 +5571,7 @@ function MarketplaceMatchingModal({
       discipline: participant.discipline || participant.disciplineCode || "TBD",
     })),
     oldClassificationCode: team.category,
+    competitionYear,
   });
   const canFinalize =
     assignedParticipants.length === 5 &&
@@ -6185,6 +6192,7 @@ function EditMarketplaceTeamModal({ team, onSave, onCancel }: {
 // Edit Team Modal Component
 function EditTeamModal({
   team,
+  competitionYear,
   onSave,
   onCancel,
   showAdminInfo = false,
@@ -6192,6 +6200,7 @@ function EditTeamModal({
   canManageTeamManagers = false,
 }: {
   team: Team;
+  competitionYear?: number | null;
   onSave: (data: TeamEditPayload) => void | Promise<void>;
   onCancel: () => void;
   showAdminInfo?: boolean;
@@ -6234,8 +6243,9 @@ function EditTeamModal({
           discipline: participant.discipline || participant.disciplineCode || "TBD",
         })),
         oldClassificationCode: team.category,
+        competitionYear,
       }),
-    [formData.participants, formData.teamName, showAdminInfo, team.category],
+    [competitionYear, formData.participants, formData.teamName, showAdminInfo, team.category],
   );
   const blockingValidationErrors = teamDraftEvaluation.blockingErrors;
   const contactPhoneBlockingErrors = formData.contactPhone.trim()

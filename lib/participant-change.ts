@@ -291,7 +291,10 @@ export async function recalculateTeamClassification(teamId: string) {
 
   const teamWithParticipants = await prisma.team.findUnique({
     where: { id: teamId },
-    include: { participants: { where: { deletedAt: null } } },
+    include: {
+      participants: { where: { deletedAt: null } },
+      competition: { select: { year: true } },
+    },
   });
 
   if (!teamWithParticipants) {
@@ -302,7 +305,7 @@ export async function recalculateTeamClassification(teamId: string) {
     birthYear: participant.birthYear,
     gender: participant.gender as "M" | "W" | "D" | "MALE" | "FEMALE" | "DIVERSE",
   }));
-  const newClassification = classifyTeam(inputs);
+  const newClassification = classifyTeam(inputs, { competitionYear: teamWithParticipants.competition.year });
   const oldCode = teamWithParticipants.classificationCode || "unclassified";
   classificationWarnings = compareClassification(oldCode, newClassification);
 

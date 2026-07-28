@@ -127,4 +127,51 @@ const damenA = evaluate("authenticated-create", participantsFromBirthYears([1998
 assert.equal(damenA.classification.code, "damen-a");
 assert.equal(damenA.classification.isFemaleOnly, true);
 
+const schuelerA2027 = evaluateTeamDraft({
+  mode: "authenticated-create",
+  teamName: "Ammertaler 2027",
+  contactFirstName: "Tina",
+  contactLastName: "Teamlead",
+  contactEmail: "teamlead@example.test",
+  competitionYear: 2027,
+  participants: participantsFromBirthYears([2017, 2017, 2017, 2018, 2018]),
+});
+assert.equal(schuelerA2027.classification.code, "schueler-a");
+assert.equal(schuelerA2027.classification.totalAge, 48);
+
+const formerSchuelerAIn2027 = evaluateTeamDraft({
+  mode: "authenticated-create",
+  teamName: "Ammertaler Altjahrgang",
+  contactFirstName: "Tina",
+  contactLastName: "Teamlead",
+  contactEmail: "teamlead@example.test",
+  competitionYear: 2027,
+  participants: participantsFromBirthYears([2016, 2016, 2017, 2018, 2018]),
+});
+assert.equal(formerSchuelerAIn2027.classification.code, "schueler-b");
+
+const youngestSchuelerA2027 = participantsFromBirthYears([2019, 2019, 2019, 2019, 2019]);
+assert.equal(TeamRegistrationSchema.safeParse({ ...validTeamRegistration, participants: youngestSchuelerA2027 }).success, true);
+const youngestSchuelerA2027Evaluation = evaluateTeamDraft({
+  mode: "authenticated-create",
+  teamName: "Ammertaler 2027",
+  contactFirstName: "Tina",
+  contactLastName: "Teamlead",
+  contactEmail: "teamlead@example.test",
+  competitionYear: 2027,
+  participants: youngestSchuelerA2027,
+});
+assert.equal(youngestSchuelerA2027Evaluation.canSubmit, true);
+
+const tooYoungFor2026 = evaluateTeamDraft({
+  mode: "authenticated-create",
+  teamName: "Ammertaler 2026",
+  contactFirstName: "Tina",
+  contactLastName: "Teamlead",
+  contactEmail: "teamlead@example.test",
+  competitionYear: 2026,
+  participants: youngestSchuelerA2027,
+});
+assert.ok(tooYoungFor2026.blockingErrors.some((message) => message.includes("Für den Wettkampf 2026 zu jung")));
+
 console.log("team draft evaluation parity ok");

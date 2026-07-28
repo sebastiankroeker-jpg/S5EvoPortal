@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
                 startNumber: true,
                 classificationCode: true,
                 contactEmail: true,
+                competition: { select: { year: true } },
                 participants: {
                   where: { deletedAt: null },
                   select: {
@@ -224,6 +225,7 @@ export async function GET(request: NextRequest) {
               startNumber: true,
               classificationCode: true,
               contactEmail: true,
+              competition: { select: { year: true } },
               participants: {
                 where: { deletedAt: null },
                 select: {
@@ -303,6 +305,7 @@ export async function GET(request: NextRequest) {
                   startNumber: true,
                   classificationCode: true,
                   contactEmail: true,
+                  competition: { select: { year: true } },
                   participants: {
                     where: { deletedAt: null },
                     select: {
@@ -564,6 +567,7 @@ type ParticipantForApproval = {
     startNumber?: string | null;
     classificationCode?: string | null;
     contactEmail?: string | null;
+    competition: { year: number };
     participants: Array<{
       id: string;
       birthYear: number;
@@ -636,6 +640,7 @@ function decorateParticipantChange(input: {
   const projectedTeamState = evaluateTeamState(
     projectedParticipants,
     input.participant.team.classificationCode,
+    { competitionYear: input.participant.team.competition.year },
   );
   const previousClassificationCode = input.participant.team.classificationCode || "unclassified";
   const nextClassificationCode = projectedTeamState.classification.code;

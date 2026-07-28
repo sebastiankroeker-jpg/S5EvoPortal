@@ -119,6 +119,7 @@ assertIncludes(timekeepingEventsRoute, "existingSession.competitionId !== compet
 const allowedCustomCompetitionScopeRoutes = new Map<string, string>([
   ["app/api/admin/competition/route.ts", "uses requireCompetitionAdmin() after resolving selected competition id"],
   ["app/api/admin/competitions/route.ts", "lists all admin tenants for the competition switcher"],
+  ["app/api/admin/competitions/[id]/clone/route.ts", "requires tenant ADMIN and resolves the source through that tenant"],
   ["app/api/admin/home-news/route.ts", "resolves the optional competition and rechecks ADMIN in its tenant"],
   ["app/api/admin/home-news/[entryId]/route.ts", "loads the entry scope and rechecks ADMIN in its competition tenant"],
   ["app/api/admin/pending-changes/route.ts", "uses strict requireCompetitionRoles()"],
@@ -159,6 +160,7 @@ const routeScopeInventory = new Map<string, RouteScope>([
   ["app/api/admin/claim-links/route.ts", "mixed"],
   ["app/api/admin/competition/reset/route.ts", "competition"],
   ["app/api/admin/competition/route.ts", "mixed"],
+  ["app/api/admin/competitions/[id]/clone/route.ts", "tenant"],
   ["app/api/admin/competitions/route.ts", "tenant"],
   ["app/api/admin/daily-orga-export/route.ts", "competition"],
   ["app/api/admin/deleted-teams/[id]/restore/route.ts", "entity"],

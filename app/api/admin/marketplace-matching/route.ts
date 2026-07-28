@@ -662,6 +662,7 @@ export async function POST(request: NextRequest) {
       teamName: finalTeamName,
       participants: draftParticipants,
       oldClassificationCode: targetTeam.classificationCode ?? undefined,
+      competitionYear: auth.competition.year,
     });
 
     if (evaluation.blockingErrors.length > 0) {

@@ -37,8 +37,8 @@ and decision record.
   portal repository.
 - The competition-role follow-up CR is versioned at
   `docs/cr/2026-07-28-competition-scoped-role-grants.md`.
-- The legacy operational-role removal CR is locally implementation-complete
-  and awaits its separate production approval:
+- The legacy operational-role removal CR is deployed in `40d9d7a` and its
+  release record was pushed in `b218e37`:
   `docs/cr/2026-07-28-remove-legacy-operational-role-compatibility.md`.
 - This handoff was consolidated from an append-only document. The complete
   prior version is preserved at
@@ -128,12 +128,21 @@ and decision record.
    `FRIENDS` is tenant-scoped and seeded with `portal.map.view`, without admin,
    participant/contact/export, audit, timekeeping or staging permissions.
 
-6. **Competition clone / 5Kampf 2027 preparation** — Draft, medium risk.
+6. **Competition clone / 5Kampf 2027 preparation** — Local implementation
+   complete; feature release approval pending, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
-   Clone configuration, map routes and home/news into a new draft competition;
-   never clone teams, participants, contacts, results, tokens, messages,
-   audits, counters or staging data. Admin-only, source/target tenant checked
-   server-side, and production clone execution requires explicit confirmation.
+   Admin-only, transactional clone of configuration, persisted disciplines and
+   non-archived competition news into a reviewed draft;
+   no team/person/result/contact/token/message/audit/counter/staging data is
+   copied. Maps remain shared static configuration. Target dates, deadlines and
+   registration notification mail are cleared. The feature has a dry-run and
+   a typed target-name confirmation, but no code is committed/deployed and no
+   production clone has been performed. Sebastian confirmed the class policy:
+   the selected competition year drives age totals and youth cohorts, while
+   2026 remains reproducible. The 2027 matrix and the 2019 cohort boundary
+   are covered locally. Release still needs its own Go; after deployment use
+   an authenticated admin dry-run, then request a separate Go before creating
+   any production 2027 competition.
 
 ## Working method
 
@@ -160,5 +169,7 @@ and decision record.
 4. Retain the authenticated cross-competition smoke gap in the security
    release record; create controlled role test sessions before the next
    permission-sensitive release where feasible.
-5. For the next independent product CR, review the draft competition-clone
-   preparation and its separate production-data gate.
+5. For the active competition-clone CR, obtain a separate feature release
+   approval, run an authenticated admin dry-run after deployment, and keep
+   actual production target creation behind its own explicit data-mutation
+   gate.

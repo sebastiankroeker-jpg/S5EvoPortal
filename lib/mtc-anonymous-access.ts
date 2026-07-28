@@ -155,6 +155,7 @@ function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousTok
     contactEmail: team.contactEmail,
     oldClassificationCode: team.classificationCode,
     participants: draftParticipants,
+    competitionYear: team.competition.year,
   });
 
   return {
@@ -347,11 +348,12 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
     contactEmail,
     oldClassificationCode: token.team.classificationCode,
     participants: completeDraftParticipants,
+    competitionYear: token.team.competition.year,
   });
 
   const totalAge = completeDraftParticipants.reduce((sum, participant) => {
     const birthYear = extractBirthYearFromInput(participant.birthDate);
-    return sum + (birthYear ? 2026 - birthYear : 0);
+    return sum + (birthYear ? token.team.competition.year - birthYear : 0);
   }, 0);
 
   await prisma.$transaction(async (tx) => {

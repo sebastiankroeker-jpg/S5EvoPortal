@@ -34,7 +34,7 @@ import {
   type EditParticipantNotificationResult,
 } from "@/lib/participant-edit-result";
 import { recordParticipantNotificationAuditEvents } from "@/lib/participant-notification-audit";
-import { evaluateTeamState } from "@/lib/domain/classification";
+import { evaluateTeamState, getYoungestEligibleBirthYear } from "@/lib/domain/classification";
 import { prisma } from "@/lib/prisma";
 import { isShirtOrderClosed } from "@/lib/domain/shirts";
 import { isRegistrationDeadlineOpen } from "@/lib/registration-deadline";
@@ -101,6 +101,7 @@ export async function GET(
           competition: {
             select: {
               id: true,
+              year: true,
               status: true,
               shirtOrderDeadline: true,
               tenantId: true,
@@ -391,6 +392,16 @@ export async function PUT(
     );
   }
 
+  if (
+    typeof requestedSnapshot.birthYear === "number" &&
+    requestedSnapshot.birthYear > getYoungestEligibleBirthYear(participant.team.competition.year)
+  ) {
+    return NextResponse.json(
+      { error: `Für den Wettkampf ${participant.team.competition.year} ist dieser Jahrgang zu jung.` },
+      { status: 400 },
+    );
+  }
+
   const projectedTeamState = evaluateTeamState(
     participant.team.participants.map((teamParticipant) =>
       teamParticipant.id === participant.id
@@ -414,6 +425,7 @@ export async function PUT(
           }
     ),
     participant.team.classificationCode,
+    { competitionYear: participant.team.competition.year },
   );
 
   if (Object.keys(changedFields).length === 0) {

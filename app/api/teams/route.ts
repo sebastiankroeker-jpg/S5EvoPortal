@@ -887,7 +887,7 @@ export async function POST(request: NextRequest) {
             birthDate: normalizeBirthDateForStorage(participant.birthDate || ""),
           }))
           .filter(({ firstName, lastName, birthYear }) => firstName.length >= 2 && lastName.length >= 2 && birthYear !== null);
-        const totalAge = completeParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
+        const totalAge = completeParticipants.reduce((sum, entry) => sum + (competition.year - (entry.birthYear as number)), 0);
         const finalTeamName = draftData.teamName.trim();
         const marketplaceMessage = [
           "MTC-Entwurf aus unvollständiger Mannschaftsanmeldung",
@@ -1164,7 +1164,7 @@ export async function POST(request: NextRequest) {
               marketplaceStatus: "NEW",
               marketplaceMessage: marketplaceData.marketplaceMessage?.trim() || null,
               classificationCode: "sportlerboerse",
-              totalAge: 2026 - birthYear,
+              totalAge: competition.year - birthYear,
               competitionId,
               ownerId: user.id,
               teamChiefId: user.id,
@@ -1302,40 +1302,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kontaktname, Kontakt-E-Mail und Telefonnummer sind erforderlich.' }, { status: 400 });
     }
 
-    const teamEvaluation = evaluateTeamDraft({
-      mode: sessionUserEmail ? "authenticated-create" : "anonymous-create",
-      teamName: teamData.teamName,
-      contactFirstName: teamData.contactFirstName,
-      contactLastName: teamData.contactLastName,
-      contactName: userName,
-      contactEmail: userEmail,
-      participants: teamData.participants,
-    });
-    const autoCategory = teamEvaluation.classification.code;
     const finalTeamName = teamData.teamName?.trim();
 
     if (!finalTeamName || finalTeamName.length < 3) {
       return NextResponse.json({ error: 'Mannschaftsname ist erforderlich.' }, { status: 400 });
-    }
-
-    if (teamEvaluation.blockingErrors.length > 0) {
-      return NextResponse.json(
-        {
-          error: teamEvaluation.blockingErrors.join(' · '),
-          blockingErrors: teamEvaluation.blockingErrors,
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!teamEvaluation.discipline.valid) {
-      return NextResponse.json(
-        {
-          error: teamEvaluation.discipline.warnings.join(' · '),
-          disciplineWarnings: teamEvaluation.discipline.warnings,
-        },
-        { status: 409 }
-      );
     }
 
     try {
@@ -1367,6 +1337,38 @@ export async function POST(request: NextRequest) {
 
       if (!competition) {
         return NextResponse.json({ error: 'Kein aktiver Wettkampf gefunden.' }, { status: 503 });
+      }
+
+      const teamEvaluation = evaluateTeamDraft({
+        mode: sessionUserEmail ? "authenticated-create" : "anonymous-create",
+        teamName: teamData.teamName,
+        contactFirstName: teamData.contactFirstName,
+        contactLastName: teamData.contactLastName,
+        contactName: userName,
+        contactEmail: userEmail,
+        participants: teamData.participants,
+        competitionYear: competition.year,
+      });
+      const autoCategory = teamEvaluation.classification.code;
+
+      if (teamEvaluation.blockingErrors.length > 0) {
+        return NextResponse.json(
+          {
+            error: teamEvaluation.blockingErrors.join(' · '),
+            blockingErrors: teamEvaluation.blockingErrors,
+          },
+          { status: 400 },
+        );
+      }
+
+      if (!teamEvaluation.discipline.valid) {
+        return NextResponse.json(
+          {
+            error: teamEvaluation.discipline.warnings.join(' · '),
+            disciplineWarnings: teamEvaluation.discipline.warnings,
+          },
+          { status: 409 },
+        );
       }
 
       const registrationStatusAllowsSubmissions =
@@ -1439,7 +1441,7 @@ export async function POST(request: NextRequest) {
           birthDate: normalizeBirthDateForStorage(participant.birthDate),
         }))
         .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
-      const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
+      const totalAge = validParticipants.reduce((sum, entry) => sum + (competition.year - (entry.birthYear as number)), 0);
 
       // Create team with participants
       const team = await prisma.team.create({

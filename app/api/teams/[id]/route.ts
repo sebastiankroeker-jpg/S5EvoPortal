@@ -984,6 +984,7 @@ export async function PUT(
         contactEmail: existingTeam.contactEmail,
         participants: teamData.participants,
         oldClassificationCode: existingTeam.classificationCode,
+        competitionYear: existingTeam.competition.year,
       });
 
       if (requestedTeamState.blockingErrors.length > 0) {
@@ -1059,7 +1060,7 @@ export async function PUT(
           birthDate: normalizeBirthDateForStorage(participant.birthDate),
         }))
         .filter(({ participant, birthYear }) => participant.firstName && participant.lastName && birthYear !== null);
-      const totalAge = validParticipants.reduce((sum, entry) => sum + (2026 - (entry.birthYear as number)), 0);
+      const totalAge = validParticipants.reduce((sum, entry) => sum + (existingTeam.competition.year - (entry.birthYear as number)), 0);
       const matchedParticipantsResult = resolveSubmittedParticipants(teamData.participants, existingTeam.participants);
 
       if (matchedParticipantsResult.error) {

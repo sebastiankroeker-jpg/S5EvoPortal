@@ -63,6 +63,7 @@ interface Participant {
   teamId?: string;
   teamPublicationLevel?: "TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH" | null;
   teamCategory?: string;
+  teamCompetitionYear?: number | null;
   teamRegistrationMode?: "TEAM" | "MARKETPLACE";
   teamMarketplaceStatus?: "NEW" | "REVIEWED" | "MATCHING" | "MATCHED" | "WITHDRAWN";
   emailInvitation?: EmailInvitationStatus | null;
@@ -390,6 +391,7 @@ export default function ParticipantEditDialog({
   const [teamId, setTeamId] = useState<string | null>(null);
   const [teamName, setTeamName] = useState("");
   const [teamPublicationLevel, setTeamPublicationLevel] = useState<"TEAM_ANONYM" | "TEAMNAME_OEFFENTLICH" | "ALLES_OEFFENTLICH">("TEAM_ANONYM");
+  const [teamCompetitionYear, setTeamCompetitionYear] = useState<number | null>(null);
   const [teamParticipants, setTeamParticipants] = useState<TeamParticipantSnapshot[]>([]);
   const [disciplineSwapDraft, setDisciplineSwapDraft] = useState<DisciplineSwapDraft | null>(null);
   const [footerIssuesExpanded, setFooterIssuesExpanded] = useState(true);
@@ -451,10 +453,11 @@ export default function ParticipantEditDialog({
         };
       }),
       participant.teamCategory,
+      { competitionYear: teamCompetitionYear },
     ).classificationWarnings;
 
     return Array.from(new Set(warnings));
-  }, [birthDate, disciplineCode, disciplineSwapDraft, gender, moderatorNoteOnly, participant?.id, participant?.teamCategory, teamParticipants]);
+  }, [birthDate, disciplineCode, disciplineSwapDraft, gender, moderatorNoteOnly, participant?.id, participant?.teamCategory, teamCompetitionYear, teamParticipants]);
   const visibleClassificationWarnings =
     result?.classificationWarnings && result.classificationWarnings.length > 0
       ? result.classificationWarnings
@@ -509,6 +512,7 @@ export default function ParticipantEditDialog({
       setTeamId(participant.teamId || null);
       setTeamName(participant.teamName || "");
       setTeamPublicationLevel(participant.teamPublicationLevel || "TEAM_ANONYM");
+      setTeamCompetitionYear(participant.teamCompetitionYear ?? null);
       setTeamParticipants(participant.teamParticipants || []);
       setDisciplineSwapDraft(null);
       setResult(null);
@@ -542,6 +546,7 @@ export default function ParticipantEditDialog({
         setTeamId(data.teamId || data.team?.id || null);
         setTeamName(data.teamName || data.team?.name || "");
         setTeamPublicationLevel(data.teamPublicationLevel || data.team?.teamPublicationLevel || "TEAM_ANONYM");
+        setTeamCompetitionYear(data.team?.competition?.year ?? data.teamCompetitionYear ?? null);
         setTeamParticipants(Array.isArray(data.teamParticipants) ? data.teamParticipants : data.team?.participants || []);
         setDisciplineSwapDraft(null);
       } catch (err) {

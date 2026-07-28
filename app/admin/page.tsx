@@ -66,6 +66,18 @@ type CompetitionConfig = {
   publicResults: boolean;
 };
 
+type CompetitionClonePreview = {
+  source: { id: string; name: string; year: number };
+  target: { name: string; year: number; status: "DRAFT" };
+  summary: {
+    disciplines: number;
+    classifications: number;
+    homeNewsDrafts: number;
+    sharedMapRoutes: number;
+    excluded: string[];
+  };
+};
+
 type LivePublicationVisibility = "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
 type ResultDisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
 
@@ -435,8 +447,15 @@ export default function AdminPage() {
   const [participantDirectAuditEvents, setParticipantDirectAuditEvents] = useState<ParticipantDirectAuditEntry[]>([]);
   const [loadingResetMeta, setLoadingResetMeta] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<InlineFeedback | null>(null);
+  const [cloneName, setCloneName] = useState("");
+  const [cloneYear, setCloneYear] = useState(2027);
+  const [cloneConfirmationText, setCloneConfirmationText] = useState("");
+  const [clonePreview, setClonePreview] = useState<CompetitionClonePreview | null>(null);
   const hasAdminAccess = !!session && can("config.edit");
   const expectedResetConfirmationText = activeCompetition?.name || competition.name;
+  const activeCompetitionId = activeCompetition?.id;
+  const activeCompetitionName = activeCompetition?.name;
+  const activeCompetitionYear = activeCompetition?.year;
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -638,6 +657,16 @@ export default function AdminPage() {
     }
   }, [activeCompetition?.id, hasAdminAccess, loadCompetitionDetails, loadOpsSummary, loadResetMetadata, loadResultStagingBatches]);
 
+  useEffect(() => {
+    if (!activeCompetitionId || !activeCompetitionName || !activeCompetitionYear) return;
+    const targetYear = activeCompetitionYear + 1;
+    const targetName = activeCompetitionName.replace(/\b20\d{2}\b/g, String(targetYear));
+    setCloneName(targetName);
+    setCloneYear(targetYear);
+    setCloneConfirmationText("");
+    setClonePreview(null);
+  }, [activeCompetitionId, activeCompetitionName, activeCompetitionYear]);
+
   const handleSaveTenant = async () => {
     setSaving('tenant');
     try {
@@ -684,6 +713,66 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Failed to save competition:', error);
       notifications.error('Netzwerkfehler beim Speichern');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const previewCompetitionClone = async () => {
+    if (!activeCompetition?.id) {
+      notifications.error("Kein Quellwettkampf ausgewählt");
+      return;
+    }
+
+    setSaving("competition-clone-preview");
+    try {
+      const response = await fetch(`/api/admin/competitions/${activeCompetition.id}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: cloneName, year: cloneYear, dryRun: true }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notifications.error("Clone-Vorschau nicht möglich", data.error || "Bitte Eingaben prüfen.");
+        return;
+      }
+      setClonePreview(data as CompetitionClonePreview);
+      notifications.success("Clone-Vorschau erstellt", "Noch keine Daten angelegt.");
+    } catch (error) {
+      notifications.error("Clone-Vorschau nicht möglich", error instanceof Error ? error.message : "Netzwerkfehler");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const createCompetitionClone = async () => {
+    if (!activeCompetition?.id) {
+      notifications.error("Kein Quellwettkampf ausgewählt");
+      return;
+    }
+
+    setSaving("competition-clone");
+    try {
+      const response = await fetch(`/api/admin/competitions/${activeCompetition.id}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: cloneName,
+          year: cloneYear,
+          confirmationText: cloneConfirmationText,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notifications.error("Wettkampf konnte nicht angelegt werden", data.error || "Bitte Eingaben prüfen.");
+        return;
+      }
+
+      switchTo(data.competition.id);
+      notifications.success("Neuer Wettkampf als Entwurf angelegt", "Bitte Termine, Fristen und News prüfen.");
+      window.setTimeout(() => window.location.reload(), 250);
+    } catch (error) {
+      notifications.error("Wettkampf konnte nicht angelegt werden", error instanceof Error ? error.message : "Netzwerkfehler");
     } finally {
       setSaving(null);
     }
@@ -1207,6 +1296,69 @@ export default function AdminPage() {
                       </button>
                     ))}
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-primary/30">
+                <CardHeader>
+                  <CardTitle className="text-lg">Nächsten Wettkampf vorbereiten</CardTitle>
+                  <CardDescription>
+                    Erstellt aus dem aktiven Wettkampf einen neuen Entwurf. Teams, Teilnehmer, Ergebnisse, Tokens,
+                    Nachrichten, Zeitnahme, Logs und Zähler werden nie übernommen.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField label="Name des neuen Wettkampfs">
+                      <Input value={cloneName} onChange={(event) => setCloneName(event.target.value)} />
+                    </FormField>
+                    <FormField label="Jahr">
+                      <Input
+                        type="number"
+                        value={cloneYear}
+                        min={2020}
+                        max={2100}
+                        onChange={(event) => setCloneYear(parseInt(event.target.value, 10) || (activeCompetition ? activeCompetition.year + 1 : 2027))}
+                      />
+                    </FormField>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
+                    Übernommen werden Disziplinen, Klassen und Wettkampfregeln. Kartenrouten sind derzeit gemeinsame
+                    App-Konfiguration und stehen dem Entwurf ohne Datenkopie zur Verfügung. Wettkampftermine, Fristen
+                    und die Benachrichtigungsadresse werden absichtlich geleert; kopierte News bleiben Entwürfe.
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void previewCompetitionClone()}
+                      disabled={saving === "competition-clone-preview" || cloneName.trim().length < 3}
+                    >
+                      {saving === "competition-clone-preview" ? "Prüft..." : "Clone-Vorschau prüfen"}
+                    </Button>
+                  </div>
+                  {clonePreview && (
+                    <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                      <p className="font-medium">Vorschau: {clonePreview.source.name} → {clonePreview.target.name} ({clonePreview.target.year})</p>
+                      <p>
+                        {clonePreview.summary.disciplines} Disziplinen, {clonePreview.summary.classifications} Klassen,
+                        {" "}{clonePreview.summary.homeNewsDrafts} News-Entwürfe; {clonePreview.summary.sharedMapRoutes} gemeinsame Kartenrouten.
+                      </p>
+                      <p>Für das echte Anlegen exakt den Namen des neuen Wettkampfs eingeben:</p>
+                      <Input
+                        value={cloneConfirmationText}
+                        onChange={(event) => setCloneConfirmationText(event.target.value)}
+                        placeholder={cloneName}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => void createCompetitionClone()}
+                        disabled={saving === "competition-clone" || cloneConfirmationText.trim() !== cloneName.trim()}
+                      >
+                        {saving === "competition-clone" ? "Erstellt..." : "Neuen Entwurf anlegen"}
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

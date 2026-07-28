@@ -2,7 +2,11 @@ import { z } from "zod";
 import { SHIRT_SIZE_IDS, type ShirtSizeId } from "@/lib/domain/shirts";
 
 export const MIN_BIRTH_YEAR = 1901;
-export const MAX_BIRTH_YEAR = 2018;
+/**
+ * Structural input boundary only. Competition-specific minimum ages are
+ * enforced by the classification layer once the target competition is known.
+ */
+export const MAX_BIRTH_YEAR = new Date().getUTCFullYear();
 export const MIN_BIRTHDATE = `${MIN_BIRTH_YEAR}-01-01`;
 export const MAX_BIRTHDATE = `${MAX_BIRTH_YEAR}-12-31`;
 

@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCompetition } from "@/lib/competition-context";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
-import { evaluateTeamDraft, YOUTH_CLASS_YEAR_RANGES } from "@/lib/domain/classification";
+import { evaluateTeamDraft, getYouthClassificationYearRanges } from "@/lib/domain/classification";
 
 type TeamClassId =
   | "schueler-a"
@@ -54,16 +54,21 @@ const TEAM_CLASSES: { id: TeamClassId; label: string }[] = [
 
 type RegistrationMode = "TEAM" | "MARKETPLACE";
 
-const CLASS_CONFIG: Record<TeamClassId, { minYear: number; maxYear: number; gender: "M" | "W" | "mixed" }> = {
-  "schueler-a": { ...YOUTH_CLASS_YEAR_RANGES["schueler-a"], gender: "mixed" },
-  "schueler-b": { ...YOUTH_CLASS_YEAR_RANGES["schueler-b"], gender: "mixed" },
-  jugend: { ...YOUTH_CLASS_YEAR_RANGES.jugend, gender: "mixed" },
-  jungsters: { minYear: 2001, maxYear: 2004, gender: "M" },
-  herren: { minYear: 1985, maxYear: 1995, gender: "M" },
-  masters: { minYear: 1965, maxYear: 1975, gender: "M" },
-  "damen-a": { minYear: 1995, maxYear: 2001, gender: "W" },
-  "damen-b": { minYear: 1975, maxYear: 1985, gender: "W" },
-};
+function getClassConfig(competitionYear?: number | null): Record<TeamClassId, { minYear: number; maxYear: number; gender: "M" | "W" | "mixed" }> {
+  const referenceYear = competitionYear ?? 2026;
+  const youth = getYouthClassificationYearRanges(referenceYear);
+  const shift = referenceYear - 2026;
+  return {
+    "schueler-a": { ...youth["schueler-a"], gender: "mixed" },
+    "schueler-b": { ...youth["schueler-b"], gender: "mixed" },
+    jugend: { ...youth.jugend, gender: "mixed" },
+    jungsters: { minYear: 2001 + shift, maxYear: 2004 + shift, gender: "M" },
+    herren: { minYear: 1985 + shift, maxYear: 1995 + shift, gender: "M" },
+    masters: { minYear: 1965 + shift, maxYear: 1975 + shift, gender: "M" },
+    "damen-a": { minYear: 1995 + shift, maxYear: 2001 + shift, gender: "W" },
+    "damen-b": { minYear: 1975 + shift, maxYear: 1985 + shift, gender: "W" },
+  };
+}
 
 const MALE_NAMES = [
   "Max", "Stefan", "Michael", "Thomas", "Andreas", "Markus", "Christian", "Daniel", "Sebastian", "Jonas",
@@ -264,8 +269,9 @@ export default function TeamRegistration({
         contactName,
         contactEmail,
         participants,
+        competitionYear: competitionInfo?.year ?? activeCompetition?.year,
       }),
-    [contactEmail, contactFirstName, contactLastName, contactName, isAnonymousRegistration, participants, teamName],
+    [activeCompetition?.year, competitionInfo?.year, contactEmail, contactFirstName, contactLastName, contactName, isAnonymousRegistration, participants, teamName],
   );
   const liveClassification = teamDraftEvaluation.classification;
   const disciplineCheck = teamDraftEvaluation.discipline;
@@ -729,7 +735,7 @@ export default function TeamRegistration({
   };
 
   const applyTestData = (selectedClass: TeamClassId) => {
-    const config = CLASS_CONFIG[selectedClass];
+    const config = getClassConfig(competitionInfo?.year ?? activeCompetition?.year)[selectedClass];
 
     // Shuffled name pools for maximum variance + no duplicate last names
     const malePool = shuffled(MALE_NAMES);
