@@ -55,6 +55,8 @@ type CompetitionConfig = {
   registrationNotificationEmail: string;
   shirtOrderDeadline: string;
   status: string;
+  portalVisibility: "PRIVATE" | "PORTAL_USERS" | "PUBLIC";
+  registrationVisibility: "CLOSED" | "PORTAL_USERS" | "PUBLIC";
   maxTeams: number;
   teamSize: number;
   ageReferenceDate: string;
@@ -106,6 +108,18 @@ const LIVE_RESULT_DISCIPLINE_OPTIONS: Array<{ value: ResultDisciplineCode; label
   { value: "ROAD", label: "Rennrad" },
   { value: "MTB", label: "MTB" },
 ];
+
+const PORTAL_VISIBILITY_OPTIONS = [
+  { value: "PRIVATE", label: "Privat (nur berechtigte Orga)" },
+  { value: "PORTAL_USERS", label: "Portal-User (nach Login)" },
+  { value: "PUBLIC", label: "Öffentlich (ohne Login)" },
+] as const;
+
+const REGISTRATION_VISIBILITY_OPTIONS = [
+  { value: "CLOSED", label: "Geschlossen" },
+  { value: "PORTAL_USERS", label: "Portal-User (nach Login)" },
+  { value: "PUBLIC", label: "Öffentlich (ohne Login)" },
+] as const;
 
 const DEFAULT_LIVE_RESULT_DISCIPLINES: ResultDisciplineCode[] = ["RUN", "BENCH", "STOCK"];
 
@@ -422,6 +436,8 @@ export default function AdminPage() {
     registrationNotificationEmail: "",
     shirtOrderDeadline: "",
     status: "DRAFT",
+    portalVisibility: "PRIVATE",
+    registrationVisibility: "CLOSED",
     maxTeams: 120,
     teamSize: 5,
     ageReferenceDate: "2026-12-31",
@@ -513,6 +529,12 @@ export default function AdminPage() {
           registrationNotificationEmail: comp.registrationNotificationEmail || "",
           shirtOrderDeadline: comp.shirtOrderDeadline ? comp.shirtOrderDeadline.split('T')[0] : "",
           status: comp.status || "DRAFT",
+          portalVisibility: comp.portalVisibility === "PUBLIC" || comp.portalVisibility === "PORTAL_USERS" || comp.portalVisibility === "PRIVATE"
+            ? comp.portalVisibility
+            : (comp.status === "DRAFT" ? "PRIVATE" : "PUBLIC"),
+          registrationVisibility: comp.registrationVisibility === "PUBLIC" || comp.registrationVisibility === "PORTAL_USERS" || comp.registrationVisibility === "CLOSED"
+            ? comp.registrationVisibility
+            : (comp.status === "OPEN" ? "PUBLIC" : "CLOSED"),
           maxTeams: comp.maxTeams || 120,
           teamSize: comp.teamSize || 5,
           ageReferenceDate: comp.ageReferenceDate ? comp.ageReferenceDate.split('T')[0] : "",
@@ -1546,6 +1568,24 @@ export default function AdminPage() {
                         {STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>{s}</option>
                         ))}
+                      </select>
+                    </FormField>
+                    <FormField label="Portal-Sichtbarkeit" hint="Steuert Auswahl und Einzelansicht, nicht den Lebenszyklus.">
+                      <select
+                        value={competition.portalVisibility}
+                        onChange={(e) => setCompetition({ ...competition, portalVisibility: e.target.value as CompetitionConfig["portalVisibility"] })}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        {PORTAL_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </FormField>
+                    <FormField label="Anmeldesichtbarkeit" hint="Steuert, wer sich anmelden darf; Frist und Teamlimit gelten zusätzlich.">
+                      <select
+                        value={competition.registrationVisibility}
+                        onChange={(e) => setCompetition({ ...competition, registrationVisibility: e.target.value as CompetitionConfig["registrationVisibility"] })}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        {REGISTRATION_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </select>
                     </FormField>
                   </div>

@@ -38,6 +38,18 @@ enum CompetitionStatus {
   CLOSED
 }
 
+enum CompetitionPortalVisibility {
+  PRIVATE
+  PORTAL_USERS
+  PUBLIC
+}
+
+enum CompetitionRegistrationVisibility {
+  CLOSED
+  PORTAL_USERS
+  PUBLIC
+}
+
 enum DisciplineCode {
   RUN
   BENCH
@@ -548,6 +560,8 @@ model Competition {
   registrationNotificationEmail     String?
   shirtOrderDeadline                DateTime?
   status                            CompetitionStatus           @default(DRAFT)
+  portalVisibility                  CompetitionPortalVisibility?
+  registrationVisibility            CompetitionRegistrationVisibility?
   maxTeams                          Int?
   teamSize                          Int                         @default(5)
   ageReferenceDate                  DateTime?

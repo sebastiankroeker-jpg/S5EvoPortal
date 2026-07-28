@@ -1,15 +1,19 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { useSession } from "next-auth/react";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 import { readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
 import type { CompetitionClassification } from "@/lib/competition-classifications";
+import { selectDefaultCompetitionId, type CompetitionLifecycleStatus } from "@/lib/competition-visibility";
 
 type CompetitionInfo = {
   id: string;
   name: string;
   year: number;
-  status: string;
+  status: CompetitionLifecycleStatus;
+  portalVisibility?: "PRIVATE" | "PORTAL_USERS" | "PUBLIC";
+  registrationVisibility?: "CLOSED" | "PORTAL_USERS" | "PUBLIC";
   teamCount: number;
   teamOwnerFilterVisibleForTeamchef: boolean;
   participantsCanViewAllTeams: boolean;
@@ -33,12 +37,14 @@ type CompetitionContextType = {
   loading: boolean;
 };
 
-type AdminCompetitionResponseItem = {
+type VisibleCompetitionResponseItem = {
   id: string;
   name: string;
   year: number;
-  status: string;
-  _count?: { teams?: number };
+  status: CompetitionLifecycleStatus;
+  portalVisibility?: "PRIVATE" | "PORTAL_USERS" | "PUBLIC";
+  registrationVisibility?: "CLOSED" | "PORTAL_USERS" | "PUBLIC";
+  teamCount?: number;
   teamOwnerFilterVisibleForTeamchef?: boolean;
   participantsCanViewAllTeams?: boolean;
   spectatorsCanViewAllTeams?: boolean;
@@ -61,12 +67,16 @@ export function useCompetition() {
   return useContext(CompetitionContext);
 }
 
-const STORAGE_KEY = "s5evo-active-competition";
-const COMPETITIONS_CACHE_KEY = "s5evo.offline.competitions.v1";
+const STORAGE_KEY_PREFIX = "s5evo-active-competition.v2";
+const COMPETITIONS_CACHE_KEY_PREFIX = "s5evo.offline.competitions.v2";
 
 export function CompetitionProvider({ children }: { children: ReactNode }) {
+  const { data: session } = useSession();
   const { hasConsent } = usePrivacyConsent();
   const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
+  const cacheSubject = session?.user?.email ? encodeURIComponent(session.user.email.toLowerCase()) : "anonymous";
+  const storageKey = `${STORAGE_KEY_PREFIX}.${cacheSubject}`;
+  const competitionsCacheKey = `${COMPETITIONS_CACHE_KEY_PREFIX}.${cacheSubject}`;
   const [all, setAll] = useState<CompetitionInfo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,61 +87,29 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
       const applyCompetitions = (comps: CompetitionInfo[], preferredActiveId?: string | null) => {
         setAll(comps);
 
-        const stored = typeof window !== "undefined" && functionalStorageAllowed ? localStorage.getItem(STORAGE_KEY) : null;
+        const stored = typeof window !== "undefined" && functionalStorageAllowed ? localStorage.getItem(storageKey) : null;
         const candidateId = preferredActiveId ?? stored;
         const storedValid = candidateId && comps.some((c) => c.id === candidateId);
 
         if (storedValid) {
           setActiveId(candidateId);
         } else {
-          const open = comps.find((c) => c.status === "OPEN");
-          const fallback = comps[0];
-          setActiveId(open?.id ?? fallback?.id ?? null);
+          setActiveId(selectDefaultCompetitionId(comps));
         }
       };
 
       try {
-        const res = await fetch("/api/admin/competitions", { cache: "no-store" });
-        if (!res.ok) {
-          const publicRes = await fetch("/api/competition", { cache: "no-store" });
-          if (!publicRes.ok) {
-            setLoading(false);
-            return;
-          }
-
-          const data = await publicRes.json();
-          const competition = data.competition;
-          const comps: CompetitionInfo[] = competition
-            ? [{
-                id: competition.id,
-                name: competition.name,
-                year: competition.year,
-                status: competition.status,
-                teamCount: competition.teamCount ?? 0,
-                teamOwnerFilterVisibleForTeamchef: competition.teamOwnerFilterVisibleForTeamchef ?? false,
-                participantsCanViewAllTeams: competition.participantsCanViewAllTeams ?? false,
-                spectatorsCanViewAllTeams: competition.spectatorsCanViewAllTeams ?? false,
-                hideForeignTeams: competition.hideForeignTeams ?? false,
-                liveTeamsVisibility: competition.liveTeamsVisibility ?? "ADMINS",
-                liveStartlistsVisibility: competition.liveStartlistsVisibility ?? "ADMINS",
-                liveResultsVisibility: competition.liveResultsVisibility ?? "ADMINS",
-                marketplaceGlobalVisibility: competition.marketplaceGlobalVisibility ?? "SELECTIVE",
-                classifications: competition.classifications ?? [],
-              }]
-            : [];
-
-          applyCompetitions(comps);
-          writeOfflineCache(COMPETITIONS_CACHE_KEY, { competitions: comps, activeId: comps[0]?.id ?? null });
-          setLoading(false);
-          return;
-        }
+        const res = await fetch("/api/competitions", { cache: "no-store" });
+        if (!res.ok) throw new Error("Visible competitions could not be loaded");
         const data = await res.json();
-        const comps: CompetitionInfo[] = ((data.competitions || []) as AdminCompetitionResponseItem[]).map((c) => ({
+        const comps: CompetitionInfo[] = ((data.competitions || []) as VisibleCompetitionResponseItem[]).map((c) => ({
           id: c.id,
           name: c.name,
           year: c.year,
           status: c.status,
-          teamCount: c._count?.teams ?? 0,
+          portalVisibility: c.portalVisibility,
+          registrationVisibility: c.registrationVisibility,
+          teamCount: c.teamCount ?? 0,
           teamOwnerFilterVisibleForTeamchef: c.teamOwnerFilterVisibleForTeamchef ?? false,
           participantsCanViewAllTeams: c.participantsCanViewAllTeams ?? false,
           spectatorsCanViewAllTeams: c.spectatorsCanViewAllTeams ?? false,
@@ -144,12 +122,16 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
         }));
         applyCompetitions(comps);
         const activeCompetitionId = typeof window !== "undefined" && functionalStorageAllowed
-          ? localStorage.getItem(STORAGE_KEY)
+          ? localStorage.getItem(storageKey)
           : null;
-        writeOfflineCache(COMPETITIONS_CACHE_KEY, { competitions: comps, activeId: activeCompetitionId });
+        if (functionalStorageAllowed) {
+          localStorage.removeItem("s5evo-active-competition");
+          localStorage.removeItem("s5evo.offline.competitions.v1");
+          writeOfflineCache(competitionsCacheKey, { competitions: comps, activeId: activeCompetitionId });
+        }
       } catch (err) {
         console.error("Failed to load competitions:", err);
-        const cached = readOfflineCache<{ competitions: CompetitionInfo[]; activeId?: string | null }>(COMPETITIONS_CACHE_KEY);
+        const cached = readOfflineCache<{ competitions: CompetitionInfo[]; activeId?: string | null }>(competitionsCacheKey);
         if (cached?.data.competitions?.length) {
           applyCompetitions(cached.data.competitions, cached.data.activeId ?? null);
         }
@@ -157,16 +139,16 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     })();
-  }, [functionalStorageAllowed]);
+  }, [competitionsCacheKey, functionalStorageAllowed, storageKey]);
 
   const switchTo = useCallback(
     (id: string) => {
       setActiveId(id);
       if (typeof window !== "undefined" && functionalStorageAllowed) {
-        localStorage.setItem(STORAGE_KEY, id);
+        localStorage.setItem(storageKey, id);
       }
     },
-    [functionalStorageAllowed]
+    [functionalStorageAllowed, storageKey]
   );
 
   const active = all.find((c) => c.id === activeId) ?? null;

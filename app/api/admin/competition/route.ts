@@ -46,6 +46,16 @@ function normalizeLivePublicationVisibility(value: unknown) {
     : "ADMINS";
 }
 
+function normalizePortalVisibility(value: unknown) {
+  const values = ["PRIVATE", "PORTAL_USERS", "PUBLIC"] as const;
+  return values.includes(value as (typeof values)[number]) ? value as (typeof values)[number] : "PRIVATE";
+}
+
+function normalizeRegistrationVisibility(value: unknown) {
+  const values = ["CLOSED", "PORTAL_USERS", "PUBLIC"] as const;
+  return values.includes(value as (typeof values)[number]) ? value as (typeof values)[number] : "CLOSED";
+}
+
 async function loadCompetition(competitionId: string) {
   const competition = await prisma.competition.findUnique({
     where: { id: competitionId },
@@ -129,6 +139,8 @@ export async function PUT(request: NextRequest) {
     const liveStartlistsVisibility = normalizeLivePublicationVisibility(body.liveStartlistsVisibility);
     const liveResultsVisibility = normalizeLivePublicationVisibility(body.liveResultsVisibility);
     const liveResultsDisciplines = normalizeLiveResultDisciplines(body.liveResultsDisciplines);
+    const portalVisibility = normalizePortalVisibility(body.portalVisibility);
+    const registrationVisibility = normalizeRegistrationVisibility(body.registrationVisibility);
 
     try {
       const scopedCompetition = await loadCompetition(auth.competitionId);
@@ -178,6 +190,12 @@ export async function PUT(request: NextRequest) {
             ? parseDateInputEndOfDay(body.shirtOrderDeadline)
             : currentCompetition.shirtOrderDeadline,
           status: body.status || currentCompetition.status,
+          portalVisibility: body.portalVisibility !== undefined
+            ? portalVisibility
+            : currentCompetition.portalVisibility,
+          registrationVisibility: body.registrationVisibility !== undefined
+            ? registrationVisibility
+            : currentCompetition.registrationVisibility,
           maxTeams: body.maxTeams !== undefined ? parseInt(body.maxTeams) || null : currentCompetition.maxTeams,
           teamSize: body.teamSize !== undefined ? parseInt(body.teamSize) || 5 : currentCompetition.teamSize,
           ageReferenceDate: body.ageReferenceDate ? new Date(body.ageReferenceDate) : currentCompetition.ageReferenceDate,

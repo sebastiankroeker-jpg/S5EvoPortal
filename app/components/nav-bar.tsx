@@ -14,6 +14,7 @@ import { usePermissions } from "@/lib/permissions-context";
 import { getSimulatableRoles } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
+import { useCompetition } from "@/lib/competition-context";
 import { Check, EllipsisVertical, FlaskConical, LogOut, Map, MessageCircle, Search, Sparkles, UserCircle2 } from "lucide-react";
 import SearchOverlay from "./search-overlay";
 import { FIVE_KAMPF_BRAND } from "@/lib/brand-assets";
@@ -33,6 +34,7 @@ export default function NavBar() {
   const { theme, setTheme, sparkleEnabled, toggleSparkle } = useTheme();
   const { activeRole, roles, setSimulatedRole, isSimulating } = usePermissions();
   const { hasConsent } = usePrivacyConsent();
+  const { active: activeCompetition, all: visibleCompetitions, switchTo } = useCompetition();
   const functionalStorageAllowed = hasConsent("FUNCTIONAL_STORAGE");
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -206,6 +208,24 @@ export default function NavBar() {
             </>
           )}
         </div>
+        {visibleCompetitions.length > 1 && (
+          <label className="min-w-0">
+            <span className="sr-only">Aktiven Wettkampf auswählen</span>
+            <select
+              value={activeCompetition?.id ?? ""}
+              onChange={(event) => switchTo(event.target.value)}
+              className="h-7 max-w-28 rounded-full border border-border/60 bg-background/95 px-2 text-[11px] font-medium text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/30 sm:max-w-52"
+              aria-label="Aktiven Wettkampf auswählen"
+              title="Aktiven Wettkampf auswählen"
+            >
+              {visibleCompetitions.map((competition) => (
+                <option key={competition.id} value={competition.id}>
+                  {competition.name} · {competition.status}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {showChangelogLink && (
           <Link
             href="/changelog"

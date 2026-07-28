@@ -213,6 +213,7 @@ const routeScopeInventory = new Map<string, RouteScope>([
   ["app/api/auth/federated-logout/route.ts", "framework"],
   ["app/api/claim/[token]/route.ts", "capability"],
   ["app/api/competition/route.ts", "public"],
+  ["app/api/competitions/route.ts", "public"],
   ["app/api/cron/daily-orga-export/route.ts", "secret"],
   ["app/api/dashboard-layouts/[id]/route.ts", "entity"],
   ["app/api/dashboard-layouts/route.ts", "mixed"],

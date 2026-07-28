@@ -36,6 +36,7 @@ import {
 } from '@/lib/team-access-config';
 import { resolveTeamAccess } from '@/lib/team-manager-access';
 import { syncDerivedTeamchefRole } from '@/lib/teamchef-role';
+import { canViewerReadCompetition, canViewerRegisterForCompetition } from '@/lib/competition-visibility';
 import type { Prisma } from '@prisma/client';
 
 // Map frontend gender ("M"/"W") to Prisma enum
@@ -374,49 +375,22 @@ function serializeTeam(
   };
 }
 
-async function ensureDefaultCompetition(): Promise<string> {
-  const currentCompetition = await prisma.competition.findFirst({
-    where: { status: "OPEN" },
-    orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
-  });
+function isExplicitCompetitionId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
 
-  if (currentCompetition) {
-    return currentCompetition.id;
-  }
-
-  let tenant = await prisma.tenant.findFirst({
-    orderBy: { createdAt: 'desc' },
-  });
-  if (!tenant) {
-    tenant = await prisma.tenant.create({
-      data: {
-        name: "ESV Rosenheim",
-        slug: "esv-rosenheim",
-        primaryColor: "#dc2626",
-      }
-    });
-  }
-
-  let competition = await prisma.competition.findFirst({
-    where: { tenantId: tenant.id },
-    orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
-  });
-  if (!competition) {
-    competition = await prisma.competition.create({
-      data: {
-        name: "Mannschafts-5-Kampf 2026",
-        year: 2026,
-        date: new Date("2026-07-24T00:00:00.000Z"),
-        dateEnd: new Date("2026-07-25T00:00:00.000Z"),
-        registrationDeadline: new Date("2026-07-22T23:59:59.999Z"),
-        status: "OPEN",
-        location: "Bad Bayersoien",
-        tenantId: tenant.id,
-      }
-    });
-  }
-
-  return competition.id;
+function registrationAccessAllowed(
+  competition: {
+    status: "DRAFT" | "OPEN" | "RUNNING" | "CLOSED";
+    portalVisibility: "PRIVATE" | "PORTAL_USERS" | "PUBLIC" | null;
+    registrationVisibility: "CLOSED" | "PORTAL_USERS" | "PUBLIC" | null;
+    tenant: { publicPortalRegistrationEnabled: boolean };
+  },
+  authenticated: boolean,
+) {
+  return competition.tenant.publicPortalRegistrationEnabled
+    && canViewerReadCompetition(competition, { authenticated })
+    && canViewerRegisterForCompetition(competition, { authenticated });
 }
 
 export async function GET(request: NextRequest) {
@@ -785,6 +759,10 @@ export async function POST(request: NextRequest) {
         : null;
 
     const body = await request.json();
+    if (!isExplicitCompetitionId(body?.competitionId)) {
+      return NextResponse.json({ error: "Bitte wähle einen Wettkampf für die Anmeldung aus." }, { status: 400 });
+    }
+    const requestedCompetitionId = body.competitionId;
 
     if (body?.registrationMode === "MARKETPLACE" && body?.marketplaceDraftType === "MTC") {
       const validation = MtcDraftRegistrationSchema.safeParse(body);
@@ -809,7 +787,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const competitionId = await ensureDefaultCompetition();
+        const competitionId = requestedCompetitionId;
         const competition = await prisma.competition.findUnique({
           where: { id: competitionId },
           select: {
@@ -819,6 +797,8 @@ export async function POST(request: NextRequest) {
             date: true,
             dateEnd: true,
             status: true,
+            portalVisibility: true,
+            registrationVisibility: true,
             registrationDeadline: true,
             claimTokenExpiryMode: true,
             claimTokenTtlDays: true,
@@ -827,6 +807,7 @@ export async function POST(request: NextRequest) {
               select: {
                 name: true,
                 contactEmail: true,
+                publicPortalRegistrationEnabled: true,
               },
             },
           },
@@ -836,8 +817,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Kein aktiver Wettkampf gefunden.' }, { status: 503 });
         }
 
-        const registrationStatusAllowsSubmissions =
-          competition.status === "DRAFT" || competition.status === "OPEN";
+        const registrationStatusAllowsSubmissions = registrationAccessAllowed(competition, Boolean(sessionUserEmail));
 
         if (!registrationStatusAllowsSubmissions) {
           return NextResponse.json(
@@ -1060,7 +1040,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const competitionId = await ensureDefaultCompetition();
+        const competitionId = requestedCompetitionId;
         const competition = await prisma.competition.findUnique({
           where: { id: competitionId },
           select: {
@@ -1070,6 +1050,8 @@ export async function POST(request: NextRequest) {
             date: true,
             dateEnd: true,
             status: true,
+            portalVisibility: true,
+            registrationVisibility: true,
             registrationDeadline: true,
             claimTokenExpiryMode: true,
             claimTokenTtlDays: true,
@@ -1078,6 +1060,7 @@ export async function POST(request: NextRequest) {
               select: {
                 name: true,
                 contactEmail: true,
+                publicPortalRegistrationEnabled: true,
               },
             },
           },
@@ -1087,8 +1070,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Kein aktiver Wettkampf gefunden.' }, { status: 503 });
         }
 
-        const registrationStatusAllowsSubmissions =
-          competition.status === "DRAFT" || competition.status === "OPEN";
+        const registrationStatusAllowsSubmissions = registrationAccessAllowed(competition, Boolean(sessionUserEmail));
 
         if (!registrationStatusAllowsSubmissions) {
           return NextResponse.json(
@@ -1309,8 +1291,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Ensure default competition exists
-      const competitionId = await ensureDefaultCompetition();
+      const competitionId = requestedCompetitionId;
       const competition = await prisma.competition.findUnique({
         where: { id: competitionId },
         select: {
@@ -1320,6 +1301,8 @@ export async function POST(request: NextRequest) {
           date: true,
           dateEnd: true,
           status: true,
+          portalVisibility: true,
+          registrationVisibility: true,
           registrationDeadline: true,
           claimTokenExpiryMode: true,
           claimTokenTtlDays: true,
@@ -1344,6 +1327,7 @@ export async function POST(request: NextRequest) {
             select: {
               name: true,
               contactEmail: true,
+              publicPortalRegistrationEnabled: true,
             },
           },
         },
@@ -1386,8 +1370,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const registrationStatusAllowsSubmissions =
-        competition.status === "DRAFT" || competition.status === "OPEN";
+      const registrationStatusAllowsSubmissions = registrationAccessAllowed(competition, Boolean(sessionUserEmail));
 
       if (!registrationStatusAllowsSubmissions) {
         return NextResponse.json(

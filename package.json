@@ -22,6 +22,7 @@
     "verify:team-draft": "tsx scripts/verify-team-draft-evaluation.ts",
     "verify:competition-classifications": "tsx scripts/verify-competition-classifications.ts",
     "verify:combined-class-ranking": "tsx scripts/verify-combined-class-ranking.ts",
+    "verify:competition-visibility": "tsx scripts/verify-competition-visibility.ts",
     "verify:results-start-number-visibility": "tsx scripts/verify-results-start-number-visibility.ts",
     "verify:participant-edit-flow": "tsx scripts/verify-participant-edit-flow.ts",
     "db:migrate": "prisma migrate dev",

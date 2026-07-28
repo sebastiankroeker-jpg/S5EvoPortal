@@ -112,6 +112,8 @@ type PublicCompetitionInfo = {
   name: string;
   year: number;
   status: string;
+  portalVisibility?: "PRIVATE" | "PORTAL_USERS" | "PUBLIC";
+  registrationVisibility?: "CLOSED" | "PORTAL_USERS" | "PUBLIC";
   registrationDeadline: string | null;
   shirtOrderDeadline: string | null;
   maxTeams: number | null;
@@ -126,7 +128,7 @@ function isRegistrationDeadlineReached(deadline?: string | null) {
   return new Date(deadline) < new Date();
 }
 
-function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) {
+function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null, authenticated: boolean) {
   if (!competition) {
     return {
       availabilityLabel: "prüfen",
@@ -139,13 +141,18 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
   const teamLimitReached = Boolean(
     competition.maxTeams && competition.maxTeams > 0 && (competition.teamCount ?? 0) >= competition.maxTeams,
   );
-  const statusAllowsRegistration = competition.status === "DRAFT" || competition.status === "OPEN";
+  const registrationVisibility = competition.registrationVisibility
+    ?? (competition.status === "OPEN" ? "PUBLIC" : "CLOSED");
+  const statusAllowsRegistration = registrationVisibility === "PUBLIC"
+    || (registrationVisibility === "PORTAL_USERS" && authenticated);
 
   if (!statusAllowsRegistration) {
     return {
       availabilityLabel: "geschlossen",
       canRegister: false,
-      detail: "Die Anmeldung ist in diesem Wettkampfstatus nicht mehr offen.",
+      detail: registrationVisibility === "PORTAL_USERS"
+        ? "Die Anmeldung ist nur nach Portal-Login geöffnet."
+        : "Die Anmeldung ist für diesen Wettkampf aktuell geschlossen.",
     };
   }
 
@@ -169,9 +176,9 @@ function getPublicRegistrationStatus(competition: PublicCompetitionInfo | null) 
     availabilityLabel: "offen",
     canRegister: true,
     detail:
-      competition.status === "DRAFT"
-        ? "Die Anmeldung ist aktuell als Simulation für Tests geöffnet."
-        : "Die Anmeldung ist aktuell geöffnet.",
+      registrationVisibility === "PORTAL_USERS"
+        ? "Die Anmeldung ist für eingeloggte Portal-User geöffnet."
+        : "Die Anmeldung ist aktuell öffentlich geöffnet.",
   };
 }
 
@@ -349,7 +356,10 @@ export default function TeamRegistration({
 
   const disciplineSummary = useMemo(() => summarizeDisciplines(participants), [participants]);
   const shirtOrderClosed = useMemo(() => isShirtOrderClosed(competitionInfo?.shirtOrderDeadline), [competitionInfo?.shirtOrderDeadline]);
-  const publicRegistrationStatus = useMemo(() => getPublicRegistrationStatus(competitionInfo), [competitionInfo]);
+  const publicRegistrationStatus = useMemo(
+    () => getPublicRegistrationStatus(competitionInfo, Boolean(session?.user?.email)),
+    [competitionInfo, session?.user?.email],
+  );
   const showTestDataTools = !isAnonymousRegistration && competitionInfo?.status === "DRAFT";
   const completedParticipantCount = participants.filter((participant) => participant.firstName && participant.lastName).length;
   const publicationLabel = TEAM_PUBLICATION_OPTIONS.find((option) => option.id === watch("teamPublicationLevel"))?.label || "-";
@@ -539,6 +549,7 @@ export default function TeamRegistration({
           marketplaceVisibility,
           participantPublicationPreference: marketplaceParticipantPublication,
           marketplaceMessage,
+          competitionId: activeCompetition?.id,
         }),
       });
 
@@ -618,6 +629,7 @@ export default function TeamRegistration({
           participants: values.participants,
           marketplaceVisibility: "ADMIN_MANAGEMENT_ONLY",
           marketplaceMessage: "Aus der Mannschaftsanmeldung als unvollständiger MTC-Entwurf gespeichert.",
+          competitionId: activeCompetition?.id,
         }),
       });
 
@@ -675,6 +687,7 @@ export default function TeamRegistration({
           contactName: effectiveContactName,
           contactEmail: effectiveContactEmail,
           contactPhone: values.contactPhone.trim(),
+          competitionId: activeCompetition?.id,
         }),
       });
 
@@ -791,9 +804,14 @@ export default function TeamRegistration({
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className={isMarketplacePresentation ? "text-xl" : "text-lg"}>
-              {isMarketplaceRegistration ? "Sportlerbörse" : "Mannschaftsanmeldung"}
-            </CardTitle>
+            <div>
+              <CardTitle className={isMarketplacePresentation ? "text-xl" : "text-lg"}>
+                {isMarketplaceRegistration ? "Sportlerbörse" : "Mannschaftsanmeldung"}
+              </CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Wettkampf: {competitionInfo?.name ?? activeCompetition?.name ?? "wird geladen"}
+              </p>
+            </div>
             <Badge variant="outline" className="text-sm px-3 py-1">Schritt {step}/3</Badge>
           </div>
         </CardHeader>
