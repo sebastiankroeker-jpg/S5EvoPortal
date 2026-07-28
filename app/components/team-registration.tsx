@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { useCompetition } from "@/lib/competition-context";
 import { SHIRT_SIZES, isShirtOrderClosed } from "@/lib/domain/shirts";
 import { evaluateTeamDraft, getYouthClassificationYearRanges } from "@/lib/domain/classification";
+import type { CompetitionClassification } from "@/lib/competition-classifications";
 
 type TeamClassId =
   | "schueler-a"
@@ -117,6 +118,7 @@ type PublicCompetitionInfo = {
   teamSize: number;
   location: string | null;
   teamCount: number | null;
+  classifications: CompetitionClassification[];
 };
 
 function isRegistrationDeadlineReached(deadline?: string | null) {
@@ -270,8 +272,9 @@ export default function TeamRegistration({
         contactEmail,
         participants,
         competitionYear: competitionInfo?.year ?? activeCompetition?.year,
+        classifications: competitionInfo?.classifications,
       }),
-    [activeCompetition?.year, competitionInfo?.year, contactEmail, contactFirstName, contactLastName, contactName, isAnonymousRegistration, participants, teamName],
+    [activeCompetition?.year, competitionInfo?.classifications, competitionInfo?.year, contactEmail, contactFirstName, contactLastName, contactName, isAnonymousRegistration, participants, teamName],
   );
   const liveClassification = teamDraftEvaluation.classification;
   const disciplineCheck = teamDraftEvaluation.discipline;

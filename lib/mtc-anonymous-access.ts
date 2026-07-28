@@ -156,6 +156,7 @@ function toPublicTeam(tokenRecord: Awaited<ReturnType<typeof loadMtcAnonymousTok
     oldClassificationCode: team.classificationCode,
     participants: draftParticipants,
     competitionYear: team.competition.year,
+    classifications: team.competition.classifications,
   });
 
   return {
@@ -195,6 +196,13 @@ export async function loadMtcAnonymousToken(token: string) {
             select: {
               name: true,
               year: true,
+              classifications: {
+                select: {
+                  code: true, name: true, type: true, minAge: true, maxAge: true,
+                  genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true,
+                },
+                orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+              },
               tenant: { select: { claimLinksEnabled: true } },
             },
           },
@@ -349,6 +357,7 @@ export async function updateMtcAnonymousTeam(request: NextRequest, rawToken: str
     oldClassificationCode: token.team.classificationCode,
     participants: completeDraftParticipants,
     competitionYear: token.team.competition.year,
+    classifications: token.team.competition.classifications,
   });
 
   const totalAge = completeDraftParticipants.reduce((sum, participant) => {

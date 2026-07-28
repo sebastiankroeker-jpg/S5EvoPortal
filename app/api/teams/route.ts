@@ -1325,6 +1325,20 @@ export async function POST(request: NextRequest) {
           claimTokenTtlDays: true,
           shirtOrderDeadline: true,
           maxTeams: true,
+          classifications: {
+            select: {
+              code: true,
+              name: true,
+              type: true,
+              minAge: true,
+              maxAge: true,
+              genderRestriction: true,
+              sourceClassCodes: true,
+              sortOrder: true,
+              displayEmoji: true,
+            },
+            orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+          },
           registrationNotificationEmail: true,
           tenant: {
             select: {
@@ -1348,6 +1362,7 @@ export async function POST(request: NextRequest) {
         contactEmail: userEmail,
         participants: teamData.participants,
         competitionYear: competition.year,
+        classifications: competition.classifications,
       });
       const autoCategory = teamEvaluation.classification.code;
 

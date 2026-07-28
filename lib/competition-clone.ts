@@ -44,8 +44,8 @@ async function loadSource(client: CloneClient, tenantId: string, sourceCompetiti
         orderBy: { code: "asc" },
       },
       classifications: {
-        select: { code: true, name: true, type: true, minAge: true, maxAge: true, genderRestriction: true, sourceClassCodes: true },
-        orderBy: { code: "asc" },
+        select: { code: true, name: true, type: true, minAge: true, maxAge: true, genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true },
+        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
       },
       homeNewsEntries: {
         where: { status: { not: "ARCHIVED" }, archivedAt: null },
@@ -155,6 +155,8 @@ export async function cloneCompetition(input: {
             maxAge: classification.maxAge,
             genderRestriction: classification.genderRestriction,
             sourceClassCodes: classification.sourceClassCodes,
+            sortOrder: classification.sortOrder,
+            displayEmoji: classification.displayEmoji,
           })),
         },
         homeNewsEntries: {

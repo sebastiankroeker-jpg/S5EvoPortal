@@ -14,6 +14,7 @@ import {
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { requireCompetitionRoles } from "@/lib/server-permissions";
+import type { CompetitionClassification } from "@/lib/competition-classifications";
 
 // GET /api/admin/pending-changes — Änderungsanträge für das Admin-Dashboard
 export async function GET(request: NextRequest) {
@@ -124,7 +125,15 @@ export async function GET(request: NextRequest) {
                 startNumber: true,
                 classificationCode: true,
                 contactEmail: true,
-                competition: { select: { year: true } },
+                competition: {
+                  select: {
+                    year: true,
+                    classifications: {
+                      select: { code: true, name: true, type: true, minAge: true, maxAge: true, genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true },
+                      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+                    },
+                  },
+                },
                 participants: {
                   where: { deletedAt: null },
                   select: {
@@ -225,7 +234,15 @@ export async function GET(request: NextRequest) {
               startNumber: true,
               classificationCode: true,
               contactEmail: true,
-              competition: { select: { year: true } },
+              competition: {
+                select: {
+                  year: true,
+                  classifications: {
+                    select: { code: true, name: true, type: true, minAge: true, maxAge: true, genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true },
+                    orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+                  },
+                },
+              },
               participants: {
                 where: { deletedAt: null },
                 select: {
@@ -305,7 +322,15 @@ export async function GET(request: NextRequest) {
                   startNumber: true,
                   classificationCode: true,
                   contactEmail: true,
-                  competition: { select: { year: true } },
+                  competition: {
+                    select: {
+                      year: true,
+                      classifications: {
+                        select: { code: true, name: true, type: true, minAge: true, maxAge: true, genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true },
+                        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+                      },
+                    },
+                  },
                   participants: {
                     where: { deletedAt: null },
                     select: {
@@ -567,7 +592,7 @@ type ParticipantForApproval = {
     startNumber?: string | null;
     classificationCode?: string | null;
     contactEmail?: string | null;
-    competition: { year: number };
+    competition: { year: number; classifications: CompetitionClassification[] };
     participants: Array<{
       id: string;
       birthYear: number;
@@ -640,7 +665,10 @@ function decorateParticipantChange(input: {
   const projectedTeamState = evaluateTeamState(
     projectedParticipants,
     input.participant.team.classificationCode,
-    { competitionYear: input.participant.team.competition.year },
+    {
+      competitionYear: input.participant.team.competition.year,
+      classifications: input.participant.team.competition.classifications,
+    },
   );
   const previousClassificationCode = input.participant.team.classificationCode || "unclassified";
   const nextClassificationCode = projectedTeamState.classification.code;

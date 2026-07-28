@@ -166,6 +166,7 @@ const routeScopeInventory = new Map<string, RouteScope>([
   ["app/api/admin/changelog-entries/route.ts", "global"],
   ["app/api/admin/claim-audit/route.ts", "competition"],
   ["app/api/admin/claim-links/route.ts", "mixed"],
+  ["app/api/admin/competition/classifications/route.ts", "competition"],
   ["app/api/admin/competition/reset/route.ts", "competition"],
   ["app/api/admin/competition/route.ts", "mixed"],
   ["app/api/admin/competitions/[id]/clone/route.ts", "tenant"],

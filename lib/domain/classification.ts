@@ -9,6 +9,11 @@ import {
   extractBirthYearFromInput,
   type DisciplineSelection,
 } from "@/lib/domain/team";
+import {
+  LEGACY_COMPETITION_CLASSIFICATIONS,
+  resolveCompetitionClassifications,
+  type CompetitionClassification,
+} from "@/lib/competition-classifications";
 
 export const DEFAULT_COMPETITION_YEAR = 2026;
 
@@ -20,6 +25,8 @@ export interface ClassificationInput {
 export type ClassificationOptions = {
   /** Calendar/reference year of the selected competition. Defaults to 2026 for legacy callers. */
   competitionYear?: number | null;
+  /** Persisted competition rules. Empty older competitions retain the legacy fallback until backfilled. */
+  classifications?: readonly CompetitionClassification[] | null;
 };
 
 export interface ClassificationResult {
@@ -73,6 +80,7 @@ export type TeamDraftEvaluationInput = {
   participants?: TeamDraftParticipantInput[] | null;
   oldClassificationCode?: string | null;
   competitionYear?: number | null;
+  classifications?: readonly CompetitionClassification[] | null;
 };
 
 export type TeamDraftEvaluation = TeamStateEvaluation & {
@@ -89,8 +97,16 @@ function normalizeCompetitionYear(value?: number | null) {
     : DEFAULT_COMPETITION_YEAR;
 }
 
-export function getYoungestEligibleBirthYear(competitionYear?: number | null) {
-  return normalizeCompetitionYear(competitionYear) - 8;
+export function getYoungestEligibleBirthYear(
+  competitionYear?: number | null,
+  classifications?: readonly CompetitionClassification[] | null,
+) {
+  const youngestAge = resolveCompetitionClassifications(classifications)
+    .filter((entry) => entry.type === "AGE_INDIVIDUAL")
+    .reduce<number | null>((current, entry) =>
+      entry.minAge === null ? current : current === null ? entry.minAge : Math.min(current, entry.minAge),
+    null);
+  return normalizeCompetitionYear(competitionYear) - (youngestAge ?? 8);
 }
 
 export function getYouthClassificationYearRanges(competitionYear?: number | null) {
@@ -110,17 +126,13 @@ function youthClassDescription(code: keyof typeof YOUTH_CLASS_YEAR_RANGES, compe
   return `Ältester Jg. ${range.minYear}–${range.maxYear}`;
 }
 
-export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; desc: string }> = {
-  "schueler-a": { label: "Schüler A", emoji: "SA", desc: youthClassDescription("schueler-a") },
-  "schueler-b": { label: "Schüler B", emoji: "SB", desc: youthClassDescription("schueler-b") },
-  "jugend": { label: "Jugend", emoji: "J", desc: youthClassDescription("jugend") },
-  "jungsters": { label: "Jungsters", emoji: "HA", desc: "Gesamtalter ≤ 125" },
-  "herren": { label: "Herren", emoji: "HB", desc: "Gesamtalter 126–225" },
-  "masters": { label: "Masters", emoji: "HC", desc: "Gesamtalter ≥ 226" },
-  "damen-a": { label: "Damen A", emoji: "DA", desc: "Nur Frauen, ≤ 150" },
-  "damen-b": { label: "Damen B", emoji: "DB", desc: "Nur Frauen, > 150" },
-  "unclassified": { label: "Unklassifiziert", emoji: "❓", desc: "Unvollständig" },
-};
+export const CLASSIFICATIONS: Record<string, { label: string; emoji: string; desc: string }> = Object.fromEntries(
+  LEGACY_COMPETITION_CLASSIFICATIONS.map((entry) => [
+    entry.code,
+    { label: entry.name, emoji: entry.displayEmoji ?? "", desc: entry.name },
+  ]),
+) as Record<string, { label: string; emoji: string; desc: string }>;
+CLASSIFICATIONS.unclassified = { label: "Unklassifiziert", emoji: "❓", desc: "Unvollständig" };
 
 export const CLASSIFICATION_DISPLAY_ORDER = [
   "schueler-a",
@@ -149,21 +161,37 @@ function isFemale(gender: string): boolean {
   return gender === "W" || gender === "FEMALE";
 }
 
-function getYouthClassificationCodeByOldestBirthYear(birthYears: number[], competitionYear: number) {
-  const ranges = getYouthClassificationYearRanges(competitionYear);
-  const youngestYouthYear = ranges["schueler-a"].maxYear;
-  const oldestYouthYear = ranges.jugend.minYear;
+function matchesAgeRange(age: number, entry: CompetitionClassification) {
+  return (entry.minAge === null || age >= entry.minAge) && (entry.maxAge === null || age <= entry.maxAge);
+}
 
-  if (!birthYears.every((year) => year >= oldestYouthYear && year <= youngestYouthYear)) {
-    return null;
-  }
+function classificationMetadata(code: string, definitions: readonly CompetitionClassification[]) {
+  const entry = definitions.find((definition) => definition.code === code);
+  if (entry) return { label: entry.name, emoji: entry.displayEmoji ?? "" };
+  return CLASSIFICATIONS[code] ?? { label: code, emoji: "❓" };
+}
 
-  const oldestBirthYear = Math.min(...birthYears);
-  const matchingEntry = Object.entries(ranges).find(([, range]) =>
-    oldestBirthYear >= range.minYear && oldestBirthYear <= range.maxYear
-  );
+function findYouthClassification(ages: number[], definitions: readonly CompetitionClassification[]) {
+  const youth = definitions.filter((entry) => entry.type === "AGE_INDIVIDUAL");
+  if (youth.length === 0) return null;
+  if (!ages.every((age) => youth.some((entry) => matchesAgeRange(age, entry)))) return null;
 
-  return matchingEntry?.[0] ?? null;
+  const oldestParticipantAge = Math.max(...ages);
+  return youth.find((entry) => matchesAgeRange(oldestParticipantAge, entry)) ?? null;
+}
+
+function findTeamClassification(
+  totalAge: number,
+  isFemaleOnly: boolean,
+  definitions: readonly CompetitionClassification[],
+) {
+  const teamRules = definitions.filter((entry) => entry.type === "AGE_TEAM");
+  const femaleMatch = isFemaleOnly
+    ? teamRules.find((entry) => entry.genderRestriction === "FEMALE_ONLY" && matchesAgeRange(totalAge, entry))
+    : null;
+  if (femaleMatch) return femaleMatch;
+
+  return teamRules.find((entry) => entry.genderRestriction === null && matchesAgeRange(totalAge, entry)) ?? null;
 }
 
 /**
@@ -172,6 +200,7 @@ function getYouthClassificationCodeByOldestBirthYear(birthYears: number[], compe
  */
 export function classifyTeam(participants: ClassificationInput[], options: ClassificationOptions = {}): ClassificationResult {
   const competitionYear = normalizeCompetitionYear(options.competitionYear);
+  const definitions = resolveCompetitionClassifications(options.classifications);
   const warnings: string[] = [];
   const infoMessages: string[] = [];
   const valid = participants.filter(p => p.birthYear > 1900);
@@ -191,31 +220,26 @@ export function classifyTeam(participants: ClassificationInput[], options: Class
 
   const ages = valid.map(p => competitionYear - p.birthYear);
   const totalAge = ages.reduce((sum, age) => sum + age, 0);
-  const birthYears = valid.map(p => p.birthYear);
   const isFemaleOnly = valid.every(p => isFemale(p.gender));
   const hasMixed = !isFemaleOnly && valid.some(p => isFemale(p.gender));
 
   // Klassifikation — zuerst prüfen, dann Warnungen generieren
-  let code: string;
+  let code: string = "unclassified";
   let isYouthClass = false;
-  const youthClassificationCode = getYouthClassificationCodeByOldestBirthYear(birthYears, competitionYear);
+  const youthClassification = findYouthClassification(ages, definitions);
+  const teamClassification = youthClassification
+    ? null
+    : findTeamClassification(totalAge, isFemaleOnly, definitions);
 
   // Jahrgänge-basierte Klassen (Schüler/Jugend): der älteste Jahrgang bestimmt die Klasse.
-  if (youthClassificationCode) {
-    code = youthClassificationCode;
+  if (youthClassification) {
+    code = youthClassification.code;
     isYouthClass = true;
   }
-  // Altersklassen (Gesamtalter)
-  else if (isFemaleOnly && totalAge <= 150) {
-    code = "damen-a";
-  } else if (isFemaleOnly && totalAge > 150) {
-    code = "damen-b";
-  } else if (totalAge <= 125) {
-    code = "jungsters";
-  } else if (totalAge >= 226) {
-    code = "masters";
+  else if (teamClassification) {
+    code = teamClassification.code;
   } else {
-    code = "herren";
+    warnings.push("Keine passende Klassenregel für dieses Team konfiguriert");
   }
 
   // Info-Nachrichten für Jugend-Klassen
@@ -231,27 +255,29 @@ export function classifyTeam(participants: ClassificationInput[], options: Class
 
   // Grenzfall-Warnungen nur für altersbasierte Klassen
   if (!isYouthClass && !isFemaleOnly) {
-    if (totalAge >= 121 && totalAge <= 125) {
-      warnings.push(`Grenzfall Jungsters/Herren: Gesamtalter ${totalAge} (Grenze: 125)`);
-    }
-    if (totalAge >= 226 && totalAge <= 230) {
-      warnings.push(`Grenzfall Herren/Masters: Gesamtalter ${totalAge} (Grenze: 226)`);
+    const openTeamRules = definitions.filter((entry) => entry.type === "AGE_TEAM" && entry.genderRestriction === null);
+    for (const entry of openTeamRules) {
+      if (entry.maxAge !== null && totalAge >= entry.maxAge - 4 && totalAge <= entry.maxAge) {
+        warnings.push(`Grenzfall ${entry.name}: Gesamtalter ${totalAge} (Grenze: ${entry.maxAge})`);
+      }
+      if (entry.minAge !== null && totalAge >= entry.minAge && totalAge <= entry.minAge + 4) {
+        warnings.push(`Grenzfall ${entry.name}: Gesamtalter ${totalAge} (Grenze: ${entry.minAge})`);
+      }
     }
   }
   if (!isYouthClass && isFemaleOnly) {
-    if (totalAge >= 146 && totalAge <= 154) {
-      warnings.push(`Grenzfall Damen A/B: Gesamtalter ${totalAge} (Grenze: 150)`);
+    const femaleTeamRules = definitions.filter((entry) => entry.type === "AGE_TEAM" && entry.genderRestriction === "FEMALE_ONLY");
+    for (const entry of femaleTeamRules) {
+      if (entry.maxAge !== null && totalAge >= entry.maxAge - 4 && totalAge <= entry.maxAge + 4) {
+        warnings.push(`Grenzfall ${entry.name}: Gesamtalter ${totalAge} (Grenze: ${entry.maxAge})`);
+      }
     }
   }
 
   // Jahrgangs-Validierung für Jugend
   if (isYouthClass) {
-    const ranges = getYouthClassificationYearRanges(competitionYear);
-    const youngestYouthYear = ranges["schueler-a"].maxYear;
-    const oldestYouthYear = ranges.jugend.minYear;
-    const outOfRange = birthYears.filter(y => {
-      return y < oldestYouthYear || y > youngestYouthYear;
-    });
+    const youthRules = definitions.filter((entry) => entry.type === "AGE_INDIVIDUAL");
+    const outOfRange = ages.filter((age) => !youthRules.some((entry) => matchesAgeRange(age, entry)));
     if (outOfRange.length > 0) {
       warnings.push(`${outOfRange.length} Teilnehmer außerhalb der Schüler-/Jugend-Jahrgänge`);
     }
@@ -267,7 +293,7 @@ export function classifyTeam(participants: ClassificationInput[], options: Class
     warnings.push(`Ältester Teilnehmer ist ${maxAge} Jahre — bitte prüfen`);
   }
 
-  const classInfo = CLASSIFICATIONS[code];
+  const classInfo = classificationMetadata(code, definitions);
 
   return {
     code,
@@ -287,12 +313,13 @@ export function classifyTeam(participants: ClassificationInput[], options: Class
  */
 export function compareClassification(
   oldCode: string,
-  newResult: ClassificationResult
+  newResult: ClassificationResult,
+  options: ClassificationOptions = {},
 ): string[] {
   const warnings = [...newResult.warnings];
 
   if (oldCode && oldCode !== newResult.code && oldCode !== "unclassified") {
-    const oldInfo = CLASSIFICATIONS[oldCode];
+    const oldInfo = classificationMetadata(oldCode, resolveCompetitionClassifications(options.classifications));
     warnings.unshift(
       `⚠️ Klassenwechsel: ${oldInfo?.emoji || ""} ${oldInfo?.label || oldCode} → ${newResult.emoji} ${newResult.label}`
     );
@@ -315,7 +342,7 @@ export function evaluateTeamState(
 
   const classification = classifyTeam(classificationInputs, options);
   const classificationWarnings = oldClassificationCode
-    ? compareClassification(oldClassificationCode, classification)
+    ? compareClassification(oldClassificationCode, classification, options)
     : [...classification.warnings];
   const discipline = validateDisciplineAssignment(
     participants.map((participant) => participant.disciplineCode ?? "TBD"),
@@ -382,10 +409,11 @@ function normalizeDraftDiscipline(participant: TeamDraftParticipantInput) {
 function collectDraftParticipantBlockingErrors(
   participants: TeamDraftParticipantInput[],
   competitionYear?: number | null,
+  classifications?: readonly CompetitionClassification[] | null,
 ) {
   const messages: string[] = [];
   const referenceYear = normalizeCompetitionYear(competitionYear);
-  const youngestEligibleBirthYear = getYoungestEligibleBirthYear(referenceYear);
+  const youngestEligibleBirthYear = getYoungestEligibleBirthYear(referenceYear, classifications);
 
   participants.forEach((participant, index) => {
     const label = getDraftDisciplineLabel(participant, index);
@@ -441,7 +469,7 @@ export function evaluateTeamDraft(input: TeamDraftEvaluationInput): TeamDraftEva
     blockingErrors.push("Es müssen genau 5 Teilnehmer erfasst werden");
   }
 
-  blockingErrors.push(...collectDraftParticipantBlockingErrors(participants, input.competitionYear));
+  blockingErrors.push(...collectDraftParticipantBlockingErrors(participants, input.competitionYear, input.classifications));
 
   const teamStateParticipants = participants.map((participant) => ({
     birthYear: extractBirthYearFromInput(participant.birthDate ?? ""),
@@ -450,6 +478,7 @@ export function evaluateTeamDraft(input: TeamDraftEvaluationInput): TeamDraftEva
   }));
   const state = evaluateTeamState(teamStateParticipants, input.oldClassificationCode, {
     competitionYear: input.competitionYear,
+    classifications: input.classifications,
   });
   const warnings = compactUnique([...state.classificationWarnings, ...state.discipline.warnings]);
   const compactedBlockingErrors = compactUnique(blockingErrors);

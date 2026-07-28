@@ -4,6 +4,7 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 import { resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { normalizeCompetitionTeamAccessConfig } from "@/lib/team-access-config";
+import { resolveCompetitionClassifications, toPublicCompetitionClassifications } from "@/lib/competition-classifications";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
@@ -65,6 +66,13 @@ export async function GET() {
         liveStartlistsVisibility: true,
         liveResultsVisibility: true,
         marketplaceGlobalVisibility: true,
+        classifications: {
+          select: {
+            code: true, name: true, type: true, minAge: true, maxAge: true,
+            genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true,
+          },
+          orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+        },
         _count: { select: { teams: true } },
       },
     });
@@ -73,6 +81,10 @@ export async function GET() {
       {
         competitions: competitions.map((competition) => ({
           ...competition,
+          classifications: toPublicCompetitionClassifications(
+            resolveCompetitionClassifications(competition.classifications),
+            competition.year,
+          ),
           ...normalizeCompetitionTeamAccessConfig(competition),
         })),
       },

@@ -996,6 +996,8 @@ model Classification {
   maxAge            Int?
   genderRestriction GenderRestriction?
   sourceClassCodes  String[]
+  sortOrder         Int                @default(0)
+  displayEmoji      String?
 
   // Relations
   competitionId String

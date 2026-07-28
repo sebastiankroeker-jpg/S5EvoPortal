@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { usePrivacyConsent } from "@/lib/privacy-consent-context";
 import { readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
+import type { CompetitionClassification } from "@/lib/competition-classifications";
 
 type CompetitionInfo = {
   id: string;
@@ -18,6 +19,7 @@ type CompetitionInfo = {
   liveStartlistsVisibility: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
   liveResultsVisibility: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
   marketplaceGlobalVisibility: "SELECTIVE" | "OFFLINE";
+  classifications?: CompetitionClassification[];
 };
 
 type CompetitionContextType = {
@@ -45,6 +47,7 @@ type AdminCompetitionResponseItem = {
   liveStartlistsVisibility?: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
   liveResultsVisibility?: "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
   marketplaceGlobalVisibility?: "SELECTIVE" | "OFFLINE";
+  classifications?: CompetitionClassification[];
 };
 
 const CompetitionContext = createContext<CompetitionContextType>({
@@ -113,6 +116,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
                 liveStartlistsVisibility: competition.liveStartlistsVisibility ?? "ADMINS",
                 liveResultsVisibility: competition.liveResultsVisibility ?? "ADMINS",
                 marketplaceGlobalVisibility: competition.marketplaceGlobalVisibility ?? "SELECTIVE",
+                classifications: competition.classifications ?? [],
               }]
             : [];
 
@@ -136,6 +140,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
           liveStartlistsVisibility: c.liveStartlistsVisibility ?? "ADMINS",
           liveResultsVisibility: c.liveResultsVisibility ?? "ADMINS",
           marketplaceGlobalVisibility: c.marketplaceGlobalVisibility ?? "SELECTIVE",
+          classifications: c.classifications ?? [],
         }));
         applyCompetitions(comps);
         const activeCompetitionId = typeof window !== "undefined" && functionalStorageAllowed

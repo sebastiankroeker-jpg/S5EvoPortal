@@ -78,6 +78,18 @@ type CompetitionClonePreview = {
   };
 };
 
+type EditableClassification = {
+  code: string;
+  name: string;
+  type: "AGE_INDIVIDUAL" | "AGE_TEAM" | "COMBINED";
+  minAge: number | null;
+  maxAge: number | null;
+  genderRestriction: "FEMALE_ONLY" | null;
+  sourceClassCodes: string[];
+  sortOrder: number;
+  displayEmoji: string | null;
+};
+
 type LivePublicationVisibility = "ADMINS" | "PORTAL_USERS" | "SPECTATORS";
 type ResultDisciplineCode = "RUN" | "BENCH" | "STOCK" | "ROAD" | "MTB";
 
@@ -451,6 +463,8 @@ export default function AdminPage() {
   const [cloneYear, setCloneYear] = useState(2027);
   const [cloneConfirmationText, setCloneConfirmationText] = useState("");
   const [clonePreview, setClonePreview] = useState<CompetitionClonePreview | null>(null);
+  const [classificationSource, setClassificationSource] = useState<"PERSISTED" | "LEGACY_FALLBACK" | null>(null);
+  const [classifications, setClassifications] = useState<EditableClassification[]>([]);
   const hasAdminAccess = !!session && can("config.edit");
   const expectedResetConfirmationText = activeCompetition?.name || competition.name;
   const activeCompetitionId = activeCompetition?.id;
@@ -512,6 +526,17 @@ export default function AdminPage() {
       }
     }
   }, []);
+
+  const loadClassifications = useCallback(async (compId: string) => {
+    const response = await fetch(`/api/admin/competition/classifications?competitionId=${encodeURIComponent(compId)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      notifications.error("Klassen konnten nicht geladen werden", data.error || "Bitte später erneut versuchen.");
+      return;
+    }
+    setClassificationSource(data.source === "PERSISTED" ? "PERSISTED" : "LEGACY_FALLBACK");
+    setClassifications(Array.isArray(data.classifications) ? data.classifications : []);
+  }, [notifications]);
 
   const loadResetMetadata = useCallback(async (compId: string) => {
     setLoadingResetMeta(true);
@@ -644,6 +669,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (hasAdminAccess && activeCompetition?.id) {
       void loadCompetitionDetails(activeCompetition.id);
+      void loadClassifications(activeCompetition.id);
       void loadResetMetadata(activeCompetition.id);
       void loadResultStagingBatches(activeCompetition.id);
       void loadOpsSummary(activeCompetition.id);
@@ -655,7 +681,7 @@ export default function AdminPage() {
       setResultStagingFeedback(null);
       setResultResetConfirmationText("");
     }
-  }, [activeCompetition?.id, hasAdminAccess, loadCompetitionDetails, loadOpsSummary, loadResetMetadata, loadResultStagingBatches]);
+  }, [activeCompetition?.id, hasAdminAccess, loadClassifications, loadCompetitionDetails, loadOpsSummary, loadResetMetadata, loadResultStagingBatches]);
 
   useEffect(() => {
     if (!activeCompetitionId || !activeCompetitionName || !activeCompetitionYear) return;
@@ -713,6 +739,30 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Failed to save competition:', error);
       notifications.error('Netzwerkfehler beim Speichern');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleSaveClassifications = async () => {
+    if (!activeCompetition?.id) return;
+    setSaving("classifications");
+    try {
+      const response = await fetch("/api/admin/competition/classifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitionId: activeCompetition.id, classifications }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notifications.error("Klassen konnten nicht gespeichert werden", data.error || "Bitte Eingaben prüfen.");
+        return;
+      }
+      setClassificationSource("PERSISTED");
+      setClassifications(data.classifications || classifications);
+      notifications.success("Klassen gespeichert", "Die Wettkampfregeln werden für neue Prüfungen verwendet.");
+    } catch (error) {
+      notifications.error("Klassen konnten nicht gespeichert werden", error instanceof Error ? error.message : "Netzwerkfehler");
     } finally {
       setSaving(null);
     }
@@ -1359,6 +1409,91 @@ export default function AdminPage() {
                       </Button>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Klassen & Wertungen</CardTitle>
+                  <CardDescription>
+                    Wettkampfspezifische Regeln für Jugend, Gesamtalter und Ergebnis-Gesamtwertungen.
+                    {classificationSource === "LEGACY_FALLBACK" ? " Aktuell werden die historisch identischen Regeln nur als Vorschau verwendet." : " Aktuell sind gespeicherte Regeln aktiv."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {classifications.map((classification, index) => (
+                    <div key={`${classification.code}-${index}`} className="grid grid-cols-1 gap-2 rounded-md border border-border/60 p-3 md:grid-cols-12">
+                      <Input
+                        className="md:col-span-2"
+                        value={classification.code}
+                        aria-label="Klassen-Code"
+                        onChange={(event) => setClassifications((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, code: event.target.value } : entry))}
+                      />
+                      <Input
+                        className="md:col-span-3"
+                        value={classification.name}
+                        aria-label="Klassen-Name"
+                        onChange={(event) => setClassifications((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, name: event.target.value } : entry))}
+                      />
+                      <select
+                        className="rounded-md border border-border bg-background px-3 py-2 text-sm md:col-span-2"
+                        value={classification.type}
+                        aria-label="Regelart"
+                        onChange={(event) => setClassifications((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, type: event.target.value as EditableClassification["type"] } : entry))}
+                      >
+                        <option value="AGE_INDIVIDUAL">Jugendalter</option>
+                        <option value="AGE_TEAM">Gesamtalter</option>
+                        <option value="COMBINED">Gesamtwertung</option>
+                      </select>
+                      <Input
+                        className="md:col-span-1"
+                        type="number"
+                        value={classification.minAge ?? ""}
+                        aria-label="Mindestalter"
+                        placeholder="min"
+                        disabled={classification.type === "COMBINED"}
+                        onChange={(event) => setClassifications((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, minAge: event.target.value === "" ? null : Number(event.target.value) } : entry))}
+                      />
+                      <Input
+                        className="md:col-span-1"
+                        type="number"
+                        value={classification.maxAge ?? ""}
+                        aria-label="Höchstalter"
+                        placeholder="max"
+                        disabled={classification.type === "COMBINED"}
+                        onChange={(event) => setClassifications((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, maxAge: event.target.value === "" ? null : Number(event.target.value) } : entry))}
+                      />
+                      <select
+                        className="rounded-md border border-border bg-background px-3 py-2 text-sm md:col-span-1"
+                        value={classification.genderRestriction ?? ""}
+                        aria-label="Geschlechterregel"
+                        onChange={(event) => setClassifications((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, genderRestriction: event.target.value === "FEMALE_ONLY" ? "FEMALE_ONLY" : null } : entry))}
+                      >
+                        <option value="">offen</option>
+                        <option value="FEMALE_ONLY">Frauen</option>
+                      </select>
+                      <Input
+                        className="md:col-span-2"
+                        value={classification.type === "COMBINED" ? classification.sourceClassCodes.join(", ") : classification.displayEmoji ?? ""}
+                        aria-label={classification.type === "COMBINED" ? "Quellklassen" : "Anzeige-Kürzel"}
+                        placeholder={classification.type === "COMBINED" ? "Quellklassen, kommagetrennt" : "Kürzel"}
+                        onChange={(event) => setClassifications((current) => current.map((entry, entryIndex) => entryIndex === index
+                          ? classification.type === "COMBINED"
+                            ? { ...entry, sourceClassCodes: event.target.value.split(",").map((code) => code.trim()).filter(Boolean) }
+                            : { ...entry, displayEmoji: event.target.value || null }
+                          : entry))}
+                      />
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Jugendalter: Alter des ältesten Teammitglieds. Gesamtalter: Summe des Teams. Gesamtwertung: führt Quellklassen zusammen.
+                    Änderungen bei bereits vorhandenen Teams werden serverseitig gesperrt; der geprüfte 2026-Backfill darf nur die unveränderten Bestandsregeln übernehmen.
+                  </p>
+                  <div className="flex justify-end">
+                    <Button type="button" onClick={() => void handleSaveClassifications()} disabled={saving === "classifications" || classifications.length === 0}>
+                      {saving === "classifications" ? "Speichert..." : "Klassen speichern"}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 

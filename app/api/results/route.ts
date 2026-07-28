@@ -18,7 +18,7 @@ import {
   type RankedEntry,
   type TeamScore,
 } from "@/lib/domain/scoring";
-import { compareClassificationCodes } from "@/lib/domain/classification";
+import { resolveCompetitionClassifications } from "@/lib/competition-classifications";
 import { normalizeLiveResultDisciplines } from "@/lib/live-results-disciplines";
 
 type ResultSnapshot = Record<string, unknown> | null;
@@ -27,19 +27,6 @@ type ClassTeam = Pick<TeamScore, "teamId" | "teamName" | "startNumber" | "classC
 
 type ResultTeamScore = TeamScore & { hasAnyResult?: boolean };
 type StockDetails = { stockBwz?: string | null; stockDropped?: number | null; tieBreakers?: number[] };
-
-const OVERALL_RESULT_GROUPS = [
-  {
-    code: "damen-gesamt",
-    name: "Damen Gesamt",
-    sourceClassCodes: ["damen-a", "damen-b"],
-  },
-  {
-    code: "herren-gesamt",
-    name: "Herren Gesamt",
-    sourceClassCodes: ["jungsters", "herren", "masters"],
-  },
-] as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -256,17 +243,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Load classifications for this competition
-    const classifications = await prisma.classification.findMany({
+    const persistedClassifications = await prisma.classification.findMany({
       where: { competitionId },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     });
+    const classifications = resolveCompetitionClassifications(persistedClassifications);
+    const overallResultGroups = classifications.filter((classification) => classification.type === "COMBINED");
 
     const visibleTeamById = new Map<string, string>();
     const visibleParticipantById = new Map<string, string>();
     const teamClassCodeById = new Map<string, string>();
     const teamStartNumberById = new Map<string, string | null>();
     const classTeams = new Map<string, ClassTeam[]>();
-    const overallGroupBySourceClass: Map<string, typeof OVERALL_RESULT_GROUPS[number]> = new Map(
-      OVERALL_RESULT_GROUPS.flatMap((group) =>
+    const overallGroupBySourceClass = new Map<string, (typeof overallResultGroups)[number]>(
+      overallResultGroups.flatMap((group) =>
         group.sourceClassCodes.map((sourceClassCode) => [sourceClassCode, group] as const),
       ),
     );
@@ -312,7 +302,7 @@ export async function GET(request: NextRequest) {
       Record<DisciplineCode, DisciplineEntry[]>
     >();
     const overallDisciplineEntries = new Map(
-      OVERALL_RESULT_GROUPS.map((group) => [group.code, emptyDisciplineEntries()] as const),
+      overallResultGroups.map((group) => [group.code, emptyDisciplineEntries()] as const),
     );
 
     for (const team of teams) {
@@ -472,7 +462,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    for (const group of OVERALL_RESULT_GROUPS) {
+    for (const group of overallResultGroups) {
       const entries = overallDisciplineEntries.get(group.code);
       if (!entries) continue;
 
@@ -503,16 +493,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Sort results in official class order and append the gender overall lists.
-    const overallOrder: Map<string, number> = new Map(OVERALL_RESULT_GROUPS.map((group, index) => [group.code, index]));
+    const classificationOrder = new Map(classifications.map((classification, index) => [classification.code, index]));
     results.sort((a, b) => {
-      const leftOverallOrder = overallOrder.get(a.classCode);
-      const rightOverallOrder = overallOrder.get(b.classCode);
-      if (leftOverallOrder !== undefined || rightOverallOrder !== undefined) {
-        if (leftOverallOrder === undefined) return -1;
-        if (rightOverallOrder === undefined) return 1;
-        return leftOverallOrder - rightOverallOrder;
-      }
-      return compareClassificationCodes(a.classCode, b.classCode);
+      const leftOrder = classificationOrder.get(a.classCode) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = classificationOrder.get(b.classCode) ?? Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || a.classCode.localeCompare(b.classCode, "de");
     });
     const visibleResultTeamIds = new Set<string>();
     for (const result of results) {

@@ -5,6 +5,7 @@ import {
   type TeamDraftEvaluation,
   type TeamDraftParticipantInput,
 } from "@/lib/domain/classification";
+import { LEGACY_COMPETITION_CLASSIFICATIONS } from "@/lib/competition-classifications";
 import { TeamRegistrationSchema } from "@/lib/domain/team";
 
 const disciplineCodes = ["RUN", "BENCH", "STOCK", "ROAD", "MTB"] as const;
@@ -173,5 +174,33 @@ const tooYoungFor2026 = evaluateTeamDraft({
   participants: youngestSchuelerA2027,
 });
 assert.ok(tooYoungFor2026.blockingErrors.some((message) => message.includes("Für den Wettkampf 2026 zu jung")));
+
+const persisted2026Rules = evaluateTeamDraft({
+  mode: "authenticated-create",
+  teamName: "Persistierte 2026-Regeln",
+  contactFirstName: "Tina",
+  contactLastName: "Teamlead",
+  contactEmail: "teamlead@example.test",
+  competitionYear: 2026,
+  classifications: LEGACY_COMPETITION_CLASSIFICATIONS,
+  participants: participantsFromBirthYears([2002, 2002, 2003, 2003, 2004]),
+});
+assert.equal(persisted2026Rules.classification.code, adultJungsters.classification.code);
+assert.equal(persisted2026Rules.classification.label, adultJungsters.classification.label);
+
+const configuredBoundaryRules = LEGACY_COMPETITION_CLASSIFICATIONS.map((entry) =>
+  entry.code === "jungsters" ? { ...entry, maxAge: 115 } : entry.code === "herren" ? { ...entry, minAge: 116 } : entry,
+);
+const configuredBoundary = evaluateTeamDraft({
+  mode: "authenticated-create",
+  teamName: "Konfigurierte Grenze",
+  contactFirstName: "Tina",
+  contactLastName: "Teamlead",
+  contactEmail: "teamlead@example.test",
+  competitionYear: 2026,
+  classifications: configuredBoundaryRules,
+  participants: participantsFromBirthYears([2002, 2002, 2003, 2003, 2004]),
+});
+assert.equal(configuredBoundary.classification.code, "herren");
 
 console.log("team draft evaluation parity ok");

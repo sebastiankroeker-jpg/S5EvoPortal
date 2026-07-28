@@ -657,12 +657,21 @@ export async function POST(request: NextRequest) {
     }
 
     const draftParticipants = targetTeam.participants.map(toTeamDraftParticipant);
+    const classifications = await prisma.classification.findMany({
+      where: { competitionId: auth.competition.id },
+      select: {
+        code: true, name: true, type: true, minAge: true, maxAge: true,
+        genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+    });
     const evaluation = evaluateTeamDraft({
       mode: "admin-edit",
       teamName: finalTeamName,
       participants: draftParticipants,
       oldClassificationCode: targetTeam.classificationCode ?? undefined,
       competitionYear: auth.competition.year,
+      classifications,
     });
 
     if (evaluation.blockingErrors.length > 0) {

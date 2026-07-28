@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { CLASSIFICATION_DISPLAY_ORDER, CLASSIFICATIONS } from "@/lib/domain/classification";
+import { resolveCompetitionClassifications } from "@/lib/competition-classifications";
 import { prisma } from "@/lib/prisma";
 import { requireCompetitionRoles } from "@/lib/server-permissions";
 
@@ -10,11 +10,6 @@ const TIMEKEEPING_ROLES = ["ZEITNAHME"] as const;
 const TIMEKEEPING_DISCIPLINES = ["RUN", "ROAD", "MTB"] as const;
 const START_NUMBER_SOURCES = ["official", "imported-test"] as const;
 type StartNumberSource = (typeof START_NUMBER_SOURCES)[number];
-const DEFAULT_START_BLOCKS = [
-  { name: "Schüler", classificationCodes: ["schueler-a", "schueler-b"] },
-  { name: "Jugend & Damen", classificationCodes: ["jugend", "damen-a", "damen-b"] },
-  { name: "Herren", classificationCodes: ["jungsters", "herren", "masters"] },
-] as const;
 function toStartNumberValue(startNumber: string | null) {
   if (!startNumber) return null;
   const parsed = Number.parseInt(startNumber, 10);
@@ -46,6 +41,20 @@ export async function GET(request: NextRequest) {
         select: { code: true, name: true, sortOrder: true },
         orderBy: { name: "asc" },
       },
+      classifications: {
+        select: {
+          code: true,
+          name: true,
+          type: true,
+          minAge: true,
+          maxAge: true,
+          genderRestriction: true,
+          sourceClassCodes: true,
+          sortOrder: true,
+          displayEmoji: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      },
     },
   });
 
@@ -55,6 +64,9 @@ export async function GET(request: NextRequest) {
 
   const auth = await requireCompetitionRoles(session, [...TIMEKEEPING_ROLES], competitionId);
   if ("error" in auth) return auth.error;
+  const classifications = resolveCompetitionClassifications(competition.classifications)
+    .filter((classification) => classification.type !== "COMBINED");
+  const classificationByCode = new Map(classifications.map((classification) => [classification.code, classification]));
 
   const teams = await prisma.team.findMany({
     where: {
@@ -91,7 +103,7 @@ export async function GET(request: NextRequest) {
       teamId: team.id,
       teamName: team.name,
       classificationCode: team.classificationCode ?? "unclassified",
-      classificationLabel: CLASSIFICATIONS[team.classificationCode ?? "unclassified"]?.label ?? team.classificationCode ?? "Unklassifiziert",
+      classificationLabel: classificationByCode.get(team.classificationCode ?? "")?.name ?? team.classificationCode ?? "Unklassifiziert",
       startNumber: team.startNumber,
       startNumberValue,
       firstName: participant.firstName,
@@ -115,11 +127,11 @@ export async function GET(request: NextRequest) {
       code,
       name: competition.disciplines.find((discipline) => discipline.code === code)?.name ?? code,
       defaultStartIntervalSeconds: 30,
-      defaultStartBlocks: DEFAULT_START_BLOCKS,
+      defaultStartBlocks: [{ name: "Alle Klassen", classificationCodes: classifications.map((classification) => classification.code) }],
       firstStartNumber,
-      classifications: CLASSIFICATION_DISPLAY_ORDER.map((classificationCode) => ({
-        code: classificationCode,
-        label: CLASSIFICATIONS[classificationCode]?.label ?? classificationCode,
+      classifications: classifications.map((classification) => ({
+        code: classification.code,
+        label: classification.name,
       })),
       starters: disciplineStarters,
     };

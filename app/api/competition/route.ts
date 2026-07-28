@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { resolveCompetitionClassifications, toPublicCompetitionClassifications } from "@/lib/competition-classifications";
 import { normalizeCompetitionTeamAccessConfig } from "@/lib/team-access-config";
 
 const NO_STORE_HEADERS = {
@@ -30,12 +32,26 @@ export async function GET(request: NextRequest) {
       maxTeams: true,
       teamSize: true,
       location: true,
+      classifications: {
+        select: {
+          code: true,
+          name: true,
+          type: true,
+          minAge: true,
+          maxAge: true,
+          genderRestriction: true,
+          sourceClassCodes: true,
+          sortOrder: true,
+          displayEmoji: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      },
       tenant: {
         select: {
           publicPortalRegistrationEnabled: true,
         },
       },
-    } as const;
+    } satisfies Prisma.CompetitionSelect;
 
     const competition = competitionId
       ? await prisma.competition.findUnique({
@@ -68,6 +84,10 @@ export async function GET(request: NextRequest) {
       {
         competition: {
           ...competition,
+          classifications: toPublicCompetitionClassifications(
+            resolveCompetitionClassifications(competition.classifications),
+            competition.year,
+          ),
           ...normalizeCompetitionTeamAccessConfig(competition),
           teamCount: competition.hideForeignTeams ? null : teamCount,
         },

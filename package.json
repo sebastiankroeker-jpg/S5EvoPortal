@@ -20,6 +20,7 @@
     "verify:tenant-scope": "tsx scripts/verify-tenant-scope.ts",
     "verify:competition-role-scope": "tsx scripts/verify-competition-role-scope.ts",
     "verify:team-draft": "tsx scripts/verify-team-draft-evaluation.ts",
+    "verify:competition-classifications": "tsx scripts/verify-competition-classifications.ts",
     "verify:participant-edit-flow": "tsx scripts/verify-participant-edit-flow.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",

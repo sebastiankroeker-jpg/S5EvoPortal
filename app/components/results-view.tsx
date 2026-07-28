@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompetition } from "@/lib/competition-context";
-import { CLASSIFICATIONS, CLASSIFICATION_DISPLAY_ORDER, compareClassificationCodes } from "@/lib/domain/classification";
+import { CLASSIFICATIONS } from "@/lib/domain/classification";
 import { DISCIPLINES } from "@/lib/domain/team";
 import { usePermissions } from "@/lib/permissions-context";
 import { formatOfflineCacheTimestamp, readOfflineCache, writeOfflineCache } from "@/lib/pwa-offline-cache";
@@ -107,10 +107,6 @@ const DISC_LABELS: Record<DisciplineCode, string> = {
   MTB: "MTB",
 };
 
-const SOURCE_CLASS_ORDER = new Map<string, number>(
-  CLASSIFICATION_DISPLAY_ORDER.map((code, index) => [code, index]),
-);
-
 function formatDurationMs(ms: number): string {
   const totalCentiseconds = Math.round(ms / 10);
   const centiseconds = totalCentiseconds % 100;
@@ -195,16 +191,7 @@ function normalizeSearchValue(value: string) {
 }
 
 function resultClassLabel(result: ClassResult) {
-  return CLASSIFICATIONS[result.classCode]?.label ?? result.className ?? result.classCode;
-}
-
-function compareResultClassCodes(left: string, right: string) {
-  const leftOrder = SOURCE_CLASS_ORDER.get(left);
-  const rightOrder = SOURCE_CLASS_ORDER.get(right);
-  if (leftOrder !== undefined && rightOrder !== undefined && leftOrder !== rightOrder) return leftOrder - rightOrder;
-  if (leftOrder !== undefined && rightOrder === undefined) return -1;
-  if (leftOrder === undefined && rightOrder !== undefined) return 1;
-  return compareClassificationCodes(left, right);
+  return result.className ?? CLASSIFICATIONS[result.classCode]?.label ?? result.classCode;
 }
 
 function getDisciplineLabel(disciplineCode: DisciplineCode) {
@@ -425,7 +412,7 @@ export default function ResultsView({
     }
   }, [activeDisciplineCodes, selectedDiscipline]);
   const availableResults = useMemo(
-    () => [...(data?.results ?? [])].sort((left, right) => compareResultClassCodes(left.classCode, right.classCode)),
+    () => data?.results ?? [],
     [data?.results],
   );
   const selectedResults = useMemo(

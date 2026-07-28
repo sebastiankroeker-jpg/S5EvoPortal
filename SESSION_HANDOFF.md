@@ -23,10 +23,11 @@ and decision record.
   `origin/main`.
 - Functional baseline: `7414bb4 Harden tenant context resolution`.
 - Local high-risk work pending separate release approval:
-  `docs/cr/2026-07-28-tenant-context-resolution-hardening.md` removes the
-  implicit first-matching-tenant fallback, includes the clone preview fix and
-  makes missing context fail closed. No commit, deploy, migration or production
-  data change has occurred.
+  `docs/cr/2026-07-28-competition-classification-configuration.md` makes
+  persisted, per-competition classes the rule source for registration,
+  changes, results, timekeeping and clone. It contains an additive migration
+  and an admin editor, but no production migration, class backfill, commit,
+  deploy or 2027 competition creation has occurred.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -100,7 +101,7 @@ and decision record.
 
 1. **Competition-scoped permissions audit** — Deployed.
    `docs/cr/2026-07-27-competition-scoped-permissions-audit.md`
-   All 78 API routes are classified by the executable inventory in
+   All 80 API routes are classified by the executable inventory in
    `scripts/verify-tenant-scope.ts`. The high-severity cross-scope
    timekeeping-session-ID write path is fixed and deployed in `6bf9e10`.
    Target model: tenant-wide `ADMIN`, additive competition grants for
@@ -148,22 +149,31 @@ and decision record.
    smoke remains a gap.
 
 7. **Competition clone / 5Kampf 2027 preparation** — Feature and source-scope
-   hotfix deployed; authenticated preview pending, medium risk.
+   hotfix deployed; authenticated preview passed, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
    Admin-only, transactional clone of configuration, persisted disciplines and
    non-archived competition news into a reviewed draft;
    no team/person/result/contact/token/message/audit/counter/staging data is
    copied. Maps remain shared static configuration. Target dates, deadlines and
    registration notification mail are cleared. The feature has a dry-run and
-   a typed target-name confirmation, but no code is committed/deployed and no
-   production clone has been performed. Sebastian confirmed the class policy:
+   a typed target-name confirmation, but no production clone has been
+   performed. Sebastian confirmed the class policy:
    the selected competition year drives age totals and youth cohorts, while
    2026 remains reproducible. The 2027 matrix and the 2019 cohort boundary
    are covered locally and the feature is deployed in `d4c7218`. The first
    authenticated preview exposed a source-tenant resolution regression; its
    narrower competition-specific admin guard is deployed in the broader
-   tenant-context hardening release. Then run the authenticated admin dry-run;
+   tenant-context hardening release. The authenticated admin dry-run is green;
    request a separate Go before creating any production 2027 competition.
+
+8. **Wettkampfspezifische Klassenkonfiguration** — Local high-risk CR.
+   `docs/cr/2026-07-28-competition-classification-configuration.md`
+   The existing empty 2026 `Classification` table is the reason clone preview
+   showed zero classes. Local implementation adds rule metadata and makes the
+   table authoritative while retaining the exact legacy fallback until an
+   explicitly approved backfill. Local lint, TypeScript, class/clone/scope
+   verification and production build are green. Release and 2026 data backfill
+   require separate Go decisions.
 
 ## Working method
 
@@ -190,6 +200,8 @@ and decision record.
 4. Retain the authenticated cross-competition smoke gap in the security
    release record; create controlled role test sessions before the next
    permission-sensitive release where feasible.
-5. For the active competition-clone CR, deploy the source-competition scope
-   hotfix, run an authenticated admin dry-run, and keep actual production
-   target creation behind its own explicit data-mutation gate.
+5. For the active class-configuration CR, review the local diff and request
+   separate approval for additive migration/release. After deployment, request
+   a second, distinct approval before writing the reviewed 2026 class rows.
+   Keep actual 2027 production target creation behind its own data-mutation
+   gate.

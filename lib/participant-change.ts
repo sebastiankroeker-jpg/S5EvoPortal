@@ -293,7 +293,18 @@ export async function recalculateTeamClassification(teamId: string) {
     where: { id: teamId },
     include: {
       participants: { where: { deletedAt: null } },
-      competition: { select: { year: true } },
+      competition: {
+        select: {
+          year: true,
+          classifications: {
+            select: {
+              code: true, name: true, type: true, minAge: true, maxAge: true,
+              genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true,
+            },
+            orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+          },
+        },
+      },
     },
   });
 
@@ -305,9 +316,15 @@ export async function recalculateTeamClassification(teamId: string) {
     birthYear: participant.birthYear,
     gender: participant.gender as "M" | "W" | "D" | "MALE" | "FEMALE" | "DIVERSE",
   }));
-  const newClassification = classifyTeam(inputs, { competitionYear: teamWithParticipants.competition.year });
+  const newClassification = classifyTeam(inputs, {
+    competitionYear: teamWithParticipants.competition.year,
+    classifications: teamWithParticipants.competition.classifications,
+  });
   const oldCode = teamWithParticipants.classificationCode || "unclassified";
-  classificationWarnings = compareClassification(oldCode, newClassification);
+  classificationWarnings = compareClassification(oldCode, newClassification, {
+    competitionYear: teamWithParticipants.competition.year,
+    classifications: teamWithParticipants.competition.classifications,
+  });
 
   if (newClassification.code !== oldCode || newClassification.totalAge !== teamWithParticipants.totalAge) {
     await prisma.team.update({

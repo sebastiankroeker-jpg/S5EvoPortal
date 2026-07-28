@@ -936,6 +936,13 @@ export async function PUT(
               claimTokenExpiryMode: true,
               claimTokenTtlDays: true,
               status: true,
+              classifications: {
+                select: {
+                  code: true, name: true, type: true, minAge: true, maxAge: true,
+                  genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true,
+                },
+                orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+              },
               tenant: {
                 select: {
                   name: true,
@@ -985,6 +992,7 @@ export async function PUT(
         participants: teamData.participants,
         oldClassificationCode: existingTeam.classificationCode,
         competitionYear: existingTeam.competition.year,
+        classifications: existingTeam.competition.classifications,
       });
 
       if (requestedTeamState.blockingErrors.length > 0) {

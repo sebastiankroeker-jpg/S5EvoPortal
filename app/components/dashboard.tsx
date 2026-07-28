@@ -33,6 +33,7 @@ import {
   resolveBirthDateInputKey,
 } from "@/lib/domain/team";
 import { compareClassificationCodes, evaluateTeamDraft, validateDisciplineAssignment } from "@/lib/domain/classification";
+import type { CompetitionClassification } from "@/lib/competition-classifications";
 import { SHIRT_SIZES } from "@/lib/domain/shirts";
 import { usePermissions } from "@/lib/permissions-context";
 import { useCompetition } from "@/lib/competition-context";
@@ -5453,6 +5454,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           showOwnerClaimInfo={isAdmin}
           canManageTeamManagers={editingTeam.canManageTeamManagers === true}
           competitionYear={activeCompetition?.year}
+          classifications={activeCompetition?.classifications}
         />
       )}
       {editingMarketplaceTeam && (
@@ -5467,6 +5469,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           team={activeMarketplaceMatchingTeam}
           competitionId={activeCompetition?.id}
           competitionYear={activeCompetition?.year}
+          classifications={activeCompetition?.classifications}
           initialDisciplineFilter={marketplaceMatchingDisciplineFilter}
           canManageSlots={canEditAll}
           onAddParticipant={handleMarketplaceMatchingAdd}
@@ -5500,6 +5503,7 @@ function MarketplaceMatchingModal({
   team,
   competitionId,
   competitionYear,
+  classifications,
   initialDisciplineFilter,
   canManageSlots = false,
   onAddParticipant,
@@ -5512,6 +5516,7 @@ function MarketplaceMatchingModal({
   team: Team;
   competitionId?: string;
   competitionYear?: number | null;
+  classifications?: CompetitionClassification[];
   initialDisciplineFilter?: string;
   canManageSlots?: boolean;
   onAddParticipant: (targetTeamId: string, participantId: string, targetDiscipline?: string) => void | Promise<void>;
@@ -5573,6 +5578,7 @@ function MarketplaceMatchingModal({
     })),
     oldClassificationCode: team.category,
     competitionYear,
+    classifications,
   });
   const canFinalize =
     assignedParticipants.length === 5 &&
@@ -6194,6 +6200,7 @@ function EditMarketplaceTeamModal({ team, onSave, onCancel }: {
 function EditTeamModal({
   team,
   competitionYear,
+  classifications,
   onSave,
   onCancel,
   showAdminInfo = false,
@@ -6202,6 +6209,7 @@ function EditTeamModal({
 }: {
   team: Team;
   competitionYear?: number | null;
+  classifications?: CompetitionClassification[];
   onSave: (data: TeamEditPayload) => void | Promise<void>;
   onCancel: () => void;
   showAdminInfo?: boolean;
@@ -6245,8 +6253,9 @@ function EditTeamModal({
         })),
         oldClassificationCode: team.category,
         competitionYear,
+        classifications,
       }),
-    [competitionYear, formData.participants, formData.teamName, showAdminInfo, team.category],
+    [classifications, competitionYear, formData.participants, formData.teamName, showAdminInfo, team.category],
   );
   const blockingValidationErrors = teamDraftEvaluation.blockingErrors;
   const contactPhoneBlockingErrors = formData.contactPhone.trim()

@@ -287,6 +287,13 @@ export async function PUT(
               claimTokenExpiryMode: true,
               claimTokenTtlDays: true,
               tenantId: true,
+              classifications: {
+                select: {
+                  code: true, name: true, type: true, minAge: true, maxAge: true,
+                  genderRestriction: true, sourceClassCodes: true, sortOrder: true, displayEmoji: true,
+                },
+                orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+              },
               tenant: {
                 select: {
                   name: true,
@@ -394,7 +401,10 @@ export async function PUT(
 
   if (
     typeof requestedSnapshot.birthYear === "number" &&
-    requestedSnapshot.birthYear > getYoungestEligibleBirthYear(participant.team.competition.year)
+    requestedSnapshot.birthYear > getYoungestEligibleBirthYear(
+      participant.team.competition.year,
+      participant.team.competition.classifications,
+    )
   ) {
     return NextResponse.json(
       { error: `Für den Wettkampf ${participant.team.competition.year} ist dieser Jahrgang zu jung.` },
@@ -425,7 +435,10 @@ export async function PUT(
           }
     ),
     participant.team.classificationCode,
-    { competitionYear: participant.team.competition.year },
+    {
+      competitionYear: participant.team.competition.year,
+      classifications: participant.team.competition.classifications,
+    },
   );
 
   if (Object.keys(changedFields).length === 0) {
