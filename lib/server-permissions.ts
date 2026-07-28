@@ -13,7 +13,7 @@ export type PermissionKey = "admin.roles.manage" | "portal.map.view";
 export { COMPETITION_SCOPED_ROLES };
 const COMPETITION_SCOPED_ROLE_SET = new Set<AppRole>(COMPETITION_SCOPED_ROLES);
 
-function buildRoleFlags(roles: AppRole[], legacyTenantWideRoles: AppRole[] = []) {
+function buildRoleFlags(roles: AppRole[]) {
   const uniqueRoles = [...new Set(roles)];
   const roleSet = new Set<AppRole>(uniqueRoles);
   const isAdmin = roleSet.has("ADMIN");
@@ -22,7 +22,6 @@ function buildRoleFlags(roles: AppRole[], legacyTenantWideRoles: AppRole[] = [])
 
   return {
     roles: uniqueRoles,
-    legacyTenantWideRoles: [...new Set(legacyTenantWideRoles)],
     isAdmin,
     isModerator,
     isTimekeeper,
@@ -67,7 +66,10 @@ export async function hasEffectivePermissionForAnyTenant(
   permission: PermissionKey,
 ): Promise<boolean> {
   const tenantRoles = await prisma.tenantRole.findMany({
-    where: { userId },
+    where: {
+      userId,
+      role: { notIn: [...COMPETITION_SCOPED_ROLES] },
+    },
     select: { tenantId: true },
     distinct: ["tenantId"],
   });
@@ -84,11 +86,12 @@ export async function getTenantRoleFlagsForUserId(userId: string, tenantId: stri
     where: {
       userId,
       tenantId,
+      role: { notIn: [...COMPETITION_SCOPED_ROLES] },
     },
   });
 
   const roles = tenantRoles.map((tenantRole) => tenantRole.role as AppRole);
-  return buildRoleFlags(roles, roles.filter((role) => COMPETITION_SCOPED_ROLE_SET.has(role)));
+  return buildRoleFlags(roles);
 }
 
 export async function getCompetitionRoleFlagsForUserId(
@@ -106,7 +109,11 @@ export async function getCompetitionRoleFlagsForUserId(
 
   const [tenantRoles, competitionRoles] = await Promise.all([
     prisma.tenantRole.findMany({
-      where: { userId, tenantId },
+      where: {
+        userId,
+        tenantId,
+        role: { notIn: [...COMPETITION_SCOPED_ROLES] },
+      },
       select: { role: true },
     }),
     prisma.competitionRole.findMany({
@@ -127,10 +134,7 @@ export async function getCompetitionRoleFlagsForUserId(
     competitionRoles: scopedRoleValues,
   });
 
-  return buildRoleFlags(
-    effectiveRoles.roles as AppRole[],
-    effectiveRoles.legacyTenantWideRoles as AppRole[],
-  );
+  return buildRoleFlags(effectiveRoles.roles as AppRole[]);
 }
 
 export async function getScopedRoleFlags(
@@ -159,7 +163,6 @@ export async function getScopedRoleFlags(
       : await getTenantRoleFlagsForUserId(user.id, tenantId)
     : {
         roles: [] as AppRole[],
-        legacyTenantWideRoles: [] as AppRole[],
         isAdmin: false,
         isModerator: false,
         isTimekeeper: false,
@@ -188,7 +191,6 @@ type RequireTenantRolesSuccess = {
   tenantId: string;
   competitionId?: string;
   roles: AppRole[];
-  legacyTenantWideRoles: AppRole[];
   isAdmin: boolean;
   isModerator: boolean;
   isTimekeeper: boolean;
@@ -285,6 +287,7 @@ export async function requireTenantRoles(
       where: {
         userId: user.id,
         role: { in: allowedRoles },
+        NOT: { role: { in: [...COMPETITION_SCOPED_ROLES] } },
       },
       orderBy: { createdAt: "asc" },
     });
@@ -313,6 +316,7 @@ export async function requireAnyTenantRoles(
     where: {
       userId: resolved.user.id,
       role: { in: allowedRoles },
+      NOT: { role: { in: [...COMPETITION_SCOPED_ROLES] } },
     },
     orderBy: { createdAt: "asc" },
     select: { tenantId: true },

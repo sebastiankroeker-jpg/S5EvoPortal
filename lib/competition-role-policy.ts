@@ -11,16 +11,15 @@ export function resolveEffectiveCompetitionRoles(input: {
   tenantRoles: readonly string[];
   competitionRoles: readonly string[];
 }) {
-  const validCompetitionRoles = input.competitionRoles.filter((role) =>
-    COMPETITION_SCOPED_ROLE_SET.has(role),
+  const tenantScopedRoles = input.tenantRoles.filter((role) =>
+    !COMPETITION_SCOPED_ROLE_SET.has(role),
   );
-  const legacyTenantWideRoles = input.tenantRoles.filter((role) =>
+  const validCompetitionRoles = input.competitionRoles.filter((role) =>
     COMPETITION_SCOPED_ROLE_SET.has(role),
   );
 
   return {
-    roles: [...new Set([...input.tenantRoles, ...validCompetitionRoles])],
+    roles: [...new Set([...tenantScopedRoles, ...validCompetitionRoles])],
     competitionRoles: [...new Set(validCompetitionRoles)],
-    legacyTenantWideRoles: [...new Set(legacyTenantWideRoles)],
   };
 }

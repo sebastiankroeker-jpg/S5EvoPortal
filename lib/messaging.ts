@@ -3,6 +3,7 @@ import {
   getCompetitionRoleFlagsForUserId,
   getTenantRoleFlagsForUserId,
 } from "@/lib/server-permissions";
+import { COMPETITION_SCOPED_ROLES } from "@/lib/competition-role-policy";
 import { normalizeEmail } from "@/lib/current-user";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -120,6 +121,7 @@ export async function getSupportContextsForUser(userId: string, userEmail?: stri
     prisma.tenantRole.findMany({
       where: {
         userId,
+        role: { notIn: [...COMPETITION_SCOPED_ROLES] },
       },
       select: {
         tenant: { select: { id: true, name: true } },
@@ -175,7 +177,10 @@ export async function getSupportContextsForUser(userId: string, userEmail?: stri
 
 export async function getDefaultMessagingTenantId(userId: string, userEmail?: string | null) {
   const tenantRole = await prisma.tenantRole.findFirst({
-    where: { userId },
+    where: {
+      userId,
+      role: { notIn: [...COMPETITION_SCOPED_ROLES] },
+    },
     orderBy: { createdAt: "asc" },
     select: { tenantId: true },
   });
@@ -196,14 +201,14 @@ export async function canManageSupportConversations(
   }
 
   const roles = await getTenantRoleFlagsForUserId(userId, tenantId);
-  return roles.isAdmin || roles.legacyTenantWideRoles.includes("MODERATOR");
+  return roles.isAdmin;
 }
 
 export async function getManageableSupportTenantIds(userId: string) {
   const roles = await prisma.tenantRole.findMany({
     where: {
       userId,
-      role: { in: ["ADMIN", "MODERATOR"] },
+      role: "ADMIN",
     },
     orderBy: { createdAt: "asc" },
     select: { tenantId: true },

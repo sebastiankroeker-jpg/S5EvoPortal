@@ -32,11 +32,7 @@ assertIncludes(
 );
 assertIncludes(competitionsRoute, "resolveCurrentUser", "admin competition switcher");
 assertIncludes(competitionsRoute, "userId: user.id", "admin competition switcher");
-assertIncludes(
-  competitionsRoute,
-  'role: { in: ["ADMIN", "MODERATOR", "ZEITNAHME"] }',
-  "admin competition switcher",
-);
+assertIncludes(competitionsRoute, 'role: "ADMIN"', "admin competition switcher");
 assertIncludes(
   competitionsRoute,
   "prisma.competitionRole.findMany",

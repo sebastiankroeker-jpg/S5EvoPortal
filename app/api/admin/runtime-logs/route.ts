@@ -54,7 +54,7 @@ function parseSince(value: string | null): number {
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  const auth = await requireTenantRoles(session, ["ADMIN"]);
   if ("error" in auth) return auth.error;
 
   const token = process.env.VERCEL_LOGS_TOKEN || process.env.VERCEL_TOKEN;
@@ -142,4 +142,3 @@ export async function GET(request: NextRequest) {
     filters: { limit, statusCode, environment, search: search || "", branch: branch || "", level },
   });
 }
-

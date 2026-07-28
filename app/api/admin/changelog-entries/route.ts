@@ -30,7 +30,7 @@ function parseDate(value: string | null) {
 
 async function getAdminUser(): Promise<{ id: string } | NextResponse> {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN", "MODERATOR"]);
+  const auth = await requireTenantRoles(session, ["ADMIN"]);
   if ("error" in auth) {
     return auth.error;
   }

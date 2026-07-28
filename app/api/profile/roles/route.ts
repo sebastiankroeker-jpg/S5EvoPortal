@@ -70,7 +70,6 @@ export async function GET(request: NextRequest) {
         permissions,
         tenantId: competition.tenantId,
         competitionId: competition.id,
-        legacyTenantWideRoles: roleFlags.legacyTenantWideRoles,
       },
       { headers: NO_STORE_HEADERS },
     );

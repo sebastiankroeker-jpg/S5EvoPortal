@@ -26,7 +26,7 @@ export async function GET() {
       prisma.tenantRole.findMany({
         where: {
           userId: user.id,
-          role: { in: ["ADMIN", "MODERATOR", "ZEITNAHME"] },
+          role: "ADMIN",
         },
         select: { tenantId: true },
       }),

@@ -43,7 +43,7 @@ interface UserRole {
   tenantId: string;
   tenantName: string;
   competitionId: string | null;
-  scope: "TENANT" | "COMPETITION" | "LEGACY_TENANT_WIDE";
+  scope: "TENANT" | "COMPETITION";
 }
 
 interface UserEntry {
@@ -946,9 +946,7 @@ export default function UserManagement() {
                                 title={
                                   role.scope === "COMPETITION"
                                     ? "Gilt nur für den ausgewählten Wettkampf"
-                                    : role.scope === "LEGACY_TENANT_WIDE"
-                                      ? "Legacy-Zuweisung: gilt noch für alle Wettkämpfe dieses Mandanten"
-                                      : "Gilt mandantenweit"
+                                    : "Gilt mandantenweit"
                                 }
                                 className={joinClasses(
                                   "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
@@ -957,7 +955,6 @@ export default function UserManagement() {
                               >
                                 {info?.icon} {info?.label || role.role}
                                 {role.scope === "COMPETITION" && " · Wettkampf"}
-                                {role.scope === "LEGACY_TENANT_WIDE" && " · Legacy tenantweit"}
                               </span>
                             );
                           })

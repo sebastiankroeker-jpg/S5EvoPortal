@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
       tx.tenantRole.findMany({
         where: {
           tenantId: context.tenantId,
-          role: { in: ["ADMIN", "MODERATOR"] },
+          role: "ADMIN",
           user: { deletedAt: null },
         },
         select: { userId: true, role: true },
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     const adminParticipants = new Map<string, "ADMIN" | "MODERATOR">();
     for (const adminRole of adminRoles) {
       if (adminRole.userId === user.id) continue;
-      adminParticipants.set(adminRole.userId, adminRole.role === "ADMIN" ? "ADMIN" : "MODERATOR");
+      adminParticipants.set(adminRole.userId, "ADMIN");
     }
     for (const moderatorRole of competitionModeratorRoles) {
       if (moderatorRole.userId === user.id) continue;

@@ -312,7 +312,10 @@ export async function GET(request: Request) {
       }
 
       const visibleTenantRoles = u.tenantRoles.filter(
-        (tenantRole) => tenantRole.role !== "TEAMCHEF" || teamScopes.size > 0,
+        (tenantRole) =>
+          !COMPETITION_SCOPED_ROLES.includes(
+            tenantRole.role as (typeof COMPETITION_SCOPED_ROLES)[number],
+          ) && (tenantRole.role !== "TEAMCHEF" || teamScopes.size > 0),
       );
       const rolesByName = new Map<string, {
         id: string;
@@ -320,7 +323,7 @@ export async function GET(request: Request) {
         tenantId: string;
         tenantName: string;
         competitionId: string | null;
-        scope: "TENANT" | "COMPETITION" | "LEGACY_TENANT_WIDE";
+        scope: "TENANT" | "COMPETITION";
       }>();
 
       for (const tenantRole of visibleTenantRoles) {
@@ -330,11 +333,7 @@ export async function GET(request: Request) {
           tenantId: tenantRole.tenantId,
           tenantName: tenantRole.tenant.name,
           competitionId: null,
-          scope: COMPETITION_SCOPED_ROLES.includes(
-            tenantRole.role as (typeof COMPETITION_SCOPED_ROLES)[number],
-          )
-            ? "LEGACY_TENANT_WIDE"
-            : "TENANT",
+          scope: "TENANT",
         });
       }
 

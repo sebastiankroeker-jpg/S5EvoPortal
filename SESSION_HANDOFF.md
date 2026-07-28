@@ -36,6 +36,9 @@ and decision record.
   portal repository.
 - The competition-role follow-up CR is versioned at
   `docs/cr/2026-07-28-competition-scoped-role-grants.md`.
+- The legacy operational-role removal CR is locally implementation-complete
+  and awaits its separate production approval:
+  `docs/cr/2026-07-28-remove-legacy-operational-role-compatibility.md`.
 - This handoff was consolidated from an append-only document. The complete
   prior version is preserved at
   `docs/handoffs/archive/2026-07-28-session-handoff-pre-consolidation.md`.
@@ -59,8 +62,9 @@ and decision record.
     -> 401;
   - `/api/profile/roles` without session -> 200 with only `ZUSCHAUER`;
   - `/karte` without session -> 307 redirect;
-  - post-migration aggregate inventory: zero `CompetitionRole` rows, three
-    legacy tenant-wide `ZEITNAHME` rows and no legacy tenant-wide moderators;
+  - post-conversion aggregate inventory: three competition-scoped
+    `ZEITNAHME` grants for the active competition, zero legacy tenant-wide
+    `ZEITNAHME` rows and zero legacy tenant-wide moderators;
   - authenticated cross-competition smokes remain a documented gap because no
     controlled test sessions are available.
 - The latest known portal deployment state and smoke evidence belongs in the
@@ -98,22 +102,31 @@ and decision record.
    entity guards, selected-competition admin UI/messaging, scoped profile/cache
    and a green two-competition negative matrix. Migration, source and Vercel
    production deployment are complete in `104e803`.
-   Aggregate inventory: 2 competitions, 3 legacy tenant-wide timekeeping
-   grants, no legacy moderators. Release migration, commit/push and deploy were
-   approved on 2026-07-28; role conversion remains separately gated.
+   Aggregate inventory after the explicit UI conversion: 2 competitions, 3
+   scoped timekeeping grants for the active competition, no tenant-wide
+   operational grants. The role conversion is complete.
 
-3. **Dynamic permission role mapping** — Deployed.
+3. **Remove legacy operational-role compatibility** — Local implementation
+   complete; high-risk release approval pending.
+   `docs/cr/2026-07-28-remove-legacy-operational-role-compatibility.md`
+   Removes effective tenant-wide `MODERATOR`/`ZEITNAHME` fallback paths and
+   adds a database constraint preventing their future creation. Local scope
+   matrix, route inventory, ESLint, TypeScript and production build are green.
+   No migration, commit, push or deploy has been performed. The only remaining
+   test gap is a controlled authenticated production cross-competition smoke.
+
+4. **Dynamic permission role mapping** — Deployed.
    `docs/cr/2026-07-27-dynamic-permission-role-mapping.md`
    V1 provides tenant-scoped mappings for system roles. Only
    `admin.roles.manage` and `portal.map.view` are active permission consumers;
    legacy route guards remain until the audit.
 
-4. **Friends role with map access** — Deployed.
+5. **Friends role with map access** — Deployed.
    `docs/cr/2026-07-27-friends-role-map-access.md`
    `FRIENDS` is tenant-scoped and seeded with `portal.map.view`, without admin,
    participant/contact/export, audit, timekeeping or staging permissions.
 
-5. **Competition clone / 5Kampf 2027 preparation** — Draft, medium risk.
+6. **Competition clone / 5Kampf 2027 preparation** — Draft, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
    Clone configuration, map routes and home/news into a new draft competition;
    never clone teams, participants, contacts, results, tokens, messages,
@@ -142,9 +155,10 @@ and decision record.
 2. Re-check `git status --short --branch`, current production reachability and
    any deployment/migration state relevant to that CR.
 3. Treat the completed audit and deployed competition-role model as baseline.
-4. Confirm target competitions for the three legacy timekeeping grants before
-   converting any role assignment.
-5. Keep legacy compatibility until controlled authenticated cross-competition
-   tests are available and green.
+4. For the active legacy-removal CR, reconfirm the zero-row production
+   inventory immediately before its database migration and retain the
+   authenticated cross-competition smoke gap in the release record.
+5. Obtain a separate production release approval before applying the CHECK
+   constraint, committing/pushing or deploying the legacy-removal CR.
 6. For the next independent product CR, review the draft competition-clone
    preparation and its separate production-data gate.

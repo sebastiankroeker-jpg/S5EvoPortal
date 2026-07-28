@@ -43,10 +43,22 @@ const legacyModerator = resolveEffectiveCompetitionRoles({
   tenantRoles: ["MODERATOR"],
   competitionRoles: [],
 });
-assert(legacyModerator.roles.includes("MODERATOR"), "legacy moderator compatibility must remain effective");
+assert(!legacyModerator.roles.includes("MODERATOR"), "legacy moderator must not remain effective");
+
+const legacyTimekeeping = resolveEffectiveCompetitionRoles({
+  tenantRoles: ["ZEITNAHME"],
+  competitionRoles: [],
+});
+assert(!legacyTimekeeping.roles.includes("ZEITNAHME"), "legacy timekeeping must not remain effective");
+
+const tenantAdminWithLegacyTimekeeping = resolveEffectiveCompetitionRoles({
+  tenantRoles: ["ADMIN", "ZEITNAHME"],
+  competitionRoles: [],
+});
+assert(tenantAdminWithLegacyTimekeeping.roles.includes("ADMIN"), "tenant admin must remain effective");
 assert(
-  legacyModerator.legacyTenantWideRoles.includes("MODERATOR"),
-  "legacy tenant-wide moderator must be labelled explicitly",
+  !tenantAdminWithLegacyTimekeeping.roles.includes("ZEITNAHME"),
+  "legacy operational roles must not piggyback on tenant admin access",
 );
 
 const invalidScopedAdmin = resolveEffectiveCompetitionRoles({
@@ -62,6 +74,11 @@ const migration = read("prisma/migrations/20260728091500_add_competition_roles/m
 assert(
   migration.includes("competition_roles_operational_role_check"),
   "database must reject unsupported competition-scoped roles",
+);
+const legacyRemovalMigration = read("prisma/migrations/20260728105000_disallow_tenant_wide_operational_roles/migration.sql");
+assert(
+  legacyRemovalMigration.includes("tenant_roles_no_competition_scoped_roles"),
+  "database must reject tenant-wide operational roles",
 );
 
 const serverPermissions = read("lib/server-permissions.ts");
@@ -79,6 +96,16 @@ assert(
   serverPermissions.includes("return requireResolvedCompetitionRoles("),
   "entity helpers must use competition role resolution",
 );
+assert(
+  !serverPermissions.includes("legacyTenantWideRoles"),
+  "server permissions must not retain legacy operational role compatibility",
+);
+
+const competitionSwitcher = read("app/api/admin/competitions/route.ts");
+assert(
+  competitionSwitcher.includes('role: "ADMIN"'),
+  "tenant-wide switcher access must be reserved for admins",
+);
 
 for (const route of [
   "app/api/timekeeping/events/route.ts",
@@ -91,11 +118,12 @@ const roleRoute = read("app/api/admin/users/[id]/roles/route.ts");
 assert(roleRoute.includes("prisma.competitionRole.create"), "role API must create CompetitionRole grants");
 assert(
   roleRoute.includes("role: { in: VALID_ROLES }"),
-  "role API must remove converted legacy tenant-wide operational grants",
+  "role API must keep operational grants out of tenant roles",
 );
 
 const profileRoute = read("app/api/profile/roles/route.ts");
 assert(profileRoute.includes('searchParams.get("competitionId")'), "profile roles must require active competition scope");
 assert(profileRoute.includes("getCompetitionRoleFlagsForUserId"), "profile roles must use competition-scoped resolver");
+assert(!profileRoute.includes("legacyTenantWideRoles"), "profile roles must not expose legacy role compatibility");
 
 process.stdout.write("Competition role scope verification passed (two-competition negative matrix + static guards).\n");
