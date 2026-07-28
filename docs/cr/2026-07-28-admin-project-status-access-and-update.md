@@ -97,6 +97,24 @@ aktualisieren.
 - Authenticated non-admin smoke requires a controlled portal-user session and
   remains pending for post-deploy validation.
 
+## Deploy
+
+- Functional commit: `d2923d4 fix: restrict project status to admins`.
+- Production deployment: `dpl_ECr7qfu3m7kM1NbR8HHb9E1vRzMn` — READY.
+- Deployment URL:
+  `https://s5-evo-portal-fo40lflrn-sebastiankroeker-2781s-projects.vercel.app`.
+- Production alias: `https://portal.s5evo.de` confirmed.
+
+## Post-Deploy Smoke
+
+- Public smoke passed for the standard public routes, competition/results API
+  and legacy-domain redirect.
+- `GET /api/admin/changelog-entries` without a session -> `401`.
+- `POST /api/admin/changelog-entries` without a session -> `401`.
+- The `v0.8.0` source/build update is included in the deployed commit; direct
+  authenticated non-admin UI/`403` smoke remains the documented controlled-
+  session gap.
+
 ## Confirmation Gate
 
 - Gate needed: yes

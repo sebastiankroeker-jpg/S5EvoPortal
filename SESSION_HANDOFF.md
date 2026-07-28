@@ -19,9 +19,9 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `f0023cc` is pushed to
+- Branch: `main`; production source commit `d2923d4` is pushed to
   `origin/main`.
-- Functional baseline: `f0023cc Add competition visibility and registration controls`.
+- Functional baseline: `d2923d4 fix: restrict project status to admins`.
 - The completed
   high-risk production-data action is:
   `docs/cr/2026-07-28-competition-classification-configuration.md` makes
@@ -49,6 +49,9 @@ and decision record.
     visibility: `ee03206`.
   - competition visibility, default selection and explicit registration
     competition context: `f0023cc`.
+  - home competition metadata/news hotfix: `ab0fb31`.
+  - public default-competition selection fix: `894a358`.
+  - admin-only project status and `v0.8.0` release update: `d2923d4`.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
@@ -65,9 +68,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_9oCeTRwq7vkB9KsQeRShZPL5AVNe`
+  - ID: `dpl_ECr7qfu3m7kM1NbR8HHb9E1vRzMn`
   - URL:
-    `https://s5-evo-portal-bp520k406-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-fo40lflrn-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -97,6 +100,9 @@ and decision record.
     Portal-User success path remains pending the deliberate 2027 UI setting.
   - clone feature deployment: public smoke is green; the new clone API
     returns `401` without a session and did not create any production data.
+  - `v0.8.0` project-status release: public smoke is green; Changelog
+    read/write API both return `401` without a session. A controlled
+    authenticated non-admin role smoke is still pending.
 - The latest known portal deployment state and smoke evidence belongs in the
   relevant CR; do not treat older deployment IDs as current. Before another
   production change, verify the live alias and run the normal smoke suite.
@@ -212,6 +218,16 @@ and decision record.
    smokes are green. Manual role navigation smoke (ZUSCHAUER, TEAMCHEF,
    ZEITNAHME, ADMIN; Friends if available) remains pending.
 
+10. **Admin-only Projektstand und Release-Update** — Deployed, standard risk.
+    `docs/cr/2026-07-28-admin-project-status-access-and-update.md`
+    Version, Changelog, Header, Suche, Command-Pill und Orga-Links verwenden
+    die reale `ADMIN`-Rolle. Die Seite wartet auf die Rollenauflösung und
+    zeigt Nicht-Admins keine Projektstands-/Feedback-Inhalte; die POST-API
+    verwendet nun die serverseitige Tenant-Admin-Prüfung. Commit `d2923d4`,
+    deployment `dpl_ECr7qfu3m7kM1NbR8HHb9E1vRzMn` is READY. Public smoke and
+    unauthenticated GET/POST negatives are green; an authenticated
+    non-admin smoke remains pending.
+
 ## Working method
 
 - Each product change starts from a CR in `docs/cr/`; use
@@ -246,3 +262,6 @@ and decision record.
    navigation-information-architecture change.
 7. The 2027 competition exists as a DRAFT. Review dates, registration settings
    and the copied news before a separate decision to publish/open it.
+8. For the project-status access change, perform one controlled authenticated
+   non-admin direct-route/API smoke before treating the role coverage as
+   complete.
