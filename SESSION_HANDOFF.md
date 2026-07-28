@@ -22,6 +22,11 @@ and decision record.
 - Branch: `main`; production source commit `d4c7218` is pushed to
   `origin/main`.
 - Functional baseline: `d4c7218 Add competition clone preparation flow`.
+- Local high-risk work pending separate release approval:
+  `docs/cr/2026-07-28-tenant-context-resolution-hardening.md` removes the
+  implicit first-matching-tenant fallback, includes the clone preview fix and
+  makes missing context fail closed. No commit, deploy, migration or production
+  data change has occurred.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -131,8 +136,18 @@ and decision record.
    `FRIENDS` is tenant-scoped and seeded with `portal.map.view`, without admin,
    participant/contact/export, audit, timekeeping or staging permissions.
 
-6. **Competition clone / 5Kampf 2027 preparation** — Deployed; authenticated
-   admin dry-run pending, medium risk.
+6. **Tenant context resolution hardening** — Local, high risk; release
+   approval pending.
+   `docs/cr/2026-07-28-tenant-context-resolution-hardening.md`
+   The historical closed 2024 event remains in a second tenant; intended model
+   is one club tenant with multiple competitions. Direct tenant auth now needs
+   an explicit tenant ID, competition/entity routes resolve their own target,
+   and portal-global routes opt into any-tenant admin access. Local scope,
+   clone, admin-scope, TypeScript and production-build checks are green. No DB
+   migration or data mutation. Authenticated two-tenant smoke remains a gap.
+
+7. **Competition clone / 5Kampf 2027 preparation** — Included in the local
+   tenant-hardening release; release approval pending, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
    Admin-only, transactional clone of configuration, persisted disciplines and
    non-archived competition news into a reviewed draft;
@@ -143,9 +158,11 @@ and decision record.
    production clone has been performed. Sebastian confirmed the class policy:
    the selected competition year drives age totals and youth cohorts, while
    2026 remains reproducible. The 2027 matrix and the 2019 cohort boundary
-   are covered locally and the feature is deployed in `d4c7218`. Next: run
-   an authenticated admin dry-run; then request a separate Go before creating
-   any production 2027 competition.
+   are covered locally and the feature is deployed in `d4c7218`. The first
+   authenticated preview exposed a source-tenant resolution regression; its
+   narrower competition-specific admin guard is included in the broader local
+   tenant-context hardening release. Then run the authenticated admin dry-run;
+   request a separate Go before creating any production 2027 competition.
 
 ## Working method
 
@@ -172,6 +189,6 @@ and decision record.
 4. Retain the authenticated cross-competition smoke gap in the security
    release record; create controlled role test sessions before the next
    permission-sensitive release where feasible.
-5. For the active competition-clone CR, run an authenticated admin dry-run
-   and keep actual production target creation behind its own explicit
-   data-mutation gate.
+5. For the active competition-clone CR, deploy the source-competition scope
+   hotfix, run an authenticated admin dry-run, and keep actual production
+   target creation behind its own explicit data-mutation gate.

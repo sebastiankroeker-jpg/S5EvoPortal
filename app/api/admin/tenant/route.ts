@@ -3,26 +3,10 @@ import { getServerSession } from 'next-auth';
 import type { Session } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { requireTenantRoles } from '@/lib/server-permissions';
+import { requireCompetitionRoles } from '@/lib/server-permissions';
 
 async function resolveTenantAdminAuth(session: Session | null, competitionId?: string | null) {
-  if (!competitionId) {
-    return requireTenantRoles(session, ['ADMIN']);
-  }
-
-  const competition = await prisma.competition.findUnique({
-    where: { id: competitionId },
-    select: { tenantId: true },
-  });
-
-  if (!competition) {
-    return { error: NextResponse.json({ error: 'Wettkampf nicht gefunden' }, { status: 404 }) };
-  }
-
-  return requireTenantRoles(session, ['ADMIN'], {
-    tenantId: competition.tenantId,
-    fallbackToFirstMatchingTenant: false,
-  });
+  return requireCompetitionRoles(session, ['ADMIN'], competitionId);
 }
 
 // GET aktueller Tenant

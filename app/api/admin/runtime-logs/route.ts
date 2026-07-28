@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireAnyTenantRoles } from "@/lib/server-permissions";
 
 type VercelRequestLogRow = {
   requestId?: string;
@@ -54,7 +54,7 @@ function parseSince(value: string | null): number {
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  const auth = await requireAnyTenantRoles(session, ["ADMIN"]);
   if ("error" in auth) return auth.error;
 
   const token = process.env.VERCEL_LOGS_TOKEN || process.env.VERCEL_TOKEN;

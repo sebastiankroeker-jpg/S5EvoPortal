@@ -49,23 +49,23 @@ assertDoesNotInclude(
   "admin competition switcher",
 );
 
-assertIncludes(competitionRoute, "async function requireCompetitionAdmin", "admin competition detail");
+assertIncludes(competitionRoute, "async function loadCompetition", "admin competition detail");
 assertIncludes(competitionRoute, "where: { id: competitionId }", "admin competition detail");
 assertIncludes(
   competitionRoute,
-  "getTenantRoleFlagsForUserId(userId, competition.tenantId)",
+  "requireCompetitionRoles(session, ['ADMIN'], competitionId)",
   "admin competition detail",
 );
-assertIncludes(competitionRoute, "if (!access.isAdmin)", "admin competition detail");
 assertIncludes(
   competitionRoute,
-  "await requireCompetitionAdmin(auth.user.id, competitionId)",
+  "const auth = await requireCompetitionRoles(session, ['ADMIN'], competitionId)",
   "admin competition detail GET",
 );
 assertIncludes(
   competitionRoute,
-  "await requireCompetitionAdmin(auth.user.id, String(body.id))",
+  "const auth = await requireCompetitionRoles(session, ['ADMIN'], typeof body.id === 'string' ? body.id : null)",
   "admin competition detail PUT",
 );
+assertDoesNotInclude(competitionRoute, "requireTenantRoles", "admin competition detail");
 
 console.log("admin competition scope verification ok");

@@ -42,7 +42,6 @@ const competitionScopedRoutes = [
   "app/api/admin/result-staging/reset/route.ts",
   "app/api/admin/result-staging/timekeeping/sessions/[sessionId]/route.ts",
   "app/api/admin/result-staging/timekeeping/sessions/route.ts",
-  "app/api/admin/role-permissions/route.ts",
   "app/api/admin/start-numbers/import/route.ts",
   "app/api/admin/start-numbers/reset/route.ts",
   "app/api/admin/team-access-audit/route.ts",
@@ -57,6 +56,39 @@ for (const route of competitionScopedRoutes) {
 const claimLinksRoute = readSource("app/api/admin/claim-links/route.ts");
 assertIncludes(claimLinksRoute, "requireCompetitionAdminAccess(competitionId)", "claim links GET competition scope");
 assertIncludes(claimLinksRoute, "requireCompetitionTenantRoles", "claim links GET competition scope");
+assertIncludes(claimLinksRoute, "requireCompetitionRoles(session, [\"ADMIN\"], competitionId)", "claim links tenant toggle scope");
+
+const dashboardLayoutsRoute = readSource("app/api/dashboard-layouts/route.ts");
+assertIncludes(dashboardLayoutsRoute, "tenantContextCompetitionId", "dashboard layouts tenant context anchor");
+assertIncludes(dashboardLayoutsRoute, "Aktiver Wettkampf als Tenant-Kontext erforderlich", "dashboard layouts tenant context validation");
+assertIncludes(dashboardLayoutsRoute, "data.competitionId || data.tenantContextCompetitionId", "dashboard layouts tenant context resolution");
+
+const rolePermissionsRoute = readSource("app/api/admin/role-permissions/route.ts");
+assertIncludes(rolePermissionsRoute, "requireCompetitionRoles(session, [\"ADMIN\"], competitionId)", "role permission competition scope");
+
+const competitionRoute = readSource("app/api/admin/competition/route.ts");
+assertIncludes(competitionRoute, "requireCompetitionRoles(session, ['ADMIN'], competitionId)", "competition GET scope");
+assertIncludes(competitionRoute, "requireCompetitionRoles(session, ['ADMIN'], typeof body.id", "competition PUT scope");
+
+const homeNewsRoute = readSource("app/api/admin/home-news/route.ts");
+assertIncludes(homeNewsRoute, "requireCompetitionRoles(session, [\"ADMIN\"]", "home news competition scope");
+assertIncludes(homeNewsRoute, "competitionId: auth.competitionId", "home news persisted competition scope");
+
+const homeNewsEntryRoute = readSource("app/api/admin/home-news/[entryId]/route.ts");
+assertIncludes(homeNewsEntryRoute, "requireAnyTenantRoles(session, [\"ADMIN\"])", "home news entry global pre-auth");
+assertIncludes(homeNewsEntryRoute, "getTenantRoleFlagsForUserId(userId, entry.tenantId)", "home news entry target tenant scope");
+
+const userDeleteRoute = readSource("app/api/admin/users/[id]/route.ts");
+assertIncludes(userDeleteRoute, "requireCompetitionRoles(session, [\"ADMIN\"], url.searchParams.get(\"competitionId\"))", "user delete competition scope");
+
+const globalRoutes = [
+  "app/api/admin/changelog-entries/route.ts",
+  "app/api/admin/changelog-entries/[entryId]/route.ts",
+  "app/api/admin/runtime-logs/route.ts",
+] as const;
+for (const route of globalRoutes) {
+  assertIncludes(readSource(route), "requireAnyTenantRoles", `${route} explicit portal-global scope`);
+}
 
 const competitionResetRoute = readSource("app/api/admin/competition/reset/route.ts");
 assertIncludes(competitionResetRoute, "requireCompetitionTenantRoles", "competition reset route");
@@ -115,30 +147,6 @@ assertIncludes(adminConversationsRoute, "const competitionId = auth.competitionI
 const timekeepingEventsRoute = readSource("app/api/timekeeping/events/route.ts");
 assertIncludes(timekeepingEventsRoute, "existingSession.tenantId !== auth.tenantId", "timekeeping session tenant scope");
 assertIncludes(timekeepingEventsRoute, "existingSession.competitionId !== competitionId", "timekeeping session competition scope");
-
-const allowedCustomCompetitionScopeRoutes = new Map<string, string>([
-  ["app/api/admin/competition/route.ts", "uses requireCompetitionAdmin() after resolving selected competition id"],
-  ["app/api/admin/competitions/route.ts", "lists all admin tenants for the competition switcher"],
-  ["app/api/admin/competitions/[id]/clone/route.ts", "requires tenant ADMIN and resolves the source through that tenant"],
-  ["app/api/admin/home-news/route.ts", "resolves the optional competition and rechecks ADMIN in its tenant"],
-  ["app/api/admin/home-news/[entryId]/route.ts", "loads the entry scope and rechecks ADMIN in its competition tenant"],
-  ["app/api/admin/pending-changes/route.ts", "uses strict requireCompetitionRoles()"],
-  ["app/api/admin/pending-changes/[id]/route.ts", "uses resolvePendingChangeTenantId() before role auth"],
-  ["app/api/admin/users/route.ts", "uses strict requireCompetitionRoles()"],
-  ["app/api/admin/users/[id]/route.ts", "uses resolveScopedTenantId() and existing targeted guard"],
-  ["app/api/admin/users/[id]/roles/route.ts", "uses strict requireCompetitionRoles()"],
-  ["app/api/dashboard-layouts/route.ts", "resolves competition tenant before requireTenantRoles()"],
-  ["app/api/dashboard-layouts/[id]/route.ts", "loads layout tenant before requireTenantRoles()"],
-  ["app/api/admin/result-staging/timekeeping/import/route.ts", "loads competition tenant before requireTenantRoles() with fallback disabled"],
-  ["app/api/admin/visitor-counter/route.ts", "derives the active competition and passes its tenant id explicitly"],
-]);
-
-const tenantLevelRoutes = new Map<string, string>([
-  ["app/api/admin/changelog-entries/route.ts", "global portal changelog moderation"],
-  ["app/api/admin/changelog-entries/[entryId]/route.ts", "global portal changelog entry route"],
-  ["app/api/admin/runtime-logs/route.ts", "global Vercel project runtime log viewer"],
-  ["app/api/admin/tenant/route.ts", "tenant settings route"],
-]);
 
 type RouteScope =
   | "framework"
@@ -241,27 +249,22 @@ assert.deepEqual(
   "API route inventory is stale; classify every added or removed route",
 );
 
-const scannedRoutes = [
-  ...walk("app/api/admin"),
-  ...walk("app/api/dashboard-layouts"),
-  ...walk("app/api/messages"),
-].filter((path) => path.endsWith("/route.ts"));
-
-const unexpectedFallbackRoutes: string[] = [];
-for (const route of scannedRoutes) {
+const directTenantAuthRoutes: string[] = [];
+for (const route of allApiRoutes) {
   const source = readSource(route);
-  if (!source.includes("competitionId") || !source.includes("requireTenantRoles(")) continue;
-  if (source.includes("requireCompetitionTenantRoles")) continue;
-  if (allowedCustomCompetitionScopeRoutes.has(route)) continue;
-  if (tenantLevelRoutes.has(route)) continue;
-  unexpectedFallbackRoutes.push(route);
+  if (!source.includes("requireTenantRoles(")) continue;
+  if (!source.includes("tenantId:")) directTenantAuthRoutes.push(route);
 }
 
 assert.deepEqual(
-  unexpectedFallbackRoutes,
+  directTenantAuthRoutes,
   [],
-  `competition-scoped routes still using fallback tenant auth: ${unexpectedFallbackRoutes.join(", ")}`,
+  `routes call requireTenantRoles() without an explicit tenantId: ${directTenantAuthRoutes.join(", ")}`,
 );
+
+const permissionSource = readSource("lib/server-permissions.ts");
+assertIncludes(permissionSource, 'error: NextResponse.json({ error: "tenantId erforderlich" }, { status: 400 })', "tenant auth fail-closed behavior");
+assert.ok(!permissionSource.includes("fallbackToFirstMatchingTenant"), "tenant auth must not retain first-tenant fallback");
 
 console.log("tenant scope verification ok");
 console.log(`entity scoped routes verified: ${entityScopedRoutes.size}`);

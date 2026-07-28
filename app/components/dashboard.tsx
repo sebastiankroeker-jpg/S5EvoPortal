@@ -2140,6 +2140,7 @@ export default function Dashboard({ ownerFilter: initialOwnerFilter, marketplace
           name,
           scope: isAdmin ? layoutScope : "PERSONAL",
           competitionId: null,
+          tenantContextCompetitionId: activeCompetition?.id,
           config: currentLayoutConfig,
         }),
       });

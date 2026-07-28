@@ -2,40 +2,18 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 import { buildDeletedUserIdentity } from "@/lib/user-deletion";
-
-async function resolveScopedTenantId(userId: string, fallbackTenantId: string, competitionId: string | null) {
-  if (!competitionId) return { tenantId: fallbackTenantId };
-
-  const competition = await prisma.competition.findUnique({
-    where: { id: competitionId },
-    select: { tenantId: true },
-  });
-
-  if (!competition) {
-    return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
-  }
-
-  const roleFlags = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
-  if (!roleFlags.isAdmin) {
-    return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
-  }
-
-  return { tenantId: competition.tenantId };
-}
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
-  if ("error" in auth) return auth.error;
   const url = new URL(request.url);
-  const scopedTenant = await resolveScopedTenantId(auth.user.id, auth.tenantId, url.searchParams.get("competitionId"));
-  if ("error" in scopedTenant) return scopedTenant.error;
-  const scopedTenantId = scopedTenant.tenantId;
+  const auth = await requireCompetitionRoles(session, ["ADMIN"], url.searchParams.get("competitionId"));
+  if ("error" in auth) return auth.error;
+  const scopedTenantId = auth.tenantId;
 
   const { id } = await params;
   if (id === auth.user.id) {

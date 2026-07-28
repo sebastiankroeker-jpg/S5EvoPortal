@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { getTenantRoleFlagsForUserId, requireTenantRoles } from "@/lib/server-permissions";
+import { getTenantRoleFlagsForUserId, requireAnyTenantRoles } from "@/lib/server-permissions";
 
 const updateSchema = z
   .object({
@@ -18,7 +18,7 @@ const updateSchema = z
     message: "Keine Änderungen übermittelt",
   });
 
-async function ensureAdminScope(userId: string, fallbackTenantId: string, entryId: string, competitionId?: string | null) {
+async function ensureAdminScope(userId: string, entryId: string, competitionId?: string | null) {
   const entry = await prisma.homeNewsEntry.findUnique({
     where: { id: entryId },
     select: { id: true, tenantId: true, competitionId: true },
@@ -30,7 +30,8 @@ async function ensureAdminScope(userId: string, fallbackTenantId: string, entryI
 
   const normalizedCompetitionId = competitionId?.trim() || entry.competitionId;
   if (!normalizedCompetitionId) {
-    if (entry.tenantId !== fallbackTenantId) {
+    const roleFlags = await getTenantRoleFlagsForUserId(userId, entry.tenantId);
+    if (!roleFlags.isAdmin) {
       return { error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }) };
     }
     return { entry, tenantId: entry.tenantId };
@@ -86,7 +87,7 @@ export async function PATCH(
   { params }: { params: Promise<{ entryId: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  const auth = await requireAnyTenantRoles(session, ["ADMIN"]);
   if ("error" in auth) return auth.error;
 
   const { entryId } = await params;
@@ -96,7 +97,7 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const scope = await ensureAdminScope(auth.user.id, auth.tenantId, entryId, parsed.data.competitionId);
+  const scope = await ensureAdminScope(auth.user.id, entryId, parsed.data.competitionId);
   if ("error" in scope) return scope.error;
 
   const now = new Date();

@@ -49,7 +49,10 @@ export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const competition = await resolveVisitorCounterCompetition();
-    const auth = await requireTenantRoles(session, ["ADMIN"], competition ? { tenantId: competition.tenantId } : {});
+    if (!competition) {
+      return NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 });
+    }
+    const auth = await requireTenantRoles(session, ["ADMIN"], { tenantId: competition.tenantId });
     if ("error" in auth) return auth.error;
 
     const url = new URL(request.url);
@@ -71,7 +74,7 @@ export async function GET(request: Request) {
 
     const baseWhere = {
       tenantId: auth.tenantId,
-      ...(competition ? { competitionId: competition.id } : {}),
+      competitionId: competition.id,
       surface: "portal",
     };
 

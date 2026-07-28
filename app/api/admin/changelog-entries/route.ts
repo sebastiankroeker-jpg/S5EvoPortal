@@ -5,7 +5,7 @@ import { z } from "zod";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireAnyTenantRoles } from "@/lib/server-permissions";
 
 const typeEnum = ["BUG", "REQUEST"] as const;
 const statusEnum = ["OPEN", "IN_PROGRESS", "DONE"] as const;
@@ -30,7 +30,7 @@ function parseDate(value: string | null) {
 
 async function getAdminUser(): Promise<{ id: string } | NextResponse> {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  const auth = await requireAnyTenantRoles(session, ["ADMIN"]);
   if ("error" in auth) {
     return auth.error;
   }

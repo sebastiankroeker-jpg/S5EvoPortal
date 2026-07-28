@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { parseDateInputEndOfDay } from '@/lib/domain/shirts';
-import { getTenantRoleFlagsForUserId, requireTenantRoles } from '@/lib/server-permissions';
+import { requireCompetitionRoles } from '@/lib/server-permissions';
 import { normalizeCompetitionTeamAccessConfig } from '@/lib/team-access-config';
 import { normalizeMarketplaceGlobalVisibility } from '@/lib/marketplace-visibility';
 import { normalizeLiveResultDisciplines } from '@/lib/live-results-disciplines';
@@ -46,7 +46,7 @@ function normalizeLivePublicationVisibility(value: unknown) {
     : "ADMINS";
 }
 
-async function requireCompetitionAdmin(userId: string, competitionId: string) {
+async function loadCompetition(competitionId: string) {
   const competition = await prisma.competition.findUnique({
     where: { id: competitionId },
     include: { tenant: { select: { publicPortalRegistrationEnabled: true } } },
@@ -56,11 +56,6 @@ async function requireCompetitionAdmin(userId: string, competitionId: string) {
     return { error: NextResponse.json({ error: 'No competition found' }, { status: 404 }) };
   }
 
-  const access = await getTenantRoleFlagsForUserId(userId, competition.tenantId);
-  if (!access.isAdmin) {
-    return { error: NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 }) };
-  }
-
   return { competition };
 }
 
@@ -68,27 +63,13 @@ async function requireCompetitionAdmin(userId: string, competitionId: string) {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ['ADMIN']);
-    if ('error' in auth) return auth.error;
-
     try {
-      // If ?id= is provided, load that specific competition (admin switcher)
       const competitionId = request.nextUrl.searchParams.get('id');
-      
-      const scopedCompetition = competitionId
-        ? await requireCompetitionAdmin(auth.user.id, competitionId)
-        : null;
-
-      if (scopedCompetition && 'error' in scopedCompetition) {
-        return scopedCompetition.error;
-      }
-
-      const competition = scopedCompetition?.competition
-        ?? await prisma.competition.findFirst({
-          where: { tenantId: auth.tenantId },
-          orderBy: { year: 'desc' },
-          include: { tenant: { select: { publicPortalRegistrationEnabled: true } } },
-        });
+      const auth = await requireCompetitionRoles(session, ['ADMIN'], competitionId);
+      if ('error' in auth) return auth.error;
+      const scopedCompetition = await loadCompetition(auth.competitionId);
+      if ('error' in scopedCompetition) return scopedCompetition.error;
+      const competition = scopedCompetition.competition;
 
       if (!competition) {
         return NextResponse.json({ error: 'No competition found' }, { status: 404 });
@@ -114,10 +95,9 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const auth = await requireTenantRoles(session, ['ADMIN']);
-    if ('error' in auth) return auth.error;
-
     const body = await request.json();
+    const auth = await requireCompetitionRoles(session, ['ADMIN'], typeof body.id === 'string' ? body.id : null);
+    if ('error' in auth) return auth.error;
 
     // Basic validation
     if (!body.name || !body.year) {
@@ -151,111 +131,64 @@ export async function PUT(request: NextRequest) {
     const liveResultsDisciplines = normalizeLiveResultDisciplines(body.liveResultsDisciplines);
 
     try {
-      // Load specific competition by id, or fall back to latest
-      const scopedCompetition = body.id
-        ? await requireCompetitionAdmin(auth.user.id, String(body.id))
-        : null;
-
-      if (scopedCompetition && 'error' in scopedCompetition) {
-        return scopedCompetition.error;
-      }
-
-      let competition = scopedCompetition?.competition
-        ?? await prisma.competition.findFirst({ where: { tenantId: auth.tenantId }, orderBy: { year: 'desc' } });
-
-      if (!competition) {
-        // Erstelle neue Competition wenn keine existiert
-        competition = await prisma.competition.create({
-          data: {
-            name: body.name,
-            year: parseInt(body.year) || 2026,
-            date: body.date ? new Date(body.date) : null,
-            dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
-            registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : null,
-            claimTokenExpiryMode,
-            claimTokenTtlDays,
-            teamOwnerFilterVisibleForTeamchef: Boolean(body.teamOwnerFilterVisibleForTeamchef),
-            participantsCanViewAllTeams: Boolean(body.participantsCanViewAllTeams),
-            spectatorsCanViewAllTeams: Boolean(body.spectatorsCanViewAllTeams),
-            hideForeignTeams: Boolean(body.hideForeignTeams),
-            liveTeamsVisibility,
-            liveStartlistsVisibility,
-            liveResultsVisibility,
-            liveResultsDisciplines,
-            marketplaceGlobalVisibility,
-            registrationNotificationEmail: normalizeNotificationEmails(body.registrationNotificationEmail),
-            shirtOrderDeadline: parseDateInputEndOfDay(body.shirtOrderDeadline),
-            status: body.status || "DRAFT",
-            maxTeams: parseInt(body.maxTeams) || null,
-            teamSize: parseInt(body.teamSize) || 5,
-            ageReferenceDate: body.ageReferenceDate ? new Date(body.ageReferenceDate) : null,
-            benchPressTara: parseFloat(body.benchPressTara) || 20.0,
-            benchPressMode: body.benchPressMode || "GROSS",
-            stockShotsCount: parseInt(body.stockShotsCount) || 11,
-            stockStrikeoutCount: parseInt(body.stockStrikeoutCount) || 1,
-            location: body.location || null,
-            publicResults: Boolean(body.publicResults),
-            tenantId: auth.tenantId
-          }
-        });
-      } else {
-        // Update existierende Competition
-        competition = await prisma.competition.update({
-          where: { id: competition.id },
-          data: {
-            name: body.name,
-            year: parseInt(body.year) || competition.year,
-            date: body.date ? new Date(body.date) : competition.date,
-            dateEnd: body.dateEnd !== undefined ? (body.dateEnd ? new Date(body.dateEnd) : null) : competition.dateEnd,
-            registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : competition.registrationDeadline,
-            claimTokenExpiryMode,
-            claimTokenTtlDays,
-            teamOwnerFilterVisibleForTeamchef: body.teamOwnerFilterVisibleForTeamchef !== undefined
-              ? Boolean(body.teamOwnerFilterVisibleForTeamchef)
-              : competition.teamOwnerFilterVisibleForTeamchef,
-            participantsCanViewAllTeams: body.participantsCanViewAllTeams !== undefined
-              ? Boolean(body.participantsCanViewAllTeams)
-              : competition.participantsCanViewAllTeams,
-            spectatorsCanViewAllTeams: body.spectatorsCanViewAllTeams !== undefined
-              ? Boolean(body.spectatorsCanViewAllTeams)
-              : competition.spectatorsCanViewAllTeams,
-            hideForeignTeams: body.hideForeignTeams !== undefined
-              ? Boolean(body.hideForeignTeams)
-              : competition.hideForeignTeams,
-            liveTeamsVisibility: body.liveTeamsVisibility !== undefined
-              ? liveTeamsVisibility
-              : competition.liveTeamsVisibility,
-            liveStartlistsVisibility: body.liveStartlistsVisibility !== undefined
-              ? liveStartlistsVisibility
-              : competition.liveStartlistsVisibility,
-            liveResultsVisibility: body.liveResultsVisibility !== undefined
-              ? liveResultsVisibility
-              : competition.liveResultsVisibility,
-            liveResultsDisciplines: body.liveResultsDisciplines !== undefined
-              ? liveResultsDisciplines
-              : undefined,
-            marketplaceGlobalVisibility: body.marketplaceGlobalVisibility !== undefined
-              ? marketplaceGlobalVisibility
-              : competition.marketplaceGlobalVisibility,
-            registrationNotificationEmail: body.registrationNotificationEmail !== undefined
-              ? normalizeNotificationEmails(body.registrationNotificationEmail)
-              : competition.registrationNotificationEmail,
-            shirtOrderDeadline: body.shirtOrderDeadline !== undefined
-              ? parseDateInputEndOfDay(body.shirtOrderDeadline)
-              : competition.shirtOrderDeadline,
-            status: body.status || competition.status,
-            maxTeams: body.maxTeams !== undefined ? parseInt(body.maxTeams) || null : competition.maxTeams,
-            teamSize: body.teamSize !== undefined ? parseInt(body.teamSize) || 5 : competition.teamSize,
-            ageReferenceDate: body.ageReferenceDate ? new Date(body.ageReferenceDate) : competition.ageReferenceDate,
-            benchPressTara: body.benchPressTara !== undefined ? parseFloat(body.benchPressTara) || 20.0 : competition.benchPressTara,
-            benchPressMode: body.benchPressMode || competition.benchPressMode,
-            stockShotsCount: body.stockShotsCount !== undefined ? parseInt(body.stockShotsCount) || 11 : competition.stockShotsCount,
-            stockStrikeoutCount: body.stockStrikeoutCount !== undefined ? parseInt(body.stockStrikeoutCount) || 1 : competition.stockStrikeoutCount,
-            location: body.location !== undefined ? body.location : competition.location,
-            publicResults: body.publicResults !== undefined ? Boolean(body.publicResults) : competition.publicResults,
-          }
-        });
-      }
+      const scopedCompetition = await loadCompetition(auth.competitionId);
+      if ('error' in scopedCompetition) return scopedCompetition.error;
+      const currentCompetition = scopedCompetition.competition;
+      const competition = await prisma.competition.update({
+        where: { id: currentCompetition.id },
+        data: {
+          name: body.name,
+          year: parseInt(body.year) || currentCompetition.year,
+          date: body.date ? new Date(body.date) : currentCompetition.date,
+          dateEnd: body.dateEnd !== undefined ? (body.dateEnd ? new Date(body.dateEnd) : null) : currentCompetition.dateEnd,
+          registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : currentCompetition.registrationDeadline,
+          claimTokenExpiryMode,
+          claimTokenTtlDays,
+          teamOwnerFilterVisibleForTeamchef: body.teamOwnerFilterVisibleForTeamchef !== undefined
+            ? Boolean(body.teamOwnerFilterVisibleForTeamchef)
+            : currentCompetition.teamOwnerFilterVisibleForTeamchef,
+          participantsCanViewAllTeams: body.participantsCanViewAllTeams !== undefined
+            ? Boolean(body.participantsCanViewAllTeams)
+            : currentCompetition.participantsCanViewAllTeams,
+          spectatorsCanViewAllTeams: body.spectatorsCanViewAllTeams !== undefined
+            ? Boolean(body.spectatorsCanViewAllTeams)
+            : currentCompetition.spectatorsCanViewAllTeams,
+          hideForeignTeams: body.hideForeignTeams !== undefined
+            ? Boolean(body.hideForeignTeams)
+            : currentCompetition.hideForeignTeams,
+          liveTeamsVisibility: body.liveTeamsVisibility !== undefined
+            ? liveTeamsVisibility
+            : currentCompetition.liveTeamsVisibility,
+          liveStartlistsVisibility: body.liveStartlistsVisibility !== undefined
+            ? liveStartlistsVisibility
+            : currentCompetition.liveStartlistsVisibility,
+          liveResultsVisibility: body.liveResultsVisibility !== undefined
+            ? liveResultsVisibility
+            : currentCompetition.liveResultsVisibility,
+          liveResultsDisciplines: body.liveResultsDisciplines !== undefined
+            ? liveResultsDisciplines
+            : undefined,
+          marketplaceGlobalVisibility: body.marketplaceGlobalVisibility !== undefined
+            ? marketplaceGlobalVisibility
+            : currentCompetition.marketplaceGlobalVisibility,
+          registrationNotificationEmail: body.registrationNotificationEmail !== undefined
+            ? normalizeNotificationEmails(body.registrationNotificationEmail)
+            : currentCompetition.registrationNotificationEmail,
+          shirtOrderDeadline: body.shirtOrderDeadline !== undefined
+            ? parseDateInputEndOfDay(body.shirtOrderDeadline)
+            : currentCompetition.shirtOrderDeadline,
+          status: body.status || currentCompetition.status,
+          maxTeams: body.maxTeams !== undefined ? parseInt(body.maxTeams) || null : currentCompetition.maxTeams,
+          teamSize: body.teamSize !== undefined ? parseInt(body.teamSize) || 5 : currentCompetition.teamSize,
+          ageReferenceDate: body.ageReferenceDate ? new Date(body.ageReferenceDate) : currentCompetition.ageReferenceDate,
+          benchPressTara: body.benchPressTara !== undefined ? parseFloat(body.benchPressTara) || 20.0 : currentCompetition.benchPressTara,
+          benchPressMode: body.benchPressMode || currentCompetition.benchPressMode,
+          stockShotsCount: body.stockShotsCount !== undefined ? parseInt(body.stockShotsCount) || 11 : currentCompetition.stockShotsCount,
+          stockStrikeoutCount: body.stockShotsCount !== undefined ? parseInt(body.stockStrikeoutCount) || 1 : currentCompetition.stockStrikeoutCount,
+          location: body.location !== undefined ? body.location : currentCompetition.location,
+          publicResults: body.publicResults !== undefined ? Boolean(body.publicResults) : currentCompetition.publicResults,
+        },
+      });
 
       return NextResponse.json({ 
         success: true,

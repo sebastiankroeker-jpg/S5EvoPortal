@@ -295,7 +295,7 @@ export default function ClaimLinkDashboard() {
       const res = await fetch("/api/admin/claim-links", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "toggleGlobal", enabled }),
+        body: JSON.stringify({ action: "toggleGlobal", enabled, competitionId: activeCompetition?.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Globaler Claim-Schalter konnte nicht aktualisiert werden");

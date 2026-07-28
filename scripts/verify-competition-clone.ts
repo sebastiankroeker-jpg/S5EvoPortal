@@ -33,7 +33,10 @@ for (const forbidden of [
   assert.ok(!cloneService.includes(forbidden), `clone service must not copy excluded data: ${forbidden}`);
 }
 
-assert.ok(cloneRoute.includes('requireTenantRoles(session, ["ADMIN"])'), "clone route must require tenant ADMIN");
+assert.ok(
+  cloneRoute.includes('requireCompetitionRoles(session, ["ADMIN"], sourceCompetitionId)'),
+  "clone route must require ADMIN for the source competition's tenant",
+);
 assert.ok(cloneRoute.includes("confirmationText"), "clone route must require explicit confirmation for writes");
 assert.ok(cloneRoute.includes("dryRun"), "clone route must support a non-mutating preview");
 assert.ok(adminPage.includes("Clone-Vorschau prüfen"), "admin UI must expose a clone preview");

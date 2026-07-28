@@ -309,7 +309,6 @@ export async function POST(request: NextRequest) {
 
     const auth = await requireTenantRoles(session, ["ADMIN"], {
       tenantId: competition.tenantId,
-      fallbackToFirstMatchingTenant: false,
     });
     if ("error" in auth) return auth.error;
 

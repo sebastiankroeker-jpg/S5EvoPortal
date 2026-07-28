@@ -4,16 +4,14 @@ import { Role } from "@prisma/client";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { requireCompetitionTenantRoles, requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 const EDITABLE_ROLES: Role[] = ["ADMIN", "MODERATOR", "ZEITNAHME", "TEAMCHEF", "TEILNEHMER", "FRIENDS"];
 const ADMIN_MANAGE_PERMISSION = "admin.roles.manage";
 
 async function requireRolePermissionAdmin(competitionId?: string | null) {
   const session = await getServerSession(authOptions);
-  return competitionId
-    ? requireCompetitionTenantRoles(session, ["ADMIN"], competitionId)
-    : requireTenantRoles(session, ["ADMIN"]);
+  return requireCompetitionRoles(session, ["ADMIN"], competitionId);
 }
 
 function serializeMatrix(

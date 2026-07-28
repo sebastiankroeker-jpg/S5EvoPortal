@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { cloneCompetition, previewCompetitionClone } from "@/lib/competition-clone";
-import { requireTenantRoles } from "@/lib/server-permissions";
+import { requireCompetitionRoles } from "@/lib/server-permissions";
 
 const cloneSchema = z.object({
   name: z.string().trim().min(3).max(140),
@@ -28,10 +28,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  const auth = await requireTenantRoles(session, ["ADMIN"]);
+  const { id: sourceCompetitionId } = await params;
+  const auth = await requireCompetitionRoles(session, ["ADMIN"], sourceCompetitionId);
   if ("error" in auth) return auth.error;
 
-  const { id: sourceCompetitionId } = await params;
   const body = await request.json().catch(() => null);
   const parsed = cloneSchema.safeParse(body);
   if (!parsed.success) {

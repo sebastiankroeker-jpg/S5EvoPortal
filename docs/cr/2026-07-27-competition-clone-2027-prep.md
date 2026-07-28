@@ -1,6 +1,6 @@
 # CR: Competition clone and 5Kampf 2027 preparation
 
-Status: Deployed — authenticated admin dry-run pending
+Status: Clone scope hotfix local — release approval pending
 Date: 2026-07-27
 Type: feature
 Risk: medium
@@ -250,8 +250,14 @@ Decision from Sebastian, 2026-07-27:
   - Classification has no schema migration: its source of truth remains code,
     but `classifyTeam`, `evaluateTeamState`, and `evaluateTeamDraft` now take
     the selected competition year. Legacy callers default explicitly to 2026.
-  - The API resolves the target competition before it evaluates a registration;
+- The API resolves the target competition before it evaluates a registration;
     this avoids rejecting a valid future cohort against a stale default year.
+  - First authenticated preview exposed a tenant-resolution regression:
+    the clone route selected the first matching tenant-wide admin role before
+    loading the selected source competition. The route now resolves the source
+    competition first and requires `ADMIN` for precisely that competition's
+    tenant. This is a narrower authorization check; it does not relax access
+    or execute a clone.
 
 ## Verification
 
@@ -263,9 +269,11 @@ Decision from Sebastian, 2026-07-27:
 - Targeted verification:
   - `npm run verify:competition-clone` passes;
   - `npm run verify:tenant-scope` passes with 79 classified API routes;
-  - `npm run verify:team-draft` proves 2026 parity, 2027 shifted youth
+- `npm run verify:team-draft` proves 2026 parity, 2027 shifted youth
     classifications, and the 2019 cohort allow/deny boundary;
   - `npx tsc --noEmit --incremental false` passes.
+- Clone scope hotfix checks: clone verifier, tenant scope (79 API routes),
+  targeted ESLint, TypeScript and `git diff --check` pass locally.
 - Sensitive-data negative checks: the clone guard asserts that no nested create
   exists for teams, participants, timekeeping sessions or result batches; the
   service's explicit excluded list also covers results, claims, messages,
@@ -298,8 +306,9 @@ Decision from Sebastian, 2026-07-27:
   rejected before source resolution or dry-run execution; no clone data was
   returned and no data action was performed.
 - Result: green. The authenticated admin dry-run remains the next manual
-  feature test. Actual clone creation remains behind its separate confirmation
-  gate.
+  feature test. It currently requires the small source-competition scope
+  hotfix to be deployed first. Actual clone creation remains behind its
+  separate confirmation gate.
 
 ## Follow-Ups
 

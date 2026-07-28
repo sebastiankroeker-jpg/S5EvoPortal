@@ -13,7 +13,6 @@ import {
   requireCompetitionRoles,
   requireParticipantTenantRoles,
   requireTeamTenantRoles,
-  requireTenantRoles,
 } from "@/lib/server-permissions";
 import { syncDerivedTeamchefRole } from "@/lib/teamchef-role";
 
@@ -43,11 +42,6 @@ function getRequestMeta(request: NextRequest) {
     ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
     userAgent: request.headers.get("user-agent") || null,
   };
-}
-
-async function requireAdminAccess() {
-  const session = await getServerSession(authOptions);
-  return requireTenantRoles(session, ["ADMIN"]);
 }
 
 async function requireCompetitionAdminAccess(competitionId: string | null) {
@@ -428,7 +422,8 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const requestMeta = getRequestMeta(request);
   if (body.action === "toggleGlobal") {
-    const auth = await requireAdminAccess();
+    const competitionId = typeof body.competitionId === "string" ? body.competitionId : null;
+    const auth = await requireCompetitionRoles(session, ["ADMIN"], competitionId);
     if ("error" in auth) return auth.error;
 
     const enabled = Boolean(body.enabled);

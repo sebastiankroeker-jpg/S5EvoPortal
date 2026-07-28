@@ -12,7 +12,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   requireCompetitionRoles,
-  requireTenantRoles,
   type AppRole,
 } from "@/lib/server-permissions";
 
@@ -24,30 +23,44 @@ const createLayoutSchema = z.object({
   name: z.string().trim().min(1, "Name fehlt").max(80, "Name zu lang"),
   scope: z.enum(DASHBOARD_LAYOUT_SCOPES).default("PERSONAL"),
   competitionId: z.string().trim().min(1).optional().nullable(),
+  tenantContextCompetitionId: z.string().trim().min(1).optional().nullable(),
   isDefault: z.boolean().optional(),
   config: TeamDashboardLayoutConfigSchema,
+}).superRefine((data, context) => {
+  if (!data.competitionId && !data.tenantContextCompetitionId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["tenantContextCompetitionId"],
+      message: "Aktiver Wettkampf als Tenant-Kontext erforderlich",
+    });
+  }
+  if (data.competitionId && data.tenantContextCompetitionId && data.competitionId !== data.tenantContextCompetitionId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["tenantContextCompetitionId"],
+      message: "Tenant-Kontext muss dem gespeicherten Wettkampf entsprechen",
+    });
+  }
 });
 
 async function resolveLayoutAuth(competitionId?: string | null) {
   const session = await getServerSession(authOptions);
-  const competition = competitionId
-    ? await prisma.competition.findUnique({
-        where: { id: competitionId },
-        select: { id: true, tenantId: true },
-      })
-    : null;
+  const normalizedCompetitionId = competitionId?.trim() || null;
+  if (!normalizedCompetitionId) {
+    return { error: NextResponse.json({ error: "competitionId erforderlich" }, { status: 400 }) };
+  }
+  const competition = await prisma.competition.findUnique({
+    where: { id: normalizedCompetitionId },
+    select: { id: true, tenantId: true },
+  });
 
-  if (competitionId && !competition) {
+  if (!competition) {
     return { error: NextResponse.json({ error: "Wettkampf nicht gefunden" }, { status: 404 }) };
   }
 
-  const auth = competition
-    ? await requireCompetitionRoles(session, DASHBOARD_ACCESS_ROLES, competition.id, {
-        createIfMissing: true,
-      })
-    : await requireTenantRoles(session, DASHBOARD_ACCESS_ROLES, {
-        createIfMissing: true,
-      });
+  const auth = await requireCompetitionRoles(session, DASHBOARD_ACCESS_ROLES, competition.id, {
+    createIfMissing: true,
+  });
   if ("error" in auth) return auth;
 
   return { ...auth, competition };
@@ -115,7 +128,7 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
-  const auth = await resolveLayoutAuth(data.competitionId || null);
+  const auth = await resolveLayoutAuth(data.competitionId || data.tenantContextCompetitionId || null);
   if ("error" in auth) return auth.error;
 
   if (data.scope === "GLOBAL" && !auth.isAdmin) {

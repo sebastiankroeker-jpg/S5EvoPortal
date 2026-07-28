@@ -11,7 +11,6 @@ import {
 export type AppRole = "ADMIN" | "MODERATOR" | "ZEITNAHME" | "TEAMCHEF" | "TEILNEHMER" | "FRIENDS";
 export type PermissionKey = "admin.roles.manage" | "portal.map.view";
 export { COMPETITION_SCOPED_ROLES };
-const COMPETITION_SCOPED_ROLE_SET = new Set<AppRole>(COMPETITION_SCOPED_ROLES);
 
 function buildRoleFlags(roles: AppRole[]) {
   const uniqueRoles = [...new Set(roles)];
@@ -177,9 +176,11 @@ export async function getScopedRoleFlags(
 }
 
 type RequireTenantRolesOptions = {
-  tenantId?: string | null;
   createIfMissing?: boolean;
-  fallbackToFirstMatchingTenant?: boolean;
+};
+
+type ExplicitTenantRoleOptions = RequireTenantRolesOptions & {
+  tenantId: string;
 };
 
 type RequireTenantRolesError = {
@@ -275,29 +276,16 @@ async function requireResolvedCompetitionRoles(
 export async function requireTenantRoles(
   session: Session | null,
   allowedRoles: AppRole[],
-  options: RequireTenantRolesOptions = {},
+  options: ExplicitTenantRoleOptions,
 ): Promise<RequireTenantRolesError | RequireTenantRolesSuccess> {
   const resolved = await requireAuthenticatedSessionUser(session, options);
   if ("error" in resolved) return resolved;
   const { user } = resolved;
 
-  let tenantId = options.tenantId ?? null;
-  if (!tenantId && options.fallbackToFirstMatchingTenant !== false) {
-    const matchingTenantRole = await prisma.tenantRole.findFirst({
-      where: {
-        userId: user.id,
-        role: { in: allowedRoles },
-        NOT: { role: { in: [...COMPETITION_SCOPED_ROLES] } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    tenantId = matchingTenantRole?.tenantId ?? null;
-  }
-
+  const tenantId = options.tenantId.trim() || null;
   if (!tenantId) {
     return {
-      error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }),
+      error: NextResponse.json({ error: "tenantId erforderlich" }, { status: 400 }),
     };
   }
 
@@ -343,10 +331,7 @@ export async function requireCompetitionTenantRoles(
 ): Promise<RequireTenantRolesError | RequireTenantRolesSuccess> {
   const normalizedCompetitionId = competitionId?.trim() || null;
   if (!normalizedCompetitionId) {
-    if (allowedRoles.some((role) => COMPETITION_SCOPED_ROLE_SET.has(role))) {
-      return requireCompetitionRoles(session, allowedRoles, normalizedCompetitionId, options);
-    }
-    return requireTenantRoles(session, allowedRoles, options);
+    return requireCompetitionRoles(session, allowedRoles, normalizedCompetitionId, options);
   }
 
   return requireCompetitionRoles(session, allowedRoles, normalizedCompetitionId, options);
