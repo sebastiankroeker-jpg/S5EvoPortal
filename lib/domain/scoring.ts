@@ -63,6 +63,15 @@ export interface TeamScore {
   rank: number;
 }
 
+export type RankDisciplineOptions = {
+  /**
+   * Published class ranks are authoritative for legacy individual-class
+   * displays. A combined class must always be ranked from its merged raw
+   * discipline entries instead.
+   */
+  usePublishedScores?: boolean;
+};
+
 function disciplinePointProfile(score: Pick<TeamScore, "disciplinePoints">) {
   return DISCIPLINE_CODES
     .map((discipline) => score.disciplinePoints[discipline] ?? 0)
@@ -99,7 +108,8 @@ export function hasEqualTeamScoreRank(left: TeamScore, right: TeamScore) {
  */
 export function rankDiscipline(
   entries: DisciplineEntry[],
-  discipline: DisciplineCode
+  discipline: DisciplineCode,
+  options: RankDisciplineOptions = {},
 ): RankedEntry[] {
   const sort = DISCIPLINE_SORT[discipline];
   const n = entries.length;
@@ -164,7 +174,7 @@ export function rankDiscipline(
     currentRank = i + 2; // Next rank skips tied positions
   }
 
-  if (!ranked.some((entry) => entry.publishedRank !== undefined || entry.publishedPoints !== undefined)) {
+  if (options.usePublishedScores === false || !ranked.some((entry) => entry.publishedRank !== undefined || entry.publishedPoints !== undefined)) {
     return ranked;
   }
 

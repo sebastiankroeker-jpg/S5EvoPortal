@@ -186,7 +186,9 @@ export async function GET(request: NextRequest) {
     // preferences must not anonymize the scoreboard.
     const canSeeLiveNames = true;
     const canSeeEmptyResultRows = Boolean(access?.isAdmin || access?.isModerator);
-    const canSeeStartNumber = Boolean(access?.isAdmin);
+    // Start numbers are public event identifiers once a viewer is allowed to
+    // see this result list. They are not contact or participant identity data.
+    const canSeeStartNumber = true;
     const publishedDisciplines = normalizeLiveResultDisciplines(competition.liveResultsDisciplines);
     const publishedDisciplineSet = new Set<DisciplineCode>(publishedDisciplines);
     if (includeStagingTest && !access?.isAdmin) {
@@ -467,11 +469,15 @@ export async function GET(request: NextRequest) {
       if (!entries) continue;
 
       const disciplineRankings: Record<DisciplineCode, ReturnType<typeof rankDiscipline>> = {
-        RUN: publishedDisciplineSet.has("RUN") ? rankDiscipline(entries.RUN, "RUN") : [],
-        BENCH: publishedDisciplineSet.has("BENCH") ? rankDiscipline(entries.BENCH, "BENCH") : [],
-        STOCK: publishedDisciplineSet.has("STOCK") ? rankDiscipline(entries.STOCK, "STOCK") : [],
-        ROAD: publishedDisciplineSet.has("ROAD") ? rankDiscipline(entries.ROAD, "ROAD") : [],
-        MTB: publishedDisciplineSet.has("MTB") ? rankDiscipline(entries.MTB, "MTB") : [],
+        // Combined groups merge several source classes. Their published
+        // values belong to the source-class ranking and must not leak into
+        // the cross-class ranking. Recalculate all places/points from raw
+        // entries so the regular discipline and team-score tiebreakers apply.
+        RUN: publishedDisciplineSet.has("RUN") ? rankDiscipline(entries.RUN, "RUN", { usePublishedScores: false }) : [],
+        BENCH: publishedDisciplineSet.has("BENCH") ? rankDiscipline(entries.BENCH, "BENCH", { usePublishedScores: false }) : [],
+        STOCK: publishedDisciplineSet.has("STOCK") ? rankDiscipline(entries.STOCK, "STOCK", { usePublishedScores: false }) : [],
+        ROAD: publishedDisciplineSet.has("ROAD") ? rankDiscipline(entries.ROAD, "ROAD", { usePublishedScores: false }) : [],
+        MTB: publishedDisciplineSet.has("MTB") ? rankDiscipline(entries.MTB, "MTB", { usePublishedScores: false }) : [],
       };
       const calculatedTeamScores = calculateTeamScores(disciplineRankings);
       const teamScores = canSeeEmptyResultRows
