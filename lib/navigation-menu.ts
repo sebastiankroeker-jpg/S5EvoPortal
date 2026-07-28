@@ -232,6 +232,7 @@ const NAVIGATION_MENU_ITEMS: NavigationMenuItem[] = [
     keywords: ["changelog", "version", "historie", "änderungen"],
     icon: "📝",
     requiresAuth: true,
+    roles: ["ADMIN"],
   },
   {
     id: "sign-out",

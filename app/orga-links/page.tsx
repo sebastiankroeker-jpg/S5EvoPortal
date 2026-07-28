@@ -5,8 +5,9 @@ import { usePermissions } from "@/lib/permissions-context";
 
 export default function OrgaLinksPage() {
   const router = useRouter();
-  const { can } = usePermissions();
+  const { can, roles } = usePermissions();
   const canAccess = can("team.view.all") || can("results.edit");
+  const isAdmin = roles.includes("ADMIN");
 
   if (!canAccess) {
     return null;
@@ -44,16 +45,18 @@ export default function OrgaLinksPage() {
           </div>
         </button>
 
-        <button
-          onClick={() => router.push("/changelog")}
-          className="rounded-md border border-border/40 bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent"
-        >
-          <div className="space-y-1">
-            <span className="text-lg">📋</span>
-            <p className="font-medium text-sm">Changelog</p>
-            <p className="text-xs text-muted-foreground">Änderungen und Entwicklungsstand nachlesen.</p>
-          </div>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => router.push("/changelog")}
+            className="rounded-md border border-border/40 bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent"
+          >
+            <div className="space-y-1">
+              <span className="text-lg">📋</span>
+              <p className="font-medium text-sm">Changelog</p>
+              <p className="text-xs text-muted-foreground">Änderungen und Entwicklungsstand nachlesen.</p>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   );

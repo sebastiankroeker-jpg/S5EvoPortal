@@ -66,8 +66,8 @@ type AdminEntry = {
 export default function ChangelogPage() {
   const router = useRouter();
   const { status } = useSession();
-  const { activeRole, can } = usePermissions();
-  const canManageEntries = can("*") || can("team.edit.all");
+  const { activeRole, roles, isLoading } = usePermissions();
+  const canManageEntries = roles.includes("ADMIN");
 
   const [entries, setEntries] = useState<AdminEntry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
@@ -267,7 +267,7 @@ export default function ChangelogPage() {
     navigateFromExternalBottomTab(router, tabId);
   };
 
-  if (status === "loading") {
+  if (status === "loading" || (status === "authenticated" && isLoading)) {
     return (
       <div className="min-h-screen bg-background pb-24 lg:pb-0">
         <NavBar />
@@ -300,6 +300,25 @@ export default function ChangelogPage() {
     );
   }
 
+  if (!isLoading && !canManageEntries) {
+    return (
+      <div className="min-h-screen bg-background pb-24 lg:pb-0">
+        <NavBar />
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <Card className="max-w-md">
+            <CardContent className="space-y-4 p-8 text-center">
+              <p className="text-muted-foreground">Projektstand und Feedback-Inbox sind nur für Admins erreichbar.</p>
+              <Link href="/"><Button>Zur Startseite</Button></Link>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:hidden">
+          <BottomTabBar activeTab="" onTabChange={navigateFromBottomTab} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-24 lg:pb-0">
       <NavBar />
@@ -312,7 +331,7 @@ export default function ChangelogPage() {
         >
           <h1 className="text-3xl font-bold tracking-tight">Feedback & Projektstand</h1>
           <p className="text-muted-foreground">
-            Hohe Flughöhe für Release-Stand, bekannte Themen und neue Anforderungen.
+            Release-Stand, offene Risiken und interne Anforderungen für die Portal-Administration.
           </p>
         </motion.div>
 
@@ -322,7 +341,7 @@ export default function ChangelogPage() {
               <CardTitle className="text-sm">Aktueller Stand</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              MVP im Live-Test mit rollenbasierter Teamansicht, Datenschutzgrenzen und Orga-Listen.
+              2026 läuft produktiv mit wettkampfspezifischen Rollen, Klassen, Ergebnissen und Startnummern. Der 2027-Entwurf ist kontrolliert vorbereitet.
             </CardContent>
           </Card>
           <Card>
@@ -330,7 +349,7 @@ export default function ChangelogPage() {
               <CardTitle className="text-sm">Nächste Kante</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              Zieleinlauf, Ergebniserfassung und Moderationsfluss sauber ausmodellieren.
+              2027 fachlich pflegen: Anmeldung für Portal-User öffnen, Termine und Fristen ergänzen und danach separat veröffentlichen.
             </CardContent>
           </Card>
           <Card>
@@ -338,7 +357,7 @@ export default function ChangelogPage() {
               <CardTitle className="text-sm">Requests</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              Alle angemeldeten Rollen dürfen Feedback und Anforderungen einstellen.
+              Admins erfassen und priorisieren interne Anforderungen direkt in der Request-Inbox.
             </CardContent>
           </Card>
         </section>
@@ -347,7 +366,7 @@ export default function ChangelogPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Request erfassen</CardTitle>
-              <CardDescription>Feedback, Fehler oder Anforderungen mit Rolle/Perspektive festhalten</CardDescription>
+              <CardDescription>Interne Fehler, Feedbacks und Anforderungen für die Administration festhalten</CardDescription>
             </CardHeader>
             <CardContent>
               {adminMessage && (

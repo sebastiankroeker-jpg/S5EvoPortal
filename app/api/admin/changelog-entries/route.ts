@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { resolveCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { requireAnyTenantRoles } from "@/lib/server-permissions";
 
@@ -36,20 +35,6 @@ async function getAdminUser(): Promise<{ id: string } | NextResponse> {
   }
 
   return auth.user;
-}
-
-async function getAuthenticatedUser(): Promise<{ id: string } | NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { user } = await resolveCurrentUser(session, { createIfMissing: true });
-  if (!user) {
-    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
-  }
-
-  return user;
 }
 
 function buildEntryDescription(input: {
@@ -125,7 +110,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getAuthenticatedUser();
+  const user = await getAdminUser();
   if (user instanceof NextResponse) {
     return user;
   }

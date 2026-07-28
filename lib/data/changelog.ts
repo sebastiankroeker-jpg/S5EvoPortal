@@ -6,6 +6,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "v0.8.0",
+    date: "2026-07-28",
+    items: [
+      "Wettkämpfe sind jetzt klar voneinander abgegrenzt: Sichtbarkeit, Anmeldung, operative Rollen und Klassen gelten je Wettbewerb",
+      "Der 2027-Entwurf kann kontrolliert für Portal-Nutzer vorbereitet werden, ohne anonym veröffentlicht zu sein",
+      "Klonen, Klassenpflege und die Navigation wurden für die jährliche Wettkampfvorbereitung aufgeräumt",
+      "Ergebnislisten berechnen kombinierte Klassen inklusive Gleichstandsregeln korrekt und zeigen Startnummern wieder öffentlich an",
+      "Startseite und Standard-Wettkampfauswahl folgen dem ausgewählten bzw. sichtbaren Wettbewerb; Projektstand ist Admin-only",
+    ],
+  },
+  {
     version: "v0.7.1",
     date: "2026-06-07",
     items: [

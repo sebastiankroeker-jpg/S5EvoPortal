@@ -51,7 +51,7 @@ export default function NavBar() {
   const activeTheme = THEMES.find((t) => t.id === theme) || THEMES[0];
   const realRole = roles.length > 0 ? roles[0] : "ZUSCHAUER";
   const simulatable = getSimulatableRoles(realRole as Role);
-  const showChangelogLink = activeRole === "ADMIN";
+  const showChangelogLink = roles.includes("ADMIN");
   const showMapLink = activeRole === "ADMIN";
   const [isCollapsed, setIsCollapsed] = useState(false);
   const showDesktopOffset = status === "authenticated";
