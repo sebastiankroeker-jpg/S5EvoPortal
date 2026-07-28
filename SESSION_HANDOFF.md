@@ -150,23 +150,29 @@ and decision record.
    smoke are green. No DB migration or data mutation. Authenticated two-tenant
    smoke remains a gap.
 
-7. **Competition clone / 5Kampf 2027 preparation** — Feature and source-scope
-   hotfix deployed; authenticated preview passed, medium risk.
+7. **Competition clone / 5Kampf 2027 preparation** — 2027 DRAFT created and
+   verified, medium risk.
    `docs/cr/2026-07-27-competition-clone-2027-prep.md`
    Admin-only, transactional clone of configuration, persisted disciplines and
    non-archived competition news into a reviewed draft;
    no team/person/result/contact/token/message/audit/counter/staging data is
    copied. Maps remain shared static configuration. Target dates, deadlines and
    registration notification mail are cleared. The feature has a dry-run and
-   a typed target-name confirmation, but no production clone has been
-   performed. Sebastian confirmed the class policy:
+   a typed target-name confirmation. Sebastian performed the reviewed UI clone
+   after the green preview. The target is a DRAFT with five disciplines, ten
+   persisted classes and one draft news entry; dates/deadlines/notification
+   address are cleared and its age reference is 2027. No team, participant,
+   result, token, message, role, timekeeping, result-staging, layout, consent
+   or counter data was copied. The single target audit event records the clone
+   action itself; it is not copied history. Sebastian confirmed the class policy:
    the selected competition year drives age totals and youth cohorts, while
    2026 remains reproducible. The 2027 matrix and the 2019 cohort boundary
    are covered locally and the feature is deployed in `d4c7218`. The first
    authenticated preview exposed a source-tenant resolution regression; its
    narrower competition-specific admin guard is deployed in the broader
-   tenant-context hardening release. The authenticated admin dry-run is green;
-   request a separate Go before creating any production 2027 competition.
+   tenant-context hardening release. The authenticated admin dry-run and the
+   aggregate production target audit are green. Review the DRAFT before any
+   publication or registration opening.
 
 8. **Wettkampfspezifische Klassenkonfiguration** — Feature and 2026 baseline
    backfill deployed, high risk.
@@ -221,3 +227,5 @@ and decision record.
 6. Record the manual navigation smoke for the four operational role views;
    this does not block normal portal use but should precede another
    navigation-information-architecture change.
+7. The 2027 competition exists as a DRAFT. Review dates, registration settings
+   and the copied news before a separate decision to publish/open it.

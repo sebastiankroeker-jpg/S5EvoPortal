@@ -1,6 +1,6 @@
 # CR: Competition clone and 5Kampf 2027 preparation
 
-Status: Feature deployed; source-scope hotfix deployed
+Status: 2027 draft created and verified
 Date: 2026-07-27
 Type: feature
 Risk: medium
@@ -227,6 +227,9 @@ Decision from Sebastian, 2026-07-27:
   dry-run before any production clone.
 - Feature release approved by: Sebastian, “Go”, 2026-07-28 12:12 UTC.
 - Still not approved: invoking the clone write action against production data.
+- Production clone execution: Sebastian invoked the reviewed UI action on
+  2026-07-28 UTC after the green authenticated preview. No agent-side write
+  was performed.
 
 ## Implementation Notes
 
@@ -310,7 +313,26 @@ Decision from Sebastian, 2026-07-27:
   hotfix to be deployed first. Actual clone creation remains behind its
   separate confirmation gate.
 
+## Production 2027 Draft Verification
+
+- Exactly one 2027 target exists and is `DRAFT`.
+- Copied configuration matches the 2026 source: five disciplines and ten
+  persisted class rules. One eligible source news entry was copied as a
+  `DRAFT`; no copied news is published.
+- Operational dates, registration deadline, shirt deadline and notification
+  address are cleared. The age reference is in 2027.
+- Excluded operational data is absent: zero teams (and therefore zero
+  participants/tokens), changes, dashboard layouts, conversations, timekeeping
+  sessions/events, result batches/raw/drafts/publications/resets, competition
+  role grants, consent records and visitor counters.
+- The target has one new `COMPETITION_CLONED` audit event created by the clone
+  action itself. No historical audit event was copied.
+- The verification used aggregate counts and non-sensitive configuration flags
+  only; no participant, account, contact or token values were read or logged.
+
 ## Follow-Ups
 
 - Add `CompetitionTemplate` if clone options grow too complex.
 - Add route/map DB-backed configuration per competition.
+- Review and publish the 2027 draft's dates, settings and copied news only
+  when the organizer is ready; keeping it DRAFT is intentional until then.
