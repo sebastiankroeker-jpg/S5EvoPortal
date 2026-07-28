@@ -22,12 +22,12 @@ and decision record.
 - Branch: `main`; production source commit `efe5302` is pushed to
   `origin/main`.
 - Functional baseline: `efe5302 Configure classifications per competition`.
-- No local high-risk feature work is pending release approval. The remaining
-  high-risk production-data decision is:
+- No local high-risk feature work is pending release approval. The completed
+  high-risk production-data action is:
   `docs/cr/2026-07-28-competition-classification-configuration.md` makes
   persisted, per-competition classes the rule source for registration,
-  changes, results, timekeeping and clone. Its schema/feature is deployed;
-  only the explicit 2026 class-data backfill remains unperformed.
+  changes, results, timekeeping and clone. Its schema/feature and the exact
+  reviewed 2026 baseline backfill are deployed.
 - Most recent delivered work:
   - sanitized GPX route tracks: `981ce3b`;
   - stock result/detail responsive work: `6113c39` and `889ea5f`;
@@ -55,9 +55,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_BnrF18c3TrPWfuTnXNa8dSqKntjD`
+  - ID: `dpl_9s5s3yYcSW349kjPSsMn8ZR3Uau6`
   - URL:
-    `https://s5-evo-portal-dvexidy9z-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-1sg7io8ll-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -167,15 +167,16 @@ and decision record.
    tenant-context hardening release. The authenticated admin dry-run is green;
    request a separate Go before creating any production 2027 competition.
 
-8. **Wettkampfspezifische Klassenkonfiguration** — Feature deployed,
-   production-data gate open.
+8. **Wettkampfspezifische Klassenkonfiguration** — Feature and 2026 baseline
+   backfill deployed, high risk.
    `docs/cr/2026-07-28-competition-classification-configuration.md`
-   The 2026 `Classification` table remains empty, which is why source preview
-   still reports zero persisted classes. The deployed feature retains the
-   exact non-persisted fallback until an explicitly approved 2026 backfill.
-   The 2024 CLOSED competition has ten existing historic class rows; they were
-   not modified. The production migration, public smoke and new-endpoint 401
-   check are green. Only the 2026 data backfill needs a separate Go.
+   The 2026 OPEN competition now has the exact ten reviewed persisted class
+   rows, so clone preview reports ten source classes. The 2024 CLOSED
+   competition's ten historic rows were not modified. The 2026 transaction
+   verified unchanged team, participant and result counts; public config
+   returns only non-sensitive rule metadata. Local classification regressions
+   and public smoke are green. Authenticated Admin/registration/timekeeping/
+   results smoke remains a manual gap before any custom class-rule change.
 
 ## Working method
 
@@ -202,9 +203,7 @@ and decision record.
 4. Retain the authenticated cross-competition smoke gap in the security
    release record; create controlled role test sessions before the next
    permission-sensitive release where feasible.
-5. For the deployed class-configuration CR, request a separate, explicit data
-   approval before writing the reviewed exact 2026 class rows. Verify an
-   authenticated admin flow plus registration, timekeeping and results before
-   considering custom class-rule changes.
-   Keep actual 2027 production target creation behind its own data-mutation
-   gate.
+5. For the deployed class-configuration CR, record an authenticated Admin,
+   registration, timekeeping and result smoke before any custom 2026 rule
+   change. Keep actual 2027 production target creation behind its own
+   data-mutation gate.

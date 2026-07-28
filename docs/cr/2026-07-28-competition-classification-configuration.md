@@ -1,6 +1,6 @@
 # CR: Wettkampfspezifische Klassenkonfiguration
 
-Status: Feature deployed; 2026 class-data backfill pending separate approval
+Status: Feature and reviewed 2026 baseline backfill deployed
 Date: 2026-07-28
 Type: schema + feature
 Risk: high
@@ -155,6 +155,9 @@ vor dem Anlegen des 2027-Entwurfs und vor dem Navigation-/IA-CR umgesetzt.
   produktionswirksame Klassenregeln.
 - Approved by: Sebastian, local implementation only
 - Approval timestamp: 2026-07-28 UTC
+- Production data-backfill gate: approved separately by Sebastian (`Go`) on
+  2026-07-28 UTC. Scope was limited to the reviewed, exact ten-row 2026
+  configuration; no team, participant, result or 2027-competition mutation.
 
 ## Implementation Notes
 
@@ -229,12 +232,37 @@ vor dem Anlegen des 2027-Entwurfs und vor dem Navigation-/IA-CR umgesetzt.
 - Production inventory, aggregate only: 2024 CLOSED has 10 historical class
   rows; 2026 OPEN has 0 rows. The migration did not create or modify either
   set.
-- Result: feature is live; no 2026 class data has been backfilled.
+- Result at functional deployment: feature was live; no 2026 class data had
+  yet been backfilled.
+
+## 2026 Baseline Backfill
+
+- Production-data gate: separately approved after the schema/feature release.
+- Target: exactly one OPEN competition for 2026, only when it had zero stored
+  class rows.
+- Write: the reviewed ten-row legacy-equivalent configuration was inserted in
+  a serializable transaction. The inserted ordered codes are `schueler-a`,
+  `schueler-b`, `jugend`, `damen-a`, `damen-b`, `jungsters`, `herren`,
+  `masters`, `damen-gesamt` and `herren-gesamt`.
+- Assertions: 2026 changed from 0 to exactly 10 class rows; the exact expected
+  code/order set was verified. Team, participant and discipline-result counts
+  for 2026 were unchanged before versus after the transaction.
+- Non-goals honoured: the historical 2024 rows were not touched; no 2027
+  competition, team, participant, result, token, message or audit data was
+  created or changed.
+- Production read check: `GET /api/competition` returns exactly the ten
+  non-sensitive class rules and no participant fields.
+- Local regression: `npm run verify:team-draft` and
+  `npm run verify:competition-classifications` passed after the backfill.
+- Authenticated role smoke gap: no controlled Admin/ZEITNAHME test session is
+  available. Sebastian should verify the Admin clone preview now reports 10
+  classes; an authenticated registration/timekeeping/result workflow remains
+  a manual check before any custom rule change.
 
 ## Follow-Ups
 
-- Separate explicit release gate: migration, complete commit/push,
-  Vercel production deploy and smoke.
-- Separate explicit production-data gate: write the reviewed exact 2026
-  class configuration and perform an authenticated registration, timekeeping
-  and result regression smoke before any custom 2026 rule change.
+- Perform the documented authenticated Admin, registration, timekeeping and
+  result smoke before any custom rule change to 2026.
+- The actual 2027 draft remains a separate, explicit production-data gate.
+- Start the separate Navigation / Information Architecture CR after the
+  manual clone-preview evidence is recorded.
