@@ -1,6 +1,6 @@
 # CR: Navigation und Informationsarchitektur
 
-Status: Local implementation complete; release approval pending
+Status: Deployed; authenticated role smoke pending
 Date: 2026-07-28
 Type: feature
 Risk: standard
@@ -110,8 +110,9 @@ Teilnehmer, Orga und Admin nicht mehr unmittelbar aufgabenorientiert.
 
 ## Release Gate
 
-- Required: explicit approval for complete commit/push to auto-deploying
-  `main`, Vercel production deploy and public/unauthenticated smoke.
+- Approved by Sebastian (`Go`) on 2026-07-28 UTC for complete commit/push to
+  auto-deploying `main`, Vercel production deploy and public/unauthenticated
+  smoke.
 - Manual smoke after deploy: verify task groups and link targets as
   ZUSCHAUER, TEAMCHEF, ZEITNAHME and ADMIN; verify a Friends account sees the
   Karte but no admin surfaces.
@@ -122,3 +123,19 @@ Teilnehmer, Orga und Admin nicht mehr unmittelbar aufgabenorientiert.
   the proposed Navigation-/IA-CR after the successful clone dry-run.
 - Commit/push/deploy: separate confirmation required because `main`
   auto-deploys to production.
+
+## Deployment and Smoke
+
+- Functional commit: `6999e6f feat: reorganize portal navigation`.
+- Production deploy: `dpl_32dBxsazMw6LcPj8vh3WHPXLUAFU` — READY.
+- Deployment URL:
+  `https://s5-evo-portal-q8900sric-sebastiankroeker-2781s-projects.vercel.app`.
+- Production alias: `https://portal.s5evo.de` confirmed on this deployment.
+- No migration and no production data change.
+- Public smoke passed for `/`, `/login`, `/anmeldung`, `/aenderungen`, public
+  competition/results APIs and the legacy-domain redirect.
+- Unauthenticated negative smoke: Teams and Admin Users return `401`; Karte
+  redirects unauthenticated users (`307`).
+- Remaining manual smoke: inspect the new task groups and route targets as
+  ZUSCHAUER, TEAMCHEF, ZEITNAHME and ADMIN. No controlled Friends session is
+  available; its Karte-without-admin-surface case remains a documented gap.

@@ -19,9 +19,9 @@ and decision record.
 
 ## Current repository state
 
-- Branch: `main`; production source commit `efe5302` is pushed to
+- Branch: `main`; production source commit `6999e6f` is pushed to
   `origin/main`.
-- Functional baseline: `efe5302 Configure classifications per competition`.
+- Functional baseline: `6999e6f Reorganize portal navigation`.
 - No local high-risk feature work is pending release approval. The completed
   high-risk production-data action is:
   `docs/cr/2026-07-28-competition-classification-configuration.md` makes
@@ -39,6 +39,7 @@ and decision record.
   - competition-scoped operational roles: `104e803`.
   - legacy operational-role compatibility removal: `40d9d7a`.
   - competition clone preparation flow: `d4c7218`.
+  - task-oriented navigation and shared menu source: `6999e6f`.
 - Workspace-specific files such as `AGENTS.md`, `HEARTBEAT.md`, `MEMORY.md`
   and `SOUL.md` are intentionally untracked and must not be committed to the
   portal repository.
@@ -55,9 +56,9 @@ and decision record.
 
 - Production alias: `https://portal.s5evo.de` (Vercel).
 - Current functional deployment:
-  - ID: `dpl_9s5s3yYcSW349kjPSsMn8ZR3Uau6`
+  - ID: `dpl_32dBxsazMw6LcPj8vh3WHPXLUAFU`
   - URL:
-    `https://s5-evo-portal-1sg7io8ll-sebastiankroeker-2781s-projects.vercel.app`
+    `https://s5-evo-portal-q8900sric-sebastiankroeker-2781s-projects.vercel.app`
   - State: `READY`
 - Production migrations applied:
   - `20260728043000_add_dynamic_role_permissions`
@@ -178,6 +179,16 @@ and decision record.
    and public smoke are green. Authenticated Admin/registration/timekeeping/
    results smoke remains a manual gap before any custom class-rule change.
 
+9. **Navigation und Informationsarchitektur** — Deployed, standard risk.
+   `docs/cr/2026-07-28-navigation-information-architecture.md`
+   Sidebar, Suche und mobile Command-Pill derive their allowed destinations
+   from one task-oriented source: Wettkampf, Arbeiten, Verwalten and Konto.
+   Old mobile placeholders are removed; Karte uses `portal.map.view` across
+   all menu surfaces. Commit `6999e6f`, deployment
+   `dpl_32dBxsazMw6LcPj8vh3WHPXLUAFU` is READY. Public and unauthenticated
+   smokes are green. Manual role navigation smoke (ZUSCHAUER, TEAMCHEF,
+   ZEITNAHME, ADMIN; Friends if available) remains pending.
+
 ## Working method
 
 - Each product change starts from a CR in `docs/cr/`; use
@@ -207,3 +218,6 @@ and decision record.
    registration, timekeeping and result smoke before any custom 2026 rule
    change. Keep actual 2027 production target creation behind its own
    data-mutation gate.
+6. Record the manual navigation smoke for the four operational role views;
+   this does not block normal portal use but should precede another
+   navigation-information-architecture change.
